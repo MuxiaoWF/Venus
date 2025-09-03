@@ -1,0 +1,60 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.muxiao.Venus'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.muxiao.Venus"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "0.0.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            // 添加调试优化选项
+            debuggable true
+            jniDebuggable true
+            renderscriptDebuggable true
+            pseudoLocalesEnabled true
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/NOTICE.txt', 'META-INF/LICENSE.txt', 'META-INF/DEPENDENCIES', 'META-INF/NOTICE', 'META-INF/LICENSE', 'META-INF/services/javax.imageio.spi.ImageInputStreamSpi', 'META-INF/services/javax.imageio.spi.ImageOutputStreamSpi', 'META-INF/services/javax.imageio.spi.ImageReaderSpi', 'META-INF/services/javax.imageio.spi.ImageWriterSpi']
+        }
+    }
+
+}
+
+dependencies {
+    implementation libs.google.flexbox
+    implementation libs.sensebot
+    implementation libs.okhttp
+    implementation libs.javase
+    implementation libs.material.v1140alpha04
+    implementation libs.appcompat
+    implementation libs.activity
+    implementation libs.constraintlayout
+    implementation libs.com.google.code.gson.gson3
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+}
