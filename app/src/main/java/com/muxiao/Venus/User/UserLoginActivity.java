@@ -1,6 +1,5 @@
 package com.muxiao.Venus.User;
 
-import static com.muxiao.Venus.common.fixed.K2;
 import static com.muxiao.Venus.common.fixed.getDS;
 
 import android.content.ClipData;
@@ -147,6 +146,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
     /**
      * 显示错误信息并提供复制
+     *
      * @param error_message 错误信息
      */
     private void show_error_dialog(String error_message) {
@@ -199,6 +199,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     login_status_text.append("二维码已生成，等待扫描...\n");
+                    login_status_text.append("请截图并使用米游社APP-我-左上角扫描二维码...\n");
                     // 显示二维码
                     if (qr_code_data != null) {
                         Bitmap qr_code_bitmap = BitmapFactory.decodeByteArray(qr_code_data, 0, qr_code_data.length);
@@ -220,6 +221,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
         /**
          * 更新登录状态显示
+         *
          * @param status 状态信息
          */
         private void update_login_status(String status) {
@@ -234,6 +236,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
         /**
          * 获取二维码图片，并返回二维码的数组
+         *
          * @return 二维码的byte[]
          */
         public byte[] get_qr_code_data(tools.StatusNotifier notifier, Context context) {
@@ -297,7 +300,7 @@ public class UserLoginActivity extends AppCompatActivity {
                         put("device", device);
                     }};
 
-                    String response = tools.sendPostRequest("https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/query", new HashMap<>(),body);
+                    String response = tools.sendPostRequest("https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/query", new HashMap<>(), body);
                     JsonObject result = new Gson().fromJson(response, JsonObject.class);
                     int retcode = result.get("retcode").getAsInt();
                     if (retcode != 0) {
@@ -309,14 +312,14 @@ public class UserLoginActivity extends AppCompatActivity {
                         case "Init":
                             // 只有状态变化时才通知
                             if (!"Init".equals(last_stat)) {
-                                notifier.notifyListeners("等待扫码"+times);
+                                notifier.notifyListeners("等待扫码" + times);
                                 last_stat = "Init";
                             }
                             break;
                         case "Scanned":
                             // 只有状态变化时才通知
                             if (!"Scanned".equals(last_stat)) {
-                                notifier.notifyListeners("等待确认"+times);
+                                notifier.notifyListeners("等待确认" + times);
                                 last_stat = "Scanned";
                             }
                             break;
@@ -373,14 +376,14 @@ public class UserLoginActivity extends AppCompatActivity {
                 JsonObject json = new JsonObject();
                 json.addProperty("account_id", Integer.parseInt(stuid));
                 json.addProperty("game_token", game_token);
-                Map<String,Object> body = new HashMap<>(){{
+                Map<String, Object> body = new HashMap<>() {{
                     put("account_id", Integer.parseInt(stuid));
                     put("game_token", game_token);
                 }};
-                String ds = tools.getDS2(json.toString(), com.muxiao.Venus.common.fixed.SALT_6X,"");
+                String ds = tools.getDS2(json.toString(), fixed_instance.SALT_6X, "");
                 Map<String, String> game_token_headers = fixed_instance.gameToken_headers;
                 game_token_headers.put("DS", ds);
-                String response = tools.sendPostRequest("https://api-takumi.mihoyo.com/account/ma-cn-session/app/getTokenByGameToken", game_token_headers,body);
+                String response = tools.sendPostRequest("https://api-takumi.mihoyo.com/account/ma-cn-session/app/getTokenByGameToken", game_token_headers, body);
                 JsonObject result = new Gson().fromJson(response, JsonObject.class);
                 if (result.get("retcode").getAsInt() != 0) {
                     throw new RuntimeException("扫码获取stoken失败-getTokenByGameToken(RETCODE = " + result.get("retcode").getAsInt() + "),返回信息为：" + response);
@@ -406,9 +409,9 @@ public class UserLoginActivity extends AppCompatActivity {
             }
         }
 
-        private void get_ltoken(){
+        private void get_ltoken() {
             try {
-                fixed_instance.bbs_headers.put("DS", getDS(K2));
+                fixed_instance.bbs_headers.put("DS", getDS(fixed_instance.K2));
                 Map<String, String> bbs_headers = fixed_instance.bbs_headers;
                 bbs_headers.put("Cookie", "stoken=" + tools.read(context, username, "stoken") + ";mid=" + tools.read(context, username, "mid"));
                 String response = tools.sendGetRequest("https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken", bbs_headers, new HashMap<>());

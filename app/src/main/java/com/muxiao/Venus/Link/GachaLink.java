@@ -1,6 +1,5 @@
 package com.muxiao.Venus.Link;
 
-import static com.muxiao.Venus.common.fixed.K2;
 import static com.muxiao.Venus.common.fixed.getDS;
 
 import android.content.Context;
@@ -63,7 +62,7 @@ public class GachaLink {
     private int[] getUID(String game_biz) {
         fixed.getFp();
         Map<String, String> user_game_roles_stoken_headers = new HashMap<>(fixed.user_game_roles_stoken_headers);
-        user_game_roles_stoken_headers.put("DS", getDS(K2));
+        user_game_roles_stoken_headers.put("DS", getDS(fixed.K2));
         user_game_roles_stoken_headers.put("Cookie", StokenAndMid);
         String content = tools.sendGetRequest("https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken", user_game_roles_stoken_headers, null);
         Gson gson = new Gson();
@@ -99,7 +98,8 @@ public class GachaLink {
      * 获取authkey
      */
     private String getAuthKey(String game_biz, int uid) {
-        Map<String, String> authkey_headers = new HashMap<>(com.muxiao.Venus.common.fixed.authkey_headers);
+        Map<String, String> authkey_headers = new HashMap<>(fixed.authkey_headers);
+        authkey_headers.put("DS", getDS(fixed.LK2));
         authkey_headers.put("Cookie", StokenAndMid);
         Map<String, Object> body = new HashMap<>();
         // 准备请求体

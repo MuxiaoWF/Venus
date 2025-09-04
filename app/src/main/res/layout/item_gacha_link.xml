@@ -12,22 +12,21 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/uidTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="UID: 123456789"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:textAppearance="?attr/textAppearanceHeadline6"/>
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/linkTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="12dp"
             android:text="https://example.com/gacha_link"
-            android:textSize="12sp"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
             android:maxLines="3"
             android:ellipsize="end" />
 

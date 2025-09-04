@@ -1,7 +1,5 @@
 package com.muxiao.Venus.Home;
 
-import static com.muxiao.Venus.common.fixed.K2;
-import static com.muxiao.Venus.common.fixed.SALT_6X;
 import static com.muxiao.Venus.common.fixed.bbs_list;
 import static com.muxiao.Venus.common.fixed.getDS;
 import static com.muxiao.Venus.common.tools.sendGetRequest;
@@ -87,7 +85,7 @@ public class Daily {
                 }
             }
         }
-        fixed.bbs_headers.put("DS", getDS(K2));
+        fixed.bbs_headers.put("DS", getDS(fixed.K2));
         fixed.bbs_headers.put("cookie", "stoken=" + stoken + "; mid=" + mid + "; stuid=" + stuid + ";");
         getTasksList();
         this.postsList = getList();
@@ -99,7 +97,7 @@ public class Daily {
     private void getTasksList() {
         notifier.notifyListeners("正在获取任务列表");
         Map<String, String> bbs_headers = new HashMap<>(fixed.bbs_headers);
-        bbs_headers.put("DS", getDS(K2));
+        bbs_headers.put("DS", getDS(fixed.K2));
         String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/apihub/sapi/getUserMissionsState", bbs_headers, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
@@ -164,7 +162,7 @@ public class Daily {
         List<List<String>> tempList = new ArrayList<>();
         notifier.notifyListeners("正在获取帖子列表......");
         Map<String, String> bbs_headers = new HashMap<>(fixed.bbs_headers);
-        bbs_headers.put("DS", getDS(K2));
+        bbs_headers.put("DS", getDS(fixed.K2));
         String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/post/api/getForumPostList", bbs_headers,
                 Map.of("forum_id", Objects.requireNonNull(this_bbsList.get(0).get("forumId")), "is_good", "false", "is_hot", "false", "page_size", "20", "sort_type", "1"));
         JsonObject jsonObject = JsonParser.parseString(response).getAsJsonObject();
@@ -220,7 +218,7 @@ public class Daily {
                 postDataMap.put("gids", Integer.parseInt(Objects.requireNonNull(forum.get("id"))));
                 // 生成 DS 签名
                 String postDataJson = new Gson().toJson(postDataMap);
-                header.put("DS", tools.getDS2(postDataJson, SALT_6X, ""));
+                header.put("DS", tools.getDS2(postDataJson, fixed.SALT_6X, ""));
                 String response = sendPostRequest("https://bbs-api.miyoushe.com/apihub/app/api/signIn", header, postDataMap);
                 JsonObject data = JsonParser.parseString(response).getAsJsonObject();
                 if (data.get("retcode").getAsInt() == 1034) {
@@ -273,7 +271,7 @@ public class Daily {
                 Map<String, String> postDataMap = new HashMap<>();
                 postDataMap.put("post_id", post.get(0));
                 postDataMap.put("gid", this_bbsList.get(0).get("id"));
-                bbs_headers.put("DS", getDS(K2));
+                bbs_headers.put("DS", getDS(fixed.K2));
                 String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/post/api/getPostFull", bbs_headers, postDataMap);
                 JsonObject data = JsonParser.parseString(response).getAsJsonObject();
                 if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
@@ -330,7 +328,7 @@ public class Daily {
                 Map<String, Object> postDataMap = new HashMap<>();
                 postDataMap.put("post_id", post.get(0));
                 postDataMap.put("is_cancel", false);
-                bbs_headers.put("DS", getDS(K2));
+                bbs_headers.put("DS", getDS(fixed.K2));
                 String response = sendPostRequest("https://bbs-api.miyoushe.com/apihub/sapi/upvotePost", header, postDataMap);
                 JsonObject data = JsonParser.parseString(response).getAsJsonObject();
                 if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
@@ -339,7 +337,7 @@ public class Daily {
 
                     // 取消点赞
                     postDataMap.put("is_cancel", true);
-                    bbs_headers.put("DS", getDS(K2));
+                    bbs_headers.put("DS", getDS(fixed.K2));
                     String cancelResponse = sendPostRequest("https://bbs-api.miyoushe.com/apihub/sapi/upvotePost", header, postDataMap);
                     JsonObject cancelData = JsonParser.parseString(cancelResponse).getAsJsonObject();
                     if (!cancelData.get("message").getAsString().contains("err") && cancelData.get("retcode").getAsInt() == 0) {
@@ -393,7 +391,7 @@ public class Daily {
             Map<String, String> postDataMap = new HashMap<>();
             postDataMap.put("entity_id", post.get(0));
             postDataMap.put("entity_type", "1");
-            header.put("DS", getDS(K2));
+            header.put("DS", getDS(fixed.K2));
             String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/apihub/api/getShareConf", header, postDataMap);
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {

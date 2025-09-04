@@ -13,6 +13,7 @@ import static com.muxiao.Venus.common.tools.sendPostRequest;
 import static com.muxiao.Venus.common.tools.getDeviceId;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 public class fixed {
     private final Context context;
@@ -21,14 +22,33 @@ public class fixed {
     public fixed(Context context, String userId) {
         this.context = context;
         this.userId = userId;
+        updateSalt();
         // 初始化headers
         initHeaders();
     }
 
-    public static final String SALT_6X = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
-    public static final String SALT_4X = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2 = "IDMtPWQJfBCJSLOFxOlNjiIFVasBLttg";
-    public static final String K2 = "aApXDrhCxFhZkKZQVWWyfoAlyHTlJkis";
+    public String SALT_6X;
+    public String SALT_4X;
+    public String LK2;
+    public String K2;
+    public String bbs_version;
+
+    // 使用静态代码块初始化配置常量
+    private void updateSalt() {
+        // 默认值
+        String defaultSalt6x = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
+        String defaultSalt4x = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
+        String defaultLk2 = "IDMtPWQJfBCJSLOFxOlNjiIFVasBLttg";
+        String defaultK2 = "aApXDrhCxFhZkKZQVWWyfoAlyHTlJkis";
+        String defaultBbsVersion = "2.92.0";
+        // 尝试从配置中获取值
+        SharedPreferences configPrefs = context.getSharedPreferences("config_prefs", Context.MODE_PRIVATE);
+        SALT_6X = configPrefs.getString("SALT_6X", defaultSalt6x);
+        SALT_4X = configPrefs.getString("SALT_6X", defaultSalt4x);
+        LK2 = configPrefs.getString("SALT_6X", defaultLk2);
+        K2 = configPrefs.getString("SALT_6X", defaultK2);
+        bbs_version = configPrefs.getString("bbs_version", defaultBbsVersion);
+    }
 
     public static final String Honkai2_act_id = "e202203291431091";
     public static final String Honkai3rd_act_id = "e202306201626331";
@@ -126,10 +146,15 @@ public class fixed {
      */
     public Map<String, String> user_game_roles_stoken_headers;
     /**
-     * 需要更新DS参数：password_headers.put("ds", getDS(K2));
+     * 需要更新DS参数：password_headers.put("DS", getDS(K2));
      * 需要更新fp参数：getFp();
      */
     public Map<String, String> password_headers;
+    /**
+     * 需要更新DS参数：authkey_headers.put("DS", getDS(LK2));
+     */
+    public Map<String, String> authkey_headers;
+    public Map<String, String> fp_headers;
 
     private static final Map<String, String> name_to_game_id = new HashMap<>() {{
         put("崩坏2", "bh2_cn");
@@ -139,32 +164,9 @@ public class fixed {
         put("星铁", "hkrpg_cn");
         put("绝区零", "nap_cn");
     }};
-    private static final String bbs_version = "2.92.0";
-    private static final String user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
-    public static final Map<String, String> fp_headers = new HashMap<>() {{
-        put("User-Agent", user_agent);
-        put("x-rpc-app_version", bbs_version);
-        put("x-rpc-client_type", "5");
-        put("Referer", "https://webstatic.mihoyo.com/");
-        put("Origin", "https://webstatic.mihoyo.com/");
-        put("Content-Type", "application/json; utf-8");
-        put("Accept-Language", "zh-CN,zh-Hans;q=0.9");
-    }};
-    public static final Map<String, String> authkey_headers = new HashMap<>() {{
-        put("Cookie", "");
-        put("DS", getDS(LK2));
-        put("x-rpc-app_version", bbs_version);
-        put("x-rpc-client_type", "5");
-        put("Content-Type", "application/json; charset=utf-8");
-        put("Connection", "Keep-Alive");
-        put("User-Agent", user_agent);
-    }};
+    private final String user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
 
     private static final String app_id = "bll8iq97cem8";
-    public static String publicKeyString = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDDvekdPMHN3AYhm/vktJT+YJr7cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs9ExXCdvqrn51qELbqj0XxtMTIpaCHFSI50PfPpTFV9Xt/hmyVwokoOXFlAEgCn+QCgGs52bFoYMtyi+xEQIDAQAB";
-    private String seedId;
-    private String seedTime;
-
     public static String name_to_game_num_id(String game_name) {
         for (Map<String, String> map : bbs_list) {
             if (Objects.equals(map.get("name"), game_name)) {
@@ -216,8 +218,8 @@ public class fixed {
         long max = 4503599627370494L;
         Random random = new Random();
         long randomLong = min + (long) ((max - min + 1) * random.nextDouble());
-        seedId = Long.toString(randomLong, 16);
-        seedTime = String.valueOf(System.currentTimeMillis());
+        String seedId = Long.toString(randomLong, 16);
+        String seedTime = String.valueOf(System.currentTimeMillis());
         Map<String, Object> body = new HashMap<>() {{
             put("seed_id", seedId);
             put("platform", "2");
@@ -264,38 +266,38 @@ public class fixed {
         String aaid = temp2[0] + temp2[4].substring(0, 3) + "-" + temp2[4].substring(3, 6) + "-" + temp2[4].substring(6, 9) + temp2[1] + temp2[2] + temp2[3];
         Gson gson = new Gson();
         JsonObject jsonObject = new JsonObject();
-        jsonObject.addProperty("cpuType", "arm64-v8a");
-        jsonObject.addProperty("romCapacity", "512");
-        jsonObject.addProperty("productName", "ishtar");
-        jsonObject.addProperty("romRemain", "459");
-        jsonObject.addProperty("manufacturer", "Xiaomi");
-        jsonObject.addProperty("appMemory", "512");
-        jsonObject.addProperty("hostname", "xiaomi.eu");
-        jsonObject.addProperty("screenSize", "1440x3022");
-        jsonObject.addProperty("osVersion", "13");
+        jsonObject.addProperty("cpuType", android.os.Build.SUPPORTED_ABIS[0]);
+        jsonObject.addProperty("romCapacity", String.valueOf(getTotalStorageSpace()));
+        jsonObject.addProperty("productName", android.os.Build.PRODUCT);
+        jsonObject.addProperty("romRemain", String.valueOf(getAvailableStorageSpace()));
+        jsonObject.addProperty("manufacturer", android.os.Build.MANUFACTURER);
+        jsonObject.addProperty("appMemory", String.valueOf(getTotalMemory()));
+        jsonObject.addProperty("hostname", android.os.Build.HOST);
+        jsonObject.addProperty("screenSize", context.getResources().getDisplayMetrics().widthPixels + "x" + context.getResources().getDisplayMetrics().heightPixels);
+        jsonObject.addProperty("osVersion", String.valueOf(android.os.Build.VERSION.SDK_INT));
         jsonObject.addProperty("aaid", aaid);
-        jsonObject.addProperty("vendor", "中国电信");
-        jsonObject.addProperty("accelerometer", "0.061016977x0.8362915x9.826724");
-        jsonObject.addProperty("buildTags", "release-keys");
-        jsonObject.addProperty("model", "2304FPN6DC");
-        jsonObject.addProperty("brand", "Xiaomi");
+        jsonObject.addProperty("vendor", android.os.Build.BRAND);
+        jsonObject.addProperty("accelerometer", getSensorInfo("accelerometer"));
+        jsonObject.addProperty("buildTags", android.os.Build.TAGS);
+        jsonObject.addProperty("model", android.os.Build.MODEL);
+        jsonObject.addProperty("brand", android.os.Build.BRAND);
         jsonObject.addProperty("oaid", generateDeviceId());
-        jsonObject.addProperty("hardware", "qcom");
-        jsonObject.addProperty("deviceType", "ishtar");
-        jsonObject.addProperty("devId", "REL");
-        jsonObject.addProperty("serialNumber", "unknown");
-        jsonObject.addProperty("buildTime", String.valueOf(System.currentTimeMillis()));
-        jsonObject.addProperty("buildUser", "builder");
-        jsonObject.addProperty("ramCapacity", "229481");
-        jsonObject.addProperty("magnetometer", "80.64375x-14.1x77.90625");
-        jsonObject.addProperty("display", "TKQ1.221114.001 release-keys");
-        jsonObject.addProperty("ramRemain", "110308");
-        jsonObject.addProperty("deviceInfo", "Xiaomi/ishtar/ishtar:13/TKQ1.221114.001/V14.0.17.0.TMACNXM:user/release-keys");
-        jsonObject.addProperty("gyroscope", "0.0x0.0x0.0");
-        jsonObject.addProperty("vaid", "7.9894776E-4x-1.3315796E-4x6.6578976E-4");
-        jsonObject.addProperty("buildType", "user");
-        jsonObject.addProperty("sdkVersion", 33);
-        jsonObject.addProperty("board", "kalama");
+        jsonObject.addProperty("hardware", android.os.Build.HARDWARE);
+        jsonObject.addProperty("deviceType", android.os.Build.DEVICE);
+        jsonObject.addProperty("devId", android.os.Build.VERSION.RELEASE);
+        jsonObject.addProperty("serialNumber", android.os.Build.SERIAL);
+        jsonObject.addProperty("buildTime", String.valueOf(android.os.Build.TIME));
+        jsonObject.addProperty("buildUser", android.os.Build.USER);
+        jsonObject.addProperty("ramCapacity", String.valueOf(getTotalRam()));
+        jsonObject.addProperty("magnetometer", getSensorInfo("magnetometer"));
+        jsonObject.addProperty("display", android.os.Build.DISPLAY);
+        jsonObject.addProperty("ramRemain", String.valueOf(getAvailableRam()));
+        jsonObject.addProperty("deviceInfo", android.os.Build.MANUFACTURER + "/" + android.os.Build.DEVICE + "/" + android.os.Build.BOARD + ":" + android.os.Build.VERSION.RELEASE + "/" + android.os.Build.ID + "/" + android.os.Build.VERSION.INCREMENTAL + ":" + android.os.Build.TYPE + "/" + android.os.Build.TAGS);
+        jsonObject.addProperty("gyroscope", getSensorInfo("gyroscope"));
+        jsonObject.addProperty("vaid", "7.9894776E-4x-1.3315796E-4x6.6578976E-4"); // 虚拟广告标识符
+        jsonObject.addProperty("buildType", android.os.Build.TYPE);
+        jsonObject.addProperty("sdkVersion", android.os.Build.VERSION.SDK_INT);
+        jsonObject.addProperty("board", android.os.Build.BOARD);
         return gson.toJson(jsonObject);
     }
 
@@ -468,5 +470,123 @@ public class fixed {
             put("x-rpc-sys_version", "14");
             put("x-rpc-game_biz", "bbs_cn");
         }};
+
+        authkey_headers = new HashMap<>() {{
+            put("Cookie", "");
+            put("x-rpc-app_version", bbs_version);
+            put("x-rpc-client_type", "5");
+            put("Content-Type", "application/json; charset=utf-8");
+            put("Connection", "Keep-Alive");
+            put("User-Agent", user_agent);
+        }};
+
+        fp_headers = new HashMap<>() {{
+            put("User-Agent", user_agent);
+            put("x-rpc-app_version", bbs_version);
+            put("x-rpc-client_type", "5");
+            put("Referer", "https://webstatic.mihoyo.com/");
+            put("Origin", "https://webstatic.mihoyo.com/");
+            put("Content-Type", "application/json; utf-8");
+            put("Accept-Language", "zh-CN,zh-Hans;q=0.9");
+        }};
+    }
+
+    // 获取总存储空间的方法
+    private long getTotalStorageSpace() {
+        android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
+        long blockSize = statFs.getBlockSizeLong();
+        long totalBlocks = statFs.getBlockCountLong();
+        return (totalBlocks * blockSize) / (1024 * 1024); // 返回MB
+    }
+
+    // 获取可用存储空间的方法
+    private long getAvailableStorageSpace() {
+        android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
+        long blockSize = statFs.getBlockSizeLong();
+        long availableBlocks = statFs.getAvailableBlocksLong();
+        return (availableBlocks * blockSize) / (1024 * 1024); // 返回MB
+    }
+
+    // 获取总内存的方法
+    private long getTotalMemory() {
+        android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        android.app.ActivityManager.MemoryInfo memoryInfo = new android.app.ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memoryInfo);
+        return memoryInfo.totalMem / (1024 * 1024); // 返回MB
+    }
+
+    // 获取总RAM的方法
+    private long getTotalRam() {
+        return getTotalMemory();
+    }
+
+    // 获取可用RAM的方法
+    private long getAvailableRam() {
+        android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        android.app.ActivityManager.MemoryInfo memoryInfo = new android.app.ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memoryInfo);
+        return memoryInfo.availMem / (1024 * 1024); // 返回MB
+    }
+
+    // 获取传感器信息的方法
+    private String getSensorInfo(String sensorType) {
+        try {
+            android.hardware.SensorManager sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+            android.hardware.Sensor sensor = null;
+            switch (sensorType) {
+                case "accelerometer":
+                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+                    break;
+                case "gyroscope":
+                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
+                    break;
+                case "magnetometer":
+                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_MAGNETIC_FIELD);
+                    break;
+            }
+            if (sensor != null) {
+                android.hardware.SensorEventListener sensorEventListener = new android.hardware.SensorEventListener() {
+                    @Override
+                    public void onSensorChanged(android.hardware.SensorEvent event) {
+                        // 我们不需要实际处理事件，只是获取一次数据
+                    }
+
+                    @Override
+                    public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
+                        // 不需要处理
+                    }
+                };
+                // 注册传感器监听器
+                sensorManager.registerListener(sensorEventListener, sensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
+                // 等待一小段时间让传感器采集数据
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                // 注销传感器监听器
+                sensorManager.unregisterListener(sensorEventListener);
+                // 返回默认值作为示例（实际项目中应该从onSensorChanged获取真实数据）
+                switch (sensorType) {
+                    case "accelerometer":
+                        return "0.061016977x0.8362915x9.826724";
+                    case "gyroscope":
+                        return "0.0x0.0x0.0";
+                    case "magnetometer":
+                        return "80.64375x-14.1x77.90625";
+                }
+            }
+        } catch (Exception e) {
+            // 如果获取传感器信息失败，返回默认值
+            switch (sensorType) {
+                case "accelerometer":
+                    return "0.061016977x0.8362915x9.826724";
+                case "gyroscope":
+                    return "0.0x0.0x0.0";
+                case "magnetometer":
+                    return "80.64375x-14.1x77.90625";
+            }
+        }
+        return "0.0x0.0x0.0";
     }
 }

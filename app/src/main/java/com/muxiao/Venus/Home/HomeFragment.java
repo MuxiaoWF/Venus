@@ -51,6 +51,9 @@ public class HomeFragment extends Fragment {
     public GT3GeetestButton geetestButton;
     public GT3GeetestUtils gt3GeetestUtils;
 
+    private View contentLayout;
+    private boolean isExpanded = true;
+
     // 定义一个接口
     public interface GT3ButtonController {
         void init(GT3ConfigBean gt3ConfigBean);
@@ -108,6 +111,10 @@ public class HomeFragment extends Fragment {
         daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
         geetestButton = view.findViewById(R.id.btn_geetest);
 
+        // 初始化折叠功能相关视图
+        MaterialButton toggleButton = view.findViewById(R.id.toggle_button);
+        contentLayout = view.findViewById(R.id.content_layout);
+
         userManager = new UserManager(requireContext());
         executorService = Executors.newFixedThreadPool(3);
 
@@ -120,12 +127,18 @@ public class HomeFragment extends Fragment {
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
-            status_text.setText(new StringBuilder("已选择用户: " + selectedUser));
+            status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n"));
         });
 
         tools.StatusNotifier notifier = new tools.StatusNotifier();
-        notifier.addListener(status -> requireActivity().runOnUiThread(() -> update_daily_status(status)));
+        notifier.addListener(status -> requireActivity().runOnUiThread(() -> {
+            status_text.append(status + "\n");
+            // 滚动到底部
+            daily_scroll_view.post(() -> daily_scroll_view.fullScroll(View.FOCUS_DOWN));
+        }));
         start_daily_btn.setOnClickListener(v -> executorService.execute(() -> {
+            isExpanded = false;
+            requireActivity().runOnUiThread(() -> contentLayout.setVisibility(View.GONE));
             try {
                 Map<String, Object> settings = get_settings();
                 if (!Objects.equals(settings.get("daily_switch"), true) || !Objects.equals(settings.get("game_daily_switch"), true)) {
@@ -153,6 +166,15 @@ public class HomeFragment extends Fragment {
                 requireActivity().runOnUiThread(() -> show_error_dialog(error_message));
             }
         }));
+
+        // 设置折叠按钮点击事件
+        toggleButton.setOnClickListener(v -> {
+            isExpanded = !isExpanded;
+            if (isExpanded)
+                contentLayout.setVisibility(View.VISIBLE);
+            else
+                contentLayout.setVisibility(View.GONE);
+        });
 
         return view;
     }
@@ -229,19 +251,8 @@ public class HomeFragment extends Fragment {
         String currentUser = userManager.getCurrentUser();
         if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
             user_dropdown.setText(currentUser, false);
-            status_text.setText(new StringBuilder("已选择用户: " + currentUser));
+            status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n"));
         }
-    }
-
-    /**
-     * 更新登录状态显示
-     *
-     * @param status 状态信息
-     */
-    private void update_daily_status(String status) {
-        status_text.append(status + "\n");
-        // 滚动到底部
-        daily_scroll_view.post(() -> daily_scroll_view.fullScroll(View.FOCUS_DOWN));
     }
 
     /**
@@ -343,6 +354,5 @@ public class HomeFragment extends Fragment {
         }
         statusNotifier.notifyListeners("游戏签到完成");
     }
-
 
 }

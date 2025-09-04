@@ -11,7 +11,7 @@
         android:id="@+id/title_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:text="用户管理"
         android:textAppearance="?attr/textAppearanceHeadlineSmall"
         android:textColor="?attr/colorOnSurface"
@@ -22,7 +22,7 @@
         android:id="@+id/user_login_btn"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="12dp"
         android:text="添加/登录用户"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -60,9 +60,8 @@
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="16dp"
                 android:text="用户列表"
-                android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textStyle="bold"/>
 
             <LinearLayout
                 android:id="@+id/user_list_container"

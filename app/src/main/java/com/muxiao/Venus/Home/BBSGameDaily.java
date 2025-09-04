@@ -4,7 +4,6 @@ import static com.muxiao.Venus.common.fixed.Genshin_act_id;
 import static com.muxiao.Venus.common.fixed.Honkai2_act_id;
 import static com.muxiao.Venus.common.fixed.Honkai3rd_act_id;
 import static com.muxiao.Venus.common.fixed.HonkaiStarRail_act_id;
-import static com.muxiao.Venus.common.fixed.LK2;
 import static com.muxiao.Venus.common.fixed.TearsOfThemis_act_id;
 import static com.muxiao.Venus.common.fixed.ZZZ_act_id;
 import static com.muxiao.Venus.common.fixed.game_id_to_name;
@@ -36,7 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 
-public class BBSGameDaily{
+public class BBSGameDaily {
     private final tools.StatusNotifier statusNotifier;
     protected final Map<String, String> game_login_headers_this;
     private final String game_name;
@@ -67,7 +66,7 @@ public class BBSGameDaily{
         this.statusNotifier = statusNotifier;
         this.gt3Controller = gt3Controller;
         this.game_login_headers_this = new HashMap<>(fixed.game_login_headers);
-        game_login_headers_this.put("DS", getDS(LK2));
+        game_login_headers_this.put("DS", getDS(fixed.LK2));
         this.act_id = act_id;
         this.player_name = player_name;
         this.game_id = game_id;
@@ -133,7 +132,7 @@ public class BBSGameDaily{
         if (update) {
             String new_Cookie = updateCookieToken();
             if (new_Cookie == null)
-                throw new RuntimeException("CookieToken刷新失败");
+                throw new RuntimeException("CookieToken刷新失败，可以重新运行一下每日签到（再次点击运行按钮）");
             headers.put("Cookie", "cookie_token=" + new_Cookie + ";ltoken=" + tools.read(context, userId, "ltoken") + ";ltuid=" + tools.read(context, userId, "stuid") + ";account_id=" + tools.read(context, userId, "stuid"));
         }
         statusNotifier.notifyListeners("正在获取米哈游账号绑定的" + game_name + "账号列表...");
@@ -165,7 +164,7 @@ public class BBSGameDaily{
      * 给不同游戏初始化对象方法
      */
     public void init() {
-        game_login_headers_this.put("DS", getDS(LK2));
+        game_login_headers_this.put("DS", getDS(fixed.LK2));
         game_login_headers_this.put("Cookie", "cookie_token=" + tools.read(context, userId, "cookie_token") + ";ltoken=" + tools.read(context, userId, "ltoken") + ";ltuid=" + tools.read(context, userId, "stuid") + ";account_id=" + tools.read(context, userId, "stuid"));
         this.account_list = getAccountList(game_id, game_login_headers_this, false, statusNotifier);
         if (!account_list.isEmpty()) {
@@ -182,7 +181,7 @@ public class BBSGameDaily{
         statusNotifier.notifyListeners("正在获取签到奖励列表...");
         int max_retry = 3;
         for (int i = 0; i < max_retry; i++) {
-            game_login_headers_this.put("DS", getDS(LK2));
+            game_login_headers_this.put("DS", getDS(fixed.LK2));
             String response = sendGetRequest(rewards_api, game_login_headers_this, Map.of("lang", "zh-cn", "act_id", act_id));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (data.get("retcode").getAsInt() == 0) {
@@ -222,7 +221,7 @@ public class BBSGameDaily{
         if (data.get("retcode").getAsInt() != 0) {
             if (!update) {
                 String new_cookie = updateCookieToken();
-                game_login_headers_this.put("DS", getDS(LK2));
+                game_login_headers_this.put("DS", getDS(fixed.LK2));
                 game_login_headers_this.put("Referer", "https://act.mihoyo.com/");
                 game_login_headers_this.put("Cookie", "cookie_token=" + new_cookie + ";ltoken=" + tools.read(context, userId, "ltoken") + ";ltuid=" + tools.read(context, userId, "stuid") + ";account_id=" + tools.read(context, userId, "stuid"));
                 return isSign(region, uid, true);
@@ -402,8 +401,7 @@ public class BBSGameDaily{
             }
 
             @Override
-            public void onReceiveCaptchaCode(int i) {
-            }
+            public void onReceiveCaptchaCode(int i) {}
 
             @Override
             public void onDialogResult(String result) {
@@ -428,17 +426,17 @@ public class BBSGameDaily{
                             String checkResponse = sendPostRequest("https://bbs-api.miyoushe.com/misc/api/verifyVerification", headers, body);
                             JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
                             if (check.get("retcode").getAsInt() == 0 && check.getAsJsonObject("data").get("challenge").getAsString() != null) {
-                   // 验证成功后，继续执行签到逻辑
-                        statusNotifier.notifyListeners("人机验证成功，继续执行签到...");
-                        // 存储验证信息，以便在签到时使用
-                        headers.put("x-rpc-challenge", check.getAsJsonObject("data").get("challenge").getAsString());
-                        headers.put("x-rpc-validate", geetest_validate);
-                        headers.put("x-rpc-seccode", geetest_validate + "|jordan");
-                        // 通知等待的线程继续执行
-                        synchronized (BBSGameDaily.this) {
-                            BBSGameDaily.this.notify();
-                        }
-                      }
+                                // 验证成功后，继续执行签到逻辑
+                                statusNotifier.notifyListeners("人机验证成功，继续执行签到...");
+                                // 存储验证信息，以便在签到时使用
+                                headers.put("x-rpc-challenge", check.getAsJsonObject("data").get("challenge").getAsString());
+                                headers.put("x-rpc-validate", geetest_validate);
+                                headers.put("x-rpc-seccode", geetest_validate + "|jordan");
+                                // 通知等待的线程继续执行
+                                synchronized (BBSGameDaily.this) {
+                                    BBSGameDaily.this.notify();
+                                }
+                            }
                         } catch (Exception e) {
                             Log.e("gt3", "网络请求错误: " + e.getMessage());
                             // 通知等待的线程继续执行（即使验证失败也要继续）
@@ -456,22 +454,16 @@ public class BBSGameDaily{
             }
 
             @Override
-            public void onStatistics(String s) {
-
-            }
+            public void onStatistics(String s) {}
 
             @Override
-            public void onClosed(int i) {
-
-            }
+            public void onClosed(int i) {}
 
             @Override
-            public void onSuccess(String result) {
-            }
+            public void onSuccess(String result) {}
 
             @Override
-            public void onFailed(GT3ErrorBean errorBean) {
-            }
+            public void onFailed(GT3ErrorBean errorBean) {}
         });
         gt3Controller.init(gt3ConfigBean);
     }
