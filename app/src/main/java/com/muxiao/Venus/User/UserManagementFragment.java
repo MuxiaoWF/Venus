@@ -1,5 +1,7 @@
 package com.muxiao.Venus.User;
 
+import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
@@ -12,7 +14,6 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.android.material.snackbar.Snackbar;
 import com.muxiao.Venus.R;
 
 import java.util.List;
@@ -66,7 +67,7 @@ public class UserManagementFragment extends Fragment {
             // 为每个用户inflate一个新的视图
             View userItemView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.user_item, userListContainer, false);
-            
+
             MaterialButton userNameButton = userItemView.findViewById(R.id.user_name_button);
             MaterialButton renameButton = userItemView.findViewById(R.id.rename_user_button);
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
@@ -74,7 +75,7 @@ public class UserManagementFragment extends Fragment {
             userNameButton.setText(username);
             userNameButton.setOnClickListener(v -> {
                 userManager.setCurrentUser(username);
-                Snackbar.make(requireView(), "已切换到用户: " + username, Snackbar.LENGTH_SHORT).show();
+                showCustomSnackbar(requireView(), requireParentFragment(), "已切换到用户: " + username);
             });
 
             renameButton.setOnClickListener(v -> showRenameUserDialog(username));
@@ -98,7 +99,7 @@ public class UserManagementFragment extends Fragment {
             String newUsername = Objects.requireNonNull(input.getText()).toString().trim();
             if (!newUsername.isEmpty() && !newUsername.equals(oldUsername)) {
                 if (userManager.isUserExists(newUsername)) {
-                    Snackbar.make(requireView(), "用户名已存在", Snackbar.LENGTH_SHORT).show();
+                    showCustomSnackbar(requireView(), this, "用户名已存在");
                 } else {
                     renameUser(oldUsername, newUsername);
                 }
@@ -117,7 +118,7 @@ public class UserManagementFragment extends Fragment {
         }
         userManager.removeUser(oldUsername);
         refreshUserList();
-        Snackbar.make(requireView(), "用户已重命名为: " + newUsername, Snackbar.LENGTH_SHORT).show();
+        showCustomSnackbar(requireView(), this, "用户已重命名为: " + newUsername);
     }
 
     private void showDeleteUserDialog(String username) {
@@ -128,7 +129,7 @@ public class UserManagementFragment extends Fragment {
         builder.setPositiveButton("删除", (dialog, which) -> {
             userManager.removeUser(username);
             refreshUserList();
-            Snackbar.make(requireView(), "用户已删除: " + username, Snackbar.LENGTH_SHORT).show();
+            showCustomSnackbar(requireView(), this, "用户已删除: " + username);
         });
         builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
 

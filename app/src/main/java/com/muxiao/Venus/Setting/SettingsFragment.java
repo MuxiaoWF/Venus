@@ -1,5 +1,7 @@
 package com.muxiao.Venus.Setting;
 
+import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,7 +18,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
-import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
@@ -228,15 +229,15 @@ public class SettingsFragment extends Fragment {
                     editor.apply();
                     requireActivity().runOnUiThread(() -> {
                         displayCurrentConfigValues();
-                        Snackbar.make(view, "配置更新成功", Snackbar.LENGTH_SHORT).show();
+                        showCustomSnackbar(view, this, "配置更新成功");
                     });
                 } else {
                     requireActivity().runOnUiThread(() ->
-                            Snackbar.make(view, "配置更新失败：无响应数据", Snackbar.LENGTH_SHORT).show());
+                            showCustomSnackbar(view, this, "配置更新失败：无响应数据"));
                 }
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        Snackbar.make(view, "配置更新失败：" + e.getMessage(), Snackbar.LENGTH_SHORT).show());
+                        showCustomSnackbar(view, this, "配置更新失败：" + e.getMessage()));
             }
         }).start();
     }

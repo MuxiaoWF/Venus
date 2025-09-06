@@ -60,16 +60,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // 默认加载首页Fragment
-        if (savedInstanceState == null) {
+        if (savedInstanceState == null)
             bottomNavigationView.setSelectedItemId(R.id.navigation_home);
-        }
     }
     
     private void loadFragment(Class<? extends Fragment> fragmentClass, int fragmentId) {
         // 避免重复加载相同的Fragment
-        if (currentFragmentId == fragmentId) {
-            return;
-        }
+        if (currentFragmentId == fragmentId) return;
         
         FragmentManager fragmentManager = getSupportFragmentManager();
         FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
@@ -77,9 +74,8 @@ public class MainActivity extends AppCompatActivity {
         // 首先隐藏当前显示的Fragment
         if (currentFragmentId != -1) {
             Fragment currentFragment = fragmentManager.findFragmentByTag(String.valueOf(currentFragmentId));
-            if (currentFragment != null) {
+            if (currentFragment != null)
                 fragmentTransaction.hide(currentFragment);
-            }
         }
         
         // 查找目标Fragment，如果不存在则创建并添加，否则显示

@@ -5,8 +5,15 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.provider.Settings;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
+import androidx.fragment.app.Fragment;
+
+import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.Gson;
+import com.muxiao.Venus.R;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -123,10 +130,10 @@ public class tools {
         return new UUID(mostSignificantBits, leastSignificantBits).toString();
     }
 
-    public static String getDS2(String body, String salt,String params) {
+    public static String getDS2(String body, String salt, String params) {
         String i = String.valueOf(System.currentTimeMillis() / 1000);
         String r = String.valueOf(new Random().nextInt(100000) + 100001);
-        String c = "salt=" + salt + "&t=" + i + "&r=" + r + "&b=" + body + "&q="+params;
+        String c = "salt=" + salt + "&t=" + i + "&r=" + r + "&b=" + body + "&q=" + params;
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] messageDigest = md.digest(c.getBytes(StandardCharsets.UTF_8));
@@ -155,18 +162,18 @@ public class tools {
                     .followRedirects(true)
                     .followSslRedirects(true)
                     .build();
-            
+
             Request.Builder requestBuilder = new Request.Builder()
                     .url(urlBuilder.toString())
                     .get();
-            
+
             // 添加请求头
             if (headers != null) {
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     requestBuilder.addHeader(entry.getKey(), entry.getValue());
                 }
             }
-            
+
             Request request = requestBuilder.build();
             try (Response response = client.newCall(request).execute()) {
                 if (response.body() != null) {
@@ -190,7 +197,7 @@ public class tools {
                     .followRedirects(true)
                     .followSslRedirects(true)
                     .build();
-            
+
             RequestBody requestBody;
             if (body != null) {
                 // 构造JSON请求体
@@ -203,14 +210,14 @@ public class tools {
             Request.Builder requestBuilder = new Request.Builder()
                     .url(urlStr)
                     .post(requestBody);
-            
+
             // 添加请求头
             if (headers != null) {
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     requestBuilder.addHeader(entry.getKey(), entry.getValue());
                 }
             }
-            
+
             Request request = requestBuilder.build();
             try (Response response = client.newCall(request).execute()) {
                 if (response.body() != null) {
@@ -236,9 +243,9 @@ public class tools {
      * 将用户数据写入SharedPreferences
      *
      * @param context 上下文
-     * @param userId 用户标识
-     * @param key 数据键名
-     * @param value 数据值
+     * @param userId  用户标识
+     * @param key     数据键名
+     * @param value   数据值
      */
     public static void write(Context context, String userId, String key, String value) {
         SharedPreferences sharedPreferences = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
@@ -251,8 +258,8 @@ public class tools {
      * 从SharedPreferences中读取用户数据
      *
      * @param context 上下文
-     * @param userId 用户标识
-     * @param key 数据键名
+     * @param userId  用户标识
+     * @param key     数据键名
      * @return 用户数据
      */
     public static String read(Context context, String userId, String key) {
@@ -260,4 +267,64 @@ public class tools {
         return sharedPreferences.getString(key, null);
     }
 
+    /**
+     * 显示自定义Snackbar
+     */
+    public static void showCustomSnackbar(View view, Fragment fragment, String message) {
+        Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
+
+        // 获取Snackbar的视图
+        View snackbarView = snackbar.getView();
+
+        // 获取当前的布局参数
+        ViewGroup.LayoutParams layoutParams = snackbarView.getLayoutParams();
+
+        // 检查布局参数类型并相应处理
+        if (layoutParams instanceof androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {
+            // 如果是CoordinatorLayout的LayoutParams，使用原始逻辑
+            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams params =
+                    (androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) layoutParams;
+
+            // 设置居中对齐
+            params.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
+
+            // 设置边距
+            params.setMargins(
+                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                    0,
+                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
+            );
+
+            // 设置宽度为wrap_content
+            params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+            snackbarView.setLayoutParams(params);
+        } else {
+            // 对于其他类型的布局参数（如FrameLayout.LayoutParams），使用基本设置
+            if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) layoutParams;
+
+                // 设置边距
+                marginParams.setMargins(
+                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                        0,
+                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
+                );
+
+                // 设置居中对齐
+                if (layoutParams instanceof FrameLayout.LayoutParams) {
+                    ((FrameLayout.LayoutParams) layoutParams).gravity =
+                            android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
+                }
+            }
+
+            // 设置宽度为wrap_content
+            layoutParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            snackbarView.setLayoutParams(layoutParams);
+        }
+
+        snackbar.show();
+    }
 }

@@ -12,6 +12,9 @@
 #   public *;
 #}
 
+# 禁用混淆但保持代码压缩
+-dontobfuscate
+
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable

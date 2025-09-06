@@ -430,9 +430,8 @@ public class Daily {
     private void geetest(Map<String, String> headers) {
         String response = sendGetRequest("https://bbs-api.miyoushe.com/misc/api/createVerification?is_high=true", headers, null);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        if (data.get("retcode").getAsInt() != 0) {
+        if (data.get("retcode").getAsInt() != 0)
             throw new RuntimeException("获取验证码失败misc/api/createVerification" + response);
-        }
         String gt = data.getAsJsonObject("data").get("gt").getAsString();
         String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
         gt3Controller.Visible();

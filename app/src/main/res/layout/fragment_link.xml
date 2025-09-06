@@ -88,14 +88,13 @@
         <WebView
             android:id="@+id/webView"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="0dp"/>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="提示：登录后请打开一次抽卡记录页面，系统将自动捕获链接"
+            android:text="提示：登录后请打开一次抽卡记录页面，将自动捕获链接"
             android:textSize="12sp"
             android:textColor="@android:color/darker_gray" />
 
@@ -145,7 +144,6 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="wrap_content"/>
 
 </LinearLayout>

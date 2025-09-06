@@ -41,6 +41,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HomeFragment extends Fragment {
     private MaterialAutoCompleteTextView user_dropdown;
@@ -50,6 +52,9 @@ public class HomeFragment extends Fragment {
     private ExecutorService executorService;
     public GT3GeetestButton geetestButton;
     public GT3GeetestUtils gt3GeetestUtils;
+    private boolean isTaskRunning = false; // 添加任务运行状态标志
+    private Future<?> currentTaskFuture; // 用于取消任务
+    private final AtomicBoolean isTaskCancelled = new AtomicBoolean(false); // 任务取消标志
 
     private View contentLayout;
     private boolean isExpanded = true;
@@ -71,27 +76,51 @@ public class HomeFragment extends Fragment {
         @Override
         public void init(GT3ConfigBean gt3ConfigBean) {
             requireActivity().runOnUiThread(() -> {
-                if (gt3GeetestUtils == null)
-                    gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
+                // 确保清理之前的实例
+                if (gt3GeetestUtils != null) {
+                    gt3GeetestUtils.destory();
+                    gt3GeetestUtils = null;
+                }
+                
+                gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
                 gt3GeetestUtils.init(gt3ConfigBean);
                 geetestButton.setGeetestUtils(gt3GeetestUtils);
                 geetestButton.setVisibility(View.VISIBLE);
+                geetestButton.setClickable(true); // 确保按钮可点击
+                geetestButton.setEnabled(true); // 确保按钮启用
             });
         }
 
         @Override
         public void Gone() {
-            requireActivity().runOnUiThread(() -> geetestButton.setVisibility(View.GONE));
+            requireActivity().runOnUiThread(() -> {
+                geetestButton.setVisibility(View.GONE);
+                geetestButton.setClickable(false); // 设置为不可点击
+            });
         }
 
         @Override
         public void Visible() {
-            requireActivity().runOnUiThread(() -> geetestButton.setVisibility(View.VISIBLE));
+            requireActivity().runOnUiThread(() -> {
+                geetestButton.setVisibility(View.VISIBLE);
+                geetestButton.setClickable(true); // 确保按钮可点击
+                geetestButton.setEnabled(true); // 确保按钮启用
+            });
         }
 
         @Override
         public void cleanUtils() {
-            requireActivity().runOnUiThread(() -> gt3GeetestUtils = null);
+            requireActivity().runOnUiThread(() -> {
+                if (gt3GeetestUtils != null) {
+                    gt3GeetestUtils.destory(); // 正确销毁
+                    gt3GeetestUtils = null;
+                }
+                // 重置按钮状态
+                if (geetestButton != null) {
+                    geetestButton.setVisibility(View.GONE);
+                    geetestButton.setClickable(false);
+                }
+            });
         }
 
         @Override
@@ -108,6 +137,7 @@ public class HomeFragment extends Fragment {
         user_dropdown = view.findViewById(R.id.user_dropdown);
         status_text = view.findViewById(R.id.status_text);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
+        MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily); // 取消按钮
         daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
         geetestButton = view.findViewById(R.id.btn_geetest);
 
@@ -118,7 +148,9 @@ public class HomeFragment extends Fragment {
         userManager = new UserManager(requireContext());
         executorService = Executors.newFixedThreadPool(3);
 
-        gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
+        // 确保GT按钮初始状态正确
+        geetestButton.setVisibility(View.GONE);
+        geetestButton.setClickable(false);
 
         // 初始化下拉框
         updateDropdown();
@@ -136,37 +168,95 @@ public class HomeFragment extends Fragment {
             // 滚动到底部
             daily_scroll_view.post(() -> daily_scroll_view.fullScroll(View.FOCUS_DOWN));
         }));
-        start_daily_btn.setOnClickListener(v -> executorService.execute(() -> {
-            isExpanded = false;
-            requireActivity().runOnUiThread(() -> contentLayout.setVisibility(View.GONE));
-            try {
-                Map<String, Object> settings = get_settings();
-                if (!Objects.equals(settings.get("daily_switch"), true) || !Objects.equals(settings.get("game_daily_switch"), true)) {
-                    requireActivity().runOnUiThread(() -> show_error_dialog("请先去设置里设置任务"));
-                }
-                if (Objects.equals(settings.get("daily_switch"), true)) {
-                    Daily b = new Daily(requireActivity(), userManager.getCurrentUser(), notifier, controller);
-                    String[] daily = (String[]) settings.get("daily");
-                    if (daily != null && daily.length > 0) {
-                        b.initBbsTask(daily);
-                        b.runTask(true, true, true, true);
-                    } else
-                        requireActivity().runOnUiThread(() -> show_error_dialog("米游币签到失败，请先去设置里设置勾选获取米游币板块"));
-                }
-                if (Objects.equals(settings.get("game_daily_switch"), true)) {
-                    String[] game = (String[]) settings.get("game_daily");
-                    if (game != null && game.length > 0)
-                        run_BBSGame_task(userManager.getCurrentUser(), game, notifier, controller);
-                    else
-                        requireActivity().runOnUiThread(() -> show_error_dialog("游戏签到失败，请先去设置里设置勾选获取游戏签到板块"));
-                }
-                notifier.notifyListeners("任务完成");
-            } catch (Exception e) {
-                String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
-                requireActivity().runOnUiThread(() -> show_error_dialog(error_message));
-            }
-        }));
+        
+        // 启动任务按钮
+        start_daily_btn.setOnClickListener(v -> {
+            // 检查任务是否已经在运行
+            if (isTaskRunning) return; // 如果任务正在运行，则不执行任何操作
+            
+            isTaskRunning = true; // 设置任务为运行状态
+            isTaskCancelled.set(false); // 重置取消标志
+            cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
+            start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
+            
+            // 在每次新任务开始前清理之前的GT实例
+            controller.cleanUtils();
 
+            currentTaskFuture = executorService.submit(() -> {
+                isExpanded = false;
+                requireActivity().runOnUiThread(() -> contentLayout.setVisibility(View.GONE));
+                try {
+                    Map<String, Object> settings = get_settings();
+                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    
+                    if (!Objects.equals(settings.get("daily_switch"), true) || !Objects.equals(settings.get("game_daily_switch"), true)) {
+                        requireActivity().runOnUiThread(() -> show_error_dialog("请先去设置里设置任务"));
+                        return; // 添加return以避免继续执行
+                    }
+                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    
+                    if (Objects.equals(settings.get("daily_switch"), true)) {
+                        Daily b = new Daily(requireActivity(), userManager.getCurrentUser(), notifier, controller);
+                        String[] daily = (String[]) settings.get("daily");
+                        if (daily != null && daily.length > 0) {
+                            b.initBbsTask(daily);
+                            b.runTask(true, true, true, true);
+                        } else
+                            requireActivity().runOnUiThread(() -> show_error_dialog("米游币签到失败，请先去设置里设置勾选获取米游币板块"));
+                    }
+                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    
+                    if (Objects.equals(settings.get("game_daily_switch"), true)) {
+                        String[] game = (String[]) settings.get("game_daily");
+                        if (game != null && game.length > 0)
+                            run_BBSGame_task(userManager.getCurrentUser(), game, notifier, controller);
+                        else
+                            requireActivity().runOnUiThread(() -> show_error_dialog("游戏签到失败，请先去设置里设置勾选获取游戏签到板块"));
+                    }
+                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    
+                    notifier.notifyListeners("任务完成");
+                } catch (Exception e) {
+                    if (isTaskCancelled.get()) return; // 如果是取消导致的异常，忽略
+                    String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
+                    requireActivity().runOnUiThread(() -> show_error_dialog(error_message));
+                } finally {
+                    // 任务完成后重置运行状态
+                    isTaskRunning = false;
+                    isTaskCancelled.set(false);
+                    // 确保GT按钮在任务完成后恢复可用状态
+                    requireActivity().runOnUiThread(() -> {
+                        if (geetestButton != null) {
+                            geetestButton.setClickable(true);
+                            geetestButton.setEnabled(true);
+                        }
+                        // 恢复按钮状态
+                        cancel_daily_btn.setVisibility(View.GONE);
+                        start_daily_btn.setVisibility(View.VISIBLE);
+                    });
+                }
+            });
+        });
+
+        // 取消任务按钮
+        cancel_daily_btn.setOnClickListener(v -> new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("确认取消")
+                .setMessage("确定要取消当前任务吗？")
+                .setPositiveButton("确定", (dialog, which) -> {
+                    isTaskCancelled.set(true); // 设置取消标志
+                    if (currentTaskFuture != null)
+                        currentTaskFuture.cancel(true); // 尝试取消任务
+                    status_text.append("任务已取消\n");
+                    // 恢复按钮状态
+                    cancel_daily_btn.setVisibility(View.GONE);
+                    start_daily_btn.setVisibility(View.VISIBLE);
+                    isTaskRunning = false;
+                    // 清理GT相关资源
+                    controller.cleanUtils();
+                })
+                .setNegativeButton("继续任务", null)
+                .show());
+        
         // 设置折叠按钮点击事件
         toggleButton.setOnClickListener(v -> {
             isExpanded = !isExpanded;
@@ -184,6 +274,15 @@ public class HomeFragment extends Fragment {
         super.onDestroy();
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
+        }
+        
+        // 清理GT相关资源
+        controller.cleanUtils();
+
+        // 确保销毁GT3GeetestUtils
+        if (gt3GeetestUtils != null) {
+            gt3GeetestUtils.destory();
+            gt3GeetestUtils = null;
         }
     }
 

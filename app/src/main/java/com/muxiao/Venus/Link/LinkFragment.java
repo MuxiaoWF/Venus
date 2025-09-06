@@ -1,5 +1,7 @@
 package com.muxiao.Venus.Link;
 
+import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -22,10 +24,10 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.google.android.material.snackbar.Snackbar;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -49,11 +51,16 @@ public class LinkFragment extends Fragment {
     private LinearLayout webViewContainer;
     private LinearLayout userDropdownLayout;
     private RecyclerView recyclerView;
+    private View view;
+
+    // 为每个标签页维护独立的结果
+    private final Map<Integer, Map<Integer, String>> tabResults = new HashMap<>();
+    private int currentTabPosition = 0;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_link, container, false);
+        view = inflater.inflate(R.layout.fragment_link, container, false);
 
         tabLayout = view.findViewById(R.id.tabLayout);
         recyclerView = view.findViewById(R.id.recyclerView);
@@ -102,23 +109,27 @@ public class LinkFragment extends Fragment {
             public void onTabReselected(TabLayout.Tab tab) {
                 handleTabSelection(tab.getPosition());
             }
-            
+
             private void handleTabSelection(int position) {
+                currentTabPosition = position;
                 // 根据选择的Tab显示对应内容
                 if (position == 2) {
                     // 云游戏标签页
                     userDropdownLayout.setVisibility(View.GONE);
                     getLinkButton.setVisibility(View.GONE);
                     recyclerView.setVisibility(View.GONE);
+                    errorTextView.setVisibility(View.GONE);
                     webViewContainer.setVisibility(View.VISIBLE);
                     setupWebViewForCloudGame();
                 } else {
                     // 原神或绝区零标签页
                     userDropdownLayout.setVisibility(View.VISIBLE);
                     getLinkButton.setVisibility(View.VISIBLE);
-                    recyclerView.setVisibility(View.VISIBLE);
                     webViewContainer.setVisibility(View.GONE);
-                    
+
+                    // 显示当前标签页的结果
+                    showTabResults(position);
+
                     // 销毁WebView
                     if (webView != null) {
                         webViewContainer.removeView(webView);
@@ -168,7 +179,7 @@ public class LinkFragment extends Fragment {
                             String url = result.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"");
                             if (url.contains("authkey=")) {
                                 copyToClipboard(url);
-                                Snackbar.make(requireView(), "链接已复制到剪贴板", Snackbar.LENGTH_SHORT).show();
+                                showCustomSnackbar(view, this, "链接已复制到剪贴板");
                             } else {
                                 // 尝试从页面中查找可能的抽卡链接
                                 webView.evaluateJavascript(
@@ -187,9 +198,9 @@ public class LinkFragment extends Fragment {
                                             String extractedUrl = result2.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"").replaceAll("\\\\\\\\", "/");
                                             if (extractedUrl.contains("authkey=")) {
                                                 copyToClipboard(extractedUrl);
-                                                Snackbar.make(requireView(), "链接已复制到剪贴板", Snackbar.LENGTH_SHORT).show();
+                                                showCustomSnackbar(view, this, "链接已复制到剪贴板");
                                             } else {
-                                                Snackbar.make(requireView(), "未找到有效的抽卡链接", Snackbar.LENGTH_SHORT).show();
+                                                showCustomSnackbar(view, this, "未找到有效的抽卡链接");
                                             }
                                         }
                                 );
@@ -229,11 +240,34 @@ public class LinkFragment extends Fragment {
         new LoadLinksTask(gameType).execute();
     }
 
+    private void showTabResults(int tabPosition) {
+        // 云游戏标签页不需要显示结果
+        if (tabPosition == 2)
+            return;
+        Map<Integer, String> results = tabResults.get(tabPosition);
+        if (results != null && !results.isEmpty()) {
+            adapter.setLinks(results);
+            recyclerView.setVisibility(View.VISIBLE);
+            errorTextView.setVisibility(View.GONE);
+        } else {
+            // 检查是否已经加载过但没有结果
+            if (tabResults.containsKey(tabPosition)) {
+                errorTextView.setText("没有游戏角色或获取链接出错");
+                errorTextView.setVisibility(View.VISIBLE);
+                recyclerView.setVisibility(View.GONE);
+            } else {
+                // 未加载过该标签页的结果
+                recyclerView.setVisibility(View.GONE);
+                errorTextView.setVisibility(View.GONE);
+            }
+        }
+    }
+
     private void copyToClipboard(String text) {
         ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText("Gacha Link", text);
         clipboard.setPrimaryClip(clip);
-        Snackbar.make(requireView(), "链接已复制到剪贴板", Snackbar.LENGTH_SHORT).show();
+        showCustomSnackbar(view, this, "链接已复制到剪贴板");
     }
 
     private void setupWebViewForCloudGame() {
@@ -275,21 +309,21 @@ public class LinkFragment extends Fragment {
                 if (url.contains("public-operation-hk4e.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
                         copyToClipboard(url);
-                        Snackbar.make(requireView(), "原神抽卡链接已复制到剪贴板", Snackbar.LENGTH_LONG).show();
+                        showCustomSnackbar(view, requireParentFragment(), "原神抽卡链接已复制到剪贴板");
                     });
                 }
                 // 检查是否包含星穹铁道抽卡链接
                 else if (url.contains("public-operation-hkrpg.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
                         copyToClipboard(url);
-                        Snackbar.make(requireView(), "星穹铁道抽卡链接已复制到剪贴板", Snackbar.LENGTH_LONG).show();
+                        showCustomSnackbar(view, requireParentFragment(), "星穹铁道抽卡链接已复制到剪贴板");
                     });
                 }
                 // 检查是否包含绝区零抽卡链接
                 else if (url.contains("public-operation-nap.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
                         copyToClipboard(url);
-                        Snackbar.make(requireView(), "绝区零抽卡链接已复制到剪贴板", Snackbar.LENGTH_LONG).show();
+                        showCustomSnackbar(view, requireParentFragment(), "绝区零抽卡链接已复制到剪贴板");
                     });
                 }
 
@@ -343,6 +377,7 @@ public class LinkFragment extends Fragment {
                         requireActivity().runOnUiThread(() -> {
                             progressBar.setVisibility(View.GONE);
                             recyclerView.setVisibility(View.GONE);
+                            errorTextView.setVisibility(View.GONE);
                         });
                         return;
                     }
@@ -356,18 +391,30 @@ public class LinkFragment extends Fragment {
                 requireActivity().runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     if (finalResult != null) {
-                        if (!finalResult.isEmpty()) {
-                            adapter.setLinks(finalResult);
-                            recyclerView.setVisibility(View.VISIBLE); // 确保显示RecyclerView
-                        } else {
-                            errorTextView.setText("没有游戏角色或获取链接出错");
-                            errorTextView.setVisibility(View.VISIBLE);
-                            recyclerView.setVisibility(View.GONE); // 隐藏RecyclerView
+                        // 保存当前标签页的结果
+                        tabResults.put(gameType, finalResult);
+
+                        // 只有当当前标签页是正在加载的标签页时才更新UI
+                        if (currentTabPosition == gameType) {
+                            if (!finalResult.isEmpty()) {
+                                adapter.setLinks(finalResult);
+                                recyclerView.setVisibility(View.VISIBLE);
+                            } else {
+                                errorTextView.setText("没有游戏角色或获取链接出错");
+                                errorTextView.setVisibility(View.VISIBLE);
+                                recyclerView.setVisibility(View.GONE);
+                            }
                         }
                     } else if (gameType != 2) { // 不是云游戏选项
-                        errorTextView.setText(finalException != null ? finalException.getMessage() : "获取链接失败");
-                        errorTextView.setVisibility(View.VISIBLE);
-                        recyclerView.setVisibility(View.GONE); // 隐藏RecyclerView
+                        // 保存空结果以表示已尝试加载
+                        tabResults.put(gameType, new HashMap<>());
+
+                        // 只有当当前标签页是正在加载的标签页时才更新UI
+                        if (currentTabPosition == gameType) {
+                            errorTextView.setText(finalException != null ? finalException.getMessage() : "获取链接失败");
+                            errorTextView.setVisibility(View.VISIBLE);
+                            recyclerView.setVisibility(View.GONE);
+                        }
                     }
                 });
             });
@@ -412,7 +459,7 @@ public class LinkFragment extends Fragment {
             ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clip = ClipData.newPlainText("Gacha Link", text);
             clipboard.setPrimaryClip(clip);
-            Snackbar.make(requireView(), "链接已复制到剪贴板", Snackbar.LENGTH_SHORT).show();
+            showCustomSnackbar(view, requireParentFragment(), "链接已复制到剪贴板");
         }
     }
 

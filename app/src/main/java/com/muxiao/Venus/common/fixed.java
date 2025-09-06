@@ -44,9 +44,9 @@ public class fixed {
         // 尝试从配置中获取值
         SharedPreferences configPrefs = context.getSharedPreferences("config_prefs", Context.MODE_PRIVATE);
         SALT_6X = configPrefs.getString("SALT_6X", defaultSalt6x);
-        SALT_4X = configPrefs.getString("SALT_6X", defaultSalt4x);
-        LK2 = configPrefs.getString("SALT_6X", defaultLk2);
-        K2 = configPrefs.getString("SALT_6X", defaultK2);
+        SALT_4X = configPrefs.getString("SALT_4X", defaultSalt4x);
+        LK2 = configPrefs.getString("LK2", defaultLk2);
+        K2 = configPrefs.getString("K2", defaultK2);
         bbs_version = configPrefs.getString("bbs_version", defaultBbsVersion);
     }
 
