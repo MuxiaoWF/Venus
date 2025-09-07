@@ -8,6 +8,18 @@
     android:background="?attr/colorSurface"
     tools:context=".MainActivity">
 
+    <!-- 背景图片 -->
+    <ImageView
+        android:contentDescription="背景图片"
+        android:id="@+id/background_image"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="centerCrop"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- 添加标题文本 -->
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/title"
@@ -37,9 +49,9 @@
         android:id="@+id/bottom_navigation"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="0dp"
-        android:layout_marginEnd="0dp"
-        android:background="?android:attr/windowBackground"
+        android:background="@color/transparent"
+        android:layout_gravity="bottom"
+        app:itemGravity="center"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"

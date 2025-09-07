@@ -35,6 +35,7 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
@@ -63,6 +64,9 @@ public class UserLoginActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 应用选定的主题
+        int selectedTheme = SettingsFragment.getSelectedTheme(this);
+        setTheme(selectedTheme);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_user_login);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.user_login_main), (v, insets) -> {
@@ -78,29 +82,14 @@ public class UserLoginActivity extends AppCompatActivity {
 
         user_manager = new UserManager(this);
 
-        initViews();
-        setupEventListeners();
-    }
-
-    /**
-     * 初始化视图组件
-     */
-    private void initViews() {
         username_input = findViewById(R.id.username_input);
         login_btn = findViewById(R.id.login_btn);
         back_main_btn = findViewById(R.id.back_main_btn);
         login_status_text = findViewById(R.id.login_status_text);
         login_scroll_view = findViewById(R.id.login_scroll_view);
         login_qr_code_image = findViewById(R.id.login_qr_code_image);
-    }
 
-    /**
-     * 设置事件监听器
-     */
-    private void setupEventListeners() {
-        // 设置登录按钮点击事件
         login_btn.setOnClickListener(v -> handleLogin());
-
         back_main_btn.setOnClickListener(v -> {
             Intent intent = new Intent(UserLoginActivity.this, MainActivity.class);
             startActivity(intent);
@@ -123,6 +112,11 @@ public class UserLoginActivity extends AppCompatActivity {
             return;
         }
         try {
+            if (username_input != null) {
+                username_input.setEnabled(false);
+                username_input.setFocusable(false);
+                username_input.setFocusableInTouchMode(false);
+            }
             LoginTask login_task = new LoginTask(app_context);
             executor_service.execute(login_task);
             username_input.setText("");
@@ -132,6 +126,11 @@ public class UserLoginActivity extends AppCompatActivity {
             show_error_dialog(error_message);
             login_status_text.append("\n登录失败\n");
             login_btn.setEnabled(true);
+            if (username_input != null) {
+                username_input.setEnabled(true);
+                username_input.setFocusable(true);
+                username_input.setFocusableInTouchMode(true);
+            }
         }
     }
 
@@ -199,7 +198,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     login_status_text.append("二维码已生成，等待扫描...\n");
-                    login_status_text.append("请截图并使用米游社APP-我-左上角扫描二维码...\n");
+                    login_status_text.append("请自行截图并使用米游社APP-我-左上角扫描二维码...\n");
                     // 显示二维码
                     if (qr_code_data != null) {
                         Bitmap qr_code_bitmap = BitmapFactory.decodeByteArray(qr_code_data, 0, qr_code_data.length);
@@ -430,6 +429,11 @@ public class UserLoginActivity extends AppCompatActivity {
                     user_manager.addUser(username);
                     user_manager.setCurrentUser(username);
                     login_status_text.append("用户 " + username + " 添加成功\n");
+                    if (username_input != null) {
+                        username_input.setEnabled(true);
+                        username_input.setFocusable(true);
+                        username_input.setFocusableInTouchMode(true);
+                    }
                 });
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();

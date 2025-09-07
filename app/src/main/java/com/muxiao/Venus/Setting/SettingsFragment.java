@@ -2,6 +2,9 @@ package com.muxiao.Venus.Setting;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -12,14 +15,19 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.tools;
 
@@ -31,6 +39,16 @@ public class SettingsFragment extends Fragment {
     private SharedPreferences configPreferences;
     private static final String PREFS_NAME = "settings_prefs";
     private static final String CONFIG_PREFS_NAME = "config_prefs";
+    private static final String THEME_PREFS_NAME = "theme_prefs";
+    private static final String BACKGROUND_PREFS_NAME = "background_prefs";
+    private static final int THEME_DEFAULT = 0;
+    private static final int THEME_BLUE = 1;
+    private static final int THEME_GREEN = 2;
+    private static final int THEME_RED = 3;
+    private static final int THEME_YELLOW = 4;
+    private static final int THEME_LIGHT = 5;
+    private static final int THEME_DARK = 6;
+    private static final String SELECTED_THEME = "selected_theme";
 
     // 配置显示文本视图
     private MaterialTextView salt6xValue;
@@ -43,6 +61,17 @@ public class SettingsFragment extends Fragment {
 
     private boolean bbs_toggle = false;
     private boolean daily_toggle = false;
+    private boolean theme_toggle = false;
+    private boolean background_toggle = false;
+    private boolean config_toggle = false;
+    
+    // 背景设置相关
+    private SharedPreferences backgroundPreferences;
+    private static final String BACKGROUND_IMAGE_URI = "background_image_uri";
+    private static final String BACKGROUND_ALPHA = "background_alpha";
+
+    // 用于选择图片的Activity结果启动器
+    private ActivityResultLauncher<Intent> selectImageLauncher;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -52,6 +81,10 @@ public class SettingsFragment extends Fragment {
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         configPreferences = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+        backgroundPreferences = requireActivity().getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
+
+        // 初始化Activity结果启动器
+        initActivityLauncher();
 
         // 查找所有Switch和CheckBox控件
         SwitchMaterial dailySwitchButton = view.findViewById(R.id.daily_switch_button);
@@ -64,6 +97,7 @@ public class SettingsFragment extends Fragment {
         MaterialCheckBox dailyCheckboxHr2 = view.findViewById(R.id.daily_checkbox_hr2);
         MaterialCheckBox dailyCheckboxWeiding = view.findViewById(R.id.daily_checkbox_weiding);
         MaterialCheckBox dailyCheckboxDabieye = view.findViewById(R.id.daily_checkbox_dabieye);
+        MaterialCheckBox dailyCheckboxHna = view.findViewById(R.id.daily_checkbox_hna);
 
         MaterialCheckBox gameDailyCheckboxGenshin = view.findViewById(R.id.game_daily_checkbox_genshin);
         MaterialCheckBox gameDailyCheckboxZzz = view.findViewById(R.id.game_daily_checkbox_zzz);
@@ -92,6 +126,7 @@ public class SettingsFragment extends Fragment {
         dailyCheckboxHr2.setChecked(sharedPreferences.getBoolean("daily_checkbox_hr2", false));
         dailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean("daily_checkbox_weiding", false));
         dailyCheckboxDabieye.setChecked(sharedPreferences.getBoolean("daily_checkbox_dabieye", true));
+        dailyCheckboxHna.setChecked(sharedPreferences.getBoolean("daily_checkbox_hna", false));
 
         gameDailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_genshin", false));
         gameDailyCheckboxZzz.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_zzz", false));
@@ -121,6 +156,8 @@ public class SettingsFragment extends Fragment {
                 sharedPreferences.edit().putBoolean("daily_checkbox_weiding", isChecked).apply());
         dailyCheckboxDabieye.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("daily_checkbox_dabieye", isChecked).apply());
+        dailyCheckboxHna.setOnCheckedChangeListener((buttonView, isChecked) ->
+                sharedPreferences.edit().putBoolean("daily_checkbox_hna", isChecked).apply());
 
         gameDailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("game_daily_checkbox_genshin", isChecked).apply());
@@ -176,7 +213,257 @@ public class SettingsFragment extends Fragment {
                 bbs_content_layout.setVisibility(View.GONE);
         });
 
+        MaterialButton config_toggle_button = view.findViewById(R.id.config_toggle_button);
+        View config_content_layout = view.findViewById(R.id.config_content_layout);
+        config_toggle_button.setOnClickListener(v -> {
+            config_toggle = !config_toggle;
+            if (config_toggle)
+                config_content_layout.setVisibility(View.VISIBLE);
+            else
+                config_content_layout.setVisibility(View.GONE);
+        });
+
+        MaterialButton theme_toggle_button = view.findViewById(R.id.theme_toggle_button);
+        View theme_content_layout = view.findViewById(R.id.theme_content_layout);
+        theme_toggle_button.setOnClickListener(v -> {
+            theme_toggle = !theme_toggle;
+            if (theme_toggle)
+                theme_content_layout.setVisibility(View.VISIBLE);
+            else
+                theme_content_layout.setVisibility(View.GONE);
+        });
+        // 设置主题选择功能
+        setupThemeSelection(view);
+        
+        // 设置背景选择功能
+        setupBackgroundSelection(view);
+
         return view;
+    }
+
+    /**
+     * 初始化Activity结果启动器
+     */
+    private void initActivityLauncher() {
+        selectImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri selectedImageUri = result.getData().getData();
+                        if (selectedImageUri != null) {
+                            // 获取持久权限访问该URI
+                            requireActivity().getContentResolver().takePersistableUriPermission(
+                                    selectedImageUri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            );
+                            
+                            // 保存选择的图片URI
+                            backgroundPreferences.edit()
+                                    .putString(BACKGROUND_IMAGE_URI, selectedImageUri.toString())
+                                    .apply();
+                            
+                            // 显示提示信息
+                            View view = getView();
+                            if (view != null) {
+                                showCustomSnackbar(view, this, "背景图片已设置，将在下次启动时生效");
+                            }
+                        }
+                    }
+                }
+        );
+    }
+
+    /**
+     * 设置背景选择功能
+     */
+    private void setupBackgroundSelection(View view) {
+        MaterialButton backgroundToggleButton = view.findViewById(R.id.background_toggle_button);
+        View backgroundContentLayout = view.findViewById(R.id.background_content_layout);
+        MaterialButton selectBackgroundButton = view.findViewById(R.id.select_background_button);
+        MaterialButton clearBackgroundButton = view.findViewById(R.id.clear_background_button);
+        Slider backgroundAlphaSlider = view.findViewById(R.id.background_alpha_slider);
+
+        backgroundToggleButton.setOnClickListener(v -> {
+            background_toggle = !background_toggle;
+            if (background_toggle)
+                backgroundContentLayout.setVisibility(View.VISIBLE);
+            else
+                backgroundContentLayout.setVisibility(View.GONE);
+        });
+
+        // 设置选择背景按钮
+        selectBackgroundButton.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            selectImageLauncher.launch(intent);
+        });
+
+        // 设置清除背景按钮
+        clearBackgroundButton.setOnClickListener(v -> {
+            // 清除之前先释放权限
+            String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
+            if (uriString != null) {
+                try {
+                    Uri oldUri = Uri.parse(uriString);
+                    requireActivity().getContentResolver().releasePersistableUriPermission(
+                            oldUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    );
+                } catch (Exception e) {
+                    show_error_dialog("设置背景图片出错："+ e);
+                }
+            }
+            
+            backgroundPreferences.edit()
+                    .remove(BACKGROUND_IMAGE_URI)
+                    .apply();
+            showCustomSnackbar(view, this, "背景图片已清除，将在下次启动时生效");
+        });
+
+        // 设置透明度滑块
+        float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
+        backgroundAlphaSlider.setValue(currentAlpha * 100);
+        backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
+            float alpha = value / 100.0f;
+            backgroundPreferences.edit()
+                    .putFloat(BACKGROUND_ALPHA, alpha)
+                    .apply();
+            showCustomSnackbar(view, this, "透明度已设置为 " + (int) value + "%，将在下次启动时生效");
+        });
+    }
+
+    /**
+     * 设置主题选择功能
+     */
+    private void setupThemeSelection(View view) {
+        // 获取主题SharedPreferences
+        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+        // 查找所有主题单选按钮
+        MaterialRadioButton themeDefault = view.findViewById(R.id.theme_default);
+        MaterialRadioButton themeBlue = view.findViewById(R.id.theme_blue);
+        MaterialRadioButton themeGreen = view.findViewById(R.id.theme_green);
+        MaterialRadioButton themeRed = view.findViewById(R.id.theme_red);
+        MaterialRadioButton themeYellow = view.findViewById(R.id.theme_yellow);
+        MaterialRadioButton themeLight = view.findViewById(R.id.theme_light);
+        MaterialRadioButton themeDark = view.findViewById(R.id.theme_dark);
+        // 根据保存的设置选中对应的主题
+        switch (selectedTheme) {
+            case THEME_DEFAULT:
+                themeDefault.setChecked(true);
+                break;
+            case THEME_BLUE:
+                themeBlue.setChecked(true);
+                break;
+            case THEME_GREEN:
+                themeGreen.setChecked(true);
+                break;
+            case THEME_RED:
+                themeRed.setChecked(true);
+                break;
+            case THEME_YELLOW:
+                themeYellow.setChecked(true);
+                break;
+            case THEME_LIGHT:
+                themeLight.setChecked(true);
+                break;
+            case THEME_DARK:
+                themeDark.setChecked(true);
+                break;
+        }
+        // 为每个单选按钮设置监听器
+        themeDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_DEFAULT);
+        });
+        themeBlue.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_BLUE);
+        });
+        themeGreen.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_GREEN);
+        });
+        themeRed.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_RED);
+        });
+        themeYellow.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_YELLOW);
+        });
+        themeLight.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_LIGHT);
+        });
+        themeDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyTheme(THEME_DARK);
+        });
+    }
+
+    /**
+     * 保存并应用主题
+     *
+     * @param themeId 主题ID
+     */
+    private void saveAndApplyTheme(int themeId) {
+        // 保存选择的主题
+        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        themePreferences.edit().putInt(SELECTED_THEME, themeId).apply();
+
+        // 显示提示信息，告知用户需要重启应用以应用主题
+        View view = getView();
+        if (view != null) {
+            showCustomSnackbar(view, this, "主题已保存，请重启应用以应用新主题");
+        }
+    }
+
+    /**
+     * 获取应该应用的主题
+     *
+     * @param context 上下文
+     * @return 主题资源ID
+     */
+    public static int getSelectedTheme(Context context) {
+        SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+
+        switch (selectedTheme) {
+            case THEME_BLUE:
+                return R.style.Theme_Venus_Blue;
+            case THEME_GREEN:
+                return R.style.Theme_Venus_Green;
+            case THEME_RED:
+                return R.style.Theme_Venus_Red;
+            case THEME_YELLOW:
+                return R.style.Theme_Venus_Yellow;
+            case THEME_LIGHT:
+                return R.style.Theme_Venus_Light;
+            case THEME_DARK:
+                return R.style.Theme_Venus_Dark;
+            case THEME_DEFAULT:
+            default:
+                return R.style.Theme_Venus;
+        }
+    }
+    
+    /**
+     * 获取背景图片URI
+     *
+     * @param context 上下文
+     * @return 背景图片URI，如果没有设置则返回null
+     */
+    public static Uri getBackgroundImageUri(Context context) {
+        SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
+        String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
+        return uriString != null ? Uri.parse(uriString) : null;
+    }
+    
+    /**
+     * 获取背景透明度
+     *
+     * @param context 上下文
+     * @return 背景透明度，范围0.0-0.8，默认为0.3
+     */
+    public static float getBackgroundAlpha(Context context) {
+        SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
+        return backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
     }
 
     /**
@@ -247,5 +534,24 @@ public class SettingsFragment extends Fragment {
             return data.get(key).getAsString();
         return defaultValue;
     }
-
+    /**
+     * 显示错误信息并提供复制
+     *
+     * @param error_message 错误信息
+     */
+    private void show_error_dialog(String error_message) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("错误")
+                .setMessage(error_message)
+                .setPositiveButton("复制错误信息", (dialog, which) -> {
+                    ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
+                    clipboard.setPrimaryClip(clip);
+                    requireActivity().runOnUiThread(() ->
+                            android.widget.Toast.makeText(requireContext(), "错误信息已复制到剪切板", android.widget.Toast.LENGTH_SHORT).show()
+                    );
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
 }

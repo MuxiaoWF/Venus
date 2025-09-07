@@ -307,6 +307,7 @@ public class HomeFragment extends Fragment {
         boolean daily_hr2 = prefs.getBoolean("daily_checkbox_hr2", false);
         boolean daily_weiding = prefs.getBoolean("daily_checkbox_weiding", false);
         boolean daily_dabieye = prefs.getBoolean("daily_checkbox_dabieye", true);
+        boolean daily_hna = prefs.getBoolean("daily_checkbox_hna", false);
         boolean game_daily_genshin = prefs.getBoolean("game_daily_checkbox_genshin", false);
         boolean game_daily_zzz = prefs.getBoolean("game_daily_checkbox_zzz", false);
         boolean game_daily_srg = prefs.getBoolean("game_daily_checkbox_srg", false);
@@ -324,6 +325,7 @@ public class HomeFragment extends Fragment {
         if (daily_hr2) daily.add("崩坏2");
         if (daily_weiding) daily.add("未定事件簿");
         if (daily_dabieye) daily.add("大别野");
+        if (daily_hna) daily.add("崩坏因缘精灵");
         //转成String[]
         settings.put("daily", daily.toArray(new String[0]));
         ArrayList<String> game_daily = new ArrayList<>();
@@ -367,7 +369,6 @@ public class HomeFragment extends Fragment {
                     ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
                     ClipData clip = ClipData.newPlainText("错误信息", error_message);
                     clipboard.setPrimaryClip(clip);
-                    // 使用requireActivity()获取上下文并显示Toast
                     requireActivity().runOnUiThread(() ->
                             android.widget.Toast.makeText(requireContext(), "错误信息已复制到剪切板", android.widget.Toast.LENGTH_SHORT).show()
                     );

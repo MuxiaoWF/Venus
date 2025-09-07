@@ -32,7 +32,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="none"
-            android:text="选择用户" />
+            android:text="选择用户"
+            android:textColor="?attr/colorOnSurface"/>
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.tabs.TabLayout
@@ -40,6 +41,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="12dp"
+        android:background="@android:color/transparent"
         app:tabGravity="fill"
         app:tabMode="fixed">
 

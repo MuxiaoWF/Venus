@@ -102,6 +102,10 @@ public class fixed {
                 put("id", "8");
                 put("forumId", "57");
                 put("name", "绝区零");
+            }}, new HashMap<>() {{
+                put("id", "9");
+                put("forumId", "948");
+                put("name", "崩坏因缘精灵");
             }}));
 
     private String deviceId;
@@ -163,6 +167,7 @@ public class fixed {
         put("原神", "hk4e_cn");
         put("星铁", "hkrpg_cn");
         put("绝区零", "nap_cn");
+        put("崩坏因缘精灵", "hna_cn");
     }};
     private final String user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
 

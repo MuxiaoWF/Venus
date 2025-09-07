@@ -64,7 +64,7 @@ public class Daily {
     /**
      * 米游社任务执行
      *
-     * @param name 需要社区签到的板块名称（米游币的那个）可填：崩坏3、原神、崩坏2、未定事件簿、大别野、星铁、绝区零
+     * @param name 需要社区签到的板块名称（米游币的那个）可填：崩坏3、原神、崩坏2、未定事件簿、大别野、星铁、绝区零、崩坏因缘精灵
      */
     public void initBbsTask(String[] name) {
         String stoken = tools.read(context, userId, "stoken");

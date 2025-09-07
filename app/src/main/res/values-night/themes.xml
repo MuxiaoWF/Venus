@@ -1,6 +1,6 @@
 <resources>
     <!-- Base application theme. -->
-    <style name="Theme.启明星" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
 
     </style>
     <style name="CustomSnackbarStyle" parent="Widget.Material3.Snackbar">

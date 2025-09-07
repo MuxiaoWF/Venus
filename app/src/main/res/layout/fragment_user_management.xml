@@ -4,7 +4,6 @@
     android:id="@+id/user_login_main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
     android:padding="16dp">
 
     <com.google.android.material.textview.MaterialTextView
@@ -28,17 +27,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/title_text" />
 
-    <ImageView
-        android:id="@+id/login_qr_code_image"
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:layout_marginTop="16dp"
-        android:contentDescription="登录二维码"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/user_login_btn" />
-
     <ScrollView
         android:id="@+id/login_scroll_view"
         android:layout_width="0dp"
@@ -61,6 +49,7 @@
                 android:layout_marginBottom="16dp"
                 android:text="用户列表"
                 android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold"/>
 
             <LinearLayout
