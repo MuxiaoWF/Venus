@@ -39,9 +39,8 @@ public class GachaLink {
     public Map<Integer, String> genshin() {
         String stoken = tools.read(context, userId, "stoken");
         String mid = tools.read(context, userId, "mid");
-        if (stoken == null || mid == null) {
+        if (stoken == null || mid == null)
             throw new RuntimeException("cookie有参数为null，请尝试重新获取");
-        }
         StokenAndMid = "stoken=" + stoken + ";mid=" + mid + ";";
         try {
             int[] uids = getUID(com.muxiao.Venus.common.fixed.name_to_game_id("原神"));
@@ -79,15 +78,13 @@ public class GachaLink {
                 for (JsonElement element : list) {
                     if (element.isJsonObject()) {
                         JsonObject object = element.getAsJsonObject();
-                        if (object.get("game_biz").getAsString().equals(game_biz)) {
+                        if (object.get("game_biz").getAsString().equals(game_biz))
                             uids.add(object.get("game_uid").getAsInt());
-                        }
                     }
                 }
                 int[] result = new int[uids.size()];
-                for (int i = 0; i < uids.size(); i++) {
+                for (int i = 0; i < uids.size(); i++)
                     result[i] = uids.get(i);
-                }
                 return result;
             }
         }
@@ -140,9 +137,8 @@ public class GachaLink {
     public Map<Integer, String> zzz() {
         String stoken =tools.read(context, userId, "stoken");
         String mid = tools.read(context, userId, "mid");
-        if (stoken == null || mid == null) {
+        if (stoken == null || mid == null)
             throw new RuntimeException("cookie有参数为null，请尝试重新获取");
-        }
         StokenAndMid = "stoken=" + stoken + ";mid=" + mid + ";";
         try {
             int[] uids = getUID(com.muxiao.Venus.common.fixed.name_to_game_id("绝区零"));

@@ -6,9 +6,8 @@ import static com.muxiao.Venus.common.fixed.Honkai3rd_act_id;
 import static com.muxiao.Venus.common.fixed.HonkaiStarRail_act_id;
 import static com.muxiao.Venus.common.fixed.TearsOfThemis_act_id;
 import static com.muxiao.Venus.common.fixed.ZZZ_act_id;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -28,6 +27,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
@@ -59,7 +59,7 @@ public class HomeFragment extends Fragment {
     private View contentLayout;
     private boolean isExpanded = true;
 
-    // 定义一个接口
+    // 极验验证码接口
     public interface GT3ButtonController {
         void init(GT3ConfigBean gt3ConfigBean);
 
@@ -81,7 +81,6 @@ public class HomeFragment extends Fragment {
                     gt3GeetestUtils.destory();
                     gt3GeetestUtils = null;
                 }
-                
                 gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
                 gt3GeetestUtils.init(gt3ConfigBean);
                 geetestButton.setGeetestUtils(gt3GeetestUtils);
@@ -112,7 +111,7 @@ public class HomeFragment extends Fragment {
         public void cleanUtils() {
             requireActivity().runOnUiThread(() -> {
                 if (gt3GeetestUtils != null) {
-                    gt3GeetestUtils.destory(); // 正确销毁
+                    gt3GeetestUtils.destory();
                     gt3GeetestUtils = null;
                 }
                 // 重置按钮状态
@@ -137,42 +136,53 @@ public class HomeFragment extends Fragment {
         user_dropdown = view.findViewById(R.id.user_dropdown);
         status_text = view.findViewById(R.id.status_text);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
-        MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily); // 取消按钮
+        MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
         daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
         geetestButton = view.findViewById(R.id.btn_geetest);
 
-        // 初始化折叠功能相关视图
+        // 折叠按钮
         MaterialButton toggleButton = view.findViewById(R.id.toggle_button);
         contentLayout = view.findViewById(R.id.content_layout);
 
+        // 初始化用户管理
         userManager = new UserManager(requireContext());
         executorService = Executors.newFixedThreadPool(3);
 
-        // 确保GT按钮初始状态正确
+        // 极验验证码按钮初始状态
         geetestButton.setVisibility(View.GONE);
         geetestButton.setClickable(false);
 
         // 初始化下拉框
         updateDropdown();
-
-        // 设置下拉框选择事件
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n"));
         });
 
+        // 输出文本监听器
         tools.StatusNotifier notifier = new tools.StatusNotifier();
         notifier.addListener(status -> requireActivity().runOnUiThread(() -> {
             status_text.append(status + "\n");
             // 滚动到底部
             daily_scroll_view.post(() -> daily_scroll_view.fullScroll(View.FOCUS_DOWN));
         }));
-        
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
             // 检查任务是否已经在运行
             if (isTaskRunning) return; // 如果任务正在运行，则不执行任何操作
+            // 检查是否已选择用户
+            String currentUser = userManager.getCurrentUser();
+            if (currentUser == null || currentUser.isEmpty()) {
+                requireActivity().runOnUiThread(() -> 
+                    new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("未选择用户")
+                        .setMessage("请先从下拉列表中选择一个用户再开始任务")
+                        .setPositiveButton("确定", null)
+                        .show()
+                );
+                return;
+            }
             
             isTaskRunning = true; // 设置任务为运行状态
             isTaskCancelled.set(false); // 重置取消标志
@@ -188,13 +198,11 @@ public class HomeFragment extends Fragment {
                 try {
                     Map<String, Object> settings = get_settings();
                     if (isTaskCancelled.get()) return; // 检查是否已取消
-                    
                     if (!Objects.equals(settings.get("daily_switch"), true) || !Objects.equals(settings.get("game_daily_switch"), true)) {
-                        requireActivity().runOnUiThread(() -> show_error_dialog("请先去设置里设置任务"));
-                        return; // 添加return以避免继续执行
+                        requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"请先去设置里设置任务"));
+                        return;
                     }
                     if (isTaskCancelled.get()) return; // 检查是否已取消
-                    
                     if (Objects.equals(settings.get("daily_switch"), true)) {
                         Daily b = new Daily(requireActivity(), userManager.getCurrentUser(), notifier, controller);
                         String[] daily = (String[]) settings.get("daily");
@@ -202,24 +210,22 @@ public class HomeFragment extends Fragment {
                             b.initBbsTask(daily);
                             b.runTask(true, true, true, true);
                         } else
-                            requireActivity().runOnUiThread(() -> show_error_dialog("米游币签到失败，请先去设置里设置勾选获取米游币板块"));
+                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"米游币签到失败，请先去设置里设置勾选获取米游币板块"));
                     }
                     if (isTaskCancelled.get()) return; // 检查是否已取消
-                    
                     if (Objects.equals(settings.get("game_daily_switch"), true)) {
                         String[] game = (String[]) settings.get("game_daily");
                         if (game != null && game.length > 0)
                             run_BBSGame_task(userManager.getCurrentUser(), game, notifier, controller);
                         else
-                            requireActivity().runOnUiThread(() -> show_error_dialog("游戏签到失败，请先去设置里设置勾选获取游戏签到板块"));
+                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"游戏签到失败，请先去设置里设置勾选获取游戏签到板块"));
                     }
                     if (isTaskCancelled.get()) return; // 检查是否已取消
-                    
                     notifier.notifyListeners("任务完成");
                 } catch (Exception e) {
                     if (isTaskCancelled.get()) return; // 如果是取消导致的异常，忽略
                     String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
-                    requireActivity().runOnUiThread(() -> show_error_dialog(error_message));
+                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),error_message));
                 } finally {
                     // 任务完成后重置运行状态
                     isTaskRunning = false;
@@ -256,8 +262,8 @@ public class HomeFragment extends Fragment {
                 })
                 .setNegativeButton("继续任务", null)
                 .show());
-        
-        // 设置折叠按钮点击事件
+
+        // 折叠按钮
         toggleButton.setOnClickListener(v -> {
             isExpanded = !isExpanded;
             if (isExpanded)
@@ -354,27 +360,6 @@ public class HomeFragment extends Fragment {
             user_dropdown.setText(currentUser, false);
             status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n"));
         }
-    }
-
-    /**
-     * 显示错误信息并提供复制
-     *
-     * @param error_message 错误信息
-     */
-    private void show_error_dialog(String error_message) {
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("错误")
-                .setMessage(error_message)
-                .setPositiveButton("复制错误信息", (dialog, which) -> {
-                    ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
-                    clipboard.setPrimaryClip(clip);
-                    requireActivity().runOnUiThread(() ->
-                            android.widget.Toast.makeText(requireContext(), "错误信息已复制到剪切板", android.widget.Toast.LENGTH_SHORT).show()
-                    );
-                })
-                .setNegativeButton("关闭", null)
-                .show();
     }
 
     /**

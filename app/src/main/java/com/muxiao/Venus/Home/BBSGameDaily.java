@@ -10,9 +10,9 @@ import static com.muxiao.Venus.common.fixed.game_id_to_name;
 import static com.muxiao.Venus.common.fixed.getDS;
 import static com.muxiao.Venus.common.tools.sendGetRequest;
 import static com.muxiao.Venus.common.tools.sendPostRequest;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3ErrorBean;
@@ -138,9 +138,8 @@ public class BBSGameDaily {
         statusNotifier.notifyListeners("正在获取米哈游账号绑定的" + game_name + "账号列表...");
         String response = sendGetRequest("https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie", headers, Map.of("game_biz", game_id));
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        if (data.get("retcode").getAsInt() == -100) {
+        if (data.get("retcode").getAsInt() == -100)
             return getAccountList(game_id, headers, true, statusNotifier);
-        }
         if (data.get("retcode").getAsInt() != 0) {
             statusNotifier.notifyListeners("获取" + game_name + "账号列表失败！");
             return new ArrayList<>();
@@ -167,9 +166,8 @@ public class BBSGameDaily {
         game_login_headers_this.put("DS", getDS(fixed.LK2));
         game_login_headers_this.put("Cookie", "cookie_token=" + tools.read(context, userId, "cookie_token") + ";ltoken=" + tools.read(context, userId, "ltoken") + ";ltuid=" + tools.read(context, userId, "stuid") + ";account_id=" + tools.read(context, userId, "stuid"));
         this.account_list = getAccountList(game_id, game_login_headers_this, false, statusNotifier);
-        if (!account_list.isEmpty()) {
+        if (!account_list.isEmpty())
             this.checkin_rewards = getCheckinRewards();
-        }
     }
 
     /**
@@ -235,20 +233,18 @@ public class BBSGameDaily {
         for (Map.Entry<String, JsonElement> entry : dataObject.entrySet()) {
             JsonElement value = entry.getValue();
             if (value.isJsonPrimitive()) {
-                if (value.getAsJsonPrimitive().isNumber()) {
+                if (value.getAsJsonPrimitive().isNumber())
                     resultMap.put(entry.getKey(), value.getAsNumber());
-                } else if (value.getAsJsonPrimitive().isBoolean()) {
+                else if (value.getAsJsonPrimitive().isBoolean())
                     resultMap.put(entry.getKey(), value.getAsBoolean());
-                } else {
+                else
                     resultMap.put(entry.getKey(), value.getAsString());
-                }
-            } else if (value.isJsonObject()) {
+            } else if (value.isJsonObject())
                 resultMap.put(entry.getKey(), value.getAsJsonObject().toString());
-            } else if (value.isJsonArray()) {
+            else if (value.isJsonArray())
                 resultMap.put(entry.getKey(), value.getAsJsonArray().toString());
-            } else {
+            else
                 resultMap.put(entry.getKey(), value.toString());
-            }
         }
         return resultMap;
     }
@@ -339,9 +335,8 @@ public class BBSGameDaily {
                             statusNotifier.notifyListeners(player_name + account.get("nickname") + "今天已经签到过了~");
                         } else {
                             String s = "账号签到失败！\n" + req + "\n";
-                            if (!data.get("data").isJsonNull() && data.getAsJsonObject("data").has("success") && data.getAsJsonObject("data").get("success").getAsInt() != 0) {
+                            if (!data.get("data").isJsonNull() && data.getAsJsonObject("data").has("success") && data.getAsJsonObject("data").get("success").getAsInt() != 0)
                                 s += "原因: 验证码\njson信息:" + req;
-                            }
                             statusNotifier.notifyListeners(s);
                             continue;
                         }
@@ -361,9 +356,8 @@ public class BBSGameDaily {
     private void geetest(Map<String, String> headers) {
         String response = sendGetRequest("https://bbs-api.miyoushe.com/misc/api/createVerification?is_high=true", headers, null);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        if (data.get("retcode").getAsInt() != 0) {
+        if (data.get("retcode").getAsInt() != 0)
             throw new RuntimeException("获取验证码失败misc/api/createVerification" + response);
-        }
         String gt = data.getAsJsonObject("data").get("gt").getAsString();
         String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
         gt3Controller.Visible();
@@ -396,16 +390,16 @@ public class BBSGameDaily {
                     gt3ConfigBean.setApi1Json(api1Json);
                     gt3Controller.getGeetestUtils().getGeetest();
                 } catch (Exception e) {
-                    Log.e("gt3", "创建API1 JSON时出错: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码创建API1 JSON时出错: " + e.getMessage());
                 }
             }
 
             @Override
-            public void onReceiveCaptchaCode(int i) {}
+            public void onReceiveCaptchaCode(int i) {
+            }
 
             @Override
             public void onDialogResult(String result) {
-                Log.e("gt3", "GT3BaseListener-->onDialogResult-->" + result);
                 // 使用Gson解析验证结果
                 try {
                     Gson gson = new Gson();
@@ -438,7 +432,7 @@ public class BBSGameDaily {
                                 }
                             }
                         } catch (Exception e) {
-                            Log.e("gt3", "网络请求错误: " + e.getMessage());
+                            show_error_dialog(context, "极验验证码网络请求错误: " + e.getMessage());
                             // 通知等待的线程继续执行（即使验证失败也要继续）
                             synchronized (BBSGameDaily.this) {
                                 BBSGameDaily.this.notify();
@@ -447,9 +441,9 @@ public class BBSGameDaily {
                     }).start();
                     gt3Controller.getGeetestUtils().showSuccessDialog();
                 } catch (JsonSyntaxException e) {
-                    Log.e("gt3", "JSON解析错误: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码JSON解析错误: " + e.getMessage());
                 } catch (Exception e) {
-                    Log.e("gt3", "处理验证结果时出错: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码处理验证结果时出错: " + e.getMessage());
                 }
             }
 

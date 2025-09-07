@@ -1,10 +1,9 @@
 package com.muxiao.Venus.Setting;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.app.Activity;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -17,11 +16,11 @@ import android.view.ViewGroup;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
@@ -49,6 +48,12 @@ public class SettingsFragment extends Fragment {
     private static final int THEME_LIGHT = 5;
     private static final int THEME_DARK = 6;
     private static final String SELECTED_THEME = "selected_theme";
+    
+    // 添加主题深浅色常量
+    private static final int THEME_VARIANT_DEFAULT = 0;
+    private static final int THEME_VARIANT_LIGHT = 1;
+    private static final int THEME_VARIANT_DARK = 2;
+    private static final String SELECTED_THEME_VARIANT = "selected_theme_variant";
 
     // 配置显示文本视图
     private MaterialTextView salt6xValue;
@@ -74,8 +79,8 @@ public class SettingsFragment extends Fragment {
     private ActivityResultLauncher<Intent> selectImageLauncher;
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        // 加载布局
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
 
         // 初始化SharedPreferences
@@ -172,13 +177,13 @@ public class SettingsFragment extends Fragment {
         gameDailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("game_daily_checkbox_weiding", isChecked).apply());
 
+        // 关于
         MaterialTextView githubLink = view.findViewById(R.id.github_link);
         githubLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
         githubLink.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/MuxiaoWF/Venus"));
             startActivity(intent);
         });
-
         MaterialTextView blogLink = view.findViewById(R.id.blog_link);
         blogLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
         blogLink.setOnClickListener(v -> {
@@ -186,13 +191,13 @@ public class SettingsFragment extends Fragment {
             startActivity(intent);
         });
 
-        // 添加配置更新按钮的点击事件
+        // 配置更新
         MaterialButton updateConfigButton = view.findViewById(R.id.update_config_button);
         updateConfigButton.setOnClickListener(v -> updateConfig(view));
-
         // 显示当前配置值
         displayCurrentConfigValues();
 
+        // 折叠按钮
         MaterialButton daily_toggle_button = view.findViewById(R.id.daily_toggle_button);
         View daily_content_layout = view.findViewById(R.id.daily_content_layout);
         daily_toggle_button.setOnClickListener(v -> {
@@ -202,7 +207,6 @@ public class SettingsFragment extends Fragment {
             else
                 daily_content_layout.setVisibility(View.GONE);
         });
-
         MaterialButton bbs_toggle_button = view.findViewById(R.id.bbs_toggle_button);
         View bbs_content_layout = view.findViewById(R.id.bbs_content_layout);
         bbs_toggle_button.setOnClickListener(v -> {
@@ -212,7 +216,6 @@ public class SettingsFragment extends Fragment {
             else
                 bbs_content_layout.setVisibility(View.GONE);
         });
-
         MaterialButton config_toggle_button = view.findViewById(R.id.config_toggle_button);
         View config_content_layout = view.findViewById(R.id.config_content_layout);
         config_toggle_button.setOnClickListener(v -> {
@@ -222,7 +225,6 @@ public class SettingsFragment extends Fragment {
             else
                 config_content_layout.setVisibility(View.GONE);
         });
-
         MaterialButton theme_toggle_button = view.findViewById(R.id.theme_toggle_button);
         View theme_content_layout = view.findViewById(R.id.theme_content_layout);
         theme_toggle_button.setOnClickListener(v -> {
@@ -232,10 +234,10 @@ public class SettingsFragment extends Fragment {
             else
                 theme_content_layout.setVisibility(View.GONE);
         });
-        // 设置主题选择功能
+
+        // 主题选择
         setupThemeSelection(view);
-        
-        // 设置背景选择功能
+        // 背景选择
         setupBackgroundSelection(view);
 
         return view;
@@ -253,20 +255,14 @@ public class SettingsFragment extends Fragment {
                         if (selectedImageUri != null) {
                             // 获取持久权限访问该URI
                             requireActivity().getContentResolver().takePersistableUriPermission(
-                                    selectedImageUri,
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            );
-                            
+                                    selectedImageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             // 保存选择的图片URI
                             backgroundPreferences.edit()
-                                    .putString(BACKGROUND_IMAGE_URI, selectedImageUri.toString())
-                                    .apply();
-                            
+                                    .putString(BACKGROUND_IMAGE_URI, selectedImageUri.toString()).apply();
                             // 显示提示信息
                             View view = getView();
-                            if (view != null) {
-                                showCustomSnackbar(view, this, "背景图片已设置，将在下次启动时生效");
-                            }
+                            if (view != null)
+                                showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
                         }
                     }
                 }
@@ -308,18 +304,13 @@ public class SettingsFragment extends Fragment {
                 try {
                     Uri oldUri = Uri.parse(uriString);
                     requireActivity().getContentResolver().releasePersistableUriPermission(
-                            oldUri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    );
+                            oldUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 } catch (Exception e) {
-                    show_error_dialog("设置背景图片出错："+ e);
+                    show_error_dialog(requireContext(),"设置背景图片出错："+ e);
                 }
             }
-            
-            backgroundPreferences.edit()
-                    .remove(BACKGROUND_IMAGE_URI)
-                    .apply();
-            showCustomSnackbar(view, this, "背景图片已清除，将在下次启动时生效");
+            backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
+            showCustomSnackbar(view, requireContext(), "背景图片已清除，将在下次启动时生效");
         });
 
         // 设置透明度滑块
@@ -327,10 +318,8 @@ public class SettingsFragment extends Fragment {
         backgroundAlphaSlider.setValue(currentAlpha * 100);
         backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
             float alpha = value / 100.0f;
-            backgroundPreferences.edit()
-                    .putFloat(BACKGROUND_ALPHA, alpha)
-                    .apply();
-            showCustomSnackbar(view, this, "透明度已设置为 " + (int) value + "%，将在下次启动时生效");
+            backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, alpha).apply();
+            showCustomSnackbar(view, requireContext(), "透明度已设置为 " + (int) value + "%，将在下次启动时生效");
         });
     }
 
@@ -341,6 +330,8 @@ public class SettingsFragment extends Fragment {
         // 获取主题SharedPreferences
         SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+        int selectedThemeVariant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
+        
         // 查找所有主题单选按钮
         MaterialRadioButton themeDefault = view.findViewById(R.id.theme_default);
         MaterialRadioButton themeBlue = view.findViewById(R.id.theme_blue);
@@ -349,6 +340,12 @@ public class SettingsFragment extends Fragment {
         MaterialRadioButton themeYellow = view.findViewById(R.id.theme_yellow);
         MaterialRadioButton themeLight = view.findViewById(R.id.theme_light);
         MaterialRadioButton themeDark = view.findViewById(R.id.theme_dark);
+        
+        // 查找所有主题变体单选按钮
+        MaterialRadioButton themeVariantDefault = view.findViewById(R.id.theme_variant_default);
+        MaterialRadioButton themeVariantLight = view.findViewById(R.id.theme_variant_light);
+        MaterialRadioButton themeVariantDark = view.findViewById(R.id.theme_variant_dark);
+        
         // 根据保存的设置选中对应的主题
         switch (selectedTheme) {
             case THEME_DEFAULT:
@@ -373,6 +370,20 @@ public class SettingsFragment extends Fragment {
                 themeDark.setChecked(true);
                 break;
         }
+        
+        // 根据保存的设置选中对应的深浅色模式
+        switch (selectedThemeVariant) {
+            case THEME_VARIANT_DEFAULT:
+                themeVariantDefault.setChecked(true);
+                break;
+            case THEME_VARIANT_LIGHT:
+                themeVariantLight.setChecked(true);
+                break;
+            case THEME_VARIANT_DARK:
+                themeVariantDark.setChecked(true);
+                break;
+        }
+        
         // 为每个单选按钮设置监听器
         themeDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) saveAndApplyTheme(THEME_DEFAULT);
@@ -395,6 +406,17 @@ public class SettingsFragment extends Fragment {
         themeDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) saveAndApplyTheme(THEME_DARK);
         });
+        
+        // 为每个主题变体单选按钮设置监听器
+        themeVariantDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_DEFAULT);
+        });
+        themeVariantLight.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_LIGHT);
+        });
+        themeVariantDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_DARK);
+        });
     }
 
     /**
@@ -406,11 +428,51 @@ public class SettingsFragment extends Fragment {
         // 保存选择的主题
         SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME, themeId).apply();
-
         // 显示提示信息，告知用户需要重启应用以应用主题
         View view = getView();
+        if (view != null)
+            showCustomSnackbar(view, requireContext(), "主题已保存，请重启应用以应用新主题");
+    }
+    
+    /**
+     * 保存并应用主题深浅色变体
+     *
+     * @param themeVariantId 主题深浅色变体ID
+     */
+    private void saveAndApplyThemeVariant(int themeVariantId) {
+        // 保存选择的主题深浅色变体
+        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
+        
+        // 立即应用深浅色模式
+        switch (themeVariantId) {
+            case THEME_VARIANT_DEFAULT:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                break;
+            case THEME_VARIANT_LIGHT:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+                break;
+            case THEME_VARIANT_DARK:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+                break;
+        }
+        
+        // 显示提示信息
+        View view = getView();
         if (view != null) {
-            showCustomSnackbar(view, this, "主题已保存，请重启应用以应用新主题");
+            String message = "";
+            switch (themeVariantId) {
+                case THEME_VARIANT_DEFAULT:
+                    message = "已设置为跟随系统深浅色模式";
+                    break;
+                case THEME_VARIANT_LIGHT:
+                    message = "已设置为浅色模式";
+                    break;
+                case THEME_VARIANT_DARK:
+                    message = "已设置为深色模式";
+                    break;
+            }
+            showCustomSnackbar(view, requireContext(), message);
         }
     }
 
@@ -440,6 +502,37 @@ public class SettingsFragment extends Fragment {
             case THEME_DEFAULT:
             default:
                 return R.style.Theme_Venus;
+        }
+    }
+    
+    /**
+     * 获取应该应用的主题深浅色变体
+     *
+     * @param context 上下文
+     * @return 主题深浅色变体
+     */
+    public static int getSelectedThemeVariant(Context context) {
+        SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        return themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
+    }
+
+    /**
+     * 应用主题深浅色变体
+     *
+     * @param context 上下文
+     */
+    public static void applyThemeVariant(Context context) {
+        int themeVariant = getSelectedThemeVariant(context);
+        switch (themeVariant) {
+            case THEME_VARIANT_DEFAULT:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                break;
+            case THEME_VARIANT_LIGHT:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+                break;
+            case THEME_VARIANT_DARK:
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+                break;
         }
     }
     
@@ -490,7 +583,6 @@ public class SettingsFragment extends Fragment {
     /**
      * 更新配置信息
      */
-    // 合并后的正确写法
     private void updateConfig(View view) {
         new Thread(() -> {
             try {
@@ -516,42 +608,23 @@ public class SettingsFragment extends Fragment {
                     editor.apply();
                     requireActivity().runOnUiThread(() -> {
                         displayCurrentConfigValues();
-                        showCustomSnackbar(view, this, "配置更新成功");
+                        showCustomSnackbar(view, requireContext(), "配置更新成功");
                     });
                 } else {
                     requireActivity().runOnUiThread(() ->
-                            showCustomSnackbar(view, this, "配置更新失败：无响应数据"));
+                            showCustomSnackbar(view, requireContext(), "配置更新失败：无响应数据"));
                 }
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        showCustomSnackbar(view, this, "配置更新失败：" + e.getMessage()));
+                        showCustomSnackbar(view, requireContext(), "配置更新失败：" + e.getMessage()));
             }
         }).start();
     }
 
+    // 上面方法的辅助方法
     private String getDataOrDefault(JsonObject data, String key, String defaultValue) {
         if (data != null && data.has(key) && !data.get(key).isJsonNull())
             return data.get(key).getAsString();
         return defaultValue;
-    }
-    /**
-     * 显示错误信息并提供复制
-     *
-     * @param error_message 错误信息
-     */
-    private void show_error_dialog(String error_message) {
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("错误")
-                .setMessage(error_message)
-                .setPositiveButton("复制错误信息", (dialog, which) -> {
-                    ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
-                    clipboard.setPrimaryClip(clip);
-                    requireActivity().runOnUiThread(() ->
-                            android.widget.Toast.makeText(requireContext(), "错误信息已复制到剪切板", android.widget.Toast.LENGTH_SHORT).show()
-                    );
-                })
-                .setNegativeButton("关闭", null)
-                .show();
     }
 }

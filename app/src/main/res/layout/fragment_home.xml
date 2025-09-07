@@ -99,7 +99,9 @@
             android:layout_height="wrap_content"
             android:inputType="none"
             android:text="选择用户"
-            android:textColor="?attr/colorOnSurface" />
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
     </com.google.android.material.textfield.TextInputLayout>
 
     <!-- 按钮容器 -->

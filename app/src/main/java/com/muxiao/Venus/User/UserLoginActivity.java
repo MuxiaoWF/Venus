@@ -1,20 +1,17 @@
 package com.muxiao.Venus.User;
 
 import static com.muxiao.Venus.common.fixed.getDS;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ScrollView;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -23,7 +20,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.Gson;
@@ -50,7 +46,6 @@ import java.util.concurrent.TimeUnit;
 public class UserLoginActivity extends AppCompatActivity {
     private TextInputEditText username_input;
     private MaterialButton login_btn;
-    private MaterialButton back_main_btn;
     private MaterialTextView login_status_text;
     private UserManager user_manager;
     private String username;
@@ -84,7 +79,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
         username_input = findViewById(R.id.username_input);
         login_btn = findViewById(R.id.login_btn);
-        back_main_btn = findViewById(R.id.back_main_btn);
+        MaterialButton back_main_btn = findViewById(R.id.back_main_btn);
         login_status_text = findViewById(R.id.login_status_text);
         login_scroll_view = findViewById(R.id.login_scroll_view);
         login_qr_code_image = findViewById(R.id.login_qr_code_image);
@@ -122,8 +117,7 @@ public class UserLoginActivity extends AppCompatActivity {
             username_input.setText("");
         } catch (Exception e) {
             String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
-            Log.e("UserLoginActivity", "执行登录任务时出错", e);
-            show_error_dialog(error_message);
+            show_error_dialog(this,error_message);
             login_status_text.append("\n登录失败\n");
             login_btn.setEnabled(true);
             if (username_input != null) {
@@ -138,29 +132,10 @@ public class UserLoginActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         // 关闭ExecutorService以释放资源
-        if (executor_service != null && !executor_service.isShutdown()) {
+        if (executor_service != null && !executor_service.isShutdown())
             executor_service.shutdown();
-        }
     }
 
-    /**
-     * 显示错误信息并提供复制
-     *
-     * @param error_message 错误信息
-     */
-    private void show_error_dialog(String error_message) {
-        new MaterialAlertDialogBuilder(this)
-                .setTitle("错误")
-                .setMessage(error_message)
-                .setPositiveButton("复制错误信息", (dialog, which) -> {
-                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
-                    clipboard.setPrimaryClip(clip);
-                    Toast.makeText(this, "错误信息已复制到剪切板", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("关闭", null)
-                .show();
-    }
 
     public class LoginTask implements Runnable {
         private byte[] qr_code_data;
@@ -209,8 +184,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    Log.e("LoginTask", "执行登录时出错", e);
-                    show_error_dialog(error_message);
+                    show_error_dialog(context,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_status_text.append("\n登录失败\n");
                     login_btn.setEnabled(true);
@@ -358,8 +332,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    Log.e("LoginTask", "检查登录状态时出错", e);
-                    show_error_dialog(error_message);
+                    show_error_dialog(context,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });
@@ -400,8 +373,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    Log.e("LoginTask", "获取Stoken时出错", e);
-                    show_error_dialog(error_message);
+                    show_error_dialog(context,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });
@@ -438,8 +410,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    Log.e("LoginTask", "获取Ltoken时出错", e);
-                    show_error_dialog(error_message);
+                    show_error_dialog(context,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });

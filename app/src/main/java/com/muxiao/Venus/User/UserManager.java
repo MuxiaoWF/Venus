@@ -49,9 +49,8 @@ public class UserManager {
             sharedPreferences.edit().putString(KEY_USERS, usersJson).apply();
             
             // 如果删除的是当前用户，则清除当前用户设置
-            if (username.equals(getCurrentUser())) {
+            if (username.equals(getCurrentUser()))
                 sharedPreferences.edit().remove(KEY_CURRENT_USER).apply();
-            }
         }
     }
 
@@ -60,9 +59,8 @@ public class UserManager {
      */
     public Map<String, String> getUsers() {
         String usersJson = sharedPreferences.getString(KEY_USERS, "");
-        if (usersJson.isEmpty()) {
+        if (usersJson.isEmpty())
             return new HashMap<>();
-        }
 
         Type type = new TypeToken<Map<String, String>>(){}.getType();
         return gson.fromJson(usersJson, type);
@@ -86,9 +84,8 @@ public class UserManager {
      * 设置当前用户（确保用户存在）
      */
     public void setCurrentUser(String username) {
-        if (isUserExists(username)) {
+        if (isUserExists(username))
             sharedPreferences.edit().putString(KEY_CURRENT_USER, username).apply();
-        }
     }
 
     /**

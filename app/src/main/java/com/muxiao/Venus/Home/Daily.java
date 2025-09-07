@@ -4,9 +4,9 @@ import static com.muxiao.Venus.common.fixed.bbs_list;
 import static com.muxiao.Venus.common.fixed.getDS;
 import static com.muxiao.Venus.common.tools.sendGetRequest;
 import static com.muxiao.Venus.common.tools.sendPostRequest;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3ErrorBean;
@@ -101,9 +101,8 @@ public class Daily {
         String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/apihub/sapi/getUserMissionsState", bbs_headers, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
-        if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
+        if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100)
             throw new RuntimeException("获取任务列表失败，你的cookie可能已过期，请重新设置cookie。");
-        }
         this.todayGetCoins = data.get("can_get_points").getAsInt();
         this.todayHaveGetCoins = data.get("already_received_points").getAsInt();
         this.haveCoins = data.get("total_points").getAsInt();
@@ -171,9 +170,8 @@ public class Daily {
         for (JsonElement postElement : list) {
             JsonObject post = postElement.getAsJsonObject().getAsJsonObject("post");
             tempList.add(List.of(post.get("post_id").getAsString(), post.get("subject").getAsString()));
-            if (tempList.size() >= 5) {
+            if (tempList.size() >= 5)
                 break;
-            }
             notifier.notifyListeners("已获取" + tempList.size() + "个帖子");
         }
         return tempList;
@@ -188,14 +186,10 @@ public class Daily {
      * @param share 是否执行分享
      */
     public void runTask(boolean sign, boolean read, boolean like, boolean share) {
-        if (sign)
-            signPosts();
-        if (read)
-            readPosts();
-        if (like)
-            likePosts();
-        if (share)
-            sharePosts();
+        if (sign) signPosts();
+        if (read) readPosts();
+        if (like) likePosts();
+        if (share) sharePosts();
         getTasksList();
         notifier.notifyListeners("今天已经获得" + this.todayHaveGetCoins + "个米游币\n" + "还能获得" + this.todayGetCoins + "个米游币\n目前有" + this.haveCoins + "个米游币");
         notifier.notifyListeners("米游币任务执行完毕");
@@ -340,9 +334,8 @@ public class Daily {
                     bbs_headers.put("DS", getDS(fixed.K2));
                     String cancelResponse = sendPostRequest("https://bbs-api.miyoushe.com/apihub/sapi/upvotePost", header, postDataMap);
                     JsonObject cancelData = JsonParser.parseString(cancelResponse).getAsJsonObject();
-                    if (!cancelData.get("message").getAsString().contains("err") && cancelData.get("retcode").getAsInt() == 0) {
+                    if (!cancelData.get("message").getAsString().contains("err") && cancelData.get("retcode").getAsInt() == 0)
                         notifier.notifyListeners("取消点赞: " + post.get(1) + " 成功");
-                    }
                     break;
                 } else if (data.get("retcode").getAsInt() == 1034) {
                     // 当返回码为1034时，触发验证码验证
@@ -362,9 +355,8 @@ public class Daily {
                     throw new RuntimeException("点赞失败，你的cookie可能已过期，请重新设置cookie。");
                 } else {
                     notifier.notifyListeners("点赞: " + post.get(1) + " 失败,错误信息为: " + response);
-                    if (retryCount < 2) {
+                    if (retryCount < 2)
                         notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
-                    }
                 }
             }
             wait2();
@@ -464,7 +456,7 @@ public class Daily {
                     gt3ConfigBean.setApi1Json(api1Json);
                     gt3Controller.getGeetestUtils().getGeetest();
                 } catch (Exception e) {
-                    Log.e("gt3", "创建API1 JSON时出错: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码创建API1 JSON时出错: " + e.getMessage());
                 }
             }
 
@@ -474,7 +466,6 @@ public class Daily {
 
             @Override
             public void onDialogResult(String result) {
-                Log.e("gt3", "GT3BaseListener-->onDialogResult-->" + result);
                 // 使用Gson解析验证结果
                 try {
                     Gson gson = new Gson();
@@ -487,7 +478,7 @@ public class Daily {
                     body.put("geetest_challenge", geetest_challenge);
                     body.put("geetest_seccode", geetest_seccode);
                     body.put("geetest_validate", geetest_validate);
-                    
+
                     // 在后台线程执行网络请求
                     new Thread(() -> {
                         try {
@@ -505,7 +496,7 @@ public class Daily {
                                 }
                             }
                         } catch (Exception e) {
-                            Log.e("gt3", "网络请求错误: " + e.getMessage());
+                            show_error_dialog(context, "极验验证码网络请求错误: " + e.getMessage());
                             // 通知等待的线程继续执行（即使验证失败也要继续）
                             synchronized (Daily.this) {
                                 Daily.this.notify();
@@ -514,27 +505,23 @@ public class Daily {
                     }).start();
                     gt3Controller.getGeetestUtils().showSuccessDialog();
                 } catch (JsonSyntaxException e) {
-                    Log.e("gt3", "JSON解析错误: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码JSON解析错误: " + e.getMessage());
                 } catch (Exception e) {
-                    Log.e("gt3", "处理验证结果时出错: " + e.getMessage());
+                    show_error_dialog(context, "极验验证码处理验证结果时出错: " + e.getMessage());
                 }
             }
 
             @Override
-            public void onStatistics(String s) {
-            }
+            public void onStatistics(String s) {}
 
             @Override
-            public void onClosed(int i) {
-            }
+            public void onClosed(int i) {}
 
             @Override
-            public void onSuccess(String result) {
-            }
+            public void onSuccess(String result) {}
 
             @Override
-            public void onFailed(GT3ErrorBean errorBean) {
-            }
+            public void onFailed(GT3ErrorBean errorBean) {}
         });
         gt3Controller.init(gt3ConfigBean);
     }

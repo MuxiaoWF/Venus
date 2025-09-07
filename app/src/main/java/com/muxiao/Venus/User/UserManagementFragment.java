@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 
 import java.util.List;
@@ -23,19 +24,16 @@ public class UserManagementFragment extends Fragment {
 
     private UserManager userManager;
     private ViewGroup userListContainer;
-    private android.widget.TextView noUserPrompt;
+    private MaterialTextView noUserPrompt;
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
-        noUserPrompt = new android.widget.TextView(requireContext());
-        noUserPrompt.setText("暂无用户，请添加新用户");
-        noUserPrompt.setTextSize(16);
-        noUserPrompt.setPadding(16, 16, 16, 16);
+        noUserPrompt = rootView.findViewById(R.id.no_user_prompt);
+        noUserPrompt.setVisibility(View.GONE);
 
         MaterialButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
         userLoginBtn.setOnClickListener(v -> {
@@ -59,7 +57,7 @@ public class UserManagementFragment extends Fragment {
         List<String> users = userManager.getUsernames();
         // 如果没有用户，显示提示信息
         if (users.isEmpty()) {
-            userListContainer.addView(noUserPrompt);
+            noUserPrompt.setVisibility(View.VISIBLE);
             return;
         }
         // 为每个用户创建新的视图实例
@@ -75,7 +73,7 @@ public class UserManagementFragment extends Fragment {
             userNameButton.setText(username);
             userNameButton.setOnClickListener(v -> {
                 userManager.setCurrentUser(username);
-                showCustomSnackbar(requireView(), requireParentFragment(), "已切换到用户: " + username);
+                showCustomSnackbar(requireView(), requireContext(), "已切换到用户: " + username);
             });
 
             renameButton.setOnClickListener(v -> showRenameUserDialog(username));
@@ -98,11 +96,10 @@ public class UserManagementFragment extends Fragment {
         builder.setPositiveButton("确定", (dialog, which) -> {
             String newUsername = Objects.requireNonNull(input.getText()).toString().trim();
             if (!newUsername.isEmpty() && !newUsername.equals(oldUsername)) {
-                if (userManager.isUserExists(newUsername)) {
-                    showCustomSnackbar(requireView(), this, "用户名已存在");
-                } else {
+                if (userManager.isUserExists(newUsername))
+                    showCustomSnackbar(requireView(), requireContext(), "用户名已存在");
+                else
                     renameUser(oldUsername, newUsername);
-                }
             }
         });
         builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
@@ -113,12 +110,11 @@ public class UserManagementFragment extends Fragment {
     private void renameUser(String oldUsername, String newUsername) {
         // 添加新用户并删除旧用户的方式来实现重命名
         userManager.addUser(newUsername);
-        if (userManager.getCurrentUser().equals(oldUsername)) {
+        if (userManager.getCurrentUser().equals(oldUsername))
             userManager.setCurrentUser(newUsername);
-        }
         userManager.removeUser(oldUsername);
         refreshUserList();
-        showCustomSnackbar(requireView(), this, "用户已重命名为: " + newUsername);
+        showCustomSnackbar(requireView(), requireContext(), "用户已重命名为: " + newUsername);
     }
 
     private void showDeleteUserDialog(String username) {
@@ -129,7 +125,7 @@ public class UserManagementFragment extends Fragment {
         builder.setPositiveButton("删除", (dialog, which) -> {
             userManager.removeUser(username);
             refreshUserList();
-            showCustomSnackbar(requireView(), this, "用户已删除: " + username);
+            showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
         });
         builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
 

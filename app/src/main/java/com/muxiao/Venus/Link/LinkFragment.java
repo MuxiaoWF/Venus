@@ -1,12 +1,12 @@
 package com.muxiao.Venus.Link;
 
+import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
+import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
+import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,7 +14,6 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -25,6 +24,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.User.UserManager;
 
 import java.util.HashMap;
@@ -57,9 +57,8 @@ public class LinkFragment extends Fragment {
     private final Map<Integer, Map<Integer, String>> tabResults = new HashMap<>();
     private int currentTabPosition = 0;
 
-    @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         view = inflater.inflate(R.layout.fragment_link, container, false);
 
         tabLayout = view.findViewById(R.id.tabLayout);
@@ -77,7 +76,7 @@ public class LinkFragment extends Fragment {
 
         // 设置RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        adapter = new LinkAdapter();
+        adapter = new LinkAdapter(view,requireContext());
         recyclerView.setAdapter(adapter);
 
         // 初始化用户管理器和线程池
@@ -94,7 +93,7 @@ public class LinkFragment extends Fragment {
             currentUserId = selectedUser;
         });
 
-        // 设置Tab选择监听器
+        // 设置Tab选择栏监听器
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -102,8 +101,7 @@ public class LinkFragment extends Fragment {
             }
 
             @Override
-            public void onTabUnselected(TabLayout.Tab tab) {
-            }
+            public void onTabUnselected(TabLayout.Tab tab) {}
 
             @Override
             public void onTabReselected(TabLayout.Tab tab) {
@@ -126,10 +124,8 @@ public class LinkFragment extends Fragment {
                     userDropdownLayout.setVisibility(View.VISIBLE);
                     getLinkButton.setVisibility(View.VISIBLE);
                     webViewContainer.setVisibility(View.GONE);
-
                     // 显示当前标签页的结果
                     showTabResults(position);
-
                     // 销毁WebView
                     if (webView != null) {
                         webViewContainer.removeView(webView);
@@ -141,7 +137,7 @@ public class LinkFragment extends Fragment {
         });
 
         // 设置获取链接按钮点击事件
-        getLinkButton.setOnClickListener(v -> loadLinks(tabLayout.getSelectedTabPosition()));
+        getLinkButton.setOnClickListener(v -> new LoadLinksTask(tabLayout.getSelectedTabPosition()).execute());
 
         // 设置关闭WebView按钮点击事件
         view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> {
@@ -150,7 +146,6 @@ public class LinkFragment extends Fragment {
             getLinkButton.setVisibility(View.VISIBLE);
             userDropdownLayout.setVisibility(View.VISIBLE);
             Objects.requireNonNull(tabLayout.getTabAt(0)).select();
-
             // 销毁WebView
             if (webView != null) {
                 webViewContainer.removeView(webView);
@@ -178,8 +173,8 @@ public class LinkFragment extends Fragment {
                             // 移除结果字符串的引号
                             String url = result.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"");
                             if (url.contains("authkey=")) {
-                                copyToClipboard(url);
-                                showCustomSnackbar(view, this, "链接已复制到剪贴板");
+                                copyToClipboard(view, requireContext(),url);
+                                showCustomSnackbar(view, requireContext(), "链接已复制到剪贴板");
                             } else {
                                 // 尝试从页面中查找可能的抽卡链接
                                 webView.evaluateJavascript(
@@ -197,11 +192,10 @@ public class LinkFragment extends Fragment {
                                         result2 -> {
                                             String extractedUrl = result2.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"").replaceAll("\\\\\\\\", "/");
                                             if (extractedUrl.contains("authkey=")) {
-                                                copyToClipboard(extractedUrl);
-                                                showCustomSnackbar(view, this, "链接已复制到剪贴板");
-                                            } else {
-                                                showCustomSnackbar(view, this, "未找到有效的抽卡链接");
-                                            }
+                                                copyToClipboard(view, requireContext(),extractedUrl);
+                                                showCustomSnackbar(view, requireContext(), "链接已复制到剪贴板");
+                                            } else
+                                                showCustomSnackbar(view, requireContext(), "未找到有效的抽卡链接");
                                         }
                                 );
                             }
@@ -221,7 +215,6 @@ public class LinkFragment extends Fragment {
                 userManager.getUsernames()
         );
         userDropdown.setAdapter(adapter);
-
         // 设置当前用户为默认选中项
         String currentUser = userManager.getCurrentUser();
         if (!currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
@@ -234,10 +227,6 @@ public class LinkFragment extends Fragment {
             userManager.setCurrentUser(firstUser);
             currentUserId = firstUser;
         }
-    }
-
-    private void loadLinks(int gameType) {
-        new LoadLinksTask(gameType).execute();
     }
 
     private void showTabResults(int tabPosition) {
@@ -263,13 +252,7 @@ public class LinkFragment extends Fragment {
         }
     }
 
-    private void copyToClipboard(String text) {
-        ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText("Gacha Link", text);
-        clipboard.setPrimaryClip(clip);
-        showCustomSnackbar(view, this, "链接已复制到剪贴板");
-    }
-
+    @SuppressLint("SetJavaScriptEnabled")
     private void setupWebViewForCloudGame() {
         recyclerView.setVisibility(View.GONE);
         webViewContainer.setVisibility(View.VISIBLE);
@@ -301,53 +284,77 @@ public class LinkFragment extends Fragment {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-
-                // 打印所有请求URL用于调试
-                Log.d("WebViewRequest", "URL being loaded: " + url);
-
                 // 检查是否包含原神抽卡链接
                 if (url.contains("public-operation-hk4e.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(url);
-                        showCustomSnackbar(view, requireParentFragment(), "原神抽卡链接已复制到剪贴板");
+                        copyToClipboard(view,requireContext(),url);
+                        showCustomSnackbar(view, requireContext(), "原神抽卡链接已复制到剪贴板");
                     });
                 }
                 // 检查是否包含星穹铁道抽卡链接
                 else if (url.contains("public-operation-hkrpg.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(url);
-                        showCustomSnackbar(view, requireParentFragment(), "星穹铁道抽卡链接已复制到剪贴板");
+                        copyToClipboard(view, requireContext(),url);
+                        showCustomSnackbar(view, requireContext(), "星穹铁道抽卡链接已复制到剪贴板");
                     });
                 }
                 // 检查是否包含绝区零抽卡链接
                 else if (url.contains("public-operation-nap.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(url);
-                        showCustomSnackbar(view, requireParentFragment(), "绝区零抽卡链接已复制到剪贴板");
+                        copyToClipboard(view,requireContext(),url);
+                        showCustomSnackbar(view, requireContext(), "绝区零抽卡链接已复制到剪贴板");
                     });
                 }
-
                 return super.shouldInterceptRequest(view, request);
             }
 
+            @TargetApi(Build.VERSION_CODES.N)
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                view.loadUrl(request.getUrl().toString());
+                return true;
+            }
+
+            // 兼容较低版本的Android
+            @SuppressWarnings("deprecation")
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 view.loadUrl(url);
                 return true;
             }
         });
-
         // 加载米哈游云游戏页面
         webView.loadUrl("https://mhyy.mihoyo.com/");
     }
 
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (executor != null && !executor.isShutdown())
+            executor.shutdown();
+        if (webView != null) {
+            webViewContainer.removeView(webView);
+            webView.destroy();
+            webView = null;
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次恢复Fragment时更新下拉框
+        updateDropdown();
+    }
+
+    /**
+     * 获取链接
+     */
     private class LoadLinksTask {
         private final int gameType;
-
         public LoadLinksTask(int gameType) {
             this.gameType = gameType;
         }
-
         public void execute() {
             if (currentUserId == null || currentUserId.equals("default_user")) {
                 requireActivity().runOnUiThread(() -> {
@@ -356,14 +363,11 @@ public class LinkFragment extends Fragment {
                 });
                 return;
             }
-
             progressBar.setVisibility(View.VISIBLE);
             errorTextView.setVisibility(View.GONE);
-
             executor.execute(() -> {
                 Exception exception = null;
                 Map<Integer, String> result = null;
-
                 try {
                     GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
                     if (gameType == 0) {
@@ -419,80 +423,5 @@ public class LinkFragment extends Fragment {
                 });
             });
         }
-    }
-
-    private class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
-        private Map<Integer, String> links;
-
-        public void setLinks(Map<Integer, String> links) {
-            this.links = links;
-            notifyDataSetChanged();
-        }
-
-        @NonNull
-        @Override
-        public LinkViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_gacha_link, parent, false);
-            return new LinkViewHolder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull LinkViewHolder holder, int position) {
-            if (links != null) {
-                Integer[] uids = links.keySet().toArray(new Integer[0]);
-                Integer uid = uids[position];
-                String link = links.get(uid);
-
-                holder.uidTextView.setText(new StringBuilder("UID: " + uid));
-                holder.linkTextView.setText(link);
-                holder.copyButton.setOnClickListener(v -> copyToClipboard(link));
-            }
-        }
-
-        @Override
-        public int getItemCount() {
-            return links != null ? links.size() : 0;
-        }
-
-        private void copyToClipboard(String text) {
-            ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("Gacha Link", text);
-            clipboard.setPrimaryClip(clip);
-            showCustomSnackbar(view, requireParentFragment(), "链接已复制到剪贴板");
-        }
-    }
-
-    private static class LinkViewHolder extends RecyclerView.ViewHolder {
-        MaterialTextView uidTextView;
-        MaterialTextView linkTextView;
-        com.google.android.material.button.MaterialButton copyButton;
-
-        public LinkViewHolder(@NonNull View itemView) {
-            super(itemView);
-            uidTextView = itemView.findViewById(R.id.uidTextView);
-            linkTextView = itemView.findViewById(R.id.linkTextView);
-            copyButton = itemView.findViewById(R.id.copyButton);
-        }
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (executor != null && !executor.isShutdown()) {
-            executor.shutdown();
-        }
-        if (webView != null) {
-            webViewContainer.removeView(webView);
-            webView.destroy();
-            webView = null;
-        }
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        // 每次恢复Fragment时更新下拉框
-        updateDropdown();
     }
 }

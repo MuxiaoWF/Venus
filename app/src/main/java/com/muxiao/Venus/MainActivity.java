@@ -1,27 +1,26 @@
 package com.muxiao.Venus;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
+
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentTransaction;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
@@ -35,8 +34,8 @@ import android.os.Build;
 import java.io.InputStream;
 
 public class MainActivity extends AppCompatActivity {
-    // 添加当前Fragment跟踪
-    private int currentFragmentId = -1;
+    private ViewPager2 viewPager;
+    private BottomNavigationView bottomNavigationView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,21 +55,29 @@ public class MainActivity extends AppCompatActivity {
         // 设置背景图片
         setupBackground();
 
-        // 初始化底部导航
-        BottomNavigationView bottomNavigationView = findViewById(R.id.bottom_navigation);
+        // 初始化ViewPager2和底部导航
+        viewPager = findViewById(R.id.viewPager);
+        bottomNavigationView = findViewById(R.id.bottom_navigation);
+        
+        // 设置ViewPager2适配器
+        ViewPagerAdapter adapter = new ViewPagerAdapter(this);
+        viewPager.setAdapter(adapter);
+        
+        // 设置页面切换监听器，与底部导航联动
+        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                bottomNavigationView.setSelectedItemId(getMenuIdByPosition(position));
+            }
+        });
+
+        // 设置底部导航选择监听器，与ViewPager2联动
         bottomNavigationView.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
-            if (itemId == R.id.navigation_home) {
-                loadFragment(HomeFragment.class, R.id.navigation_home);
-                return true;
-            } else if (itemId == R.id.navigation_users) {
-                loadFragment(UserManagementFragment.class, R.id.navigation_users);
-                return true;
-            } else if (itemId == R.id.navigation_settings) {
-                loadFragment(SettingsFragment.class, R.id.navigation_settings);
-                return true;
-            } else if (itemId == R.id.navigation_link) {
-                loadFragment(LinkFragment.class, R.id.navigation_link);
+            int position = getPositionByMenuId(itemId);
+            if (position != -1) {
+                viewPager.setCurrentItem(position);
                 return true;
             }
             return false;
@@ -78,7 +85,61 @@ public class MainActivity extends AppCompatActivity {
 
         // 默认加载首页Fragment
         if (savedInstanceState == null)
-            bottomNavigationView.setSelectedItemId(R.id.navigation_home);
+            viewPager.setCurrentItem(0);
+    }
+
+    // 根据菜单ID获取位置
+    private int getPositionByMenuId(int menuId) {
+        if (menuId == R.id.navigation_home) return 0;
+        else if (menuId == R.id.navigation_users) return 1;
+        else if (menuId == R.id.navigation_link) return 2;
+        else if (menuId == R.id.navigation_settings) return 3;
+        return -1;
+    }
+
+    // 根据位置获取菜单ID
+    private int getMenuIdByPosition(int position) {
+        switch (position) {
+            case 1:
+                return R.id.navigation_users;
+            case 2:
+                return R.id.navigation_link;
+            case 3:
+                return R.id.navigation_settings;
+            case 0:
+            default:
+                return R.id.navigation_home;
+        }
+    }
+
+    /**
+     * ViewPager2适配器
+     */
+    private static class ViewPagerAdapter extends FragmentStateAdapter {
+        public ViewPagerAdapter(MainActivity activity) {
+            super(activity);
+        }
+
+        @NonNull
+        @Override
+        public Fragment createFragment(int position) {
+            switch (position) {
+                case 1:
+                    return new UserManagementFragment();
+                case 2:
+                    return new LinkFragment();
+                case 3:
+                    return new SettingsFragment();
+                case 0:
+                default:
+                    return new HomeFragment();
+            }
+        }
+
+        @Override
+        public int getItemCount() {
+            return 4; // 四个Fragment
+        }
     }
 
     /**
@@ -101,7 +162,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
-                show_error_dialog("没有权限访问背景图片，清除背景设置" + e);
+                show_error_dialog(this,"没有权限访问背景图片，清除背景设置" + e);
                 getSharedPreferences("background_prefs", Context.MODE_PRIVATE)
                         .edit()
                         .remove("background_image_uri")
@@ -110,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 // 出现异常时隐藏背景图片
                 backgroundImage.setVisibility(android.view.View.GONE);
-                show_error_dialog("设置背景图片出错，隐藏背景图片" + e);
+                show_error_dialog(this,"设置背景图片出错，隐藏背景图片" + e);
             }
         } else {
             backgroundImage.setVisibility(android.view.View.GONE);
@@ -140,57 +201,8 @@ public class MainActivity extends AppCompatActivity {
                 return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
             }
         } catch (Exception e) {
-            show_error_dialog("从Uri获取Drawable出错" + e);
+            show_error_dialog(this,"从Uri获取Drawable出错" + e);
             return null;
         }
-    }
-
-    private void loadFragment(Class<? extends Fragment> fragmentClass, int fragmentId) {
-        // 避免重复加载相同的Fragment
-        if (currentFragmentId == fragmentId) return;
-
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
-
-        // 首先隐藏当前显示的Fragment
-        if (currentFragmentId != -1) {
-            Fragment currentFragment = fragmentManager.findFragmentByTag(String.valueOf(currentFragmentId));
-            if (currentFragment != null)
-                fragmentTransaction.hide(currentFragment);
-        }
-
-        // 查找目标Fragment，如果不存在则创建并添加，否则显示
-        Fragment fragment = fragmentManager.findFragmentByTag(String.valueOf(fragmentId));
-        if (fragment == null) {
-            try {
-                fragment = fragmentClass.newInstance();
-                fragmentTransaction.add(R.id.fragment_container, fragment, String.valueOf(fragmentId));
-            } catch (Exception e) {
-                show_error_dialog("创建Fragment实例时出错" + e);
-            }
-        } else {
-            fragmentTransaction.show(fragment);
-        }
-        currentFragmentId = fragmentId;
-        fragmentTransaction.commit();
-    }
-
-    /**
-     * 显示错误信息并提供复制
-     *
-     * @param error_message 错误信息
-     */
-    private void show_error_dialog(String error_message) {
-        new MaterialAlertDialogBuilder(this)
-                .setTitle("错误")
-                .setMessage(error_message)
-                .setPositiveButton("复制错误信息", (dialog, which) -> {
-                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
-                    clipboard.setPrimaryClip(clip);
-                    Toast.makeText(this, "错误信息已复制到剪切板", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("关闭", null)
-                .show();
     }
 }

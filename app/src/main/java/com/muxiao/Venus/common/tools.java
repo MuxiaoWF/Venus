@@ -1,6 +1,8 @@
 package com.muxiao.Venus.common;
 
 import android.annotation.SuppressLint;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -8,9 +10,11 @@ import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
@@ -55,15 +59,6 @@ public class tools {
          */
         public void addListener(StatusInterface listener) {
             listeners.add(listener);
-        }
-
-        /**
-         * 移除监听器
-         *
-         * @param listener 监听器
-         */
-        public void removeListener(StatusInterface listener) {
-            listeners.remove(listener);
         }
 
         /**
@@ -270,32 +265,26 @@ public class tools {
     /**
      * 显示自定义Snackbar
      */
-    public static void showCustomSnackbar(View view, Fragment fragment, String message) {
+    public static void showCustomSnackbar(View view, Context context, String message) {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
-
         // 获取Snackbar的视图
         View snackbarView = snackbar.getView();
-
         // 获取当前的布局参数
         ViewGroup.LayoutParams layoutParams = snackbarView.getLayoutParams();
-
         // 检查布局参数类型并相应处理
         if (layoutParams instanceof androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {
             // 如果是CoordinatorLayout的LayoutParams，使用原始逻辑
             androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams params =
                     (androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) layoutParams;
-
             // 设置居中对齐
             params.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-
             // 设置边距
             params.setMargins(
-                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
                     0,
-                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                    fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
+                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
             );
-
             // 设置宽度为wrap_content
             params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
 
@@ -304,27 +293,51 @@ public class tools {
             // 对于其他类型的布局参数（如FrameLayout.LayoutParams），使用基本设置
             if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
                 ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) layoutParams;
-
                 // 设置边距
                 marginParams.setMargins(
-                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
                         0,
-                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                        fragment.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
+                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
+                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
                 );
-
                 // 设置居中对齐
-                if (layoutParams instanceof FrameLayout.LayoutParams) {
+                if (layoutParams instanceof FrameLayout.LayoutParams)
                     ((FrameLayout.LayoutParams) layoutParams).gravity =
                             android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-                }
             }
-
             // 设置宽度为wrap_content
             layoutParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
             snackbarView.setLayoutParams(layoutParams);
         }
-
         snackbar.show();
+    }
+
+    /**
+     * 显示错误信息并提供复制
+     *
+     * @param error_message 错误信息
+     */
+    public static void show_error_dialog(Context context,String error_message) {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle("错误")
+                .setMessage(error_message)
+                .setPositiveButton("复制错误信息", (dialog, which) -> {
+                    ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("错误信息", error_message);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(context, "错误信息已复制到剪切板", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("关闭", null)
+                .show();
+    }
+
+    /**
+     * 复制文本到剪贴板
+     * */
+    public static void copyToClipboard(View view, Context context,String text) {
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText("Gacha Link", text);
+        clipboard.setPrimaryClip(clip);
+        showCustomSnackbar(view, context ,"链接已复制到剪贴板");
     }
 }

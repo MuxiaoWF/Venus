@@ -23,6 +23,7 @@ public class fixed {
         this.context = context;
         this.userId = userId;
         updateSalt();
+        user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
         // 初始化headers
         initHeaders();
     }
@@ -169,17 +170,9 @@ public class fixed {
         put("绝区零", "nap_cn");
         put("崩坏因缘精灵", "hna_cn");
     }};
-    private final String user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
+    private final String user_agent;
 
     private static final String app_id = "bll8iq97cem8";
-    public static String name_to_game_num_id(String game_name) {
-        for (Map<String, String> map : bbs_list) {
-            if (Objects.equals(map.get("name"), game_name)) {
-                return map.get("id");
-            }
-        }
-        return null;
-    }
 
     /**
      * 获取游戏id（game_biz），可输入崩坏2、原神、崩坏3、绝区零、星铁、绝区零
@@ -290,7 +283,7 @@ public class fixed {
         jsonObject.addProperty("hardware", android.os.Build.HARDWARE);
         jsonObject.addProperty("deviceType", android.os.Build.DEVICE);
         jsonObject.addProperty("devId", android.os.Build.VERSION.RELEASE);
-        jsonObject.addProperty("serialNumber", android.os.Build.SERIAL);
+        jsonObject.addProperty("serialNumber", "UNKNOWN");
         jsonObject.addProperty("buildTime", String.valueOf(android.os.Build.TIME));
         jsonObject.addProperty("buildUser", android.os.Build.USER);
         jsonObject.addProperty("ramCapacity", String.valueOf(getTotalRam()));
