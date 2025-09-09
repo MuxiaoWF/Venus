@@ -1,5 +1,7 @@
 package com.muxiao.Venus.common;
 
+import com.github.gzuliyujiang.oaid.DeviceID;
+import com.github.gzuliyujiang.oaid.DeviceIdentifier;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -14,6 +16,7 @@ import static com.muxiao.Venus.common.tools.getDeviceId;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 
 public class fixed {
     private final Context context;
@@ -23,7 +26,7 @@ public class fixed {
         this.context = context;
         this.userId = userId;
         updateSalt();
-        user_agent = "Mozilla/5.0 (Linux; Android 12; mi-Tech) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
+        user_agent = "Mozilla/5.0 (Linux; Android "+Build.VERSION.SDK_INT+"; "+Build.MODEL+") AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
         // 初始化headers
         initHeaders();
     }
@@ -109,12 +112,10 @@ public class fixed {
                 put("name", "崩坏因缘精灵");
             }}));
 
-    private String deviceId;
-
-    private String generateDeviceId() {
-        if (deviceId == null) {
+    public String generateDeviceId() {
+        String deviceId = DeviceIdentifier.getAndroidID(context);
+        if (deviceId == null)
             deviceId = getDeviceId(context);
-        }
         return deviceId;
     }
 
@@ -279,7 +280,7 @@ public class fixed {
         jsonObject.addProperty("buildTags", android.os.Build.TAGS);
         jsonObject.addProperty("model", android.os.Build.MODEL);
         jsonObject.addProperty("brand", android.os.Build.BRAND);
-        jsonObject.addProperty("oaid", generateDeviceId());
+        jsonObject.addProperty("oaid", DeviceID.supportedOAID(context)? DeviceIdentifier.getOAID(context):generateDeviceId());
         jsonObject.addProperty("hardware", android.os.Build.HARDWARE);
         jsonObject.addProperty("deviceType", android.os.Build.DEVICE);
         jsonObject.addProperty("devId", android.os.Build.VERSION.RELEASE);
@@ -292,7 +293,7 @@ public class fixed {
         jsonObject.addProperty("ramRemain", String.valueOf(getAvailableRam()));
         jsonObject.addProperty("deviceInfo", android.os.Build.MANUFACTURER + "/" + android.os.Build.DEVICE + "/" + android.os.Build.BOARD + ":" + android.os.Build.VERSION.RELEASE + "/" + android.os.Build.ID + "/" + android.os.Build.VERSION.INCREMENTAL + ":" + android.os.Build.TYPE + "/" + android.os.Build.TAGS);
         jsonObject.addProperty("gyroscope", getSensorInfo("gyroscope"));
-        jsonObject.addProperty("vaid", "7.9894776E-4x-1.3315796E-4x6.6578976E-4"); // 虚拟广告标识符
+        jsonObject.addProperty("vaid", DeviceID.supportedOAID(context)? DeviceIdentifier.getOAID(context):"7.9894776E-4x-1.3315796E-4x6.6578976E-4"); // 虚拟广告标识符
         jsonObject.addProperty("buildType", android.os.Build.TYPE);
         jsonObject.addProperty("sdkVersion", android.os.Build.VERSION.SDK_INT);
         jsonObject.addProperty("board", android.os.Build.BOARD);
@@ -355,7 +356,7 @@ public class fixed {
             put("Origin", "https://act.mihoyo.com/");
             put("x-rpc-client_type", "2");
             put("x-rpc-app_version", bbs_version);
-            put("x-rpc-sys_version", "14");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-channel", "miyousheluodi");
             put("x-rpc-device_id", generateDeviceId());
             put("Referer", "https://act.mihoyo.com/");
@@ -384,10 +385,10 @@ public class fixed {
             put("Content-Type", "application/json");
             put("Accept", "application/json");
             put("x-rpc-game_biz", "bbs_cn");
-            put("x-rpc-sys_version", "14");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-device_id", generateDeviceId());
-            put("x-rpc-device_name", "mi-Tech-Device");
-            put("x-rpc-device_model", "mi-Tech");
+            put("x-rpc-device_name", Build.DEVICE);
+            put("x-rpc-device_model", Build.MODEL);
             put("x-rpc-app_id", app_id);
             put("x-rpc-client_type", "4");
             put("User-Agent", user_agent);
@@ -396,13 +397,13 @@ public class fixed {
         captcha_headers = new HashMap<>() {{
             put("x-rpc-account_version", "2.20.1");
             put("x-rpc-app_id", app_id);
-            put("x-rpc-device_name", "mi-Tech-Device");
+            put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_fp", "");
             put("x-rpc-app_version", bbs_version);
             put("x-rpc-client_type", "2");
             put("x-rpc-device_id", generateDeviceId());
             put("x-rpc-sdk_version", "2.20.1");
-            put("x-rpc-sys_version", "14");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-game_biz", "bbs_cn");
             put("Content-Type", "application/json; utf-8");
         }};
@@ -416,7 +417,7 @@ public class fixed {
             put("x-rpc-device_fp", "");
             put("x-rpc-device_id", generateDeviceId());
             put("x-rpc-app_version", bbs_version);
-            put("x-rpc-device_name", "mi-Tech-Device");
+            put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-page", "v5.3.2-gr-cn_#/ys");
             put("x-rpc-tool_version", "v5.3.2-gr-cn");
             put("sec-fetch-site", "same-site");
@@ -424,16 +425,16 @@ public class fixed {
             put("sec-fetch-dest", "empty");
             put("accept", "*/*");
             put("accept-language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
-            put("x-rpc-sys_version", "14");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
         }};
 
         widget_headers = new HashMap<>() {{
             put("x-rpc-client_type", "2");
             put("x-rpc-app_version", bbs_version);
             put("x-rpc-device_id", generateDeviceId());
-            put("x-rpc-sys_version", "14");
-            put("x-rpc-device_name", "mi-Tech-Device");
-            put("x-rpc-device_model", "mi-Tech");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
+            put("x-rpc-device_name", Build.DEVICE);
+            put("x-rpc-device_model", Build.MODEL);
             put("x-rpc-device_fp", "");
             put("x-rpc-channel", "miyousheluodi");
             put("Referer", "https://app.mihoyo.com");
@@ -459,13 +460,13 @@ public class fixed {
             put("User-Agent", user_agent);
             put("x-rpc-account_version", "2.20.1");
             put("x-rpc-app_id", app_id);
-            put("x-rpc-device_name", "mi-Tech-Device");
+            put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_fp", "");
             put("x-rpc-app_version", bbs_version);
             put("x-rpc-client_type", "2");
             put("x-rpc-device_id", generateDeviceId());
             put("x-rpc-sdk_version", "2.20.1");
-            put("x-rpc-sys_version", "14");
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-game_biz", "bbs_cn");
         }};
 

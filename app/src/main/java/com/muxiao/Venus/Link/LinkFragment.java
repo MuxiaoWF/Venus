@@ -91,6 +91,8 @@ public class LinkFragment extends Fragment {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             currentUserId = selectedUser;
+            // 更新adapter中的当前用户
+            adapter.setCurrentUser(selectedUser);
         });
 
         // 设置Tab选择栏监听器
@@ -220,12 +222,16 @@ public class LinkFragment extends Fragment {
         if (!currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
             userDropdown.setText(currentUser, false);
             currentUserId = currentUser;
+            // 更新adapter中的当前用户
+            this.adapter.setCurrentUser(currentUser);
         } else if (!userManager.getUsernames().isEmpty()) {
             // 如果没有设置当前用户但有用户存在，默认选择第一个
             String firstUser = userManager.getUsernames().get(0);
             userDropdown.setText(firstUser, false);
             userManager.setCurrentUser(firstUser);
             currentUserId = firstUser;
+            // 更新adapter中的当前用户
+            this.adapter.setCurrentUser(firstUser);
         }
     }
 

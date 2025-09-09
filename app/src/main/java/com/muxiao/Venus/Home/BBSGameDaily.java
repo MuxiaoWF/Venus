@@ -293,7 +293,6 @@ public class BBSGameDaily {
                         Thread.currentThread().interrupt();
                     }
                 }
-                gt3Controller.Gone();
                 gt3Controller.cleanUtils();
             } else {
                 break;
@@ -306,11 +305,11 @@ public class BBSGameDaily {
      * 签到(最开始的)
      */
     public void signAccount() {
-        statusNotifier.notifyListeners(game_name + ": ");
         if (account_list.isEmpty()) {
-            statusNotifier.notifyListeners("签到失败，并没有绑定任何" + game_name + "账号，请先绑定");
-            return;
+        statusNotifier.notifyListeners("签到失败，并没有绑定任何" + game_name + "账号，请先绑定");
+        return;
         }
+        statusNotifier.notifyListeners(game_name + ": ");
         try {
             for (Map<String, String> account : account_list) {
                 Thread.sleep(new Random().nextInt(8 - 2 + 1) + 2 * 1000);
@@ -360,7 +359,6 @@ public class BBSGameDaily {
             throw new RuntimeException("获取验证码失败misc/api/createVerification" + response);
         String gt = data.getAsJsonObject("data").get("gt").getAsString();
         String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
-        gt3Controller.Visible();
         // 配置bean文件，也可在oncreate初始化
         GT3ConfigBean gt3ConfigBean = new GT3ConfigBean();
         // 设置验证模式，1：bind，2：unbind

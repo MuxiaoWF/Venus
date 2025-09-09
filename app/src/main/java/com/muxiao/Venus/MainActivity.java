@@ -25,6 +25,7 @@ import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
+import com.muxiao.Venus.Setting.UpdateChecker;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -54,6 +55,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 设置背景图片
         setupBackground();
+
+        // 检查更新
+        checkForUpdatesIfNeeded();
 
         // 初始化ViewPager2和底部导航
         viewPager = findViewById(R.id.viewPager);
@@ -86,6 +90,20 @@ public class MainActivity extends AppCompatActivity {
         // 默认加载首页Fragment
         if (savedInstanceState == null)
             viewPager.setCurrentItem(0);
+    }
+
+    /**
+     * 检查更新（如果需要）
+     */
+    private void checkForUpdatesIfNeeded() {
+        // 检查是否启用了自动更新
+        boolean autoUpdateEnabled = getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
+                .getBoolean("auto_update_enabled", true);
+        
+        if (autoUpdateEnabled) {
+            UpdateChecker updateChecker = new UpdateChecker(this);
+            updateChecker.checkForUpdatesIfNeeded();
+        }
     }
 
     // 根据菜单ID获取位置

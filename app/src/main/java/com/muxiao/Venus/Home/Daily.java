@@ -227,7 +227,6 @@ public class Daily {
                             Thread.currentThread().interrupt();
                         }
                     }
-                    gt3Controller.Gone();
                     gt3Controller.cleanUtils();
                 } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
                     notifier.notifyListeners(forum.get("name") + data.get("message").getAsString());
@@ -426,7 +425,6 @@ public class Daily {
             throw new RuntimeException("获取验证码失败misc/api/createVerification" + response);
         String gt = data.getAsJsonObject("data").get("gt").getAsString();
         String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
-        gt3Controller.Visible();
         // 配置bean文件，也可在oncreate初始化
         GT3ConfigBean gt3ConfigBean = new GT3ConfigBean();
         // 设置验证模式，1：bind，2：unbind

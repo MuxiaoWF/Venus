@@ -12,15 +12,11 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
-import androidx.fragment.app.Fragment;
-
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -30,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -154,6 +151,9 @@ public class tools {
                 urlBuilder.deleteCharAt(urlBuilder.length() - 1);
             }
             OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .writeTimeout(30, TimeUnit.SECONDS)
                     .followRedirects(true)
                     .followSslRedirects(true)
                     .build();
@@ -189,6 +189,9 @@ public class tools {
     public static String sendPostRequest(String urlStr, Map<String, String> headers, Map<String, Object> body) {
         try {
             OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .writeTimeout(30, TimeUnit.SECONDS)
                     .followRedirects(true)
                     .followSslRedirects(true)
                     .build();
@@ -216,19 +219,13 @@ public class tools {
             Request request = requestBuilder.build();
             try (Response response = client.newCall(request).execute()) {
                 if (response.body() != null) {
-                    ResponseBody responseBody = response.body();
-                    // 使用string()方法自动处理gzip解压缩和字符编码
-                    return responseBody.string();
+                    return response.body().string();
                 } else {
                     return "";
                 }
             }
         } catch (UnknownHostException e) {
             throw new RuntimeException("请检查是否联网");
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException("请求的资源未找到: " + urlStr, e);
-        } catch (IOException e) {
-            throw new RuntimeException("IO 异常: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

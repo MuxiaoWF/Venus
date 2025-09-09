@@ -19,6 +19,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
@@ -41,6 +42,7 @@ android {
 }
 
 dependencies {
+    implementation libs.gzu.liyujiang.android.cn.oaid
     implementation libs.google.flexbox
     implementation libs.sensebot
     implementation libs.okhttp

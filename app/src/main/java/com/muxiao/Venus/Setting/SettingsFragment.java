@@ -38,6 +38,8 @@ public class SettingsFragment extends Fragment {
     private SharedPreferences configPreferences;
     private static final String PREFS_NAME = "settings_prefs";
     private static final String CONFIG_PREFS_NAME = "config_prefs";
+    private static final String UPDATE_PREFS_NAME = "update_prefs";
+    private static final String AUTO_UPDATE_ENABLED = "auto_update_enabled";
     private static final String THEME_PREFS_NAME = "theme_prefs";
     private static final String BACKGROUND_PREFS_NAME = "background_prefs";
     private static final int THEME_DEFAULT = 0;
@@ -69,6 +71,7 @@ public class SettingsFragment extends Fragment {
     private boolean theme_toggle = false;
     private boolean background_toggle = false;
     private boolean config_toggle = false;
+    private boolean update_toggle = false;
     
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
@@ -234,11 +237,40 @@ public class SettingsFragment extends Fragment {
             else
                 theme_content_layout.setVisibility(View.GONE);
         });
+        MaterialButton update_toggle_button = view.findViewById(R.id.update_toggle_button);
+        View update_content_layout = view.findViewById(R.id.update_content_layout);
+        update_toggle_button.setOnClickListener(v -> {
+            update_toggle = !update_toggle;
+            if (update_toggle)
+                update_content_layout.setVisibility(View.VISIBLE);
+            else
+                update_content_layout.setVisibility(View.GONE);
+        });
 
         // 主题选择
         setupThemeSelection(view);
         // 背景选择
         setupBackgroundSelection(view);
+
+        // 自动更新设置
+        SwitchMaterial autoUpdateSwitch = view.findViewById(R.id.auto_update_switch);
+        SharedPreferences updatePreferences = requireActivity().getSharedPreferences(UPDATE_PREFS_NAME, Context.MODE_PRIVATE);
+        boolean autoUpdateEnabled = updatePreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
+        autoUpdateSwitch.setChecked(autoUpdateEnabled);
+        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> 
+            updatePreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
+        
+        // 手动检查更新按钮
+        MaterialButton checkUpdateButton = view.findViewById(R.id.check_update_button_github);
+        checkUpdateButton.setOnClickListener(v -> {
+            UpdateChecker updateChecker = new UpdateChecker(requireContext());
+            updateChecker.checkForUpdatesImmediately();
+        });
+        MaterialButton checkUpdateButton2 = view.findViewById(R.id.check_update_button_pan);
+        checkUpdateButton2.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://wwzq.lanzouq.com/b00wn0dtfe"));
+            startActivity(intent);
+        });
 
         return view;
     }

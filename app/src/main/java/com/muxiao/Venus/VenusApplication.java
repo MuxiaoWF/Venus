@@ -2,6 +2,7 @@ package com.muxiao.Venus;
 
 import android.app.Application;
 
+import com.github.gzuliyujiang.oaid.DeviceIdentifier;
 import com.google.android.material.color.DynamicColors;
 import com.muxiao.Venus.Setting.SettingsFragment;
 
@@ -11,5 +12,6 @@ public class VenusApplication extends Application {
         super.onCreate();
         SettingsFragment.applyThemeVariant(this);
         DynamicColors.applyToActivitiesIfAvailable(this);
+        DeviceIdentifier.register(this);
     }
 }

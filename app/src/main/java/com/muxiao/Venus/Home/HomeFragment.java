@@ -15,6 +15,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 
 import androidx.fragment.app.Fragment;
@@ -27,7 +28,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
@@ -52,12 +52,14 @@ public class HomeFragment extends Fragment {
     private ExecutorService executorService;
     public GT3GeetestButton geetestButton;
     public GT3GeetestUtils gt3GeetestUtils;
+    private LinearLayout geetestContainer;
     private boolean isTaskRunning = false; // 添加任务运行状态标志
     private Future<?> currentTaskFuture; // 用于取消任务
     private final AtomicBoolean isTaskCancelled = new AtomicBoolean(false); // 任务取消标志
 
     private View contentLayout;
     private boolean isExpanded = true;
+    private boolean shouldUpdateDropdown = true; // 添加标志控制是否更新下拉框
 
     // 极验验证码接口
     public interface GT3ButtonController {
@@ -67,9 +69,6 @@ public class HomeFragment extends Fragment {
 
         void cleanUtils();
 
-        void Gone();
-
-        void Visible();
     }
 
     private final GT3ButtonController controller = new GT3ButtonController() {
@@ -81,29 +80,12 @@ public class HomeFragment extends Fragment {
                     gt3GeetestUtils.destory();
                     gt3GeetestUtils = null;
                 }
+                
+                // 动态创建GT3GeetestButton
+                createGeetestButton();
                 gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
                 gt3GeetestUtils.init(gt3ConfigBean);
                 geetestButton.setGeetestUtils(gt3GeetestUtils);
-                geetestButton.setVisibility(View.VISIBLE);
-                geetestButton.setClickable(true); // 确保按钮可点击
-                geetestButton.setEnabled(true); // 确保按钮启用
-            });
-        }
-
-        @Override
-        public void Gone() {
-            requireActivity().runOnUiThread(() -> {
-                geetestButton.setVisibility(View.GONE);
-                geetestButton.setClickable(false); // 设置为不可点击
-            });
-        }
-
-        @Override
-        public void Visible() {
-            requireActivity().runOnUiThread(() -> {
-                geetestButton.setVisibility(View.VISIBLE);
-                geetestButton.setClickable(true); // 确保按钮可点击
-                geetestButton.setEnabled(true); // 确保按钮启用
             });
         }
 
@@ -114,11 +96,8 @@ public class HomeFragment extends Fragment {
                     gt3GeetestUtils.destory();
                     gt3GeetestUtils = null;
                 }
-                // 重置按钮状态
-                if (geetestButton != null) {
-                    geetestButton.setVisibility(View.GONE);
-                    geetestButton.setClickable(false);
-                }
+                // 销毁按钮
+                destroyGeetestButton();
             });
         }
 
@@ -138,7 +117,7 @@ public class HomeFragment extends Fragment {
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
         daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
-        geetestButton = view.findViewById(R.id.btn_geetest);
+        geetestContainer = view.findViewById(R.id.geetest_container);
 
         // 折叠按钮
         MaterialButton toggleButton = view.findViewById(R.id.toggle_button);
@@ -148,16 +127,15 @@ public class HomeFragment extends Fragment {
         userManager = new UserManager(requireContext());
         executorService = Executors.newFixedThreadPool(3);
 
-        // 极验验证码按钮初始状态
-        geetestButton.setVisibility(View.GONE);
-        geetestButton.setClickable(false);
-
         // 初始化下拉框
         updateDropdown();
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n"));
+            
+            // 重置GT3按钮状态
+            controller.cleanUtils();
         });
 
         // 输出文本监听器
@@ -186,8 +164,11 @@ public class HomeFragment extends Fragment {
             
             isTaskRunning = true; // 设置任务为运行状态
             isTaskCancelled.set(false); // 重置取消标志
-            cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
-            start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
+            shouldUpdateDropdown = false; // 任务运行期间不更新下拉框
+            requireActivity().runOnUiThread(() -> {
+                cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
+                start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
+            });
             
             // 在每次新任务开始前清理之前的GT实例
             controller.cleanUtils();
@@ -230,6 +211,7 @@ public class HomeFragment extends Fragment {
                     // 任务完成后重置运行状态
                     isTaskRunning = false;
                     isTaskCancelled.set(false);
+                    shouldUpdateDropdown = true; // 任务完成后允许更新下拉框
                     // 确保GT按钮在任务完成后恢复可用状态
                     requireActivity().runOnUiThread(() -> {
                         if (geetestButton != null) {
@@ -295,8 +277,10 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // 每次恢复Fragment时更新下拉框
-        updateDropdown();
+        // 每次恢复Fragment时，只有在非任务运行状态下才更新下拉框
+        if (shouldUpdateDropdown) {
+            updateDropdown();
+        }
     }
 
     /**
@@ -440,4 +424,33 @@ public class HomeFragment extends Fragment {
         statusNotifier.notifyListeners("游戏签到完成");
     }
 
+    /**
+     * 动态创建GT3GeetestButton
+     */
+    private void createGeetestButton() {
+        // 如果按钮已存在，先销毁
+        destroyGeetestButton();
+        // 创建新的GT3GeetestButton实例
+        geetestButton = new GT3GeetestButton(requireContext());
+        // 设置布局参数
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                (int) (290 * getResources().getDisplayMetrics().density),
+                (int) (44 * getResources().getDisplayMetrics().density)
+        );
+        params.topMargin = (int) (12 * getResources().getDisplayMetrics().density);
+        params.bottomMargin = (int) (12 * getResources().getDisplayMetrics().density);
+        params.gravity = android.view.Gravity.CENTER_HORIZONTAL;
+        geetestButton.setLayoutParams(params);
+        // 添加到容器中
+        geetestContainer.addView(geetestButton);
+    }
+    /**
+     * 销毁GT3GeetestButton
+     */
+    private void destroyGeetestButton() {
+        if (geetestButton != null && geetestContainer != null) {
+            geetestContainer.removeView(geetestButton);
+            geetestButton = null;
+        }
+    }
 }

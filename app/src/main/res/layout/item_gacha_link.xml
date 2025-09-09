@@ -13,6 +13,16 @@
         android:padding="16dp">
 
         <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/currentUserTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="用户: testuser"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
+
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/uidTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

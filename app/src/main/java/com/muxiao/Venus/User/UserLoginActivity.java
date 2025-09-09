@@ -87,7 +87,9 @@ public class UserLoginActivity extends AppCompatActivity {
         login_btn.setOnClickListener(v -> handleLogin());
         back_main_btn.setOnClickListener(v -> {
             Intent intent = new Intent(UserLoginActivity.this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
+            finish();
         });
     }
 
@@ -214,7 +216,7 @@ public class UserLoginActivity extends AppCompatActivity {
          */
         public byte[] get_qr_code_data(tools.StatusNotifier notifier, Context context) {
             String app_id = "2";
-            String device_id = tools.getDeviceId(context);
+            String device_id = fixed_instance.generateDeviceId();
             Map<String, Object> body = new HashMap<>() {{
                 put("app_id", app_id);
                 put("device", device_id);

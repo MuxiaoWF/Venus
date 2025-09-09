@@ -18,12 +18,16 @@ import java.util.Map;
 public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     private final View view;
     private final Context context;
+    private String currentUser = ""; // 当前用户
 
     public LinkAdapter(View view, Context context) {
         this.view = view;
         this.context = context;
     }
 
+    public void setCurrentUser(String currentUser) {
+        this.currentUser = currentUser;
+    }
 
     private final Map<Integer, String> links = new HashMap<>();
 
@@ -69,6 +73,13 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
         holder.uidTextView.setText(new StringBuilder("UID: " + uid));
         holder.linkTextView.setText(link);
         holder.copyButton.setOnClickListener(v -> copyToClipboard(view, context, link));
+        // 设置当前用户
+        if (!currentUser.isEmpty()) {
+            holder.currentUserTextView.setText(new StringBuilder("用户: " + currentUser));
+            holder.currentUserTextView.setVisibility(View.VISIBLE);
+        } else {
+            holder.currentUserTextView.setVisibility(View.GONE);
+        }
     }
 
     @Override
