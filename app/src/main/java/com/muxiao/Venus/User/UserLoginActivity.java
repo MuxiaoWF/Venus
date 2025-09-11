@@ -3,6 +3,7 @@ package com.muxiao.Venus.User;
 import static com.muxiao.Venus.common.fixed.getDS;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -54,7 +55,7 @@ public class UserLoginActivity extends AppCompatActivity {
     // 创建一个ExecutorService用于执行后台登录任务
     private ExecutorService executor_service;
     // 保存ApplicationContext引用
-    private Context app_context;
+    private Application application;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,7 +74,7 @@ public class UserLoginActivity extends AppCompatActivity {
         // 初始化ExecutorService
         executor_service = Executors.newSingleThreadExecutor();
         // 保存ApplicationContext引用
-        app_context = getApplicationContext();
+        application = getApplication();
 
         user_manager = new UserManager(this);
 
@@ -90,6 +91,11 @@ public class UserLoginActivity extends AppCompatActivity {
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             finish();
+        });
+        // 回车执行
+        username_input.setOnEditorActionListener((v, actionId, event) -> {
+            handleLogin();
+            return true;
         });
     }
 
@@ -114,7 +120,7 @@ public class UserLoginActivity extends AppCompatActivity {
                 username_input.setFocusable(false);
                 username_input.setFocusableInTouchMode(false);
             }
-            LoginTask login_task = new LoginTask(app_context);
+            LoginTask login_task = new LoginTask(application);
             executor_service.execute(login_task);
             username_input.setText("");
         } catch (Exception e) {
@@ -144,13 +150,13 @@ public class UserLoginActivity extends AppCompatActivity {
         // 用于跟踪上一个状态，避免重复显示相同状态
         private String last_status = "";
         // 保存ApplicationContext引用
-        private final Context context;
+        private final Context application;
         private final fixed fixed_instance;
 
-        public LoginTask(Context context) {
+        public LoginTask(Application application) {
             // 保存ApplicationContext引用
-            this.context = context;
-            this.fixed_instance = new fixed(context, username);
+            this.application = application;
+            this.fixed_instance = new fixed(application, username);
         }
 
         @Override
@@ -171,7 +177,7 @@ public class UserLoginActivity extends AppCompatActivity {
 
                 // 执行登录流程
                 runOnUiThread(() -> login_status_text.append("开始获取二维码...\n"));
-                qr_code_data = get_qr_code_data(notifier, context);
+                qr_code_data = get_qr_code_data(notifier);
 
                 runOnUiThread(() -> {
                     login_status_text.append("二维码已生成，等待扫描...\n");
@@ -186,10 +192,10 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    show_error_dialog(context,error_message);
-                    login_status_text.append("错误: " + error_message + "\n");
+                    login_status_text.append("\n错误: " + error_message + "\n");
                     login_status_text.append("\n登录失败\n");
                     login_btn.setEnabled(true);
+                    username_input.setEnabled(true);
                 });
             }
         }
@@ -214,7 +220,7 @@ public class UserLoginActivity extends AppCompatActivity {
          *
          * @return 二维码的byte[]
          */
-        public byte[] get_qr_code_data(tools.StatusNotifier notifier, Context context) {
+        public byte[] get_qr_code_data(tools.StatusNotifier notifier) {
             String app_id = "2";
             String device_id = fixed_instance.generateDeviceId();
             Map<String, Object> body = new HashMap<>() {{
@@ -226,9 +232,8 @@ public class UserLoginActivity extends AppCompatActivity {
                 String response = tools.sendPostRequest("https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/fetch", new HashMap<>(), body);
                 JsonObject result = new Gson().fromJson(response, JsonObject.class);
                 int retcode = result.get("retcode").getAsInt();
-                if (retcode != 0) {
+                if (retcode != 0)
                     throw new RuntimeException("扫码获取stoken失败-create(RETCODE = " + retcode + "),返回信息为：" + response);
-                }
                 JsonObject data = result.getAsJsonObject("data");
                 String qr_url = data.get("url").getAsString();
                 String ticket = qr_url.split("ticket=")[1];
@@ -236,9 +241,8 @@ public class UserLoginActivity extends AppCompatActivity {
                     try {
                         check_login(app_id, ticket, device_id, notifier);
                     } finally {
-                        if (notifier != null) {
+                        if (notifier != null)
                             notifier.removeAllListeners();
-                        }
                     }
                 });
                 thread.start();
@@ -278,9 +282,8 @@ public class UserLoginActivity extends AppCompatActivity {
                     String response = tools.sendPostRequest("https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/query", new HashMap<>(), body);
                     JsonObject result = new Gson().fromJson(response, JsonObject.class);
                     int retcode = result.get("retcode").getAsInt();
-                    if (retcode != 0) {
+                    if (retcode != 0)
                         throw new RuntimeException("扫码获取stoken失败-query(RETCODE = " + retcode + "),返回信息为：" + response);
-                    }
                     JsonObject data = result.getAsJsonObject("data");
                     String stat = data.get("stat").getAsString();
                     switch (stat) {
@@ -301,13 +304,11 @@ public class UserLoginActivity extends AppCompatActivity {
                         case "Confirmed":
                             notifier.notifyListeners("登录成功");
                             // 检查 payload 和 raw 是否存在且不为 null
-                            if (!data.has("payload") || data.get("payload").isJsonNull()) {
+                            if (!data.has("payload") || data.get("payload").isJsonNull())
                                 throw new RuntimeException("响应中缺少 payload 字段");
-                            }
                             JsonObject payload = data.getAsJsonObject("payload");
-                            if (!payload.has("raw") || payload.get("raw").isJsonNull()) {
+                            if (!payload.has("raw") || payload.get("raw").isJsonNull())
                                 throw new RuntimeException("响应中缺少 raw 字段");
-                            }
                             JsonElement raw_element = payload.get("raw");
                             if (raw_element.isJsonPrimitive()) {
                                 String raw_string = raw_element.getAsString();
@@ -334,7 +335,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    show_error_dialog(context,error_message);
+                    show_error_dialog(application,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });
@@ -367,15 +368,15 @@ public class UserLoginActivity extends AppCompatActivity {
                 String mid = user_info.get("mid").getAsString();
                 JsonObject token = data.getAsJsonObject("token");
                 String stoken = token.get("token").getAsString();
-                tools.write(context, username, "stoken", stoken);
-                tools.write(context, username, "mid", mid);
-                tools.write(context, username, "game_token", game_token);
-                tools.write(context, username, "stuid", stuid);
+                tools.write(application, username, "stoken", stoken);
+                tools.write(application, username, "mid", mid);
+                tools.write(application, username, "game_token", game_token);
+                tools.write(application, username, "stuid", stuid);
                 get_ltoken();
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    show_error_dialog(context,error_message);
+                    show_error_dialog(application,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });
@@ -386,7 +387,7 @@ public class UserLoginActivity extends AppCompatActivity {
             try {
                 fixed_instance.bbs_headers.put("DS", getDS(fixed_instance.K2));
                 Map<String, String> bbs_headers = fixed_instance.bbs_headers;
-                bbs_headers.put("Cookie", "stoken=" + tools.read(context, username, "stoken") + ";mid=" + tools.read(context, username, "mid"));
+                bbs_headers.put("Cookie", "stoken=" + tools.read(application, username, "stoken") + ";mid=" + tools.read(application, username, "mid"));
                 String response = tools.sendGetRequest("https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken", bbs_headers, new HashMap<>());
                 JsonObject result = new Gson().fromJson(response, JsonObject.class);
                 if (result.get("retcode").getAsInt() != 0) {
@@ -394,7 +395,7 @@ public class UserLoginActivity extends AppCompatActivity {
                 }
                 JsonObject data = result.getAsJsonObject("data");
                 String ltoken = data.get("ltoken").getAsString();
-                tools.write(context, username, "ltoken", ltoken);
+                tools.write(application, username, "ltoken", ltoken);
                 // 登录流程完成，在主线程更新UI
                 runOnUiThread(() -> {
                     login_status_text.append("\n登录成功！\n");
@@ -412,7 +413,7 @@ public class UserLoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                 runOnUiThread(() -> {
-                    show_error_dialog(context,error_message);
+                    show_error_dialog(application,error_message);
                     login_status_text.append("错误: " + error_message + "\n");
                     login_btn.setEnabled(true);
                 });

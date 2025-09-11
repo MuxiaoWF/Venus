@@ -1,4 +1,9 @@
-非常非常简陋的APP
+鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
+[Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
+[Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
+[gzu-liyujiang/Android_CN_OAID 部分Android信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)
+
+非常非常简陋的APP，运行速度也非常缓慢。应该没人用（，写来玩的
 
 由于鄙人不会设计，页面也做的比较丑（尽管使用了material3）
 
@@ -7,6 +12,10 @@
 1. 米游社一键每日签到任务（包含米游币和游戏的签到）
 2. 抽卡链接获取功能（登录后直接获取原神和绝区零的，可通过云游戏获取原神和星铁的）
     * 应该不会加分析了，直接导入到微信小程序吧
+
+<mark>可以提功能，但是大概率不会加（</mark>
+
+有bug也凑合用吧，提出来可能会解决？
 
 ---
 
@@ -78,3 +87,7 @@
   }
 }
 ```
+
+---
+
+本来还想加一个米游社里战绩功能的，抓不到，懒了，不搞了（

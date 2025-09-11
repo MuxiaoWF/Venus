@@ -8,7 +8,6 @@
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/titleTextView"
-        style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -20,7 +19,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:layout_marginBottom="12dp"
         android:orientation="horizontal">
 
         <com.google.android.material.textfield.TextInputLayout
@@ -55,7 +53,7 @@
         android:id="@+id/tabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
+        android:layout_marginTop="12dp"
         android:background="@android:color/transparent"
         app:tabGravity="fill"
         app:tabMode="fixed">
@@ -86,32 +84,9 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/webViewTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="请在网页中登录并打开抽卡记录页面"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <WebView
-            android:id="@+id/webView"
-            android:layout_width="match_parent"
-            android:layout_height="0dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="提示：登录后请打开一次抽卡记录页面，将自动捕获链接"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="12sp" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
@@ -120,18 +95,32 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="4dp"
-                android:layout_weight="1"
+                android:layout_weight="2"
                 android:text="关闭网页" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/extractLinkButton"
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/webViewTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
                 android:layout_weight="1"
-                android:text="手动提取" />
-
+                android:layout_gravity="center_vertical"
+                android:text="请在网页中登录并打开抽卡记录页面"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textStyle="bold" />
         </LinearLayout>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="提示：登录后请打开一次抽卡记录页面，将自动捕获链接。\n获取完记得退出游戏哦"
+            android:textColor="@android:color/darker_gray"
+            android:textAppearance="?attr/textAppearanceBodySmall"/>
+
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp" />
 
     </LinearLayout>
 
@@ -140,7 +129,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:textColor="@android:color/holo_red_dark"
+        android:textAppearance="?attr/errorTextAppearance"
         android:visibility="gone" />
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
@@ -154,6 +143,7 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"/>
 
 </LinearLayout>

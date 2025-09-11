@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Setting;
 
+import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -28,6 +29,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
 import java.util.HashMap;
@@ -270,6 +272,7 @@ public class SettingsFragment extends Fragment {
         checkUpdateButton2.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://wwzq.lanzouq.com/b00wn0dtfe"));
             startActivity(intent);
+            copyToClipboard(view,requireContext(),"mxwf");
         });
 
         return view;
@@ -595,11 +598,11 @@ public class SettingsFragment extends Fragment {
      * 显示当前配置值
      */
     private void displayCurrentConfigValues() {
-        String salt6x = configPreferences.getString("SALT_6X", "t0qEgfub6cvueAPgR5m9aQWWVciEer7v");
-        String salt4x = configPreferences.getString("SALT_4X", "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs");
-        String lk2 = configPreferences.getString("LK2", "IDMtPWQJfBCJSLOFxOlNjiIFVasBLttg");
-        String k2 = configPreferences.getString("K2", "aApXDrhCxFhZkKZQVWWyfoAlyHTlJkis");
-        String bbsVersion = configPreferences.getString("bbs_version", "2.92.0");
+        String salt6x = configPreferences.getString("SALT_6X", fixed.SALT_6X_final);
+        String salt4x = configPreferences.getString("SALT_4X", fixed.SALT_4X_final);
+        String lk2 = configPreferences.getString("LK2", fixed.LK2_final);
+        String k2 = configPreferences.getString("K2", fixed.K2_final);
+        String bbsVersion = configPreferences.getString("bbs_version", fixed.bbs_version_final);
         String update_time = configPreferences.getString("update_time", "2025.09");
         String update_time_Local = configPreferences.getString("update_time_local", "2025.09");
 
@@ -621,20 +624,18 @@ public class SettingsFragment extends Fragment {
                 // 发送GET请求获取配置信息
                 Map<String, String> headers = new HashMap<>();
                 headers.put("User-Agent", "Venus/1.0");
-                String response = tools.sendGetRequest("https://muxiaowf.dpdns.org/api", headers, new HashMap<>() {{
-                    put("type", "salt");
-                }});
+                String response = tools.sendGetRequest("https://muxiaowf.dpdns.org/api/salt", headers, null);
                 if (!response.isEmpty()) {
                     // 解析响应数据
                     JsonObject data = JsonParser.parseString(response).getAsJsonObject();
                     SharedPreferences configPrefs = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = configPrefs.edit();
                     // 使用解析的数据，如果不存在则使用默认值
-                    editor.putString("SALT_6X", getDataOrDefault(data, "SALT_6X", "t0qEgfub6cvueAPgR5m9aQWWVciEer7v"));
-                    editor.putString("SALT_4X", getDataOrDefault(data, "SALT_4X", "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs"));
-                    editor.putString("LK2", getDataOrDefault(data, "LK2", "IDMtPWQJfBCJSLOFxOlNjiIFVasBLttg"));
-                    editor.putString("K2", getDataOrDefault(data, "K2", "aApXDrhCxFhZkKZQVWWyfoAlyHTlJkis"));
-                    editor.putString("bbs_version", getDataOrDefault(data, "bbs_version", "2.92.0"));
+                    editor.putString("SALT_6X", getDataOrDefault(data, "SALT_6X",  fixed.SALT_6X_final));
+                    editor.putString("SALT_4X", getDataOrDefault(data, "SALT_4X",  fixed.SALT_4X_final));
+                    editor.putString("LK2", getDataOrDefault(data, "LK2", fixed.LK2_final));
+                    editor.putString("K2", getDataOrDefault(data, "K2", fixed.K2_final));
+                    editor.putString("bbs_version", getDataOrDefault(data, "bbs_version", fixed.bbs_version_final));
                     editor.putString("update_time", getDataOrDefault(data, "update_time", "2025-09"));
                     editor.putString("update_time_local", getDataOrDefault(data, "update_time_local", "2025-09"));
                     editor.apply();

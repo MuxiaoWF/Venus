@@ -315,7 +315,9 @@ public class tools {
      * @param error_message 错误信息
      */
     public static void show_error_dialog(Context context,String error_message) {
-        new MaterialAlertDialogBuilder(context)
+        // 使用ContextThemeWrapper包装context，确保MaterialAlertDialogBuilder能正常工作
+        Context themedContext = new android.view.ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar);
+        new MaterialAlertDialogBuilder(themedContext)
                 .setTitle("错误")
                 .setMessage(error_message)
                 .setPositiveButton("复制错误信息", (dialog, which) -> {
@@ -333,7 +335,7 @@ public class tools {
      * */
     public static void copyToClipboard(View view, Context context,String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText("Gacha Link", text);
+        ClipData clip = ClipData.newPlainText("Copy Venus", text);
         clipboard.setPrimaryClip(clip);
         showCustomSnackbar(view, context ,"链接已复制到剪贴板");
     }

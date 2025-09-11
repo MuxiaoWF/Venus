@@ -36,15 +36,20 @@ public class fixed {
     public String LK2;
     public String K2;
     public String bbs_version;
+    public static String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
+    public static String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
+    public static String LK2_final = "G1ktdwFL4IyGkHuuWSmz0wUe9Db9scyK";
+    public static String K2_final = "idMMaGYmVgPzh3wxmWudUXKUPGidO7GM";
+    public static String bbs_version_final = "2.93.1";
 
     // 使用静态代码块初始化配置常量
     private void updateSalt() {
         // 默认值
-        String defaultSalt6x = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
-        String defaultSalt4x = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-        String defaultLk2 = "IDMtPWQJfBCJSLOFxOlNjiIFVasBLttg";
-        String defaultK2 = "aApXDrhCxFhZkKZQVWWyfoAlyHTlJkis";
-        String defaultBbsVersion = "2.92.0";
+        String defaultSalt6x = SALT_6X_final;
+        String defaultSalt4x = SALT_4X_final;
+        String defaultLk2 = LK2_final;
+        String defaultK2 = K2_final;
+        String defaultBbsVersion = bbs_version_final;
         // 尝试从配置中获取值
         SharedPreferences configPrefs = context.getSharedPreferences("config_prefs", Context.MODE_PRIVATE);
         SALT_6X = configPrefs.getString("SALT_6X", defaultSalt6x);
@@ -113,7 +118,7 @@ public class fixed {
             }}));
 
     public String generateDeviceId() {
-        String deviceId = DeviceIdentifier.getAndroidID(context);
+        String deviceId = DeviceIdentifier.getGUID(context);
         if (deviceId == null)
             deviceId = getDeviceId(context);
         return deviceId;

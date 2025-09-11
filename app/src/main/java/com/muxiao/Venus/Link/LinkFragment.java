@@ -24,7 +24,6 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.User.UserManager;
 
 import java.util.HashMap;
@@ -51,7 +50,6 @@ public class LinkFragment extends Fragment {
     private LinearLayout webViewContainer;
     private LinearLayout userDropdownLayout;
     private RecyclerView recyclerView;
-    private View view;
 
     // 为每个标签页维护独立的结果
     private final Map<Integer, Map<Integer, String>> tabResults = new HashMap<>();
@@ -59,7 +57,7 @@ public class LinkFragment extends Fragment {
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        view = inflater.inflate(R.layout.fragment_link, container, false);
+        View view = inflater.inflate(R.layout.fragment_link, container, false);
 
         tabLayout = view.findViewById(R.id.tabLayout);
         recyclerView = view.findViewById(R.id.recyclerView);
@@ -153,56 +151,6 @@ public class LinkFragment extends Fragment {
                 webViewContainer.removeView(webView);
                 webView.destroy();
                 webView = null;
-            }
-        });
-
-        // 设置提取链接按钮点击事件
-        view.findViewById(R.id.extractLinkButton).setOnClickListener(v -> {
-            if (webView != null) {
-                webView.evaluateJavascript(
-                        "(function() {" +
-                                "  var links = [];" +
-                                "  var elements = document.querySelectorAll('a');" +
-                                "  for (var i = 0; i < elements.length; i++) {" +
-                                "    var href = elements[i].href;" +
-                                "    if (href && href.includes('authkey=')) {" +
-                                "      links.push(href);" +
-                                "    }" +
-                                "  }" +
-                                "  return links.length > 0 ? links[0] : window.location.href;" +
-                                "})();",
-                        result -> {
-                            // 移除结果字符串的引号
-                            String url = result.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"");
-                            if (url.contains("authkey=")) {
-                                copyToClipboard(view, requireContext(),url);
-                                showCustomSnackbar(view, requireContext(), "链接已复制到剪贴板");
-                            } else {
-                                // 尝试从页面中查找可能的抽卡链接
-                                webView.evaluateJavascript(
-                                        "(function() {" +
-                                                "  var scripts = document.getElementsByTagName('script');" +
-                                                "  for (var i = 0; i < scripts.length; i++) {" +
-                                                "    var content = scripts[i].innerHTML;" +
-                                                "    var match = content.match(/https?:\\\\/\\\\/[^\\s]*authkey=[^\\s'\"]*/g);" +
-                                                "    if (match && match.length > 0) {" +
-                                                "      return match[0].replace(/\\\\\\\\/g, '/');" +
-                                                "    }" +
-                                                "  }" +
-                                                "  return '';" +
-                                                "})();",
-                                        result2 -> {
-                                            String extractedUrl = result2.replaceAll("^\"|\"$", "").replaceAll("\\\\\"", "\"").replaceAll("\\\\\\\\", "/");
-                                            if (extractedUrl.contains("authkey=")) {
-                                                copyToClipboard(view, requireContext(),extractedUrl);
-                                                showCustomSnackbar(view, requireContext(), "链接已复制到剪贴板");
-                                            } else
-                                                showCustomSnackbar(view, requireContext(), "未找到有效的抽卡链接");
-                                        }
-                                );
-                            }
-                        }
-                );
             }
         });
 

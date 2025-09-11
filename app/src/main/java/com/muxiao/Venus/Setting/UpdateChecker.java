@@ -15,13 +15,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
 public class UpdateChecker {
-    private static final String GITHUB_RELEASES_URL = "https://api.github.com/repos/MuxiaoWF/Venus/releases/latest";// todo github链接
+    private static final String GITHUB_RELEASES_URL = "https://api.github.com/repos/MuxiaoWF/Venus/releases/latest";
     private static final String PREFS_NAME = "update_prefs";
     private static final String LAST_CHECK_TIME = "last_check_time";
     private final Context context;
@@ -106,22 +101,9 @@ public class UpdateChecker {
      */
     private JsonObject getLatestReleaseInfo() {
         try {
-            URL url = new URL(GITHUB_RELEASES_URL);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("User-Agent", "Venus-App-Updater");
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null)
-                    response.append(line);
-                reader.close();
-                return JsonParser.parseString(response.toString()).getAsJsonObject();
+            String response = com.muxiao.Venus.common.tools.sendGetRequest(GITHUB_RELEASES_URL, null, null);
+            if (!response.isEmpty()) {
+                return JsonParser.parseString(response).getAsJsonObject();
             }
         } catch (Exception e) {
             show_error_dialog(context, "获取GitHub发布信息失败" + e);
