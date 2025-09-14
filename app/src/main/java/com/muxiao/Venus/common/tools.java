@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.view.View;
@@ -17,6 +18,10 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -338,5 +343,27 @@ public class tools {
         ClipData clip = ClipData.newPlainText("Copy Venus", text);
         clipboard.setPrimaryClip(clip);
         showCustomSnackbar(view, context ,"链接已复制到剪贴板");
+    }
+
+    /**
+     * 复制文件
+     *
+     * @param context 上下文
+     * @param sourceUri 源文件URI
+     * @param destFile 目标文件
+     * @throws Exception 复制过程中可能发生的异常
+     */
+    public static void copyFile(Context context, Uri sourceUri, File destFile) throws Exception {
+        try (InputStream inputStream = context.getContentResolver().openInputStream(sourceUri);
+             OutputStream outputStream = new FileOutputStream(destFile)) {
+            if (inputStream == null) {
+                throw new Exception("无法打开源文件");
+            }
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) > 0) {
+                outputStream.write(buffer, 0, length);
+            }
+        }
     }
 }
