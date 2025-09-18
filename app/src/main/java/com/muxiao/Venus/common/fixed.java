@@ -4,13 +4,11 @@ import com.github.gzuliyujiang.oaid.DeviceID;
 import com.github.gzuliyujiang.oaid.DeviceIdentifier;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
-import static com.muxiao.Venus.common.tools.sendGetRequest;
 import static com.muxiao.Venus.common.tools.sendPostRequest;
 import static com.muxiao.Venus.common.tools.getDeviceId;
 
@@ -20,11 +18,9 @@ import android.os.Build;
 
 public class fixed {
     private final Context context;
-    private final String userId;
 
-    public fixed(Context context, String userId) {
+    public fixed(Context context) {
         this.context = context;
-        this.userId = userId;
         updateSalt();
         user_agent = "Mozilla/5.0 (Linux; Android "+Build.VERSION.SDK_INT+"; "+Build.MODEL+") AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + bbs_version;
         // 初始化headers
@@ -165,6 +161,11 @@ public class fixed {
      * 需要更新DS参数：authkey_headers.put("DS", getDS(LK2));
      */
     public Map<String, String> authkey_headers;
+    /**
+     * 需要更新DS参数：images_headers.put("DS", getDS(K2));
+     * 需要更新fp参数：getFp();
+     */
+    public Map<String, String> images_headers;
     public Map<String, String> fp_headers;
 
     private static final Map<String, String> name_to_game_id = new HashMap<>() {{
@@ -185,33 +186,6 @@ public class fixed {
      */
     public static String name_to_game_id(String game_name) {
         return name_to_game_id.get(game_name);
-    }
-
-    /**
-     * 通过stoken获取cookie_token
-     */
-    public String getCookieTokenByStoken() {
-        String stoken = tools.read(context, userId, "stoken");
-        String stuid = tools.read(context, userId, "stuid");
-        if (stoken == null || stoken.isEmpty() && stuid == null || stuid.isEmpty()) {
-            throw new RuntimeException("Stoken和Suid为空，无法自动更新CookieToken");
-        }
-        String cookie = "stuid=" + stuid + ";stoken=" + stoken;
-        if (stoken.startsWith("v2_")) {
-            if (tools.read(context, userId, "mid") == null)
-                throw new RuntimeException("v2的stoken获取cookie_token时需要mid");
-            cookie = cookie + ";mid=" + tools.read(context, userId, "mid");
-        }
-        game_login_headers.put("DS", getDS(LK2));
-        Map<String, String> header = game_login_headers;
-        header.put("cookie", cookie);
-        String response = sendGetRequest("https://api-takumi.mihoyo.com/auth/api/getCookieAccountInfoBySToken", header, null);
-        JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-        if (res.get("retcode").getAsInt() != 0) {
-            throw new RuntimeException("获取CookieToken失败,stoken已失效请重新抓取");
-        }
-        tools.write(context, userId, "cookie_token", res.get("data").getAsJsonObject().get("cookie_token").getAsString());
-        return res.get("data").getAsJsonObject().get("cookie_token").getAsString();
     }
 
     /**
@@ -344,7 +318,7 @@ public class fixed {
     private void initHeaders() {
         game_login_headers = new HashMap<>() {{
             put("Accept", "application/json; utf-8");
-            put("x-rpc-channel", "miyousheluodi");
+            put("x-rpc-channel", Build.MANUFACTURER);
             put("Origin", "https://webstatic.mihoyo.com");
             put("x-rpc-app_version", bbs_version);
             put("User-Agent", user_agent);
@@ -362,7 +336,7 @@ public class fixed {
             put("x-rpc-client_type", "2");
             put("x-rpc-app_version", bbs_version);
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-            put("x-rpc-channel", "miyousheluodi");
+            put("x-rpc-channel", Build.MANUFACTURER);
             put("x-rpc-device_id", generateDeviceId());
             put("Referer", "https://act.mihoyo.com/");
             put("User-Agent", user_agent);
@@ -371,7 +345,7 @@ public class fixed {
 
         get_token_by_stoken_headers = new HashMap<>() {{
             put("Accept", "application/json; utf-8");
-            put("x-rpc-channel", "miyousheluodi");
+            put("x-rpc-channel",Build.MANUFACTURER);
             put("Origin", "https://webstatic.mihoyo.com");
             put("x-rpc-app_version", bbs_version);
             put("User-Agent", user_agent);
@@ -441,7 +415,7 @@ public class fixed {
             put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_model", Build.MODEL);
             put("x-rpc-device_fp", "");
-            put("x-rpc-channel", "miyousheluodi");
+            put("x-rpc-channel", Build.MANUFACTURER);
             put("Referer", "https://app.mihoyo.com");
             put("cookie", "");
             put("x-rpc-h256_supported", "1");
@@ -492,6 +466,21 @@ public class fixed {
             put("Origin", "https://webstatic.mihoyo.com/");
             put("Content-Type", "application/json; utf-8");
             put("Accept-Language", "zh-CN,zh-Hans;q=0.9");
+        }};
+
+        images_headers = new HashMap<>() {{
+            put("x-rpc-app_version", bbs_version);
+            put("x-rpc-client_type", "2");
+            put("x-rpc-device_id", generateDeviceId());
+            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
+            put("x-rpc-device_name", Build.DEVICE);
+            put("x-rpc-device_model", Build.MODEL);
+            put("x-rpc-device_fp", "");
+            put("x-rpc-channel", Build.MANUFACTURER);
+            put("x-rpc-h256_supported", "0");
+            put("Referer", "https://app.mihoyo.com");
+            put("x-rpc-verify_key", app_id);
+            put("x-rpc-csm_source", "discussion");
         }};
     }
 

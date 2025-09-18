@@ -3,6 +3,7 @@ agp = "8.7.2"
 android_cn_oaidVersion = "4.2.12"
 comGoogleCodeGsonGson = "2.13.1"
 flexboxVersion = "3.0.0"
+glide = "5.0.5"
 javase = "3.5.3"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -13,11 +14,13 @@ activity = "1.8.0"
 constraintlayout = "2.2.1"
 okhttp = "4.12.0"
 sensebot = "4.4.4"
+touchimageview = "3.7.1"
 ucrop = "2.2.11"
 exifinterface = "1.4.1"
 
 [libraries]
 com-google-code-gson-gson3 = { module = "com.google.code.gson:gson", version.ref = "comGoogleCodeGsonGson" }
+glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
 google-flexbox = { module = "com.google.android.flexbox:flexbox", version.ref = "flexboxVersion" }
 gzu-liyujiang-android_cn_oaid = { module = "com.github.gzu-liyujiang:Android_CN_OAID", version.ref = "android_cn_oaidVersion" }
 javase = { module = "com.google.zxing:javase", version.ref = "javase" }
@@ -30,6 +33,7 @@ activity = { group = "androidx.activity", name = "activity", version.ref = "acti
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 sensebot = { module = "com.geetest.sensebot:sensebot", version.ref = "sensebot" }
+touchimageview = { module = "com.github.MikeOrtiz:TouchImageView", version.ref = "touchimageview" }
 ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
 exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 

@@ -60,7 +60,7 @@ public class BBSGameDaily {
      */
     public BBSGameDaily(Context context, String userId, String game_id, String game_name, String act_id, String player_name, tools.StatusNotifier statusNotifier, HomeFragment.GT3ButtonController gt3Controller) {
         this.game_name = game_name;
-        this.fixed = new fixed(context, userId);
+        this.fixed = new fixed(context);
         this.context = context;
         this.userId = userId;
         this.statusNotifier = statusNotifier;
@@ -107,7 +107,7 @@ public class BBSGameDaily {
         if (temp < 3) {
             temp++;
             statusNotifier.notifyListeners("CookieToken失效，尝试刷新");
-            String newToken = fixed.getCookieTokenByStoken();
+            String newToken = getCookieTokenByStoken();
             statusNotifier.notifyListeners("CookieToken刷新成功");
             tools.write(context, userId, "cookie_token", newToken);
             return newToken;
@@ -115,6 +115,33 @@ public class BBSGameDaily {
             statusNotifier.notifyListeners("CookieToken刷新失败");
             return null;
         }
+    }
+
+    /**
+     * 通过stoken获取cookie_token
+     */
+    public String getCookieTokenByStoken() {
+        String stoken = tools.read(context, userId, "stoken");
+        String stuid = tools.read(context, userId, "stuid");
+        if (stoken == null || stoken.isEmpty() && stuid == null || stuid.isEmpty()) {
+            throw new RuntimeException("Stoken和Suid为空，无法自动更新CookieToken");
+        }
+        String cookie = "stuid=" + stuid + ";stoken=" + stoken;
+        if (stoken.startsWith("v2_")) {
+            if (tools.read(context, userId, "mid") == null)
+                throw new RuntimeException("v2的stoken获取cookie_token时需要mid");
+            cookie = cookie + ";mid=" + tools.read(context, userId, "mid");
+        }
+        Map<String, String> game_login_headers = new HashMap<>(fixed.game_login_headers);
+        game_login_headers.put("DS", getDS(fixed.LK2));
+        game_login_headers.put("cookie", cookie);
+        String response = sendGetRequest("https://api-takumi.mihoyo.com/auth/api/getCookieAccountInfoBySToken", game_login_headers, null);
+        JsonObject res = JsonParser.parseString(response).getAsJsonObject();
+        if (res.get("retcode").getAsInt() != 0) {
+            throw new RuntimeException("获取CookieToken失败,stoken已失效请重新抓取");
+        }
+        tools.write(context, userId, "cookie_token", res.get("data").getAsJsonObject().get("cookie_token").getAsString());
+        return res.get("data").getAsJsonObject().get("cookie_token").getAsString();
     }
 
     /**

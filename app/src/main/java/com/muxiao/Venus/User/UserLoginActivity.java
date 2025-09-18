@@ -156,7 +156,7 @@ public class UserLoginActivity extends AppCompatActivity {
         public LoginTask(Application application) {
             // 保存ApplicationContext引用
             this.application = application;
-            this.fixed_instance = new fixed(application, username);
+            this.fixed_instance = new fixed(application);
         }
 
         @Override

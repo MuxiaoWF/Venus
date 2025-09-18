@@ -27,7 +27,7 @@ public class GachaLink {
 
     public GachaLink(Context  context, String userId) {
         this.context = context;
-        this.fixed = new fixed(context, userId);
+        this.fixed = new fixed(context);
         this.userId = userId;
     }
 

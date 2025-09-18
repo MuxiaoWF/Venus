@@ -1,6 +1,7 @@
 package com.muxiao.Venus.common;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -11,7 +12,6 @@ import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
@@ -329,7 +329,10 @@ public class tools {
                     ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                     ClipData clip = ClipData.newPlainText("错误信息", error_message);
                     clipboard.setPrimaryClip(clip);
-                    Toast.makeText(context, "错误信息已复制到剪切板", Toast.LENGTH_SHORT).show();
+                    if (context instanceof Activity) {
+                        View rootView = ((Activity) context).findViewById(android.R.id.content);
+                        showCustomSnackbar(rootView, context, "错误信息已复制到剪切板");
+                    }
                 })
                 .setNegativeButton("关闭", null)
                 .show();

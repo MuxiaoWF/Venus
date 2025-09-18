@@ -46,7 +46,7 @@ public class Daily {
     public Daily(Context context, String userId, tools.StatusNotifier notifier, HomeFragment.GT3ButtonController gt3Controller) {
         this.context = context;
         this.userId = userId;
-        this.fixed = new fixed(context, userId);
+        this.fixed = new fixed(context);
         this.gt3Controller = gt3Controller;
 
         taskDo.put("sign", false);

@@ -38,6 +38,7 @@ import com.yalantis.ucrop.UCrop;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -80,6 +81,7 @@ public class SettingsFragment extends Fragment {
     private boolean background_toggle = false;
     private boolean config_toggle = false;
     private boolean update_toggle = false;
+    private boolean cache_toggle = false;
     
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
@@ -281,6 +283,15 @@ public class SettingsFragment extends Fragment {
             copyToClipboard(view,requireContext(),"mxwf");
         });
 
+        // 看图按钮
+        MaterialButton imageButton = view.findViewById(R.id.image_button);
+        imageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(requireActivity(), ImageActivity.class);
+            startActivity(intent);
+        });
+
+        // 缓存管理
+        setupCacheManagement(view);
         return view;
     }
 
@@ -759,6 +770,120 @@ public class SettingsFragment extends Fragment {
                         showCustomSnackbar(view, requireContext(), "配置更新失败：" + e.getMessage()));
             }
         }).start();
+    }
+
+    /**
+     * 设置缓存管理功能
+     */
+    private void setupCacheManagement(View view) {
+        MaterialButton cacheToggleButton = view.findViewById(R.id.cache_toggle_button);
+        View cacheContentLayout = view.findViewById(R.id.cache_content_layout);
+        MaterialTextView cacheSizeText = view.findViewById(R.id.cache_size_text);
+        MaterialButton clearCacheButton = view.findViewById(R.id.clear_cache_button);
+
+        cacheToggleButton.setOnClickListener(v -> {
+            cache_toggle = !cache_toggle;
+            if (cache_toggle)
+                cacheContentLayout.setVisibility(View.VISIBLE);
+            else
+                cacheContentLayout.setVisibility(View.GONE);
+        });
+        // 计算并显示当前缓存大小
+        calculateCacheSize(cacheSizeText);
+        // 设置清理缓存按钮
+        clearCacheButton.setOnClickListener(v -> clearCache(cacheSizeText));
+    }
+
+    /**
+     * 计算并显示当前缓存大小
+     *
+     * @param cacheSizeText 显示缓存大小的TextView
+     */
+    private void calculateCacheSize(MaterialTextView cacheSizeText) {
+        new Thread(() -> {
+            try {
+                long cacheSize = getDirSize(requireContext().getCacheDir()) + getDirSize(requireContext().getExternalCacheDir());
+                String sizeText = formatFileSize(cacheSize);
+                requireActivity().runOnUiThread(() -> 
+                    cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() -> 
+                    cacheSizeText.setText("当前缓存大小: 计算失败"));
+            }
+        }).start();
+    }
+
+    /**
+     * 获取目录大小
+     *
+     * @param dir 目录
+     * @return 目录大小（字节）
+     */
+    private long getDirSize(File dir) {
+        if (dir == null || !dir.exists()) return 0;
+        long size = 0;
+        if (dir.isFile()) return dir.length();
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files)
+                if (file.isFile()) size += file.length();
+                else size += getDirSize(file);
+        }
+        return size;
+    }
+
+    /**
+     * 格式化文件大小
+     *
+     * @param size 文件大小（字节）
+     * @return 格式化后的文件大小字符串
+     */
+    private String formatFileSize(long size) {
+        if (size <= 0) return "0 B";
+        final String[] units = new String[]{"B", "KB", "MB", "GB", "TB"};
+        int digitGroups = (int) (Math.log10(size) / Math.log10(1024));
+        return String.format(Locale.getDefault(), "%.1f %s", size / Math.pow(1024, digitGroups), units[digitGroups]);
+    }
+
+    /**
+     * 清理缓存
+     *
+     * @param cacheSizeText 显示缓存大小的TextView
+     */
+    private void clearCache(MaterialTextView cacheSizeText) {
+        new Thread(() -> {
+            try {
+                // 清理内部缓存
+                deleteDir(requireContext().getCacheDir());
+                // 清理外部缓存
+                File externalCacheDir = requireContext().getExternalCacheDir();
+                if (externalCacheDir != null) deleteDir(externalCacheDir);
+                requireActivity().runOnUiThread(() -> {
+                    cacheSizeText.setText("当前缓存大小: 0 B");
+                    showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
+                });
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() -> 
+                    showCustomSnackbar(getView(), requireContext(), "缓存清理失败: " + e.getMessage()));
+            }
+        }).start();
+    }
+
+    /**
+     * 删除目录及其内容
+     *
+     * @param dir 目录
+     * @return 是否删除成功
+     */
+    private boolean deleteDir(File dir) {
+        if (dir == null || !dir.exists()) return true;
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            if (files != null)
+                for (File file : files)
+                    if (!deleteDir(file)) return false;
+        }
+        return dir.delete();
     }
 
     // 上面方法的辅助方法
