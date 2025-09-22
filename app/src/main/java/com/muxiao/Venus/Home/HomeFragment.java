@@ -45,7 +45,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HomeFragment extends Fragment {
-    private MaterialAutoCompleteTextView user_dropdown;
     private UserManager userManager;
     private MaterialTextView status_text;
     private ScrollView daily_scroll_view;
@@ -59,7 +58,6 @@ public class HomeFragment extends Fragment {
 
     private View contentLayout;
     private boolean isExpanded = true;
-    private boolean shouldUpdateDropdown = true; // 添加标志控制是否更新下拉框
 
     // 极验验证码接口
     public interface GT3ButtonController {
@@ -112,7 +110,7 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        user_dropdown = view.findViewById(R.id.user_dropdown);
+        MaterialAutoCompleteTextView user_dropdown = view.findViewById(R.id.user_dropdown);
         status_text = view.findViewById(R.id.status_text);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
@@ -128,11 +126,34 @@ public class HomeFragment extends Fragment {
         executorService = Executors.newFixedThreadPool(3);
 
         // 初始化下拉框
-        updateDropdown();
+        List<String> usernames = userManager.getUsernames();
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                requireContext(),
+                R.layout.list_item,
+                usernames
+        );
+        user_dropdown.setAdapter(adapter);
+        // 设置当前用户为默认选中项
+        String currentUser = userManager.getCurrentUser();
+        if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
+            user_dropdown.setText(currentUser, false);
+            status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n"));
+        }
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
-            status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n"));
+            String currentText = status_text.getText().toString();
+            if (currentText.startsWith("已选择用户:")) {
+                String[] lines = currentText.split("\n");
+                if (lines.length > 0) {
+                    StringBuilder newText = new StringBuilder("已选择用户: " + selectedUser + "\n");
+                    for (int i = 1; i < lines.length; i++)
+                        newText.append(lines[i]).append("\n");
+                    requireActivity().runOnUiThread(() -> status_text.setText(newText.toString()));
+                }
+            } else {
+                requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n" + currentText)));
+            }
             
             // 重置GT3按钮状态
             controller.cleanUtils();
@@ -149,9 +170,7 @@ public class HomeFragment extends Fragment {
         start_daily_btn.setOnClickListener(v -> {
             // 检查任务是否已经在运行
             if (isTaskRunning) return; // 如果任务正在运行，则不执行任何操作
-            // 检查是否已选择用户
-            String currentUser = userManager.getCurrentUser();
-            if (currentUser == null || currentUser.isEmpty()) {
+            if (currentUser.isEmpty()) {
                 requireActivity().runOnUiThread(() -> 
                     new MaterialAlertDialogBuilder(requireContext())
                         .setTitle("未选择用户")
@@ -162,9 +181,11 @@ public class HomeFragment extends Fragment {
                 return;
             }
             
+            // 在开始新任务前清除之前的输出
+            requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n")));
+            
             isTaskRunning = true; // 设置任务为运行状态
             isTaskCancelled.set(false); // 重置取消标志
-            shouldUpdateDropdown = false; // 任务运行期间不更新下拉框
             requireActivity().runOnUiThread(() -> {
                 cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
                 start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
@@ -211,7 +232,6 @@ public class HomeFragment extends Fragment {
                     // 任务完成后重置运行状态
                     isTaskRunning = false;
                     isTaskCancelled.set(false);
-                    shouldUpdateDropdown = true; // 任务完成后允许更新下拉框
                     // 确保GT按钮在任务完成后恢复可用状态
                     requireActivity().runOnUiThread(() -> {
                         if (geetestButton != null) {
@@ -274,15 +294,6 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        // 每次恢复Fragment时，只有在非任务运行状态下才更新下拉框
-        if (shouldUpdateDropdown) {
-            updateDropdown();
-        }
-    }
-
     /**
      * 获取设置
      */
@@ -327,23 +338,6 @@ public class HomeFragment extends Fragment {
         if (game_daily_weiding) game_daily.add("未定事件簿");
         settings.put("game_daily", game_daily.toArray(new String[0]));
         return settings;
-    }
-
-    private void updateDropdown() {
-        List<String> usernames = userManager.getUsernames();
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
-                usernames
-        );
-        user_dropdown.setAdapter(adapter);
-
-        // 设置当前用户为默认选中项
-        String currentUser = userManager.getCurrentUser();
-        if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
-            user_dropdown.setText(currentUser, false);
-            status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n"));
-        }
     }
 
     /**

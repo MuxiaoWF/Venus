@@ -110,7 +110,9 @@ public class FullscreenImageActivity extends AppCompatActivity {
                 titleTextView.setVisibility(View.VISIBLE);
                 authorTextView.setVisibility(View.VISIBLE);
                 timeTextView.setVisibility(View.VISIBLE);
-                descriptionTextView.setVisibility(descriptionTextView.getText().toString().isEmpty() ? View.GONE : View.VISIBLE);
+                // 只有当描述文本不为空时才显示
+                if (descriptionTextView.getText() != null && !descriptionTextView.getText().toString().trim().isEmpty())
+                    descriptionTextView.setVisibility(View.VISIBLE);
                 counterTextView.setVisibility(View.VISIBLE);
                 collapseButton.setText("收起");
             } else {
@@ -150,12 +152,13 @@ public class FullscreenImageActivity extends AppCompatActivity {
                 String trimmedDescription = description.replaceAll("\\s+", " ").trim();
                 if (!trimmedDescription.isEmpty()) {
                     descriptionTextView.setText(trimmedDescription);
-                    descriptionTextView.setVisibility(android.view.View.VISIBLE);
+                    if (isInfoExpanded)
+                        descriptionTextView.setVisibility(View.VISIBLE);
                 } else {
-                    descriptionTextView.setVisibility(android.view.View.GONE);
+                    descriptionTextView.setVisibility(View.GONE);
                 }
             } else {
-                descriptionTextView.setVisibility(android.view.View.GONE);
+                descriptionTextView.setVisibility(View.GONE);
             }
 
             counterTextView.setText(new StringBuilder((position + 1) + "/" + imageAdapter.getItemCount()));

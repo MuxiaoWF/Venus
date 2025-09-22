@@ -161,7 +161,7 @@ public class LinkFragment extends Fragment {
         // 更新用户下拉框
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
                 requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
+                R.layout.list_item,
                 userManager.getUsernames()
         );
         userDropdown.setAdapter(adapter);
