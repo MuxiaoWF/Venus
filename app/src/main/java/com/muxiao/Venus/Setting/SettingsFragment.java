@@ -25,6 +25,7 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
@@ -32,6 +33,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
@@ -82,6 +84,7 @@ public class SettingsFragment extends Fragment {
     private boolean config_toggle = false;
     private boolean update_toggle = false;
     private boolean cache_toggle = false;
+    private boolean notification_toggle = false;
     
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
@@ -108,6 +111,7 @@ public class SettingsFragment extends Fragment {
         // 查找所有Switch和CheckBox控件
         SwitchMaterial dailySwitchButton = view.findViewById(R.id.daily_switch_button);
         SwitchMaterial gameDailySwitchButton = view.findViewById(R.id.game_daily_switch_button);
+        SwitchMaterial notificationSwitch = view.findViewById(R.id.notification_switch);
 
         MaterialCheckBox dailyCheckboxGenshin = view.findViewById(R.id.daily_checkbox_genshin);
         MaterialCheckBox dailyCheckboxZzz = view.findViewById(R.id.daily_checkbox_zzz);
@@ -137,6 +141,7 @@ public class SettingsFragment extends Fragment {
         // 恢复保存的状态
         dailySwitchButton.setChecked(sharedPreferences.getBoolean("daily_switch_button", true));
         gameDailySwitchButton.setChecked(sharedPreferences.getBoolean("game_daily_switch_button", true));
+        notificationSwitch.setChecked(sharedPreferences.getBoolean("notification_switch", false));
 
         dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean("daily_checkbox_genshin", false));
         dailyCheckboxZzz.setChecked(sharedPreferences.getBoolean("daily_checkbox_zzz", false));
@@ -160,6 +165,31 @@ public class SettingsFragment extends Fragment {
 
         gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("game_daily_switch_button", isChecked).apply());
+        
+        notificationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                // 用户开启了通知开关，检查实际的通知权限
+                Notification notificationUtil = new Notification(requireContext());
+                if (!notificationUtil.areNotificationsEnabled()) {
+                    // 实际权限未开启，提示用户去设置
+                    new MaterialAlertDialogBuilder(requireContext())
+                            .setTitle("需要通知权限")
+                            .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
+                            .setPositiveButton("去设置", (dialog, which) -> notificationUtil.goToNotificationSettings())
+                            .setNegativeButton("稍后再说", (dialog, which) -> {
+                                // 用户选择稍后处理，将开关状态设为关闭
+                                notificationSwitch.setChecked(false);
+                            }).setOnCancelListener(dialog -> {
+                                // 用户取消对话框，也将开关状态设为关闭
+                                notificationSwitch.setChecked(false);
+                            })
+                            .show();
+                    // 不保存设置，保持开关关闭状态
+                    return;
+                }
+            }
+            sharedPreferences.edit().putBoolean("notification_switch", isChecked).apply();
+        });
 
         dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("daily_checkbox_genshin", isChecked).apply());
@@ -258,6 +288,17 @@ public class SettingsFragment extends Fragment {
                 update_content_layout.setVisibility(View.GONE);
         });
 
+        // 通知设置折叠按钮
+        MaterialButton notification_toggle_button = view.findViewById(R.id.notification_toggle_button);
+        View notification_content_layout = view.findViewById(R.id.notification_content_layout);
+        notification_toggle_button.setOnClickListener(v -> {
+            notification_toggle = !notification_toggle;
+            if (notification_toggle)
+                notification_content_layout.setVisibility(View.VISIBLE);
+            else
+                notification_content_layout.setVisibility(View.GONE);
+        });
+
         // 主题选择
         setupThemeSelection(view);
         // 背景选择
@@ -293,6 +334,17 @@ public class SettingsFragment extends Fragment {
         // 缓存管理
         setupCacheManagement(view);
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 更新通知开关状态
+        if (sharedPreferences != null && getView() != null) {
+            SwitchMaterial notificationSwitch = getView().findViewById(R.id.notification_switch);
+            boolean notificationEnabled = sharedPreferences.getBoolean("notification_switch", false);
+            notificationSwitch.setChecked(notificationEnabled);
+        }
     }
 
     /**

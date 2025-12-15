@@ -17,6 +17,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
@@ -42,12 +43,14 @@ public class Daily {
     private final String userId;
     private final com.muxiao.Venus.common.fixed fixed;
     private final HomeFragment.GT3ButtonController gt3Controller;
+    private final Notification notification;
 
     public Daily(Context context, String userId, tools.StatusNotifier notifier, HomeFragment.GT3ButtonController gt3Controller) {
         this.context = context;
         this.userId = userId;
         this.fixed = new fixed(context);
         this.gt3Controller = gt3Controller;
+        this.notification = new Notification(context);
 
         taskDo.put("sign", false);
         taskDo.put("read", false);
@@ -71,12 +74,19 @@ public class Daily {
         String mid = tools.read(context, userId, "mid");
         String stuid = "ltuid=" + tools.read(context, userId, "stuid");
 
-        if (stoken == null)
-            throw new RuntimeException("stoken为null,请尝试重新登陆");
-        else if (mid == null)
-            throw new RuntimeException("mid为null,请尝试重新登陆");
-        else if (tools.read(context, userId, "stuid") == null)
-            throw new RuntimeException("stuid为null,请尝试重新登陆");
+        if (stoken == null) {
+            String errorMsg = "stoken为null,请尝试重新登陆";
+            notification.sendErrorNotification("登录错误", errorMsg);
+            throw new RuntimeException(errorMsg);
+        } else if (mid == null) {
+            String errorMsg = "mid为null,请尝试重新登陆";
+            notification.sendErrorNotification("登录错误", errorMsg);
+            throw new RuntimeException(errorMsg);
+        } else if (tools.read(context, userId, "stuid") == null) {
+            String errorMsg = "stuid为null,请尝试重新登陆";
+            notification.sendErrorNotification("登录错误", errorMsg);
+            throw new RuntimeException(errorMsg);
+        }
         for (String key : name) {
             for (Map<String, String> map : bbs_list) {
                 if (key.equals(map.get("name"))) {
@@ -101,8 +111,11 @@ public class Daily {
         String response = tools.sendGetRequest("https://bbs-api.miyoushe.com/apihub/sapi/getUserMissionsState", bbs_headers, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
-        if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100)
-            throw new RuntimeException("获取任务列表失败，你的cookie可能已过期，请重新设置cookie。");
+        if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
+            String errorMsg = "获取任务列表失败，你的cookie可能已过期，请重新设置cookie。";
+            notification.sendErrorNotification("任务获取失败", errorMsg);
+            throw new RuntimeException(errorMsg);
+        }
         this.todayGetCoins = data.get("can_get_points").getAsInt();
         this.todayHaveGetCoins = data.get("already_received_points").getAsInt();
         this.haveCoins = data.get("total_points").getAsInt();
@@ -193,6 +206,7 @@ public class Daily {
         getTasksList();
         notifier.notifyListeners("今天已经获得" + this.todayHaveGetCoins + "个米游币\n" + "还能获得" + this.todayGetCoins + "个米游币\n目前有" + this.haveCoins + "个米游币");
         notifier.notifyListeners("米游币任务执行完毕");
+        notification.sendNormalNotification("米游币任务完成", "今日获得" + this.todayHaveGetCoins + "个米游币，目前共有" + this.haveCoins + "个米游币");
     }
 
     /**
@@ -218,6 +232,7 @@ public class Daily {
                 if (data.get("retcode").getAsInt() == 1034) {
                     // 当返回码为1034时，触发验证码验证
                     notifier.notifyListeners("需要进行人机验证...");
+                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
                     geetest(header);
                     // 等待验证完成
                     synchronized (this) {
@@ -233,9 +248,14 @@ public class Daily {
                     wait2();
                     break;
                 } else if (data.get("retcode").getAsInt() == -100) {
-                    throw new RuntimeException("签到失败，你的cookie可能已过期，请重新设置cookie。");
+                    String errorMsg = "签到失败，你的cookie可能已过期，请重新设置cookie。";
+                    notifier.notifyListeners(errorMsg);
+                    notification.sendErrorNotification("签到失败", errorMsg);
+                    throw new RuntimeException(errorMsg);
                 } else {
-                    notifier.notifyListeners("未知错误: " + response);
+                    String errorMsg = "未知错误: " + response;
+                    notifier.notifyListeners(errorMsg);
+                    notification.sendErrorNotification("签到异常", errorMsg);
                 }
             }
         }
@@ -250,7 +270,9 @@ public class Daily {
             return;
         }
         if (postsList == null) {
-            notifier.notifyListeners("没有获取到帖子列表");
+            String msg = "没有获取到帖子列表";
+            notifier.notifyListeners(msg);
+            notification.sendErrorNotification("看帖任务", msg);
             return;
         }
         notifier.notifyListeners("正在看帖......");
@@ -273,6 +295,7 @@ public class Daily {
                 } else if (data.get("retcode").getAsInt() == 1034) {
                     // 当返回码为1034时，触发验证码验证
                     notifier.notifyListeners("需要进行人机验证...");
+                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
                     geetest(bbs_headers);
                     // 等待验证完成
                     synchronized (this) {
@@ -285,9 +308,14 @@ public class Daily {
                     // 重新尝试
                     retryCount--;
                 } else if (data.get("retcode").getAsInt() == -100) {
-                    throw new RuntimeException("看帖失败，你的cookie可能已过期，请重新设置cookie。");
+                    String errorMsg = "看帖失败，你的cookie可能已过期，请重新设置cookie。";
+                    notifier.notifyListeners(errorMsg);
+                    notification.sendErrorNotification("看帖失败", errorMsg);
+                    throw new RuntimeException(errorMsg);
                 } else {
-                    notifier.notifyListeners("看帖: " + post.get(1) + " 失败,错误信息为: " + response);
+                    String errorMsg = "看帖: " + post.get(1) + " 失败,错误信息为: " + response;
+                    notifier.notifyListeners(errorMsg);
+                    notification.sendErrorNotification("看帖失败", errorMsg);
                     if (retryCount < 2) {
                         notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
                     }
@@ -306,7 +334,9 @@ public class Daily {
             return;
         }
         if (postsList == null) {
-            notifier.notifyListeners("没有获取到帖子列表");
+            String msg = "没有获取到帖子列表";
+            notifier.notifyListeners(msg);
+            notification.sendErrorNotification("点赞任务", msg);
             return;
         }
         notifier.notifyListeners("正在点赞......");
@@ -339,6 +369,7 @@ public class Daily {
                 } else if (data.get("retcode").getAsInt() == 1034) {
                     // 当返回码为1034时，触发验证码验证
                     notifier.notifyListeners("需要进行人机验证...");
+                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
                     geetest(header);
                     // 等待验证完成
                     synchronized (this) {
@@ -351,7 +382,10 @@ public class Daily {
                     // 重新尝试
                     retryCount--;
                 } else if (data.get("retcode").getAsInt() == -100) {
-                    throw new RuntimeException("点赞失败，你的cookie可能已过期，请重新设置cookie。");
+                    String errorMsg = "点赞失败，你的cookie可能已过期，请重新设置cookie。";
+                    notifier.notifyListeners(errorMsg);
+                    notification.sendErrorNotification("点赞失败", errorMsg);
+                    throw new RuntimeException(errorMsg);
                 } else {
                     notifier.notifyListeners("点赞: " + post.get(1) + " 失败,错误信息为: " + response);
                     if (retryCount < 2)
@@ -371,7 +405,9 @@ public class Daily {
             return;
         }
         if (postsList == null) {
-            notifier.notifyListeners("没有获取到帖子列表");
+            String msg = "没有获取到帖子列表";
+            notifier.notifyListeners(msg);
+            notification.sendErrorNotification("分享任务出错", msg);
             return;
         }
         notifier.notifyListeners("正在分享......");
@@ -391,6 +427,7 @@ public class Daily {
             } else if (data.get("retcode").getAsInt() == 1034) {
                 // 当返回码为1034时，触发验证码验证
                 notifier.notifyListeners("需要进行人机验证...");
+                notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
                 geetest(header);
                 // 等待验证完成
                 synchronized (this) {
@@ -403,9 +440,14 @@ public class Daily {
                 // 重新尝试
                 retryCount--;
             } else if (data.get("retcode").getAsInt() == -100) {
-                throw new RuntimeException("分享失败，你的cookie可能已过期，请重新设置cookie。");
+                String errorMsg = "分享失败，你的cookie可能已过期，请重新设置cookie。";
+                notifier.notifyListeners(errorMsg);
+                notification.sendErrorNotification("分享失败", errorMsg);
+                throw new RuntimeException(errorMsg);
             } else {
-                notifier.notifyListeners("分享任务执行失败，正在执行第" + (retryCount + 2) + "次，共3次");
+                String errorMsg = "分享任务执行失败，正在执行第" + (retryCount + 2) + "次，共3次";
+                notifier.notifyListeners(errorMsg);
+                notification.sendErrorNotification("分享失败", errorMsg);
             }
         }
         wait2();

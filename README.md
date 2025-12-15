@@ -2,6 +2,10 @@
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
 [gzu-liyujiang/Android_CN_OAID 部分Android信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)
+[com.geetest.sensebot » sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.3.3)
+[MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)
+[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)
+还有Google Android组件支持
 
 非常非常简陋的APP，运行速度也非常缓慢。应该没人用（，写来玩的
 
@@ -16,6 +20,10 @@
 <mark>可以提功能，但是大概率不会加（</mark>
 
 有bug也凑合用吧，提出来可能会解决？
+
+---
+
+原本想调一个后台运行的，结果验证码似乎不太好搞，那就不搞了（，等个一分钟应该也算可以了🤔有空整理一下屎山代码
 
 ---
 

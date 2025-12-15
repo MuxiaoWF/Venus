@@ -29,6 +29,7 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
@@ -52,12 +53,14 @@ public class HomeFragment extends Fragment {
     public GT3GeetestButton geetestButton;
     public GT3GeetestUtils gt3GeetestUtils;
     private LinearLayout geetestContainer;
-    private boolean isTaskRunning = false; // 添加任务运行状态标志
+    public static boolean isTaskRunning = false; // 添加任务运行状态标志
     private Future<?> currentTaskFuture; // 用于取消任务
     private final AtomicBoolean isTaskCancelled = new AtomicBoolean(false); // 任务取消标志
 
     private View contentLayout;
+    private MaterialAutoCompleteTextView user_dropdown;
     private boolean isExpanded = true;
+    private Notification notification;
 
     // 极验验证码接口
     public interface GT3ButtonController {
@@ -78,7 +81,7 @@ public class HomeFragment extends Fragment {
                     gt3GeetestUtils.destory();
                     gt3GeetestUtils = null;
                 }
-                
+
                 // 动态创建GT3GeetestButton
                 createGeetestButton();
                 gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
@@ -110,7 +113,8 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        MaterialAutoCompleteTextView user_dropdown = view.findViewById(R.id.user_dropdown);
+        notification = new Notification(requireContext());
+        user_dropdown = view.findViewById(R.id.user_dropdown);
         status_text = view.findViewById(R.id.status_text);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
@@ -154,7 +158,7 @@ public class HomeFragment extends Fragment {
             } else {
                 requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n" + currentText)));
             }
-            
+
             // 重置GT3按钮状态
             controller.cleanUtils();
         });
@@ -171,26 +175,52 @@ public class HomeFragment extends Fragment {
             // 检查任务是否已经在运行
             if (isTaskRunning) return; // 如果任务正在运行，则不执行任何操作
             if (currentUser.isEmpty()) {
-                requireActivity().runOnUiThread(() -> 
-                    new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("未选择用户")
-                        .setMessage("请先从下拉列表中选择一个用户再开始任务")
-                        .setPositiveButton("确定", null)
-                        .show()
+                requireActivity().runOnUiThread(() ->
+                        new MaterialAlertDialogBuilder(requireContext())
+                                .setTitle("未选择用户")
+                                .setMessage("请先从下拉列表中选择一个用户再开始任务")
+                                .setPositiveButton("确定", null)
+                                .show()
                 );
                 return;
             }
-            
+
+            // 检查通知设置
+            SharedPreferences prefs = requireActivity().getSharedPreferences("settings_prefs", Context.MODE_PRIVATE);
+            boolean notificationEnabled = prefs.getBoolean("notification_switch", false);
+
+            // 如果用户开启了通知功能，但系统通知权限未开启，则发送引导通知
+            if (notificationEnabled && !notification.areNotificationsEnabled()) {
+                // 实际权限未开启，提示用户去设置
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("需要通知权限")
+                        .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
+                        .setPositiveButton("去设置", (dialog, which) -> notification.goToNotificationSettings())
+                        .setNegativeButton("稍后再说", (dialog, which) -> {
+                            // 用户选择稍后处理，将开关状态设为关闭并保存
+                            SharedPreferences.Editor editor = prefs.edit();
+                            editor.putBoolean("notification_switch", false);
+                            editor.apply();
+                        }).setOnCancelListener(dialog -> {
+                            // 用户取消对话框，也将开关状态设为关闭并保存
+                            SharedPreferences.Editor editor = prefs.edit();
+                            editor.putBoolean("notification_switch", false);
+                            editor.apply();
+                        })
+                        .show();
+                return;
+            }
+            notification.sendNormalNotification("Venus", "开始任务");
             // 在开始新任务前清除之前的输出
             requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n")));
-            
+
             isTaskRunning = true; // 设置任务为运行状态
             isTaskCancelled.set(false); // 重置取消标志
             requireActivity().runOnUiThread(() -> {
                 cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
                 start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
             });
-            
+
             // 在每次新任务开始前清理之前的GT实例
             controller.cleanUtils();
 
@@ -224,9 +254,11 @@ public class HomeFragment extends Fragment {
                     }
                     if (isTaskCancelled.get()) return; // 检查是否已取消
                     notifier.notifyListeners("任务完成");
+                    notification.sendNormalNotification("Venus", "任务完成");
                 } catch (Exception e) {
                     if (isTaskCancelled.get()) return; // 如果是取消导致的异常，忽略
                     String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
+                    notification.sendErrorNotification("任务失败", error_message);
                     requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),error_message));
                 } finally {
                     // 任务完成后重置运行状态
@@ -255,6 +287,7 @@ public class HomeFragment extends Fragment {
                     if (currentTaskFuture != null)
                         currentTaskFuture.cancel(true); // 尝试取消任务
                     status_text.append("任务已取消\n");
+                    notification.sendNormalNotification("Venus", "任务已取消");
                     // 恢复按钮状态
                     cancel_daily_btn.setVisibility(View.GONE);
                     start_daily_btn.setVisibility(View.VISIBLE);
@@ -278,12 +311,36 @@ public class HomeFragment extends Fragment {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        // 更新下拉框中的用户列表
+        if (userManager != null && user_dropdown != null) {
+            String currentUser = user_dropdown.getText().toString(); // 保存当前选中的用户
+            List<String> usernames = userManager.getUsernames();
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                    requireContext(),
+                    R.layout.list_item,
+                    usernames
+            );
+            user_dropdown.setAdapter(adapter);
+
+            // 恢复之前选中的用户（如果仍然存在于列表中）
+            if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
+                user_dropdown.setText(currentUser, false);
+            } else if (!usernames.isEmpty()) {
+                // 如果之前选中的用户不存在了，设置为第一个用户
+                user_dropdown.setText(usernames.get(0), false);
+            }
+        }
+    }
+
+    @Override
     public void onDestroy() {
         super.onDestroy();
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
         }
-        
+
         // 清理GT相关资源
         controller.cleanUtils();
 
@@ -292,6 +349,7 @@ public class HomeFragment extends Fragment {
             gt3GeetestUtils.destory();
             gt3GeetestUtils = null;
         }
+        isTaskRunning = false;
     }
 
     /**
@@ -406,10 +464,12 @@ public class HomeFragment extends Fragment {
                     statusNotifier.notifyListeners("正在进行" + game_print_name + "签到");
                     if (game_module != null) {
                         game_module.signAccount();
+                        notification.sendNormalNotification(game_print_name, game_print_name + "签到完成");
                     }
                     try {
                         Thread.sleep(new Random().nextInt(10 - 5 + 1) + 2 * 1000);
                     } catch (InterruptedException e) {
+                        notification.sendErrorNotification("签到出错", "Thread系统错误" + e);
                         throw new RuntimeException("Thread系统错误" + e);
                     }
                 }

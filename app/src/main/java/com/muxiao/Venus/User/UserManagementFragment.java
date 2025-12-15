@@ -15,6 +15,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
+import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
 
 import java.util.List;
@@ -37,6 +38,10 @@ public class UserManagementFragment extends Fragment {
 
         MaterialButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
         userLoginBtn.setOnClickListener(v -> {
+            if (isTaskRunning()) {
+                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法添加用户");
+                return;
+            }
             Intent intent = new Intent(getActivity(), UserLoginActivity.class);
             startActivity(intent);
         });
@@ -76,8 +81,21 @@ public class UserManagementFragment extends Fragment {
                 showCustomSnackbar(requireView(), requireContext(), "已切换到用户: " + username);
             });
 
-            renameButton.setOnClickListener(v -> showRenameUserDialog(username));
-            deleteButton.setOnClickListener(v -> showDeleteUserDialog(username));
+            renameButton.setOnClickListener(v -> {
+                if (isTaskRunning()) {
+                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
+                    return;
+                }
+                showRenameUserDialog(username);
+            });
+            
+            deleteButton.setOnClickListener(v -> {
+                if (isTaskRunning()) {
+                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
+                    return;
+                }
+                showDeleteUserDialog(username);
+            });
 
             userListContainer.addView(userItemView);
         }
@@ -94,6 +112,10 @@ public class UserManagementFragment extends Fragment {
         builder.setView(inputLayout);
 
         builder.setPositiveButton("确定", (dialog, which) -> {
+            if (isTaskRunning()) {
+                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
+                return;
+            }
             String newUsername = Objects.requireNonNull(input.getText()).toString().trim();
             if (!newUsername.isEmpty() && !newUsername.equals(oldUsername)) {
                 if (userManager.isUserExists(newUsername))
@@ -108,6 +130,10 @@ public class UserManagementFragment extends Fragment {
     }
 
     private void renameUser(String oldUsername, String newUsername) {
+        if (isTaskRunning()) {
+            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
+            return;
+        }
         // 添加新用户并删除旧用户的方式来实现重命名
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
@@ -118,11 +144,19 @@ public class UserManagementFragment extends Fragment {
     }
 
     private void showDeleteUserDialog(String username) {
+        if (isTaskRunning()) {
+            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
+            return;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle("删除用户");
         builder.setMessage("确定要删除用户 \"" + username + "\" 吗？此操作无法撤销。");
 
         builder.setPositiveButton("删除", (dialog, which) -> {
+            if (isTaskRunning()) {
+                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
+                return;
+            }
             userManager.removeUser(username);
             refreshUserList();
             showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
@@ -130,5 +164,12 @@ public class UserManagementFragment extends Fragment {
         builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
 
         builder.show();
+    }
+    
+    /**
+     * 检查是否有任务正在运行
+     */
+    private boolean isTaskRunning() {
+        return HomeFragment.isTaskRunning;
     }
 }

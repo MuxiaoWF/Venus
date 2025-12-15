@@ -20,6 +20,10 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+# 抑制 R8 警告
+-dontwarn javax.imageio.**
+-dontwarn javax.imageio.spi.**
+
 # 保留Sensebot库
 -keep class sensebot.** { *; }
 

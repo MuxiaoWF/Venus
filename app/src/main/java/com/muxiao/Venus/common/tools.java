@@ -185,7 +185,7 @@ public class tools {
                 }
             }
         } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查是否联网");
+            throw new RuntimeException("请检查是否联网"+e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -230,7 +230,7 @@ public class tools {
                 }
             }
         } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查是否联网");
+            throw new RuntimeException("请检查是否联网"+e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

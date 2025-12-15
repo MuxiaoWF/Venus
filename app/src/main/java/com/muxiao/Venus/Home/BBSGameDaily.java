@@ -23,6 +23,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
@@ -51,6 +52,7 @@ public class BBSGameDaily {
     private final Context context;
     private final String userId;
     private final HomeFragment.GT3ButtonController gt3Controller;
+    private final Notification notification;
 
     /**
      * @param game_id     游戏id
@@ -74,6 +76,7 @@ public class BBSGameDaily {
         this.is_sign_api = "https://api-takumi.mihoyo.com/event/luna/info";
         this.sign_api = "https://api-takumi.mihoyo.com/event/luna/sign";
         this.checkin_rewards = new ArrayList<>();
+        this.notification = new Notification(context);
         switch (act_id) {
             case Honkai2_act_id:
                 game_login_headers_this.put("Referer", "https://webstatic.mihoyo.com/bbs/event/signin/bh2/index.html?bbs_auth_required=true&act_id=" + Honkai2_act_id + "&bbs_presentation_style=fullscreen&utm_source=bbs&utm_medium=mys&utm_campaign=icon");
@@ -107,12 +110,14 @@ public class BBSGameDaily {
         if (temp < 3) {
             temp++;
             statusNotifier.notifyListeners("CookieToken失效，尝试刷新");
+            notification.sendErrorNotification("游戏签到","CookieToken失效，尝试刷新");
             String newToken = getCookieTokenByStoken();
             statusNotifier.notifyListeners("CookieToken刷新成功");
             tools.write(context, userId, "cookie_token", newToken);
             return newToken;
         } else {
             statusNotifier.notifyListeners("CookieToken刷新失败");
+            notification.sendErrorNotification("游戏签到出错","CookieToken刷新失败");
             return null;
         }
     }
@@ -124,12 +129,15 @@ public class BBSGameDaily {
         String stoken = tools.read(context, userId, "stoken");
         String stuid = tools.read(context, userId, "stuid");
         if (stoken == null || stoken.isEmpty() && stuid == null || stuid.isEmpty()) {
+            notification.sendErrorNotification("游戏签到出错","Stoken和Suid为空，无法自动更新CookieToken");
             throw new RuntimeException("Stoken和Suid为空，无法自动更新CookieToken");
         }
         String cookie = "stuid=" + stuid + ";stoken=" + stoken;
         if (stoken.startsWith("v2_")) {
-            if (tools.read(context, userId, "mid") == null)
+            if (tools.read(context, userId, "mid") == null) {
+                notification.sendErrorNotification("游戏签到出错","v2的stoken获取cookie_token时需要mid");
                 throw new RuntimeException("v2的stoken获取cookie_token时需要mid");
+            }
             cookie = cookie + ";mid=" + tools.read(context, userId, "mid");
         }
         Map<String, String> game_login_headers = new HashMap<>(fixed.game_login_headers);
@@ -138,6 +146,7 @@ public class BBSGameDaily {
         String response = sendGetRequest("https://api-takumi.mihoyo.com/auth/api/getCookieAccountInfoBySToken", game_login_headers, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         if (res.get("retcode").getAsInt() != 0) {
+            notification.sendErrorNotification("游戏签到出错","获取CookieToken失败,stoken已失效请重新抓取");
             throw new RuntimeException("获取CookieToken失败,stoken已失效请重新抓取");
         }
         tools.write(context, userId, "cookie_token", res.get("data").getAsJsonObject().get("cookie_token").getAsString());
@@ -158,8 +167,10 @@ public class BBSGameDaily {
         String game_name = game_id_to_name.containsKey(game_id) ? game_id_to_name.get(game_id) : game_id;
         if (update) {
             String new_Cookie = updateCookieToken();
-            if (new_Cookie == null)
+            if (new_Cookie == null) {
+                statusNotifier.notifyListeners("CookieToken刷新失败，可以重新运行一下每日签到（再次点击运行按钮）");
                 throw new RuntimeException("CookieToken刷新失败，可以重新运行一下每日签到（再次点击运行按钮）");
+            }
             headers.put("Cookie", "cookie_token=" + new_Cookie + ";ltoken=" + tools.read(context, userId, "ltoken") + ";ltuid=" + tools.read(context, userId, "stuid") + ";account_id=" + tools.read(context, userId, "stuid"));
         }
         statusNotifier.notifyListeners("正在获取米哈游账号绑定的" + game_name + "账号列表...");
@@ -169,6 +180,7 @@ public class BBSGameDaily {
             return getAccountList(game_id, headers, true, statusNotifier);
         if (data.get("retcode").getAsInt() != 0) {
             statusNotifier.notifyListeners("获取" + game_name + "账号列表失败！");
+            notification.sendErrorNotification("游戏签到","获取" + game_name + "账号列表失败！");
             return new ArrayList<>();
         }
         List<Map<String, String>> account_list = new ArrayList<>();
@@ -253,6 +265,7 @@ public class BBSGameDaily {
             }
             if (data.get("retcode").getAsInt() == -100)
                 return isSign(region, uid, false);
+            notification.sendErrorNotification("游戏签到出错","获取账号签到信息失败！");
             throw new RuntimeException("BBS Cookie Errror" + "获取账号签到信息失败！" + response);
         }
         Map<String, Object> resultMap = new HashMap<>();
@@ -287,16 +300,20 @@ public class BBSGameDaily {
         int retries = 3;
         String response = "";
         for (int i = 1; i <= retries; i++) {
-            if (i > 1)
+            if (i > 1) {
+                notification.sendErrorNotification("游戏签到验证码","触发验证码，即将进行第 " + i + " 次重试，最多 " + retries + " 次");
                 statusNotifier.notifyListeners("触发验证码，即将进行第 " + i + " 次重试，最多 " + retries + " 次");
+            }
             response = sendPostRequest(sign_api, header, Map.of("act_id", act_id, "region", Objects.requireNonNull(account.get("region")), "uid", Objects.requireNonNull(account.get("game_uid"))));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (data.get("retcode").getAsInt() == 429) {
                 try {
                     Thread.sleep(10000); // 429同ip请求次数过多，尝试sleep10s进行解决
                 } catch (InterruptedException e) {
+                    notification.sendErrorNotification("游戏签到出错","thread系统错误");
                     throw new RuntimeException("thread系统错误");
                 }
+                notification.sendErrorNotification("游戏签到出错","429 Too Many Requests ，即将进入下次请求");
                 statusNotifier.notifyListeners("429 Too Many Requests ，即将进入下一次请求");
                 continue;
             }
@@ -310,6 +327,7 @@ public class BBSGameDaily {
                         + ";account_mid_v2=" + tools.read(context, userId, "mid") + ";cookie_token=" + tools.read(context, userId, "cookie_token")
                         + ";cookie_token_v2=" + tools.read(context, userId, "cookie_token") + ";mi18nLang=zh-cn;login_ticket=" + tools.read(context, userId, "login_ticket"));
                 // 触发验证码验证
+                notification.sendErrorNotification("游戏签到出错","需要进行人机验证...");
                 statusNotifier.notifyListeners("需要进行人机验证...");
                 geetest(record_headers);
                 // 等待验证完成
@@ -333,8 +351,9 @@ public class BBSGameDaily {
      */
     public void signAccount() {
         if (account_list.isEmpty()) {
-        statusNotifier.notifyListeners("签到失败，并没有绑定任何" + game_name + "账号，请先绑定");
-        return;
+            notification.sendErrorNotification("游戏签到出错","没有绑定任何" + game_name + "账号");
+            statusNotifier.notifyListeners("签到失败，并没有绑定任何" + game_name + "账号，请先绑定");
+            return;
         }
         statusNotifier.notifyListeners(game_name + ": ");
         try {
@@ -342,6 +361,7 @@ public class BBSGameDaily {
                 Thread.sleep(new Random().nextInt(8 - 2 + 1) + 2 * 1000);
                 Map<String, Object> isData = isSign(account.get("region"), account.get("game_uid"), false);
                 if (isData.get("first_bind") != null && (Boolean) Objects.requireNonNull(isData.get("first_bind"))) {
+                    notification.sendErrorNotification("游戏签到出错",player_name + account.get("nickname") + "是第一次绑定米游社，请先手动签到一次");
                     statusNotifier.notifyListeners(player_name + account.get("nickname") + "是第一次绑定米游社，请先手动签到一次");
                     continue;
                 }
@@ -364,6 +384,7 @@ public class BBSGameDaily {
                             if (!data.get("data").isJsonNull() && data.getAsJsonObject("data").has("success") && data.getAsJsonObject("data").get("success").getAsInt() != 0)
                                 s += "原因: 验证码\njson信息:" + req;
                             statusNotifier.notifyListeners(s);
+                            notification.sendErrorNotification("游戏签到出错",s);
                             continue;
                         }
                     } else {

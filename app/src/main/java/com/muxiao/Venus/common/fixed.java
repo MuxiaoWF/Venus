@@ -34,9 +34,9 @@ public class fixed {
     public String bbs_version;
     public static String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static String LK2_final = "G1ktdwFL4IyGkHuuWSmz0wUe9Db9scyK";
-    public static String K2_final = "idMMaGYmVgPzh3wxmWudUXKUPGidO7GM";
-    public static String bbs_version_final = "2.93.1";
+    public static String LK2_final = "x78tT1bLxhGfaT4Lh7GWsfvZ0DFlubE4";
+    public static String K2_final = "GeYjfbpvEmVfCrzRo7muTDcOBbDKE8hP";
+    public static String bbs_version_final = "2.96.2";
 
     // 使用静态代码块初始化配置常量
     private void updateSalt() {
@@ -111,6 +111,10 @@ public class fixed {
                 put("id", "9");
                 put("forumId", "948");
                 put("name", "崩坏因缘精灵");
+            }}, new HashMap<>() {{
+                put("id", "10");
+                put("forumId", "950");
+                put("name", "星布谷地");
             }}));
 
     public String generateDeviceId() {
