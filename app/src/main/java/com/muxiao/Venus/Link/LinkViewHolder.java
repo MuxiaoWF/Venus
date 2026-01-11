@@ -7,6 +7,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 
+/**
+ * 链接视图持有者，绑定列表项中的UI组件
+ */
 public class LinkViewHolder extends RecyclerView.ViewHolder {
     MaterialTextView uidTextView;
     MaterialTextView linkTextView;

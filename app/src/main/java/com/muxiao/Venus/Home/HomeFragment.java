@@ -1,16 +1,11 @@
 package com.muxiao.Venus.Home;
 
-import static com.muxiao.Venus.common.fixed.Genshin_act_id;
-import static com.muxiao.Venus.common.fixed.Honkai2_act_id;
-import static com.muxiao.Venus.common.fixed.Honkai3rd_act_id;
-import static com.muxiao.Venus.common.fixed.HonkaiStarRail_act_id;
-import static com.muxiao.Venus.common.fixed.TearsOfThemis_act_id;
-import static com.muxiao.Venus.common.fixed.ZZZ_act_id;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,82 +24,88 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HomeFragment extends Fragment {
-    private UserManager userManager;
-    private MaterialTextView status_text;
-    private ScrollView daily_scroll_view;
+    private UserManager user_manager;
     private ExecutorService executorService;
-    public GT3GeetestButton geetestButton;
-    public GT3GeetestUtils gt3GeetestUtils;
     private LinearLayout geetestContainer;
-    public static boolean isTaskRunning = false; // 添加任务运行状态标志
-    private Future<?> currentTaskFuture; // 用于取消任务
-    private final AtomicBoolean isTaskCancelled = new AtomicBoolean(false); // 任务取消标志
-
-    private View contentLayout;
+    private static Future<?> currentTaskFuture; // 任务
+    private String current_user;
     private MaterialAutoCompleteTextView user_dropdown;
-    private boolean isExpanded = true;
-    private Notification notification;
 
-    // 极验验证码接口
-    public interface GT3ButtonController {
-        void init(GT3ConfigBean gt3ConfigBean);
+    private final GeetestController controller = new GeetestController() {
+        private GT3GeetestUtils gt3GeetestUtils;
+        public GT3GeetestButton geetestButton;
 
-        GT3GeetestUtils getGeetestUtils();
-
-        void cleanUtils();
-
-    }
-
-    private final GT3ButtonController controller = new GT3ButtonController() {
         @Override
-        public void init(GT3ConfigBean gt3ConfigBean) {
-            requireActivity().runOnUiThread(() -> {
-                // 确保清理之前的实例
-                if (gt3GeetestUtils != null) {
-                    gt3GeetestUtils.destory();
-                    gt3GeetestUtils = null;
-                }
+        public void createUtils() {
+            if (gt3GeetestUtils == null)
+                gt3GeetestUtils = new GT3GeetestUtils(getActivity());
+        }
 
+        @Override
+        public void createButton(GT3ConfigBean gt3ConfigBean) {
+            createUtils();
+            requireActivity().runOnUiThread(() -> {
                 // 动态创建GT3GeetestButton
-                createGeetestButton();
-                gt3GeetestUtils = new GT3GeetestUtils(requireActivity());
+                // 如果按钮已存在，先销毁
+                if (geetestButton != null && geetestContainer != null) {
+                    geetestContainer.removeView(geetestButton);
+                    geetestButton = null;
+                }
+                // 创建新的GT3GeetestButton实例
+                geetestButton = new GT3GeetestButton(requireContext());
+                // 设置布局参数
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        (int) (290 * getResources().getDisplayMetrics().density),
+                        (int) (44 * getResources().getDisplayMetrics().density)
+                );
+                params.setMargins(0, (int) (12 * getResources().getDisplayMetrics().density), 0, (int) (12 * getResources().getDisplayMetrics().density));
+                params.gravity = Gravity.CENTER_HORIZONTAL;
+                geetestButton.setLayoutParams(params);
+                // 添加到容器中
+                geetestContainer.addView(geetestButton);
                 gt3GeetestUtils.init(gt3ConfigBean);
                 geetestButton.setGeetestUtils(gt3GeetestUtils);
             });
         }
 
         @Override
-        public void cleanUtils() {
+        public void destroyButton() {
             requireActivity().runOnUiThread(() -> {
-                if (gt3GeetestUtils != null) {
-                    gt3GeetestUtils.destory();
-                    gt3GeetestUtils = null;
-                }
                 // 销毁按钮
-                destroyGeetestButton();
+                if (geetestButton != null && geetestContainer != null) {
+                    geetestContainer.removeView(geetestButton);
+                    geetestButton = null;
+                }
             });
+            // 销毁工具
+            destroyUtils();
         }
 
         @Override
         public GT3GeetestUtils getGeetestUtils() {
             return gt3GeetestUtils;
+        }
+
+        @Override
+        public void destroyUtils() {
+            if (gt3GeetestUtils != null) {
+                gt3GeetestUtils.destory();
+                gt3GeetestUtils = null;
+            }
         }
     };
 
@@ -113,54 +114,42 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        notification = new Notification(requireContext());
+        Notification notification = new Notification(requireContext());
         user_dropdown = view.findViewById(R.id.user_dropdown);
-        status_text = view.findViewById(R.id.status_text);
+        MaterialTextView status_text = view.findViewById(R.id.status_text);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
-        daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
+        ScrollView daily_scroll_view = view.findViewById(R.id.daily_scroll_view);
         geetestContainer = view.findViewById(R.id.geetest_container);
 
-        // 折叠按钮
-        MaterialButton toggleButton = view.findViewById(R.id.toggle_button);
-        contentLayout = view.findViewById(R.id.content_layout);
+        // 提示框
+        CollapsibleCardView homeInfoCard = view.findViewById(R.id.home_info_card);
+        homeInfoCard.setContent(inflater.inflate(R.layout.item_home_daily_info, homeInfoCard.getContentLayout(), false));
 
-        // 初始化用户管理
-        userManager = new UserManager(requireContext());
-        executorService = Executors.newFixedThreadPool(3);
+        // 初始化
+        user_manager = new UserManager(requireContext());
+        executorService = Executors.newSingleThreadExecutor();
+        controller.createUtils();
 
         // 初始化下拉框
-        List<String> usernames = userManager.getUsernames();
+        List<String> usernames = user_manager.getUsernames();
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 requireContext(),
-                R.layout.list_item,
+                android.R.layout.simple_dropdown_item_1line,
                 usernames
         );
         user_dropdown.setAdapter(adapter);
         // 设置当前用户为默认选中项
-        String currentUser = userManager.getCurrentUser();
-        if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
-            user_dropdown.setText(currentUser, false);
-            status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n"));
-        }
+        current_user = user_manager.getCurrentUser();
+        if (!current_user.isEmpty() && usernames.contains(current_user))
+            user_dropdown.setText(current_user, false);
+        else if (!usernames.isEmpty())
+            // 如果当前用户不存在或为空，设置为第一个用户
+            user_dropdown.setText(usernames.get(0), false);
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
-            String selectedUser = (String) parent.getItemAtPosition(position);
-            userManager.setCurrentUser(selectedUser);
-            String currentText = status_text.getText().toString();
-            if (currentText.startsWith("已选择用户:")) {
-                String[] lines = currentText.split("\n");
-                if (lines.length > 0) {
-                    StringBuilder newText = new StringBuilder("已选择用户: " + selectedUser + "\n");
-                    for (int i = 1; i < lines.length; i++)
-                        newText.append(lines[i]).append("\n");
-                    requireActivity().runOnUiThread(() -> status_text.setText(newText.toString()));
-                }
-            } else {
-                requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + selectedUser + "\n" + currentText)));
-            }
-
-            // 重置GT3按钮状态
-            controller.cleanUtils();
+            current_user = (String) parent.getItemAtPosition(position);
+            user_manager.setCurrentUser(current_user);
+            status_text.setText(new StringBuilder("已选择用户: " + current_user + "\n"));
         });
 
         // 输出文本监听器
@@ -172,18 +161,17 @@ public class HomeFragment extends Fragment {
         }));
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
-            // 检查任务是否已经在运行
-            if (isTaskRunning) return; // 如果任务正在运行，则不执行任何操作
-            if (currentUser.isEmpty()) {
-                requireActivity().runOnUiThread(() ->
-                        new MaterialAlertDialogBuilder(requireContext())
-                                .setTitle("未选择用户")
-                                .setMessage("请先从下拉列表中选择一个用户再开始任务")
-                                .setPositiveButton("确定", null)
-                                .show()
-                );
+            if (current_user.isEmpty()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("未选择用户")
+                        .setMessage("请先从下拉列表中选择一个用户再开始任务")
+                        .setPositiveButton("确定", null)
+                        .show();
                 return;
             }
+
+            if (homeInfoCard.isExpanded())
+                homeInfoCard.toggle();
 
             // 检查通知设置
             SharedPreferences prefs = requireActivity().getSharedPreferences("settings_prefs", Context.MODE_PRIVATE);
@@ -206,73 +194,75 @@ public class HomeFragment extends Fragment {
                             SharedPreferences.Editor editor = prefs.edit();
                             editor.putBoolean("notification_switch", false);
                             editor.apply();
-                        })
-                        .show();
+                        }).show();
                 return;
             }
             notification.sendNormalNotification("Venus", "开始任务");
             // 在开始新任务前清除之前的输出
-            requireActivity().runOnUiThread(() -> status_text.setText(new StringBuilder("已选择用户: " + currentUser + "\n")));
+            status_text.setText(new StringBuilder("已选择用户: " + current_user + "\n"));
 
-            isTaskRunning = true; // 设置任务为运行状态
-            isTaskCancelled.set(false); // 重置取消标志
-            requireActivity().runOnUiThread(() -> {
-                cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
-                start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
-            });
-
-            // 在每次新任务开始前清理之前的GT实例
-            controller.cleanUtils();
+            cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
+            start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
+            user_dropdown.setEnabled(false); // 禁用用户下拉菜单
 
             currentTaskFuture = executorService.submit(() -> {
-                isExpanded = false;
-                requireActivity().runOnUiThread(() -> contentLayout.setVisibility(View.GONE));
                 try {
                     Map<String, Object> settings = get_settings();
-                    if (isTaskCancelled.get()) return; // 检查是否已取消
-                    if (!Objects.equals(settings.get("daily_switch"), true) || !Objects.equals(settings.get("game_daily_switch"), true)) {
-                        requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"请先去设置里设置任务"));
+                    if (Objects.equals(settings.get("daily_switch"), false) && Objects.equals(settings.get("game_daily_switch"), false)) {
+                        requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "请先去设置里设置任务"));
                         return;
                     }
-                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    // 判断是否运行米游币签到任务
                     if (Objects.equals(settings.get("daily_switch"), true)) {
-                        Daily b = new Daily(requireActivity(), userManager.getCurrentUser(), notifier, controller);
+                        BBSDaily b = new BBSDaily(requireActivity(), user_manager.getCurrentUser(), notifier, controller);
                         String[] daily = (String[]) settings.get("daily");
-                        if (daily != null && daily.length > 0) {
-                            b.initBbsTask(daily);
-                            b.runTask(true, true, true, true);
-                        } else
-                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"米游币签到失败，请先去设置里设置勾选获取米游币板块"));
+                        if (daily != null && daily.length > 0)
+                            b.runTask(daily, new boolean[]{true, true, true, true});
+                        else
+                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败，请先去设置里设置勾选至少一个获取米游币的板块"));
                     }
-                    if (isTaskCancelled.get()) return; // 检查是否已取消
+                    if (isTaskCancelled()) return; // 检查线程中断状态
+                    // 判断是否运行游戏签到任务
                     if (Objects.equals(settings.get("game_daily_switch"), true)) {
                         String[] game = (String[]) settings.get("game_daily");
-                        if (game != null && game.length > 0)
-                            run_BBSGame_task(userManager.getCurrentUser(), game, notifier, controller);
-                        else
-                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),"游戏签到失败，请先去设置里设置勾选获取游戏签到板块"));
+                        if (game != null && game.length > 0) {
+                            for (String game_name : game) {
+                                if (isTaskCancelled()) return; // 检查线程中断状态
+                                BBSGameDaily game_module = new BBSGameDaily(requireActivity(), user_manager.getCurrentUser(), game_name, notifier, controller);
+                                notifier.notifyListeners("正在进行" + game_name + "签到");
+                                game_module.signAccount();
+                                notification.sendNormalNotification(game_name, game_name + "签到完成");
+                            }
+                            notifier.notifyListeners("游戏签到完成");
+                        } else
+                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "游戏签到失败，请先去设置里设置勾选获取至少一个游戏进行签到"));
                     }
-                    if (isTaskCancelled.get()) return; // 检查是否已取消
                     notifier.notifyListeners("任务完成");
                     notification.sendNormalNotification("Venus", "任务完成");
+                } catch (InterruptedException e) {
+                    // 任务被中断，检查是否真的是被取消
+                    if (currentTaskFuture != null && currentTaskFuture.isCancelled()) {
+                        Thread.currentThread().interrupt(); // 重新设置中断状态
+                        return; // 任务已被取消，直接返回
+                    }
+                    // 如果不是被取消，继续处理异常
+                    String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
+                    notification.sendErrorNotification("任务中断", error_message);
+                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), error_message));
                 } catch (Exception e) {
-                    if (isTaskCancelled.get()) return; // 如果是取消导致的异常，忽略
+                    if (isTaskCancelled()) return; // 如果是取消导致的异常，忽略
                     String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                     notification.sendErrorNotification("任务失败", error_message);
-                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(),error_message));
+                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), error_message));
                 } finally {
-                    // 任务完成后重置运行状态
-                    isTaskRunning = false;
-                    isTaskCancelled.set(false);
-                    // 确保GT按钮在任务完成后恢复可用状态
                     requireActivity().runOnUiThread(() -> {
-                        if (geetestButton != null) {
-                            geetestButton.setClickable(true);
-                            geetestButton.setEnabled(true);
-                        }
+                        controller.destroyButton(); // 销毁验证码按钮
+                        controller.createUtils(); // 创建验证码工具
                         // 恢复按钮状态
                         cancel_daily_btn.setVisibility(View.GONE);
                         start_daily_btn.setVisibility(View.VISIBLE);
+                        // 恢复下拉框
+                        user_dropdown.setEnabled(true);
                     });
                 }
             });
@@ -283,29 +273,16 @@ public class HomeFragment extends Fragment {
                 .setTitle("确认取消")
                 .setMessage("确定要取消当前任务吗？")
                 .setPositiveButton("确定", (dialog, which) -> {
-                    isTaskCancelled.set(true); // 设置取消标志
-                    if (currentTaskFuture != null)
+                    if (currentTaskFuture != null) {
                         currentTaskFuture.cancel(true); // 尝试取消任务
+                        controller.destroyButton(); // 销毁验证码按钮
+                        controller.createUtils(); // 创建验证码Utils以备下次使用
+                    }
                     status_text.append("任务已取消\n");
                     notification.sendNormalNotification("Venus", "任务已取消");
-                    // 恢复按钮状态
-                    cancel_daily_btn.setVisibility(View.GONE);
-                    start_daily_btn.setVisibility(View.VISIBLE);
-                    isTaskRunning = false;
-                    // 清理GT相关资源
-                    controller.cleanUtils();
                 })
                 .setNegativeButton("继续任务", null)
                 .show());
-
-        // 折叠按钮
-        toggleButton.setOnClickListener(v -> {
-            isExpanded = !isExpanded;
-            if (isExpanded)
-                contentLayout.setVisibility(View.VISIBLE);
-            else
-                contentLayout.setVisibility(View.GONE);
-        });
 
         return view;
     }
@@ -314,19 +291,19 @@ public class HomeFragment extends Fragment {
     public void onResume() {
         super.onResume();
         // 更新下拉框中的用户列表
-        if (userManager != null && user_dropdown != null) {
-            String currentUser = user_dropdown.getText().toString(); // 保存当前选中的用户
-            List<String> usernames = userManager.getUsernames();
+        if (user_manager != null && user_dropdown != null) {
+            current_user = user_manager.getCurrentUser();
+            List<String> usernames = user_manager.getUsernames();
             ArrayAdapter<String> adapter = new ArrayAdapter<>(
                     requireContext(),
-                    R.layout.list_item,
+                    android.R.layout.simple_dropdown_item_1line,
                     usernames
             );
             user_dropdown.setAdapter(adapter);
 
             // 恢复之前选中的用户（如果仍然存在于列表中）
-            if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
-                user_dropdown.setText(currentUser, false);
+            if (!current_user.isEmpty() && usernames.contains(current_user)) {
+                user_dropdown.setText(current_user, false);
             } else if (!usernames.isEmpty()) {
                 // 如果之前选中的用户不存在了，设置为第一个用户
                 user_dropdown.setText(usernames.get(0), false);
@@ -337,19 +314,11 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (executorService != null && !executorService.isShutdown()) {
+        if (executorService != null && !executorService.isShutdown())
             executorService.shutdown();
-        }
 
         // 清理GT相关资源
-        controller.cleanUtils();
-
-        // 确保销毁GT3GeetestUtils
-        if (gt3GeetestUtils != null) {
-            gt3GeetestUtils.destory();
-            gt3GeetestUtils = null;
-        }
-        isTaskRunning = false;
+        controller.destroyButton();
     }
 
     /**
@@ -399,112 +368,19 @@ public class HomeFragment extends Fragment {
     }
 
     /**
-     * 运行米游社游戏签到任务
-     *
-     * @param game           游戏名（崩坏2，崩坏3，未定事件簿，原神，星铁，绝区零）
-     * @param statusNotifier 状态通知器
+     * 判断是否正在运行任务
      */
-    public void run_BBSGame_task(String userID, String[] game, tools.StatusNotifier statusNotifier, GT3ButtonController gt3Controller) {
-        List<Map<String, Object>> list = new ArrayList<>(Arrays.asList(new HashMap<>() {{
-            put("game_print_name", "崩坏2");
-            put("game_name", "honkai2");
-        }}, new HashMap<>() {{
-            put("game_print_name", "崩坏3");
-            put("game_name", "honkai3rd");
-        }}, new HashMap<>() {{
-            put("game_print_name", "未定事件簿");
-            put("game_name", "tears_of_themis");
-        }}, new HashMap<>() {{
-            put("game_print_name", "原神");
-            put("game_name", "genshin");
-        }}, new HashMap<>() {{
-            put("game_print_name", "星铁");
-            put("game_name", "honkai_sr");
-        }}, new HashMap<>() {{
-            put("game_print_name", "绝区零");
-            put("game_name", "zzz");
-        }}));
-        for (Map<String, Object> map : list) {
-            String game_print_name = (String) map.get("game_print_name");
-            String game_name = (String) map.get("game_name");
-            for (String s : game) {
-                if (s.equals(game_print_name)) {
-                    BBSGameDaily game_module = null;
-                    if (game_name != null) {
-                        switch (game_name) {
-                            case "honkai2":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("崩坏2"), "崩坏学园2", Honkai2_act_id, "舰长", statusNotifier, gt3Controller);
-                                game_module.init();
-                                break;
-                            case "honkai3rd":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("崩坏3"), "崩坏3", Honkai3rd_act_id, "舰长", statusNotifier, gt3Controller);
-                                game_module.init();
-                                break;
-                            case "tears_of_themis":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("未定事件簿"), "未定事件簿", TearsOfThemis_act_id, "律师", statusNotifier, gt3Controller);
-                                game_module.init();
-                                break;
-                            case "genshin":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("原神"), "原神", Genshin_act_id, "旅行者", statusNotifier, gt3Controller);
-                                game_module.init();
-                                break;
-                            case "honkai_sr":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("星铁"), "崩坏: 星穹铁道", HonkaiStarRail_act_id, "开拓者", statusNotifier, gt3Controller);
-                                game_module.init();
-                                break;
-                            case "zzz":
-                                game_module = new BBSGameDaily(requireActivity(), userID, fixed.name_to_game_id("绝区零"), "绝区零", ZZZ_act_id, "绳匠", statusNotifier, gt3Controller);
-                                game_module.rewards_api = "https://act-nap-api.mihoyo.com/event/luna/zzz/home";
-                                game_module.is_sign_api = "https://act-nap-api.mihoyo.com/event/luna/zzz/info";
-                                game_module.sign_api = "https://act-nap-api.mihoyo.com/event/luna/zzz/sign";
-                                game_module.init();
-                                break;
-                        }
-                    }
-                    statusNotifier.notifyListeners("正在进行" + game_print_name + "签到");
-                    if (game_module != null) {
-                        game_module.signAccount();
-                        notification.sendNormalNotification(game_print_name, game_print_name + "签到完成");
-                    }
-                    try {
-                        Thread.sleep(new Random().nextInt(10 - 5 + 1) + 2 * 1000);
-                    } catch (InterruptedException e) {
-                        notification.sendErrorNotification("签到出错", "Thread系统错误" + e);
-                        throw new RuntimeException("Thread系统错误" + e);
-                    }
-                }
-            }
-        }
-        statusNotifier.notifyListeners("游戏签到完成");
+    public static boolean isTaskRunning() {
+        return currentTaskFuture != null && !currentTaskFuture.isDone();
     }
 
     /**
-     * 动态创建GT3GeetestButton
+     * 检查任务是否被取消
+     *
+     * @return true 如果任务被取消
      */
-    private void createGeetestButton() {
-        // 如果按钮已存在，先销毁
-        destroyGeetestButton();
-        // 创建新的GT3GeetestButton实例
-        geetestButton = new GT3GeetestButton(requireContext());
-        // 设置布局参数
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                (int) (290 * getResources().getDisplayMetrics().density),
-                (int) (44 * getResources().getDisplayMetrics().density)
-        );
-        params.topMargin = (int) (12 * getResources().getDisplayMetrics().density);
-        params.bottomMargin = (int) (12 * getResources().getDisplayMetrics().density);
-        params.gravity = android.view.Gravity.CENTER_HORIZONTAL;
-        geetestButton.setLayoutParams(params);
-        // 添加到容器中
-        geetestContainer.addView(geetestButton);
-    }
-    /**
-     * 销毁GT3GeetestButton
-     */
-    private void destroyGeetestButton() {
-        if (geetestButton != null && geetestContainer != null) {
-            geetestContainer.removeView(geetestButton);
-            geetestButton = null;
-        }
+    private boolean isTaskCancelled() {
+        return Thread.currentThread().isInterrupted() ||
+                (currentTaskFuture != null && currentTaskFuture.isCancelled());
     }
 }

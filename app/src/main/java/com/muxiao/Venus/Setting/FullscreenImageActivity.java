@@ -2,6 +2,7 @@ package com.muxiao.Venus.Setting;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
+import static com.muxiao.Venus.common.Constants.PERMISSION_REQUEST_CODE;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -16,9 +17,6 @@ import android.view.View;
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -29,6 +27,8 @@ import com.bumptech.glide.request.transition.Transition;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.button.MaterialButton;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.muxiao.Venus.R;
 
 import java.io.File;
@@ -46,32 +46,25 @@ public class FullscreenImageActivity extends AppCompatActivity {
     private MaterialTextView timeTextView;
     private MaterialTextView descriptionTextView;
     private MaterialTextView counterTextView;
-    private MaterialButton collapseButton;
     private ImagePagerAdapter imageAdapter;
     private View rootview;
 
-    private boolean isInfoExpanded = true;
-
-    private static final int PERMISSION_REQUEST_CODE = 100;
-
-    @SuppressWarnings("unchecked")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
         // 应用选定的主题
         int selectedTheme = SettingsFragment.getSelectedTheme(this);
         setTheme(selectedTheme);
-        EdgeToEdge.enable(this);
+
+        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_fullscreen_image);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+
+        // 设置状态栏
+        EdgeToEdge.enable(this);
+
         rootview = findViewById(android.R.id.content);
-        // 获取传递的数据
-        @SuppressWarnings("deprecation")
-        List<Map<String, Object>> imageDataList = (List<Map<String, Object>>) getIntent().getSerializableExtra("imageDataList");
+        // 获取从上一个activity中传递的数据
+        String jsonData = getIntent().getStringExtra("imageDataListJson");
+        List<Map<String, Object>> imageDataList = new Gson().fromJson(jsonData, new TypeToken<List<Map<String, Object>>>() {}.getType());
         int initialPosition = getIntent().getIntExtra("position", 0);
 
         viewPager = findViewById(R.id.viewPager);
@@ -80,9 +73,10 @@ public class FullscreenImageActivity extends AppCompatActivity {
         timeTextView = findViewById(R.id.timeTextView);
         descriptionTextView = findViewById(R.id.descriptionTextView);
         counterTextView = findViewById(R.id.counterTextView);
-        collapseButton = findViewById(R.id.collapseButton);
+        MaterialButton collapseButton = findViewById(R.id.collapseButton);
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
 
+        // 设置工具栏和返回按钮
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -103,9 +97,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
 
         // 设置折叠按钮点击事件
         collapseButton.setOnClickListener(v -> {
-            isInfoExpanded = !isInfoExpanded;
-
-            if (isInfoExpanded) {
+            if (descriptionTextView.getVisibility() == View.VISIBLE) {
                 // 展开状态 - 显示所有信息
                 titleTextView.setVisibility(View.VISIBLE);
                 authorTextView.setVisibility(View.VISIBLE);
@@ -126,9 +118,13 @@ public class FullscreenImageActivity extends AppCompatActivity {
             }
         });
 
+        // 更新简介文本
         updateInfoText(initialPosition);
     }
 
+    /**
+     * 更新简介文本
+     */
     private void updateInfoText(int position) {
         ImagePagerAdapter.ImageItem imageItem = imageAdapter.getItem(position);
         if (imageItem != null) {
@@ -152,7 +148,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
                 String trimmedDescription = description.replaceAll("\\s+", " ").trim();
                 if (!trimmedDescription.isEmpty()) {
                     descriptionTextView.setText(trimmedDescription);
-                    if (isInfoExpanded)
+                    if (descriptionTextView.getVisibility() == View.GONE)
                         descriptionTextView.setVisibility(View.VISIBLE);
                 } else {
                     descriptionTextView.setVisibility(View.GONE);
@@ -165,6 +161,9 @@ public class FullscreenImageActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 选项菜单布局
+     */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.image_selection_menu, menu);
@@ -183,9 +182,12 @@ public class FullscreenImageActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    /**
+     * 检查权限并下载当前图片
+     */
     private void checkPermissionAndDownload() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PackageManager.PERMISSION_GRANTED) { // 未给权限
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     PERMISSION_REQUEST_CODE);
@@ -194,6 +196,9 @@ public class FullscreenImageActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 下载当前图片
+     */
     private void downloadCurrentImage() {
         if (imageAdapter == null)
             return;
@@ -227,6 +232,9 @@ public class FullscreenImageActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 保存图片到相册
+     */
     private void saveImageToGallery(Bitmap bitmap, int position) {
         try {
             // 创建文件名
@@ -248,6 +256,9 @@ public class FullscreenImageActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 授权后调用
+     */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);

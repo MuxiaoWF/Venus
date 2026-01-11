@@ -8,7 +8,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.muxiao.Venus.common.fixed;
+import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.HeaderManager;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,7 +20,7 @@ import java.util.concurrent.Executors;
 
 public class Image {
     private final Context context;
-    private final fixed fixed;
+    private final HeaderManager header_manager;
     private final ExecutorService executorService;
 
     // 定义回调接口用于传递数据
@@ -30,18 +31,16 @@ public class Image {
     }
 
     Image(Context context) {
-        fixed = new fixed(context);
         this.context = context;
+        this.header_manager = new HeaderManager(context);
         this.executorService = Executors.newFixedThreadPool(3);
     }
 
     public void getImageAsync(ImageDataCallback callback, String params) {
         executorService.execute(() -> {
             try {
-                fixed.getFp();
-                Map<String, String> headers = new HashMap<>(fixed.images_headers);
-                headers.put("DS", com.muxiao.Venus.common.fixed.getDS(fixed.K2));
-                String jsonResponse = sendGetRequest("https://bbs-api.miyoushe.com/post/api/getImagePostList?" + params + "&last_id=&page_size=60", headers, null);
+                Map<String, String> headers = header_manager.get_images_headers();
+                String jsonResponse = sendGetRequest(Constants.Urls.BBS_IMAGE_URL + params + "&last_id=&page_size=60", headers, null);
                 List<Map<String, Object>> imageData = parseImageData(jsonResponse);
                 // 在主线程中回调
                 ((android.app.Activity) context).runOnUiThread(() -> callback.onImageLoaded(imageData));

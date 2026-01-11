@@ -40,12 +40,12 @@ public class UserManagementFragment extends Fragment {
         userLoginBtn.setOnClickListener(v -> {
             if (isTaskRunning()) {
                 showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法添加用户");
-                return;
+            } else {
+                Intent intent = new Intent(getActivity(), UserLoginActivity.class);
+                startActivity(intent);
             }
-            Intent intent = new Intent(getActivity(), UserLoginActivity.class);
-            startActivity(intent);
         });
-
+        // 刷新用户列表
         refreshUserList();
 
         return rootView;
@@ -54,9 +54,13 @@ public class UserManagementFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 恢复页面也刷新用户列表
         refreshUserList();
     }
 
+    /**
+     * 刷新用户列表
+     */
     private void refreshUserList() {
         userListContainer.removeAllViews();
         List<String> users = userManager.getUsernames();
@@ -69,38 +73,44 @@ public class UserManagementFragment extends Fragment {
         for (String username : users) {
             // 为每个用户inflate一个新的视图
             View userItemView = LayoutInflater.from(requireContext())
-                    .inflate(R.layout.user_item, userListContainer, false);
+                    .inflate(R.layout.item_user_management, userListContainer, false);
 
-            MaterialButton userNameButton = userItemView.findViewById(R.id.user_name_button);
+            MaterialTextView userName = userItemView.findViewById(R.id.user_name_text);
             MaterialButton renameButton = userItemView.findViewById(R.id.rename_user_button);
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
+            MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
 
-            userNameButton.setText(username);
-            userNameButton.setOnClickListener(v -> {
-                userManager.setCurrentUser(username);
-                showCustomSnackbar(requireView(), requireContext(), "已切换到用户: " + username);
+            userName.setText(username);
+
+            reloginButton.setOnClickListener(v -> {
+                if (isTaskRunning())
+                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重新登录");
+                else
+                    performRelogin(username);
             });
-
+            
             renameButton.setOnClickListener(v -> {
-                if (isTaskRunning()) {
+                if (isTaskRunning())
                     showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
-                    return;
-                }
-                showRenameUserDialog(username);
+                else
+                    showRenameUserDialog(username);
             });
             
             deleteButton.setOnClickListener(v -> {
-                if (isTaskRunning()) {
+                if (isTaskRunning())
                     showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
-                    return;
-                }
-                showDeleteUserDialog(username);
+                else
+                    showDeleteUserDialog(username);
             });
 
             userListContainer.addView(userItemView);
         }
     }
 
+    /**
+     * 显示重命名用户对话框
+     * @param oldUsername 旧用户名
+     */
     private void showRenameUserDialog(String oldUsername) {
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle("重命名用户");
@@ -129,6 +139,11 @@ public class UserManagementFragment extends Fragment {
         builder.show();
     }
 
+    /**
+     * 重命名用户
+     * @param oldUsername 旧用户名
+     * @param newUsername 新用户名
+     */
     private void renameUser(String oldUsername, String newUsername) {
         if (isTaskRunning()) {
             showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
@@ -143,6 +158,10 @@ public class UserManagementFragment extends Fragment {
         showCustomSnackbar(requireView(), requireContext(), "用户已重命名为: " + newUsername);
     }
 
+    /**
+     * 显示删除用户对话框
+     * @param username 用户名
+     */
     private void showDeleteUserDialog(String username) {
         if (isTaskRunning()) {
             showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
@@ -170,6 +189,23 @@ public class UserManagementFragment extends Fragment {
      * 检查是否有任务正在运行
      */
     private boolean isTaskRunning() {
-        return HomeFragment.isTaskRunning;
+        return HomeFragment.isTaskRunning();
+    }
+
+    /**
+     * 执行重新登录操作
+     * @param username 用户名
+     */
+    private void performRelogin(String username) {
+        if (isTaskRunning()) {
+            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重新登录");
+            return;
+        }
+        // 切换到该用户并启动登录活动以刷新cookie
+        userManager.setCurrentUser(username);
+        Intent intent = new Intent(getActivity(), UserLoginActivity.class);
+        intent.putExtra("RELOGIN_MODE", true);
+        intent.putExtra("USERNAME", username); // 传递用户名
+        startActivity(intent);
     }
 }

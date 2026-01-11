@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="transparent">#1A000000</color>
+    <color name="transparent_10">#1A000000</color>
+
+    <color name="icon_background">#E3FDFD</color>
+
+    <color name="snackbar_background">#323232</color>
+    <color name="snackbar_text">#FFFFFF</color>
+    <color name="snackbar_action">#BB86FC</color>
 
     <!-- 蓝色主题 -->
     <color name="blue_theme_primary">#415F91</color>

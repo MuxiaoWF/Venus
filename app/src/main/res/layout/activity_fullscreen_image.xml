@@ -89,7 +89,7 @@
                 android:layout_height="wrap_content"
                 android:text="收起"
                 android:textSize="12sp"
-                app:icon="@drawable/expand"
+                app:icon="@drawable/ic_expand"
                 app:iconSize="12dp"
                 app:iconGravity="textStart"
                 android:minWidth="0dp"

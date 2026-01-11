@@ -33,8 +33,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.CollapsibleCardView;
+import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.common.fixed;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 
@@ -61,7 +63,7 @@ public class SettingsFragment extends Fragment {
     private static final int THEME_LIGHT = 5;
     private static final int THEME_DARK = 6;
     private static final String SELECTED_THEME = "selected_theme";
-    
+
     // 添加主题深浅色常量
     private static final int THEME_VARIANT_DEFAULT = 0;
     private static final int THEME_VARIANT_LIGHT = 1;
@@ -77,15 +79,6 @@ public class SettingsFragment extends Fragment {
     private MaterialTextView updateTimeLocal;
     private MaterialTextView updateTime;
 
-    private boolean bbs_toggle = false;
-    private boolean daily_toggle = false;
-    private boolean theme_toggle = false;
-    private boolean background_toggle = false;
-    private boolean config_toggle = false;
-    private boolean update_toggle = false;
-    private boolean cache_toggle = false;
-    private boolean notification_toggle = false;
-    
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
     private static final String BACKGROUND_IMAGE_URI = "background_image_uri";
@@ -94,11 +87,41 @@ public class SettingsFragment extends Fragment {
     private ActivityResultLauncher<Intent> selectImageLauncher;
     // 添加uCrop结果启动器
     private ActivityResultLauncher<Intent> cropImageLauncher;
-    
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         // 加载布局
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
+
+        // 设置折叠按钮
+        CollapsibleCardView bbsCard = view.findViewById(R.id.daily_card);
+        CollapsibleCardView bbsGameCard = view.findViewById(R.id.game_daily_card);
+        CollapsibleCardView bbsUtilsCard = view.findViewById(R.id.config_card);
+        CollapsibleCardView updateCard = view.findViewById(R.id.update_card);
+        CollapsibleCardView cacheCard = view.findViewById(R.id.cache_card);
+        CollapsibleCardView themeCard = view.findViewById(R.id.theme_card);
+        CollapsibleCardView backgroundCard = view.findViewById(R.id.background_card);
+        CollapsibleCardView notificationCard = view.findViewById(R.id.notification_card);
+        CollapsibleCardView aboutCard = view.findViewById(R.id.about_card);
+
+        ViewGroup dailyView = bbsCard.getContentLayout();
+        ViewGroup bbsGameView = bbsGameCard.getContentLayout();
+        ViewGroup utilsView = bbsUtilsCard.getContentLayout();
+        ViewGroup updateView = updateCard.getContentLayout();
+        ViewGroup cacheView = cacheCard.getContentLayout();
+        ViewGroup themeView = themeCard.getContentLayout();
+        ViewGroup backgroundView = backgroundCard.getContentLayout();
+        ViewGroup notificationView = notificationCard.getContentLayout();
+        ViewGroup aboutView = aboutCard.getContentLayout();
+
+        bbsCard.setContent(inflater.inflate(R.layout.item_setting_bbs_daily, dailyView, false));
+        bbsGameCard.setContent(inflater.inflate(R.layout.item_setting_game_daily, bbsGameView, false));
+        bbsUtilsCard.setContent(inflater.inflate(R.layout.item_setting_bbs_utils, utilsView, false));
+        updateCard.setContent(inflater.inflate(R.layout.item_setting_update, updateView, false));
+        cacheCard.setContent(inflater.inflate(R.layout.item_setting_cache, cacheView, false));
+        themeCard.setContent(inflater.inflate(R.layout.item_setting_theme, themeView, false));
+        backgroundCard.setContent(inflater.inflate(R.layout.item_setting_background_picture, backgroundView, false));
+        notificationCard.setContent(inflater.inflate(R.layout.item_setting_notification, notificationView, false));
+        aboutCard.setContent(inflater.inflate(R.layout.item_setting_about, aboutView, false));
 
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -109,34 +132,34 @@ public class SettingsFragment extends Fragment {
         initActivityLauncher();
 
         // 查找所有Switch和CheckBox控件
-        SwitchMaterial dailySwitchButton = view.findViewById(R.id.daily_switch_button);
-        SwitchMaterial gameDailySwitchButton = view.findViewById(R.id.game_daily_switch_button);
-        SwitchMaterial notificationSwitch = view.findViewById(R.id.notification_switch);
+        SwitchMaterial dailySwitchButton = dailyView.findViewById(R.id.daily_switch_button);
+        SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
+        SwitchMaterial notificationSwitch = notificationCard.getContentLayout().findViewById(R.id.notification_switch);
 
-        MaterialCheckBox dailyCheckboxGenshin = view.findViewById(R.id.daily_checkbox_genshin);
-        MaterialCheckBox dailyCheckboxZzz = view.findViewById(R.id.daily_checkbox_zzz);
-        MaterialCheckBox dailyCheckboxSrg = view.findViewById(R.id.daily_checkbox_srg);
-        MaterialCheckBox dailyCheckboxHr3 = view.findViewById(R.id.daily_checkbox_hr3);
-        MaterialCheckBox dailyCheckboxHr2 = view.findViewById(R.id.daily_checkbox_hr2);
-        MaterialCheckBox dailyCheckboxWeiding = view.findViewById(R.id.daily_checkbox_weiding);
-        MaterialCheckBox dailyCheckboxDabieye = view.findViewById(R.id.daily_checkbox_dabieye);
-        MaterialCheckBox dailyCheckboxHna = view.findViewById(R.id.daily_checkbox_hna);
+        MaterialCheckBox dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
+        MaterialCheckBox dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
+        MaterialCheckBox dailyCheckboxSrg = dailyView.findViewById(R.id.daily_checkbox_srg);
+        MaterialCheckBox dailyCheckboxHr3 = dailyView.findViewById(R.id.daily_checkbox_hr3);
+        MaterialCheckBox dailyCheckboxHr2 = dailyView.findViewById(R.id.daily_checkbox_hr2);
+        MaterialCheckBox dailyCheckboxWeiding = dailyView.findViewById(R.id.daily_checkbox_weiding);
+        MaterialCheckBox dailyCheckboxDabieye = dailyView.findViewById(R.id.daily_checkbox_dabieye);
+        MaterialCheckBox dailyCheckboxHna = dailyView.findViewById(R.id.daily_checkbox_hna);
 
-        MaterialCheckBox gameDailyCheckboxGenshin = view.findViewById(R.id.game_daily_checkbox_genshin);
-        MaterialCheckBox gameDailyCheckboxZzz = view.findViewById(R.id.game_daily_checkbox_zzz);
-        MaterialCheckBox gameDailyCheckboxSrg = view.findViewById(R.id.game_daily_checkbox_srg);
-        MaterialCheckBox gameDailyCheckboxHr3 = view.findViewById(R.id.game_daily_checkbox_hr3);
-        MaterialCheckBox gameDailyCheckboxHr2 = view.findViewById(R.id.game_daily_checkbox_hr2);
-        MaterialCheckBox gameDailyCheckboxWeiding = view.findViewById(R.id.game_daily_checkbox_weiding);
+        MaterialCheckBox gameDailyCheckboxGenshin = bbsGameView.findViewById(R.id.game_daily_checkbox_genshin);
+        MaterialCheckBox gameDailyCheckboxZzz = bbsGameView.findViewById(R.id.game_daily_checkbox_zzz);
+        MaterialCheckBox gameDailyCheckboxSrg = bbsGameView.findViewById(R.id.game_daily_checkbox_srg);
+        MaterialCheckBox gameDailyCheckboxHr3 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr3);
+        MaterialCheckBox gameDailyCheckboxHr2 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr2);
+        MaterialCheckBox gameDailyCheckboxWeiding = bbsGameView.findViewById(R.id.game_daily_checkbox_weiding);
 
         // 查找配置显示文本视图
-        salt6xValue = view.findViewById(R.id.salt_6x_value);
-        salt4xValue = view.findViewById(R.id.salt_4x_value);
-        lk2Value = view.findViewById(R.id.lk2_value);
-        k2Value = view.findViewById(R.id.k2_value);
-        bbsVersionValue = view.findViewById(R.id.bbs_version_value);
-        updateTimeLocal = view.findViewById(R.id.update_time_local);
-        updateTime = view.findViewById(R.id.update_time);
+        salt6xValue = utilsView.findViewById(R.id.salt_6x_value);
+        salt4xValue = utilsView.findViewById(R.id.salt_4x_value);
+        lk2Value = utilsView.findViewById(R.id.lk2_value);
+        k2Value = utilsView.findViewById(R.id.k2_value);
+        bbsVersionValue = utilsView.findViewById(R.id.bbs_version_value);
+        updateTimeLocal = utilsView.findViewById(R.id.update_time_local);
+        updateTime = utilsView.findViewById(R.id.update_time);
 
         // 恢复保存的状态
         dailySwitchButton.setChecked(sharedPreferences.getBoolean("daily_switch_button", true));
@@ -165,7 +188,7 @@ public class SettingsFragment extends Fragment {
 
         gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
                 sharedPreferences.edit().putBoolean("game_daily_switch_button", isChecked).apply());
-        
+
         notificationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 // 用户开启了通知开关，检查实际的通知权限
@@ -222,106 +245,48 @@ public class SettingsFragment extends Fragment {
                 sharedPreferences.edit().putBoolean("game_daily_checkbox_weiding", isChecked).apply());
 
         // 关于
-        MaterialTextView githubLink = view.findViewById(R.id.github_link);
+        MaterialTextView githubLink = aboutView.findViewById(R.id.github_link);
         githubLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
         githubLink.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/MuxiaoWF/Venus"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_GITHUB_URL));
             startActivity(intent);
         });
-        MaterialTextView blogLink = view.findViewById(R.id.blog_link);
+        MaterialTextView blogLink = aboutView.findViewById(R.id.blog_link);
         blogLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
         blogLink.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://muxiaowf.dpdns.org/"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_BLOG_URL));
             startActivity(intent);
         });
 
         // 配置更新
-        MaterialButton updateConfigButton = view.findViewById(R.id.update_config_button);
-        updateConfigButton.setOnClickListener(v -> updateConfig(view));
+        MaterialButton updateConfigButton = utilsView.findViewById(R.id.update_config_button);
+        updateConfigButton.setOnClickListener(v -> updateConfig(utilsView));
         // 显示当前配置值
         displayCurrentConfigValues();
 
-        // 折叠按钮
-        MaterialButton daily_toggle_button = view.findViewById(R.id.daily_toggle_button);
-        View daily_content_layout = view.findViewById(R.id.daily_content_layout);
-        daily_toggle_button.setOnClickListener(v -> {
-            daily_toggle = !daily_toggle;
-            if (daily_toggle)
-                daily_content_layout.setVisibility(View.VISIBLE);
-            else
-                daily_content_layout.setVisibility(View.GONE);
-        });
-        MaterialButton bbs_toggle_button = view.findViewById(R.id.bbs_toggle_button);
-        View bbs_content_layout = view.findViewById(R.id.bbs_content_layout);
-        bbs_toggle_button.setOnClickListener(v -> {
-            bbs_toggle = !bbs_toggle;
-            if (bbs_toggle)
-                bbs_content_layout.setVisibility(View.VISIBLE);
-            else
-                bbs_content_layout.setVisibility(View.GONE);
-        });
-        MaterialButton config_toggle_button = view.findViewById(R.id.config_toggle_button);
-        View config_content_layout = view.findViewById(R.id.config_content_layout);
-        config_toggle_button.setOnClickListener(v -> {
-            config_toggle = !config_toggle;
-            if (config_toggle)
-                config_content_layout.setVisibility(View.VISIBLE);
-            else
-                config_content_layout.setVisibility(View.GONE);
-        });
-        MaterialButton theme_toggle_button = view.findViewById(R.id.theme_toggle_button);
-        View theme_content_layout = view.findViewById(R.id.theme_content_layout);
-        theme_toggle_button.setOnClickListener(v -> {
-            theme_toggle = !theme_toggle;
-            if (theme_toggle)
-                theme_content_layout.setVisibility(View.VISIBLE);
-            else
-                theme_content_layout.setVisibility(View.GONE);
-        });
-        MaterialButton update_toggle_button = view.findViewById(R.id.update_toggle_button);
-        View update_content_layout = view.findViewById(R.id.update_content_layout);
-        update_toggle_button.setOnClickListener(v -> {
-            update_toggle = !update_toggle;
-            if (update_toggle)
-                update_content_layout.setVisibility(View.VISIBLE);
-            else
-                update_content_layout.setVisibility(View.GONE);
-        });
-
-        // 通知设置折叠按钮
-        MaterialButton notification_toggle_button = view.findViewById(R.id.notification_toggle_button);
-        View notification_content_layout = view.findViewById(R.id.notification_content_layout);
-        notification_toggle_button.setOnClickListener(v -> {
-            notification_toggle = !notification_toggle;
-            if (notification_toggle)
-                notification_content_layout.setVisibility(View.VISIBLE);
-            else
-                notification_content_layout.setVisibility(View.GONE);
-        });
-
         // 主题选择
-        setupThemeSelection(view);
+        setupThemeSelection(themeView);
         // 背景选择
-        setupBackgroundSelection(view);
+        setupBackgroundSelection(backgroundView);
         // 自动更新设置
-        SwitchMaterial autoUpdateSwitch = view.findViewById(R.id.auto_update_switch);
+        SwitchMaterial autoUpdateSwitch = updateView.findViewById(R.id.auto_update_switch);
         SharedPreferences updatePreferences = requireActivity().getSharedPreferences(UPDATE_PREFS_NAME, Context.MODE_PRIVATE);
         boolean autoUpdateEnabled = updatePreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
         autoUpdateSwitch.setChecked(autoUpdateEnabled);
-        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> 
-            updatePreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
-        
+        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
+                updatePreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
+
         // 手动检查更新按钮
-        MaterialButton checkUpdateButton = view.findViewById(R.id.check_update_button_github);
+        MaterialButton checkUpdateButton = updateView.findViewById(R.id.check_update_button_github);
         checkUpdateButton.setOnClickListener(v -> {
             UpdateChecker updateChecker = new UpdateChecker(requireContext());
             updateChecker.checkForUpdatesImmediately();
         });
-        MaterialButton checkUpdateButton2 = view.findViewById(R.id.check_update_button_pan);
+        MaterialButton checkUpdateButton2 = updateView.findViewById(R.id.check_update_button_pan);
         checkUpdateButton2.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://wwzq.lanzouq.com/b00wn0dtfe"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
             startActivity(intent);
-            copyToClipboard(view,requireContext(),"mxwf");
+            copyToClipboard(view,requireContext(),"mxwf"); // 提取码
         });
 
         // 看图按钮
@@ -332,7 +297,12 @@ public class SettingsFragment extends Fragment {
         });
 
         // 缓存管理
-        setupCacheManagement(view);
+        MaterialTextView cacheSizeText = cacheView.findViewById(R.id.cache_size_text);
+        MaterialButton clearCacheButton = cacheView.findViewById(R.id.clear_cache_button);
+        // 计算并显示当前缓存大小
+        calculateCacheSize(cacheSizeText);
+        // 设置清理缓存按钮
+        clearCacheButton.setOnClickListener(v -> clearCache(cacheSizeText));
         return view;
     }
 
@@ -363,7 +333,7 @@ public class SettingsFragment extends Fragment {
                     }
                 }
         );
-        
+
         // 初始化裁剪结果启动器
         cropImageLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -434,17 +404,17 @@ public class SettingsFragment extends Fragment {
         try {
             // 创建背景图片文件
             File backgroundFile = new File(requireContext().getFilesDir(), "background.jpg");
-            
+
             // 删除旧的背景图片文件
             if (backgroundFile.exists())
                 backgroundFile.delete();
             // 将裁剪后的图片复制到背景图片文件
             tools.copyFile(requireContext(), croppedImageUri, backgroundFile);
-            
+
             // 保存背景图片文件Uri到SharedPreferences
             Uri backgroundUri = Uri.fromFile(backgroundFile);
             backgroundPreferences.edit().putString(BACKGROUND_IMAGE_URI, backgroundUri.toString()).apply();
-            
+
             // 显示提示信息
             View view = getView();
             if (view != null)
@@ -458,25 +428,19 @@ public class SettingsFragment extends Fragment {
      * 设置背景选择功能
      */
     private void setupBackgroundSelection(View view) {
-        MaterialButton backgroundToggleButton = view.findViewById(R.id.background_toggle_button);
-        View backgroundContentLayout = view.findViewById(R.id.background_content_layout);
         MaterialButton selectBackgroundButton = view.findViewById(R.id.select_background_button);
         MaterialButton clearBackgroundButton = view.findViewById(R.id.clear_background_button);
         Slider backgroundAlphaSlider = view.findViewById(R.id.background_alpha_slider);
-
-        backgroundToggleButton.setOnClickListener(v -> {
-            background_toggle = !background_toggle;
-            if (background_toggle)
-                backgroundContentLayout.setVisibility(View.VISIBLE);
-            else
-                backgroundContentLayout.setVisibility(View.GONE);
-        });
 
         // 设置选择背景按钮
         selectBackgroundButton.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
+            // 使用更通用的类型，兼容所有图片格式
             intent.setType("image/*");
+            // 添加额外的MIME类型以确保兼容性
+            String[] mimetypes = {"image/jpeg", "image/png", "image/jpg", "image/gif"};
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             selectImageLauncher.launch(intent);
         });
@@ -501,13 +465,13 @@ public class SettingsFragment extends Fragment {
             showCustomSnackbar(view, requireContext(), "背景图片已清除，将在下次启动时生效");
         });
 
-        // 设置透明度滑块
+        // 设置不透明度滑块
         float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
         backgroundAlphaSlider.setValue(currentAlpha * 100);
         backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
             float alpha = value / 100.0f;
             backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, alpha).apply();
-            showCustomSnackbar(view, requireContext(), "透明度已设置为 " + (int) value + "%，将在下次启动时生效");
+            showCustomSnackbar(view, requireContext(), "不透明度已设置为 " + (int) value + "%，将在下次启动时生效");
         });
     }
 
@@ -519,7 +483,7 @@ public class SettingsFragment extends Fragment {
         SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
         int selectedThemeVariant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
-        
+
         // 查找所有主题单选按钮
         MaterialRadioButton themeDefault = view.findViewById(R.id.theme_default);
         MaterialRadioButton themeBlue = view.findViewById(R.id.theme_blue);
@@ -528,12 +492,12 @@ public class SettingsFragment extends Fragment {
         MaterialRadioButton themeYellow = view.findViewById(R.id.theme_yellow);
         MaterialRadioButton themeLight = view.findViewById(R.id.theme_light);
         MaterialRadioButton themeDark = view.findViewById(R.id.theme_dark);
-        
+
         // 查找所有主题变体单选按钮
         MaterialRadioButton themeVariantDefault = view.findViewById(R.id.theme_variant_default);
         MaterialRadioButton themeVariantLight = view.findViewById(R.id.theme_variant_light);
         MaterialRadioButton themeVariantDark = view.findViewById(R.id.theme_variant_dark);
-        
+
         // 根据保存的设置选中对应的主题
         switch (selectedTheme) {
             case THEME_DEFAULT:
@@ -558,7 +522,7 @@ public class SettingsFragment extends Fragment {
                 themeDark.setChecked(true);
                 break;
         }
-        
+
         // 根据保存的设置选中对应的深浅色模式
         switch (selectedThemeVariant) {
             case THEME_VARIANT_DEFAULT:
@@ -571,7 +535,7 @@ public class SettingsFragment extends Fragment {
                 themeVariantDark.setChecked(true);
                 break;
         }
-        
+
         // 为每个单选按钮设置监听器
         themeDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) saveAndApplyTheme(THEME_DEFAULT);
@@ -594,7 +558,7 @@ public class SettingsFragment extends Fragment {
         themeDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) saveAndApplyTheme(THEME_DARK);
         });
-        
+
         // 为每个主题变体单选按钮设置监听器
         themeVariantDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_DEFAULT);
@@ -621,7 +585,7 @@ public class SettingsFragment extends Fragment {
         if (view != null)
             showCustomSnackbar(view, requireContext(), "主题已保存，请重启应用以应用新主题");
     }
-    
+
     /**
      * 保存并应用主题深浅色变体
      *
@@ -631,7 +595,7 @@ public class SettingsFragment extends Fragment {
         // 保存选择的主题深浅色变体
         SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
-        
+
         // 立即应用深浅色模式
         switch (themeVariantId) {
             case THEME_VARIANT_DEFAULT:
@@ -644,7 +608,7 @@ public class SettingsFragment extends Fragment {
                 AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
                 break;
         }
-        
+
         // 显示提示信息
         View view = getView();
         if (view != null) {
@@ -692,7 +656,7 @@ public class SettingsFragment extends Fragment {
                 return R.style.Theme_Venus;
         }
     }
-    
+
     /**
      * 获取应该应用的主题深浅色变体
      *
@@ -723,7 +687,7 @@ public class SettingsFragment extends Fragment {
                 break;
         }
     }
-    
+
     /**
      * 获取背景图片URI
      *
@@ -752,12 +716,12 @@ public class SettingsFragment extends Fragment {
         }
         return null;
     }
-    
+
     /**
-     * 获取背景透明度
+     * 获取背景不透明度
      *
      * @param context 上下文
-     * @return 背景透明度，范围0.0-0.8，默认为0.3
+     * @return 背景不透明度，范围0.0-0.8，默认为0.3
      */
     public static float getBackgroundAlpha(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
@@ -768,11 +732,11 @@ public class SettingsFragment extends Fragment {
      * 显示当前配置值
      */
     private void displayCurrentConfigValues() {
-        String salt6x = configPreferences.getString("SALT_6X", fixed.SALT_6X_final);
-        String salt4x = configPreferences.getString("SALT_4X", fixed.SALT_4X_final);
-        String lk2 = configPreferences.getString("LK2", fixed.LK2_final);
-        String k2 = configPreferences.getString("K2", fixed.K2_final);
-        String bbsVersion = configPreferences.getString("bbs_version", fixed.bbs_version_final);
+        String salt6x = configPreferences.getString("SALT_6X", MiHoYoBBSConstants.SALT_6X_final);
+        String salt4x = configPreferences.getString("SALT_4X", MiHoYoBBSConstants.SALT_4X_final);
+        String lk2 = configPreferences.getString("LK2", MiHoYoBBSConstants.LK2_final);
+        String k2 = configPreferences.getString("K2", MiHoYoBBSConstants.K2_final);
+        String bbsVersion = configPreferences.getString("bbs_version", MiHoYoBBSConstants.bbs_version_final);
         String update_time = configPreferences.getString("update_time", "2025.09");
         String update_time_Local = configPreferences.getString("update_time_local", "2025.09");
 
@@ -794,18 +758,18 @@ public class SettingsFragment extends Fragment {
                 // 发送GET请求获取配置信息
                 Map<String, String> headers = new HashMap<>();
                 headers.put("User-Agent", "Venus/1.0");
-                String response = tools.sendGetRequest("https://muxiaowf.dpdns.org/api/salt", headers, null);
+                String response = tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_SALT_URL, headers, null);
                 if (!response.isEmpty()) {
                     // 解析响应数据
                     JsonObject data = JsonParser.parseString(response).getAsJsonObject();
                     SharedPreferences configPrefs = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = configPrefs.edit();
                     // 使用解析的数据，如果不存在则使用默认值
-                    editor.putString("SALT_6X", getDataOrDefault(data, "SALT_6X",  fixed.SALT_6X_final));
-                    editor.putString("SALT_4X", getDataOrDefault(data, "SALT_4X",  fixed.SALT_4X_final));
-                    editor.putString("LK2", getDataOrDefault(data, "LK2", fixed.LK2_final));
-                    editor.putString("K2", getDataOrDefault(data, "K2", fixed.K2_final));
-                    editor.putString("bbs_version", getDataOrDefault(data, "bbs_version", fixed.bbs_version_final));
+                    editor.putString("SALT_6X", getDataOrDefault(data, "SALT_6X",  MiHoYoBBSConstants.SALT_6X_final));
+                    editor.putString("SALT_4X", getDataOrDefault(data, "SALT_4X",  MiHoYoBBSConstants.SALT_4X_final));
+                    editor.putString("LK2", getDataOrDefault(data, "LK2", MiHoYoBBSConstants.LK2_final));
+                    editor.putString("K2", getDataOrDefault(data, "K2", MiHoYoBBSConstants.K2_final));
+                    editor.putString("bbs_version", getDataOrDefault(data, "bbs_version", MiHoYoBBSConstants.bbs_version_final));
                     editor.putString("update_time", getDataOrDefault(data, "update_time", "2025-09"));
                     editor.putString("update_time_local", getDataOrDefault(data, "update_time_local", "2025-09"));
                     editor.apply();
@@ -825,28 +789,6 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 设置缓存管理功能
-     */
-    private void setupCacheManagement(View view) {
-        MaterialButton cacheToggleButton = view.findViewById(R.id.cache_toggle_button);
-        View cacheContentLayout = view.findViewById(R.id.cache_content_layout);
-        MaterialTextView cacheSizeText = view.findViewById(R.id.cache_size_text);
-        MaterialButton clearCacheButton = view.findViewById(R.id.clear_cache_button);
-
-        cacheToggleButton.setOnClickListener(v -> {
-            cache_toggle = !cache_toggle;
-            if (cache_toggle)
-                cacheContentLayout.setVisibility(View.VISIBLE);
-            else
-                cacheContentLayout.setVisibility(View.GONE);
-        });
-        // 计算并显示当前缓存大小
-        calculateCacheSize(cacheSizeText);
-        // 设置清理缓存按钮
-        clearCacheButton.setOnClickListener(v -> clearCache(cacheSizeText));
-    }
-
-    /**
      * 计算并显示当前缓存大小
      *
      * @param cacheSizeText 显示缓存大小的TextView
@@ -856,11 +798,11 @@ public class SettingsFragment extends Fragment {
             try {
                 long cacheSize = getDirSize(requireContext().getCacheDir()) + getDirSize(requireContext().getExternalCacheDir());
                 String sizeText = formatFileSize(cacheSize);
-                requireActivity().runOnUiThread(() -> 
-                    cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
+                requireActivity().runOnUiThread(() ->
+                        cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
             } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> 
-                    cacheSizeText.setText("当前缓存大小: 计算失败"));
+                requireActivity().runOnUiThread(() ->
+                        cacheSizeText.setText("当前缓存大小: 计算失败"));
             }
         }).start();
     }
@@ -915,8 +857,8 @@ public class SettingsFragment extends Fragment {
                     showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
                 });
             } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> 
-                    showCustomSnackbar(getView(), requireContext(), "缓存清理失败: " + e.getMessage()));
+                requireActivity().runOnUiThread(() ->
+                        showCustomSnackbar(getView(), requireContext(), "缓存清理失败: " + e.getMessage()));
             }
         }).start();
     }

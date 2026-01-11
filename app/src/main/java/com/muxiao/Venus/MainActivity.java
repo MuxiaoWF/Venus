@@ -6,14 +6,12 @@ import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+
 import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -45,13 +43,10 @@ public class MainActivity extends AppCompatActivity {
         setTheme(selectedTheme);
 
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+
+        // 状态栏设置
+        EdgeToEdge.enable(this);
 
         // 设置背景图片
         setupBackground();
@@ -62,12 +57,11 @@ public class MainActivity extends AppCompatActivity {
         // 初始化ViewPager2和底部导航
         viewPager = findViewById(R.id.viewPager);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
-        
         // 设置ViewPager2适配器
         ViewPagerAdapter adapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(adapter);
         
-        // 设置页面切换监听器，与底部导航联动
+        // 设置页面切换监听器，使滑动与底部导航联动
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
@@ -106,7 +100,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 根据菜单ID获取位置
+    /**
+     * 根据菜单ID获取位置
+     * @param menuId 菜单AndroidID
+     * @return 位置
+     */
     private int getPositionByMenuId(int menuId) {
         if (menuId == R.id.navigation_home) return 0;
         else if (menuId == R.id.navigation_users) return 1;
@@ -115,7 +113,11 @@ public class MainActivity extends AppCompatActivity {
         return -1;
     }
 
-    // 根据位置获取菜单ID
+    /**
+     * 根据位置获取菜单ID
+     * @param position 位置
+     * @return 菜单AndroidID
+     */
     private int getMenuIdByPosition(int position) {
         switch (position) {
             case 1:
@@ -187,7 +189,7 @@ public class MainActivity extends AppCompatActivity {
                         .apply();
                 backgroundImage.setVisibility(android.view.View.GONE);
             } catch (Exception e) {
-                // 出现异常时隐藏背景图片
+                // 出现其他异常时隐藏背景图片
                 backgroundImage.setVisibility(android.view.View.GONE);
                 show_error_dialog(this,"设置背景图片出错，隐藏背景图片" + e);
             }
@@ -206,16 +208,14 @@ public class MainActivity extends AppCompatActivity {
                 return ImageDecoder.decodeDrawable(
                         ImageDecoder.createSource(getContentResolver(), uri),
                         (decoder, info, source) -> {
-                            // 配置解码选项
                         }
                 );
             } else {
                 // Android 9.0以下版本使用BitmapFactory
                 InputStream inputStream = getContentResolver().openInputStream(uri);
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                if (inputStream != null) {
+                if (inputStream != null)
                     inputStream.close();
-                }
                 return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
             }
         } catch (Exception e) {

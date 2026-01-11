@@ -14,9 +14,9 @@ import android.os.Looper;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.common.Constants;
 
 public class UpdateChecker {
-    private static final String GITHUB_RELEASES_URL = "https://api.github.com/repos/MuxiaoWF/Venus/releases/latest";
     private static final String PREFS_NAME = "update_prefs";
     private static final String LAST_CHECK_TIME = "last_check_time";
     private final Context context;
@@ -48,9 +48,9 @@ public class UpdateChecker {
     /**
      * 检查更新
      *
-     * @param showNoUpdateDialog 是否显示"无更新"对话框
+     * @param updateAuto 是否是自动检查的更新
      */
-    private void checkForUpdates(boolean showNoUpdateDialog) {
+    private void checkForUpdates(boolean updateAuto) {
         new Thread(() -> {
             try {
                 // 保存检查时间
@@ -60,7 +60,7 @@ public class UpdateChecker {
                 // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
-                    if (showNoUpdateDialog)
+                    if (updateAuto) // 是否自动检查更新-是否展示提示
                         showNoUpdateDialog("\n没能成功获取GitHub更新，请切换更新方式并手动更新\n当前版本：" + currentVersion);
                     return;
                 }
@@ -79,10 +79,10 @@ public class UpdateChecker {
                 // 比较版本
                 if (isUpdateAvailable(currentVersion, latestVersion))
                     showUpdateDialog(latestVersion, releaseNotes, downloadUrl);
-                else if (showNoUpdateDialog)
+                else if (updateAuto)
                     showNoUpdateDialog("");
             } catch (Exception e) {
-                if (showNoUpdateDialog)
+                if (updateAuto)
                     showNoUpdateDialog(e.toString());
             }
         }).start();
@@ -101,7 +101,7 @@ public class UpdateChecker {
      */
     private JsonObject getLatestReleaseInfo() {
         try {
-            String response = com.muxiao.Venus.common.tools.sendGetRequest(GITHUB_RELEASES_URL, null, null);
+            String response = com.muxiao.Venus.common.tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_URL, null, null);
             if (!response.isEmpty()) {
                 return JsonParser.parseString(response).getAsJsonObject();
             }
@@ -183,7 +183,7 @@ public class UpdateChecker {
                         .setMessage("当前已是最新版本")
                         .setPositiveButton(android.R.string.ok, null)
                         .show();
-            else
+            else //有错误信息
                 new MaterialAlertDialogBuilder(context)
                         .setTitle("无更新？")
                         .setMessage(message)

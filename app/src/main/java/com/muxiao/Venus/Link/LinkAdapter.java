@@ -15,10 +15,13 @@ import com.muxiao.Venus.R;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 抽卡链接适配器，管理实际内容
+ */
 public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     private final View view;
     private final Context context;
-    private String currentUser = ""; // 当前用户
+    private String currentUser = "";
 
     public LinkAdapter(View view, Context context) {
         this.view = view;
@@ -29,15 +32,15 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
         this.currentUser = currentUser;
     }
 
-    private final Map<Integer, String> links = new HashMap<>();
+    private final Map<Integer, String> uid_link_map = new HashMap<>();
 
-    public void setLinks(Map<Integer, String> links) {
+    public void setLinks(Map<Integer, String> uid_link_map) {
         // 保存链接大小
-        int oldSize = this.links.size();
-        this.links.clear();
-        if (links != null)
-            this.links.putAll(links);
-        int newSize = this.links.size();
+        int oldSize = this.uid_link_map.size();
+        this.uid_link_map.clear();
+        if (uid_link_map != null)
+            this.uid_link_map.putAll(uid_link_map);
+        int newSize = this.uid_link_map.size();
         if (oldSize == 0 && newSize > 0) {
             // 从空到有数据，插入所有项
             notifyItemRangeInserted(0, newSize);
@@ -57,19 +60,25 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
         }
     }
 
+    /**
+     * 创建ViewHolder
+     */
     @NonNull
     @Override
     public LinkViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_gacha_link, parent, false);
+                .inflate(R.layout.item_link_gacha_link, parent, false);
         return new LinkViewHolder(view);
     }
 
+    /**
+     * 绑定ViewHolder
+     */
     @Override
     public void onBindViewHolder(LinkViewHolder holder, int position) {
-        Integer[] uids = links.keySet().toArray(new Integer[0]);
+        Integer[] uids = uid_link_map.keySet().toArray(new Integer[0]);
         Integer uid = uids[position];
-        String link = links.get(uid);
+        String link = uid_link_map.get(uid);
         holder.uidTextView.setText(new StringBuilder("UID: " + uid));
         holder.linkTextView.setText(link);
         holder.copyButton.setOnClickListener(v -> copyToClipboard(view, context, link));
@@ -84,6 +93,6 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
 
     @Override
     public int getItemCount() {
-        return links.size();
+        return uid_link_map.size();
     }
 }

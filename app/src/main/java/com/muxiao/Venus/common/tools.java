@@ -1,20 +1,17 @@
 package com.muxiao.Venus.common;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.os.Build;
-import android.provider.Settings;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
 
@@ -23,14 +20,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
@@ -77,74 +69,6 @@ public class tools {
         }
     }
 
-    /**
-     * 创建一个设备deviceID
-     *
-     * @param context 上下文
-     * @return deviceID -String
-     */
-    public static String getDeviceId(Context context) {
-        @SuppressLint("HardwareIds") String namespace = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
-        String name = Build.MANUFACTURER + " " + Build.MODEL;
-        // Convert namespace to UUID
-        UUID namespaceUUID = UUID.nameUUIDFromBytes(namespace.getBytes());
-        // Concatenate namespace and name
-        long msb = namespaceUUID.getMostSignificantBits();
-        long lsb = namespaceUUID.getLeastSignificantBits();
-        byte[] namespaceBytes = new byte[16];
-        for (int i = 0; i < 8; i++) {
-            namespaceBytes[i] = (byte) (msb >>> (8 * (7 - i)));
-        }
-        for (int i = 8; i < 16; i++) {
-            namespaceBytes[i] = (byte) (lsb >>> (8 * (15 - i)));
-        }
-        byte[] nameBytes = name.getBytes();
-        byte[] combinedBytes = new byte[namespaceBytes.length + nameBytes.length];
-        System.arraycopy(namespaceBytes, 0, combinedBytes, 0, namespaceBytes.length);
-        System.arraycopy(nameBytes, 0, combinedBytes, namespaceBytes.length, nameBytes.length);
-        // Hash the combined bytes using MD5
-        MessageDigest md;
-        try {
-            md = MessageDigest.getInstance("MD5");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        byte[] hashBytes = md.digest(combinedBytes);
-        // Convert the hash to a UUID
-        long mostSignificantBits = 0;
-        long leastSignificantBits = 0;
-        for (int i = 0; i < 8; i++) {
-            mostSignificantBits = (mostSignificantBits << 8) | (hashBytes[i] & 0xff);
-        }
-        for (int i = 8; i < 16; i++) {
-            leastSignificantBits = (leastSignificantBits << 8) | (hashBytes[i] & 0xff);
-        }
-        // Set the version to 3 and the variant to DCE 1.1
-        mostSignificantBits &= ~0x000000000000F000L;
-        mostSignificantBits |= 0x0000000000003000L;
-        leastSignificantBits &= ~0xC000000000000000L;
-        leastSignificantBits |= 0x8000000000000000L;
-        return new UUID(mostSignificantBits, leastSignificantBits).toString();
-    }
-
-    public static String getDS2(String body, String salt, String params) {
-        String i = String.valueOf(System.currentTimeMillis() / 1000);
-        String r = String.valueOf(new Random().nextInt(100000) + 100001);
-        String c = "salt=" + salt + "&t=" + i + "&r=" + r + "&b=" + body + "&q=" + params;
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] messageDigest = md.digest(c.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : messageDigest) {
-                sb.append(String.format("%02x", b));
-            }
-            c = sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-        return i + "," + r + "," + c;
-    }
-
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params) {
         try {
             StringBuilder urlBuilder = new StringBuilder(urlStr);
@@ -176,13 +100,9 @@ public class tools {
 
             Request request = requestBuilder.build();
             try (Response response = client.newCall(request).execute()) {
-                if (response.body() != null) {
-                    ResponseBody responseBody = response.body();
-                    // 使用string()方法自动处理gzip解压缩和字符编码
-                    return responseBody.string();
-                } else {
-                    return "";
-                }
+                ResponseBody responseBody = response.body();
+                // 使用string()方法自动处理gzip解压缩和字符编码
+                return responseBody.string();
             }
         } catch (UnknownHostException e) {
             throw new RuntimeException("请检查是否联网"+e);
@@ -223,11 +143,7 @@ public class tools {
 
             Request request = requestBuilder.build();
             try (Response response = client.newCall(request).execute()) {
-                if (response.body() != null) {
-                    return response.body().string();
-                } else {
-                    return "";
-                }
+                return response.body().string();
             }
         } catch (UnknownHostException e) {
             throw new RuntimeException("请检查是否联网"+e);
@@ -271,46 +187,37 @@ public class tools {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
         // 获取Snackbar的视图
         View snackbarView = snackbar.getView();
-        // 获取当前的布局参数
-        ViewGroup.LayoutParams layoutParams = snackbarView.getLayoutParams();
-        // 检查布局参数类型并相应处理
-        if (layoutParams instanceof androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) {
-            // 如果是CoordinatorLayout的LayoutParams，使用原始逻辑
-            androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams params =
-                    (androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) layoutParams;
-            // 设置居中对齐
-            params.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-            // 设置边距
-            params.setMargins(
-                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                    0,
-                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                    context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
-            );
-            // 设置宽度为wrap_content
-            params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-
-            snackbarView.setLayoutParams(params);
-        } else {
-            // 对于其他类型的布局参数（如FrameLayout.LayoutParams），使用基本设置
-            if (layoutParams instanceof ViewGroup.MarginLayoutParams) {
-                ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams) layoutParams;
-                // 设置边距
-                marginParams.setMargins(
-                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                        0,
-                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_horizontal),
-                        context.getResources().getDimensionPixelSize(R.dimen.snackbar_margin_bottom)
-                );
-                // 设置居中对齐
-                if (layoutParams instanceof FrameLayout.LayoutParams)
-                    ((FrameLayout.LayoutParams) layoutParams).gravity =
-                            android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-            }
-            // 设置宽度为wrap_content
-            layoutParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-            snackbarView.setLayoutParams(layoutParams);
+        
+        // 设置背景颜色（使用主题颜色或自定义颜色）
+        snackbarView.setBackgroundColor(context.getResources().getColor(R.color.snackbar_background, null));
+        
+        // 设置文本颜色
+        MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
+        if (textView != null) {
+            textView.setTextColor(context.getResources().getColor(R.color.snackbar_text, null));
+            // 设置文本居中
+            textView.setGravity(android.view.Gravity.CENTER);
         }
+        
+        // 设置动作文本颜色（如果有动作按钮）
+        MaterialButton actionView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_action);
+        if (actionView != null) {
+            actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, null));
+        }
+        
+        // 设置阴影
+        snackbarView.setElevation(8f);
+        
+        // 设置内边距
+        snackbarView.setPadding(24, 12, 24, 12);
+        snackbarView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+
+        // 居中显示Snackbar
+        android.widget.FrameLayout.LayoutParams params = (android.widget.FrameLayout.LayoutParams) snackbarView.getLayoutParams();
+        params.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
+        params.bottomMargin = 100; // 设置距离底部的距离
+        snackbarView.setLayoutParams(params);
+        
         snackbar.show();
     }
 

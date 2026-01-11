@@ -25,9 +25,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -38,6 +35,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.gson.Gson;
 import com.muxiao.Venus.R;
 
 import java.io.File;
@@ -73,13 +71,11 @@ public class ImageActivity extends AppCompatActivity {
         // 应用选定的主题
         int selectedTheme = SettingsFragment.getSelectedTheme(this);
         setTheme(selectedTheme);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_image);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+
+        // 设置状态栏
+        EdgeToEdge.enable(this);
+
         rootView = findViewById(android.R.id.content);
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         MaterialAutoCompleteTextView forumSelector = findViewById(R.id.forumSelector);
@@ -278,7 +274,7 @@ public class ImageActivity extends AppCompatActivity {
         // 更新ActionBar标题和返回按钮
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle(selectedItems.size() + " 项已选择");
-            getSupportActionBar().setHomeAsUpIndicator(R.drawable.error);
+            getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_error);
         }
     }
 
@@ -362,8 +358,8 @@ public class ImageActivity extends AppCompatActivity {
 
             if (images != null && !images.isEmpty()) {
                 Glide.with(ImageActivity.this)
-                        .load(images.get(0)).placeholder(R.drawable.loading)
-                        .error(R.drawable.error).into(holder.imageView);
+                        .load(images.get(0)).placeholder(R.drawable.ic_loading)
+                        .error(R.drawable.ic_error).into(holder.imageView);
             }
             holder.titleTextView.setText(title != null ? title : "");
             holder.authorTextView.setText(author);
@@ -557,7 +553,9 @@ public class ImageActivity extends AppCompatActivity {
         Map<String, Object> currentItemData = imageDataList.get(position);
         List<Map<String, Object>> singleItemList = new ArrayList<>();
         singleItemList.add(currentItemData);
-        intent.putExtra("imageDataList", (java.io.Serializable) singleItemList);
+        Gson gson = new Gson();
+        String jsonData = gson.toJson(singleItemList);
+        intent.putExtra("imageDataListJson", jsonData);
         intent.putExtra("position", 0);
         startActivity(intent);
     }

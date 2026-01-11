@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    namespace 'com.muxiao.Venus'
-    compileSdk 35
+    namespace = 'com.muxiao.Venus'
+    compileSdkVersion = 36
 
     defaultConfig {
         applicationId "com.muxiao.Venus"
-        minSdk 21
-        targetSdk 35
+        minSdkVersion 23
+        targetSdkVersion 36
         versionCode 3
         versionName "0.0.3"
 
@@ -19,14 +19,13 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            shrinkResources true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             debuggable true
             jniDebuggable true
-            renderscriptDebuggable true
-            pseudoLocalesEnabled true
+            pseudoLocalesEnabled = true
         }
     }
     compileOptions {
@@ -42,6 +41,7 @@ android {
 }
 
 dependencies {
+    implementation libs.core.splashscreen
     implementation libs.gzu.liyujiang.android.cn.oaid
     implementation libs.google.flexbox
     implementation libs.sensebot

@@ -1,7 +1,9 @@
 <resources>
     <!-- Base application theme. -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <style name="Theme.Venus.Light" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
@@ -11,6 +13,20 @@
     <style name="Theme.Venus.Dark" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
 
     </style>
+
+    <!-- Splash启动页Style -->
+    <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen">
+        <!--启动画面背景颜色-->
+        <item name="windowSplashScreenBackground">@color/icon_background</item>
+        <!-- 启动画面icon图标：这里可以是图片、帧动画等-->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/icon_background</item>
+        <!-- icon动画在关闭之前显示的时长：最长时间为1000毫秒-->
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <!-- Splash退出后的主题（原先主主题）-->
+        <item name="postSplashScreenTheme">@style/Theme.Venus</item>
+    </style>
+
     <!-- 蓝色主题 -->
     <style name="Theme.Venus.Blue" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
         <item name="colorPrimary">@color/blue_theme_primary</item>

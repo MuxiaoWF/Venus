@@ -15,8 +15,8 @@ import com.muxiao.Venus.R;
 
 public class Notification {
     private final Context context;
-    private static final int NOTIFICATION_ID_WORK = 50628;
-    private static final int NOTIFICATION_ID_ERROR = 50629;
+    private static final int NOTIFICATION_ID_WORK = Constants.NOTIFICATION_ID_WORK;
+    private static final int NOTIFICATION_ID_ERROR = Constants.NOTIFICATION_ID_ERROR;
     public Notification(Context context) {
         this.context = context;
     }
@@ -46,10 +46,7 @@ public class Notification {
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
 
             // 创建PendingIntent
-            int pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                pendingIntentFlags |= PendingIntent.FLAG_IMMUTABLE;
-            }
+            int pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
             PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, pendingIntentFlags);
 
             // 创建通知渠道 (Android 8.0+)

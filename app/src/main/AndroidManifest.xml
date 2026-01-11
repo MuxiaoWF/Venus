@@ -4,15 +4,18 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /> <!-- Android 14+ Selected Photos Access 权限 -->
+    <!-- Devices running Android 12L (API level 32) or lower  -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- Devices running Android 13 (API level 33) or higher -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- To handle the reselection within the app on Android 14 (API level 34) -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <!-- 传感器权限 -->
-    <uses-permission android:name="android.permission.BODY_SENSORS" />
+<!--    <uses-permission android:name="android.permission.BODY_SENSORS" />-->
     <!-- 通知权限 (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<!--    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />-->
 
     <application
         android:name=".VenusApplication"
@@ -23,8 +26,14 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Venus"
+        android:theme="@style/Theme.Venus.SplashScreen"
         tools:targetApi="31">
+
+        <!-- 添加媒体权限使用说明 -->
+        <meta-data
+            android:name="android.media.MEDIA_USE_REASON"
+            android:value="app_requires_media_access_for_image_editing_and_sharing_features" />
+
         <activity
             android:name=".Setting.FullscreenImageActivity"
             android:exported="false" />

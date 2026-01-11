@@ -99,13 +99,13 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
                             // 加载失败时的处理
                             holder.progressBar.setVisibility(View.GONE);
                             // 设置错误图片
-                            holder.imageView.setImageResource(R.drawable.error);
+                            holder.imageView.setImageResource(R.drawable.ic_error);
                         }
                     });
         } else {
             // 如果没有图片URL，隐藏进度条并设置默认错误图片
             holder.progressBar.setVisibility(View.GONE);
-            holder.imageView.setImageResource(R.drawable.error);
+            holder.imageView.setImageResource(R.drawable.ic_error);
         }
     }
 

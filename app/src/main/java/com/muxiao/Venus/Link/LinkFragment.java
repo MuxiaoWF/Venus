@@ -2,10 +2,9 @@ package com.muxiao.Venus.Link;
 
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -38,33 +37,29 @@ import android.widget.LinearLayout;
 
 public class LinkFragment extends Fragment {
 
-    private CircularProgressIndicator progressBar;
     private MaterialTextView errorTextView;
     private LinkAdapter adapter;
     private String currentUserId;
     private ExecutorService executor;
     private UserManager userManager;
     private MaterialAutoCompleteTextView userDropdown;
-    private TabLayout tabLayout;
     private WebView webView;
     private LinearLayout webViewContainer;
-    private LinearLayout userDropdownLayout;
-    private RecyclerView recyclerView;
+    private RecyclerView linkItemsRecyclerView;
 
-    // 为每个标签页维护独立的结果
-    private final Map<Integer, Map<Integer, String>> tabResults = new HashMap<>();
+    // 按 tab -> userId -> (roleId -> link) 存储
+    private final Map<Integer, Map<String, Map<Integer, String>>> tabResults = new HashMap<>();
     private int currentTabPosition = 0;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_link, container, false);
 
-        tabLayout = view.findViewById(R.id.tabLayout);
-        recyclerView = view.findViewById(R.id.recyclerView);
-        progressBar = view.findViewById(R.id.progressBar);
+        TabLayout tabLayout = view.findViewById(R.id.tabLayout);
+        linkItemsRecyclerView = view.findViewById(R.id.recyclerView);
+        CircularProgressIndicator progressBar = view.findViewById(R.id.progressBar);
         errorTextView = view.findViewById(R.id.errorTextView);
         userDropdown = view.findViewById(R.id.user_dropdown);
-        userDropdownLayout = view.findViewById(R.id.user_dropdown_layout);
         MaterialButton getLinkButton = view.findViewById(R.id.get_link_button);
         webViewContainer = view.findViewById(R.id.webViewContainer);
         webView = view.findViewById(R.id.webView);
@@ -73,104 +68,206 @@ public class LinkFragment extends Fragment {
         progressBar.setIndeterminate(true);
 
         // 设置RecyclerView
-        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        adapter = new LinkAdapter(view,requireContext());
-        recyclerView.setAdapter(adapter);
+        linkItemsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        adapter = new LinkAdapter(view, requireContext());
+        linkItemsRecyclerView.setAdapter(adapter);
 
-        // 初始化用户管理器和线程池
         userManager = new UserManager(requireContext());
         executor = Executors.newSingleThreadExecutor();
 
-        // 初始化下拉框
         updateDropdown();
 
-        // 设置下拉框选择事件
         userDropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             currentUserId = selectedUser;
-            // 更新adapter中的当前用户
+            // 更新 adapter 中的当前用户
             adapter.setCurrentUser(selectedUser);
+
+            // 切换用户时尝试恢复当前 tab + 当前用户 的已保存结果
+            Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
+            if (perUser != null) {
+                Map<Integer, String> resultsForUser = perUser.get(selectedUser);
+                if (resultsForUser != null && !resultsForUser.isEmpty()) {
+                    // 传入拷贝，避免引用共享
+                    adapter.setLinks(new HashMap<>(resultsForUser));
+                    linkItemsRecyclerView.setVisibility(View.VISIBLE);
+                    errorTextView.setVisibility(View.GONE);
+                    return;
+                } else if (perUser.containsKey(selectedUser)) {
+                    // 已加载但为空
+                    adapter.setLinks(new HashMap<>());
+                    errorTextView.setText("没有游戏角色或获取链接出错");
+                    errorTextView.setVisibility(View.VISIBLE);
+                    linkItemsRecyclerView.setVisibility(View.GONE);
+                    return;
+                }
+            }
+            // 没有任何已保存结果：清空显示
+            adapter.setLinks(new HashMap<>());
+            linkItemsRecyclerView.setVisibility(View.GONE);
+            errorTextView.setVisibility(View.GONE);
         });
 
-        // 设置Tab选择栏监听器
+        // 设置Tab选择栏监听器，委托到类级别方法处理
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
-                handleTabSelection(tab.getPosition());
+                currentTabPosition = tab.getPosition();
+                if (currentTabPosition == 2) {
+                    // 云游戏
+                    setViewsVisibility(false, false, false, false, true);
+                    setupWebViewForCloudGame();
+                } else {
+                    // 原神 / 绝区零
+                    setViewsVisibility(true, true, true, true, false);
+
+                    Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
+                    if (perUser != null) {
+                        Map<Integer, String> resultsForCurrentUser = perUser.get(currentUserId);
+                        if (resultsForCurrentUser != null && !resultsForCurrentUser.isEmpty()) {
+                            adapter.setLinks(new HashMap<>(resultsForCurrentUser));
+                            linkItemsRecyclerView.setVisibility(View.VISIBLE);
+                            errorTextView.setVisibility(View.GONE);
+                        } else if (perUser.containsKey(currentUserId)) {
+                            // 已加载过但为空
+                            adapter.setLinks(new HashMap<>());
+                            errorTextView.setText("没有游戏角色或获取链接出错");
+                            errorTextView.setVisibility(View.VISIBLE);
+                            linkItemsRecyclerView.setVisibility(View.GONE);
+                        } else {
+                            // 未加载过该标签页+用户的结果
+                            adapter.setLinks(new HashMap<>());
+                            errorTextView.setVisibility(View.GONE);
+                            linkItemsRecyclerView.setVisibility(View.GONE);
+                        }
+                    } else {
+                        // 该 tab 完全没加载过任何用户
+                        adapter.setLinks(new HashMap<>());
+                        errorTextView.setVisibility(View.GONE);
+                        linkItemsRecyclerView.setVisibility(View.GONE);
+                    }
+                    destroyWebView();
+                }
             }
 
             @Override
-            public void onTabUnselected(TabLayout.Tab tab) {}
+            public void onTabUnselected(TabLayout.Tab tab) {
+            }
 
             @Override
             public void onTabReselected(TabLayout.Tab tab) {
-                handleTabSelection(tab.getPosition());
-            }
-
-            private void handleTabSelection(int position) {
-                currentTabPosition = position;
-                // 根据选择的Tab显示对应内容
-                if (position == 2) {
-                    // 云游戏标签页
-                    userDropdownLayout.setVisibility(View.GONE);
-                    getLinkButton.setVisibility(View.GONE);
-                    recyclerView.setVisibility(View.GONE);
-                    errorTextView.setVisibility(View.GONE);
-                    webViewContainer.setVisibility(View.VISIBLE);
-                    setupWebViewForCloudGame();
-                } else {
-                    // 原神或绝区零标签页
-                    userDropdownLayout.setVisibility(View.VISIBLE);
-                    getLinkButton.setVisibility(View.VISIBLE);
-                    webViewContainer.setVisibility(View.GONE);
-                    // 显示当前标签页的结果
-                    showTabResults(position);
-                    // 销毁WebView
-                    if (webView != null) {
-                        webViewContainer.removeView(webView);
-                        webView.destroy();
-                        webView = null;
-                    }
-                }
             }
         });
 
-        // 设置获取链接按钮点击事件
-        getLinkButton.setOnClickListener(v -> new LoadLinksTask(tabLayout.getSelectedTabPosition()).execute());
-
-        // 设置关闭WebView按钮点击事件
-        view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> {
-            webViewContainer.setVisibility(View.GONE);
-            recyclerView.setVisibility(View.VISIBLE);
-            getLinkButton.setVisibility(View.VISIBLE);
-            userDropdownLayout.setVisibility(View.VISIBLE);
-            Objects.requireNonNull(tabLayout.getTabAt(0)).select();
-            // 销毁WebView
-            if (webView != null) {
-                webViewContainer.removeView(webView);
-                webView.destroy();
-                webView = null;
+        // 获取链接按钮点击事件
+        getLinkButton.setOnClickListener(v -> {
+            if (currentUserId == null || currentUserId.isEmpty()) {
+                errorTextView.setText("请先选择一个用户");
+                errorTextView.setVisibility(View.VISIBLE);
+                return;
             }
+            progressBar.setVisibility(View.VISIBLE);
+            errorTextView.setVisibility(View.GONE);
+            int gameType = tabLayout.getSelectedTabPosition();
+            executor.execute(() -> {
+                Map<Integer, String> result;
+                GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
+                try {
+                    if (gameType == 0) // 原神
+                        result = gachaLink.genshin();
+                    else // 绝区零（不存在是云游戏的情形）
+                        result = gachaLink.zzz();
+                } catch (Exception e) {
+                    show_error_dialog(requireContext(), e.getMessage());
+                    return;
+                }
+                // 获取到结果并更新UI
+                requireActivity().runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    // 将 result 按 tab 和 userId 存储（注意做一次拷贝）
+                    Map<String, Map<Integer, String>> perUser = tabResults.get(gameType);
+                    if (perUser == null) {
+                        perUser = new HashMap<>();
+                        tabResults.put(gameType, perUser);
+                    }
+                    perUser.put(currentUserId, new HashMap<>(result)); // 存拷贝，避免引用共享
+
+                    // 更新对应标签页的数据
+                    if (!result.isEmpty()) {
+                        // 直接更新UI
+                        if (currentTabPosition == gameType) {
+                            adapter.setLinks(new HashMap<>(result)); // 传入拷贝到 adapter
+                            errorTextView.setVisibility(View.GONE);
+                            linkItemsRecyclerView.setVisibility(View.VISIBLE);
+                        }
+                    } else {
+                        // 空结果，显示错误信息
+                        if (currentTabPosition == gameType) {
+                            errorTextView.setText("没有游戏角色或获取链接出错");
+                            errorTextView.setVisibility(View.VISIBLE);
+                            linkItemsRecyclerView.setVisibility(View.GONE);
+                        }
+                    }
+                });
+            });
+        });
+
+        // 关闭 WebView 按钮
+        view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> {
+            setViewsVisibility(true, true, true, true, false);
+            Objects.requireNonNull(tabLayout.getTabAt(0)).select();
+            destroyWebView();
         });
 
         return view;
     }
 
+    /**
+     * 设置视图可见性
+     */
+    private void setViewsVisibility(boolean dropdownVisible, boolean buttonVisible,
+                                    boolean recyclerViewVisible, boolean errorTextVisible,
+                                    boolean webViewVisible) {
+        LinearLayout userDropdownLayout = requireView().findViewById(R.id.user_dropdown_layout);
+        MaterialButton getLinkButton = requireView().findViewById(R.id.get_link_button);
+
+        if (userDropdownLayout != null)
+            userDropdownLayout.setVisibility(dropdownVisible ? View.VISIBLE : View.GONE);
+        if (getLinkButton != null)
+            getLinkButton.setVisibility(buttonVisible ? View.VISIBLE : View.GONE);
+        linkItemsRecyclerView.setVisibility(recyclerViewVisible ? View.VISIBLE : View.GONE);
+        errorTextView.setVisibility(errorTextVisible ? View.VISIBLE : View.GONE);
+        webViewContainer.setVisibility(webViewVisible ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * 销毁 WebView（安全清理）
+     */
+    private void destroyWebView() {
+        if (webView != null) {
+            webViewContainer.removeView(webView);
+            webView.destroy();
+            webView = null;
+        }
+    }
+
+    /**
+     * 更新用户下拉框
+     */
     private void updateDropdown() {
-        // 更新用户下拉框
-        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
                 requireContext(),
-                R.layout.list_item,
+                android.R.layout.simple_dropdown_item_1line,
                 userManager.getUsernames()
         );
-        userDropdown.setAdapter(adapter);
+        userDropdown.setAdapter(dropdownAdapter);
         // 设置当前用户为默认选中项
         String currentUser = userManager.getCurrentUser();
-        if (!currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
+        if (currentUser != null && !currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
             userDropdown.setText(currentUser, false);
             currentUserId = currentUser;
-            // 更新adapter中的当前用户
             this.adapter.setCurrentUser(currentUser);
         } else if (!userManager.getUsernames().isEmpty()) {
             // 如果没有设置当前用户但有用户存在，默认选择第一个
@@ -178,40 +275,19 @@ public class LinkFragment extends Fragment {
             userDropdown.setText(firstUser, false);
             userManager.setCurrentUser(firstUser);
             currentUserId = firstUser;
-            // 更新adapter中的当前用户
             this.adapter.setCurrentUser(firstUser);
-        }
+        } // 否则什么都不干
     }
 
-    private void showTabResults(int tabPosition) {
-        // 云游戏标签页不需要显示结果
-        if (tabPosition == 2)
-            return;
-        Map<Integer, String> results = tabResults.get(tabPosition);
-        if (results != null && !results.isEmpty()) {
-            adapter.setLinks(results);
-            recyclerView.setVisibility(View.VISIBLE);
-            errorTextView.setVisibility(View.GONE);
-        } else {
-            // 检查是否已经加载过但没有结果
-            if (tabResults.containsKey(tabPosition)) {
-                errorTextView.setText("没有游戏角色或获取链接出错");
-                errorTextView.setVisibility(View.VISIBLE);
-                recyclerView.setVisibility(View.GONE);
-            } else {
-                // 未加载过该标签页的结果
-                recyclerView.setVisibility(View.GONE);
-                errorTextView.setVisibility(View.GONE);
-            }
-        }
-    }
-
+    /**
+     * 创建云游戏 WebView 并监听 URL，以便捕捉抽卡链接
+     */
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebViewForCloudGame() {
-        recyclerView.setVisibility(View.GONE);
+        linkItemsRecyclerView.setVisibility(View.GONE);
         webViewContainer.setVisibility(View.VISIBLE);
 
-        // 如果WebView为null，则重新创建
+        // 如果 WebView 为 null，则重新创建
         if (webView == null) {
             webView = new WebView(requireContext());
             webView.setLayoutParams(new LinearLayout.LayoutParams(
@@ -228,6 +304,7 @@ public class LinkFragment extends Fragment {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                // 修改 navigator.language 和 navigator.languages 属性
                 view.evaluateJavascript(
                         "Object.defineProperty(navigator, 'language', {get: function(){return 'zh-CN';}});" +
                                 "Object.defineProperty(navigator, 'languages', {get: function(){return ['zh-CN'];}});",
@@ -238,144 +315,49 @@ public class LinkFragment extends Fragment {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                // 检查是否包含原神抽卡链接
+                // 检查是否包含各类抽卡链接并复制到剪贴板
                 if (url.contains("public-operation-hk4e.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view,requireContext(),url);
+                        copyToClipboard(view, requireContext(), url);
                         showCustomSnackbar(view, requireContext(), "原神抽卡链接已复制到剪贴板");
                     });
-                }
-                // 检查是否包含星穹铁道抽卡链接
-                else if (url.contains("public-operation-hkrpg.mihoyo.com") && url.contains("authkey=")) {
+                } else if (url.contains("public-operation-hkrpg.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view, requireContext(),url);
+                        copyToClipboard(view, requireContext(), url);
                         showCustomSnackbar(view, requireContext(), "星穹铁道抽卡链接已复制到剪贴板");
                     });
-                }
-                // 检查是否包含绝区零抽卡链接
-                else if (url.contains("public-operation-nap.mihoyo.com") && url.contains("authkey=")) {
+                } else if (url.contains("public-operation-nap.mihoyo.com") && url.contains("authkey=")) {
                     requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view,requireContext(),url);
+                        copyToClipboard(view, requireContext(), url);
                         showCustomSnackbar(view, requireContext(), "绝区零抽卡链接已复制到剪贴板");
                     });
                 }
                 return super.shouldInterceptRequest(view, request);
             }
 
-            @TargetApi(Build.VERSION_CODES.N)
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 view.loadUrl(request.getUrl().toString());
                 return true;
             }
-
-            // 兼容较低版本的Android
-            @SuppressWarnings("deprecation")
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                view.loadUrl(url);
-                return true;
-            }
         });
+
         // 加载米哈游云游戏页面
         webView.loadUrl("https://mhyy.mihoyo.com/");
     }
-
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         if (executor != null && !executor.isShutdown())
             executor.shutdown();
-        if (webView != null) {
-            webViewContainer.removeView(webView);
-            webView.destroy();
-            webView = null;
-        }
+        destroyWebView();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // 每次恢复Fragment时更新下拉框
+        // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
         updateDropdown();
-    }
-
-    /**
-     * 获取链接
-     */
-    private class LoadLinksTask {
-        private final int gameType;
-        public LoadLinksTask(int gameType) {
-            this.gameType = gameType;
-        }
-        public void execute() {
-            if (currentUserId == null || currentUserId.equals("default_user")) {
-                requireActivity().runOnUiThread(() -> {
-                    errorTextView.setText("请先选择一个用户");
-                    errorTextView.setVisibility(View.VISIBLE);
-                });
-                return;
-            }
-            progressBar.setVisibility(View.VISIBLE);
-            errorTextView.setVisibility(View.GONE);
-            executor.execute(() -> {
-                Exception exception = null;
-                Map<Integer, String> result = null;
-                try {
-                    GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
-                    if (gameType == 0) {
-                        // 原神
-                        result = gachaLink.genshin();
-                    } else if (gameType == 1) {
-                        // 绝区零
-                        result = gachaLink.zzz();
-                    } else {
-                        // 云游戏
-                        requireActivity().runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
-                            recyclerView.setVisibility(View.GONE);
-                            errorTextView.setVisibility(View.GONE);
-                        });
-                        return;
-                    }
-                } catch (Exception e) {
-                    exception = e;
-                }
-
-                // 切换到主线程更新UI
-                Map<Integer, String> finalResult = result;
-                Exception finalException = exception;
-                requireActivity().runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    if (finalResult != null) {
-                        // 保存当前标签页的结果
-                        tabResults.put(gameType, finalResult);
-
-                        // 只有当当前标签页是正在加载的标签页时才更新UI
-                        if (currentTabPosition == gameType) {
-                            if (!finalResult.isEmpty()) {
-                                adapter.setLinks(finalResult);
-                                recyclerView.setVisibility(View.VISIBLE);
-                            } else {
-                                errorTextView.setText("没有游戏角色或获取链接出错");
-                                errorTextView.setVisibility(View.VISIBLE);
-                                recyclerView.setVisibility(View.GONE);
-                            }
-                        }
-                    } else if (gameType != 2) { // 不是云游戏选项
-                        // 保存空结果以表示已尝试加载
-                        tabResults.put(gameType, new HashMap<>());
-
-                        // 只有当当前标签页是正在加载的标签页时才更新UI
-                        if (currentTabPosition == gameType) {
-                            errorTextView.setText(finalException != null ? finalException.getMessage() : "获取链接失败");
-                            errorTextView.setVisibility(View.VISIBLE);
-                            recyclerView.setVisibility(View.GONE);
-                        }
-                    }
-                });
-            });
-        }
     }
 }
