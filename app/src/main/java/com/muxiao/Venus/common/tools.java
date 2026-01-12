@@ -269,11 +269,12 @@ public class tools {
             if (inputStream == null) {
                 throw new Exception("无法打开源文件");
             }
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[8192];
             int length;
             while ((length = inputStream.read(buffer)) > 0) {
                 outputStream.write(buffer, 0, length);
             }
+            outputStream.flush();
         }
     }
 }

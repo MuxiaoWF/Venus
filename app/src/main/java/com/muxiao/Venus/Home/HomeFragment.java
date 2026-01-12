@@ -141,11 +141,15 @@ public class HomeFragment extends Fragment {
         user_dropdown.setAdapter(adapter);
         // 设置当前用户为默认选中项
         current_user = user_manager.getCurrentUser();
-        if (!current_user.isEmpty() && usernames.contains(current_user))
+        if (!current_user.isEmpty() && usernames.contains(current_user)) {
             user_dropdown.setText(current_user, false);
-        else if (!usernames.isEmpty())
+            status_text.setText(new StringBuilder("已选择用户: " + current_user + "\n"));
+        } else if (!usernames.isEmpty()) {
             // 如果当前用户不存在或为空，设置为第一个用户
-            user_dropdown.setText(usernames.get(0), false);
+            current_user = usernames.get(0);
+            user_dropdown.setText(current_user, false);
+            status_text.setText(new StringBuilder("已选择用户: " + current_user + "\n"));
+        }
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             current_user = (String) parent.getItemAtPosition(position);
             user_manager.setCurrentUser(current_user);
@@ -217,7 +221,7 @@ public class HomeFragment extends Fragment {
                         BBSDaily b = new BBSDaily(requireActivity(), user_manager.getCurrentUser(), notifier, controller);
                         String[] daily = (String[]) settings.get("daily");
                         if (daily != null && daily.length > 0)
-                            b.runTask(daily, new boolean[]{true, true, true, true});
+                            b.runTask(daily);
                         else
                             requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败，请先去设置里设置勾选至少一个获取米游币的板块"));
                     }
@@ -230,7 +234,7 @@ public class HomeFragment extends Fragment {
                                 if (isTaskCancelled()) return; // 检查线程中断状态
                                 BBSGameDaily game_module = new BBSGameDaily(requireActivity(), user_manager.getCurrentUser(), game_name, notifier, controller);
                                 notifier.notifyListeners("正在进行" + game_name + "签到");
-                                game_module.signAccount();
+                                game_module.run();
                                 notification.sendNormalNotification(game_name, game_name + "签到完成");
                             }
                             notifier.notifyListeners("游戏签到完成");

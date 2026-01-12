@@ -173,18 +173,21 @@ public class UserLoginActivity extends AppCompatActivity {
         private final HeaderManager header_manager;
         private final String app_id = "2";
         private String ticket;
-        private final String device_id;
+        private String device_id;
 
         public LoginTask(Context context) {
             this.context = context;
             this.header_manager = new HeaderManager(context);
-            DeviceUtils device_utils = new DeviceUtils(context);
-            this.device_id = device_utils.generateDeviceId();
         }
 
         @Override
         public void run() {
             try {
+                // 先获取设备ID
+                DeviceUtils device_utils = new DeviceUtils(context);
+                // 等待设备ID获取完成
+                this.device_id = device_utils.waitForDeviceId();
+                
                 status_notifier.notifyListeners("\n开始执行登录任务...\n开始获取二维码...\n");
                 byte[] qr_code_data = get_qr_code_data();
                 runOnUiThread(() -> {
@@ -214,7 +217,7 @@ public class UserLoginActivity extends AppCompatActivity {
         public byte[] get_qr_code_data() throws Exception {
             Map<String, Object> body = new HashMap<>() {{
                 put("app_id", app_id);
-                put("device", device_id);
+                put("device", device_id); // 现在 device_id 已经确保不为null
             }};
             String response = tools.sendPostRequest(Constants.Urls.LOGIN_QR_URL, new HashMap<>(), body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
@@ -252,7 +255,7 @@ public class UserLoginActivity extends AppCompatActivity {
                 Map<String, Object> body = new HashMap<>() {{
                     put("app_id", app_id);
                     put("ticket", ticket);
-                    put("device", device_id);
+                    put("device", device_id); // 现在 device_id 已经确保不为null
                 }};
                 String response = tools.sendPostRequest(Constants.Urls.LOGIN_CHECK_URL, null, body);
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();

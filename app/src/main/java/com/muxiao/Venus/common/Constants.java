@@ -29,7 +29,7 @@ public class Constants {
         public static final String BBS_POST_FULL_URL = BBS_BASE_URL + "/post/api/getPostFull";
         public static final String BBS_SIGN_IN_URL = BBS_BASE_URL + "/apihub/app/api/signIn";
         public static final String BBS_LIKE_URL = BBS_BASE_URL + "/apihub/sapi/upvotePost";
-        public static final String BBS_SHARE_URL = BBS_BASE_URL + "/post/api/createPost";
+        public static final String BBS_SHARE_URL = BBS_BASE_URL + "/apihub/api/getShareConf";
         public static final String BBS_IMAGE_URL = BBS_BASE_URL + "/post/api/getImagePostList?";
         public static final String BBS_GAME_BH2_REFERER_URL = WEB_BASE_URL+"/bbs/event/signin/bh2/index.html?bbs_auth_required=true&act_id=" + MiHoYoBBSConstants.name_to_act_id("崩坏2") + "&bbs_presentation_style=fullscreen&utm_source=bbs&utm_medium=mys&utm_campaign=icon";
         public static final String BBS_GAME_BH3_REFERER_URL = WEB_BASE_URL+"/bbs/event/signin/bh3/index.html?bbs_auth_required=true&act_id=" + MiHoYoBBSConstants.name_to_act_id("崩坏3") + "&bbs_presentation_style=fullscreen&utm_source=bbs&utm_medium=mys&utm_campaign=icon";

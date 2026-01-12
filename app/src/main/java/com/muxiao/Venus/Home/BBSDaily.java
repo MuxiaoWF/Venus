@@ -64,9 +64,8 @@ public class BBSDaily {
      * 执行所有任务
      *
      * @param name  需要社区签到的板块名称（米游币的那个）可填：崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿(获取方式通过MiHoYoBBSConstants的forum_id)
-     * @param tasks 是否执行签到/阅读/点赞/分享
      */
-    public void runTask(String[] name, boolean[] tasks) throws Exception {
+    public void runTask(String[] name) throws Exception {
         // 添加需要签到的板块信息
         for (String key : name)
             bbs_check_in_list.add(MiHoYoBBSConstants.name_to_forum_id(key));
@@ -77,10 +76,10 @@ public class BBSDaily {
             getTasksList(data);
             // 获取帖子列表
             this.postsList = getList();
-            if (tasks[0]) signPosts();
-            if (tasks[1]) readPosts();
-            if (tasks[2]) likePosts();
-            if (tasks[3]) sharePosts();
+            signPosts();
+            readPosts();
+            likePosts();
+            sharePosts();
             // 重新获取任务刷新签到信息
             checkTasksList();
         } else //任务已经完成

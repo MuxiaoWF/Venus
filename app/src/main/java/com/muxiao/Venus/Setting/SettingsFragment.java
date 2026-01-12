@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Paint;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
@@ -18,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -83,10 +85,11 @@ public class SettingsFragment extends Fragment {
     private SharedPreferences backgroundPreferences;
     private static final String BACKGROUND_IMAGE_URI = "background_image_uri";
     private static final String BACKGROUND_ALPHA = "background_alpha";
-    // 用于选择图片的Activity结果启动器
-    private ActivityResultLauncher<Intent> selectImageLauncher;
-    // 添加uCrop结果启动器
-    private ActivityResultLauncher<Intent> cropImageLauncher;
+    // ActivityResult 启动器
+    private ActivityResultLauncher<Intent> selectImageLauncher; // ACTION_OPEN_DOCUMENT (老设备)
+    private ActivityResultLauncher<PickVisualMediaRequest>  pickMedia; // Photo Picker (API33+)
+    private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         // 加载布局
@@ -321,20 +324,23 @@ public class SettingsFragment extends Fragment {
      * 初始化Activity结果启动器
      */
     private void initActivityLauncher() {
-        selectImageLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        Uri selectedImageUri = result.getData().getData();
-                        if (selectedImageUri != null) {
-                            // 启动裁剪
-                            startCropActivity(selectedImageUri);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), this::startCropActivity);
+        } else {
+            selectImageLauncher = registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                            Uri selectedImageUri = result.getData().getData();
+                            if (selectedImageUri != null) {
+                                // 启动裁剪
+                                startCropActivity(selectedImageUri);
+                            }
                         }
                     }
-                }
-        );
-
-        // 初始化裁剪结果启动器
+            );
+        }
+        // UCrop 裁剪结果启动器
         cropImageLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -362,7 +368,7 @@ public class SettingsFragment extends Fragment {
     private void startCropActivity(@NonNull Uri uri) {
         // 获取屏幕尺寸作为裁剪比例
         int screenWidth, screenHeight;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             android.graphics.Rect bounds = requireActivity().getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
             screenWidth = bounds.width();
             screenHeight = bounds.height();
@@ -392,7 +398,10 @@ public class SettingsFragment extends Fragment {
                 .withMaxResultSize(screenWidth, screenHeight) // 设置最大尺寸为屏幕尺寸
                 .withOptions(options);
         // 启动裁剪Activity，使用cropImageLauncher处理结果
-        cropImageLauncher.launch(uCrop.getIntent(requireContext()));
+        Intent uCropIntent = uCrop.getIntent(requireContext());
+        // 授予裁剪 Activity 临时读写权限，确保能读取 source Uri 并写入 destination Uri
+        uCropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        cropImageLauncher.launch(uCropIntent);
     }
 
     /**
@@ -404,21 +413,26 @@ public class SettingsFragment extends Fragment {
         try {
             // 创建背景图片文件
             File backgroundFile = new File(requireContext().getFilesDir(), "background.jpg");
+            if (backgroundFile.exists()) backgroundFile.delete();
 
-            // 删除旧的背景图片文件
-            if (backgroundFile.exists())
-                backgroundFile.delete();
-            // 将裁剪后的图片复制到背景图片文件
+            // 使用 tools.copyFile（确保实现基于 ContentResolver.openInputStream(...)）
             tools.copyFile(requireContext(), croppedImageUri, backgroundFile);
 
             // 保存背景图片文件Uri到SharedPreferences
             Uri backgroundUri = Uri.fromFile(backgroundFile);
             backgroundPreferences.edit().putString(BACKGROUND_IMAGE_URI, backgroundUri.toString()).apply();
 
+            // 删除临时裁剪文件
+            File temp = new File(requireContext().getCacheDir(), "temp_cropped_background.jpg");
+            if (temp.exists()) {
+                try {
+                    temp.delete();
+                } catch (Exception ignored) {}
+            }
+
             // 显示提示信息
             View view = getView();
-            if (view != null)
-                showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
+            if (view != null) showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
         } catch (Exception e) {
             show_error_dialog(requireContext(), "保存背景图片失败: " + e.getMessage());
         }
@@ -434,15 +448,21 @@ public class SettingsFragment extends Fragment {
 
         // 设置选择背景按钮
         selectBackgroundButton.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            // 使用更通用的类型，兼容所有图片格式
-            intent.setType("image/*");
-            // 添加额外的MIME类型以确保兼容性
-            String[] mimetypes = {"image/jpeg", "image/png", "image/jpg", "image/gif"};
-            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-            selectImageLauncher.launch(intent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pickMedia.launch(new PickVisualMediaRequest.Builder()
+                        .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
+                        .build());
+            } else {
+                // 回退到 ACTION_OPEN_DOCUMENT
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("image/*");
+                String[] mimetypes = {"image/jpeg", "image/png", "image/jpg", "image/gif"};
+                intent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
+                // 仅请求临时读取权限（立即复制文件）
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                selectImageLauncher.launch(intent);
+            }
         });
 
         // 设置清除背景按钮
@@ -454,8 +474,9 @@ public class SettingsFragment extends Fragment {
                     Uri backgroundUri = Uri.parse(uriString);
                     if ("file".equals(backgroundUri.getScheme())) {
                         File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
-                        if (backgroundFile.exists())
-                            backgroundFile.delete();
+                        if (backgroundFile.exists()) backgroundFile.delete();
+                    } else {
+                        try { requireContext().getContentResolver().delete(backgroundUri, null, null); } catch (Exception ignored) {}
                     }
                 } catch (Exception e) {
                     show_error_dialog(requireContext(),"删除背景图片出错："+ e);

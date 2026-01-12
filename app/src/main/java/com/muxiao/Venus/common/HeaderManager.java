@@ -1,4 +1,5 @@
 package com.muxiao.Venus.common;
+
 import static com.muxiao.Venus.common.tools.sendPostRequest;
 
 import android.content.Context;
@@ -17,14 +18,23 @@ public class HeaderManager {
     private static final String app_id = "bll8iq97cem8";
     private final MiHoYoBBSConstants BBSconstants;
     private final DeviceUtils deviceUtils;
-    private final String device_id;
+    private String device_id;
     private final String user_agent;
 
     public HeaderManager(Context context) {
         this.BBSconstants = new MiHoYoBBSConstants(context);
         this.deviceUtils = new DeviceUtils(context);
-        this.device_id = deviceUtils.generateDeviceId();
         this.user_agent = "Mozilla/5.0 (Linux; Android " + Build.VERSION.SDK_INT + "; " + Build.MODEL + ") AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/" + BBSconstants.bbs_version;
+    }
+
+    /**
+     * 获取设备ID
+     */
+    private String getDeviceId() {
+        if (device_id != null)
+            return device_id;
+        device_id = deviceUtils.waitForDeviceId();
+        return device_id;
     }
 
     /**
@@ -33,19 +43,19 @@ public class HeaderManager {
     public Map<String, String> get_game_login_headers() {
 
         return new HashMap<>() {{
-           put("Accept", "application/json; utf-8");
-           put("x-rpc-channel", Build.MANUFACTURER);
-           put("Origin", Constants.Urls.WEB_BASE_URL);
-           put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
-           put("x-rpc-app_version", BBSconstants.bbs_version);
-           put("User-Agent", user_agent);
-           put("x-rpc-client_type", "5");
-           put("Accept-Language", "zh-CN,en-US;q=0.8");
-           put("X-Requested-With", MiHoYoBBSConstants.PACKAGE_NAME);
-           put("Cookie", "");
-           put("x-rpc-device_id", device_id);
-           put("DS", getDS(BBSconstants.LK2));
-       }};
+            put("Accept", "application/json; utf-8");
+            put("x-rpc-channel", Build.MANUFACTURER);
+            put("Origin", Constants.Urls.WEB_BASE_URL);
+            put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
+            put("x-rpc-app_version", BBSconstants.bbs_version);
+            put("User-Agent", user_agent);
+            put("x-rpc-client_type", "5");
+            put("Accept-Language", "zh-CN,en-US;q=0.8");
+            put("X-Requested-With", MiHoYoBBSConstants.PACKAGE_NAME);
+            put("Cookie", "");
+            put("x-rpc-device_id", getDeviceId());
+            put("DS", getDS(BBSconstants.LK2));
+        }};
     }
 
     /**
@@ -59,7 +69,7 @@ public class HeaderManager {
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-channel", Build.MANUFACTURER);
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
             put("User-Agent", user_agent);
             put("x-rpc-verify_key", app_id);
@@ -79,7 +89,7 @@ public class HeaderManager {
             put("Accept-Language", "zh-CN,en-US;q=0.8");
             put("X-Requested-With", MiHoYoBBSConstants.PACKAGE_NAME);
             put("Cookie", "");
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-app_id", app_id);
             put("DS", getDS(BBSconstants.LK2));
         }};
@@ -96,7 +106,7 @@ public class HeaderManager {
             put("Accept", "application/json");
             put("x-rpc-game_biz", "bbs_cn");
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_model", Build.MODEL);
             put("x-rpc-app_id", app_id);
@@ -113,7 +123,7 @@ public class HeaderManager {
             put("x-rpc-device_fp", "");
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-client_type", "2");
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-sdk_version", "2.20.1");
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-game_biz", "bbs_cn");
@@ -133,7 +143,7 @@ public class HeaderManager {
             put("Origin", Constants.Urls.WEB_BASE_URL);
             put("Referer", Constants.Urls.WEB_BASE_URL);
             put("x-rpc-device_fp", getFp());
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-page", "v5.3.2-gr-cn_#/ys");
@@ -151,7 +161,7 @@ public class HeaderManager {
         return new HashMap<>() {{
             put("x-rpc-client_type", "2");
             put("x-rpc-app_version", BBSconstants.bbs_version);
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_model", Build.MODEL);
@@ -174,7 +184,7 @@ public class HeaderManager {
     public Map<String, String> get_user_game_roles_stoken_headers() {
         return new HashMap<>() {{
             put("x-rpc-client_type", "2");
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-device_fp", getFp());
             put("x-rpc-verify_key", app_id);
             put("User-Agent", user_agent);
@@ -193,7 +203,7 @@ public class HeaderManager {
             put("x-rpc-device_fp", getFp());
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-client_type", "2");
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-sdk_version", "2.20.1");
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-game_biz", "bbs_cn");
@@ -238,7 +248,7 @@ public class HeaderManager {
         return new HashMap<>() {{
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-client_type", "2");
-            put("x-rpc-device_id", device_id);
+            put("x-rpc-device_id", getDeviceId());
             put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
             put("x-rpc-device_name", Build.DEVICE);
             put("x-rpc-device_model", Build.MODEL);
@@ -316,9 +326,9 @@ public class HeaderManager {
         Map<String, Object> body = new HashMap<>() {{
             put("seed_id", Long.toString(randomLong, 16));
             put("platform", "2");
-            put("device_fp", device_id.replace("-", "").substring(8, 21));
-            put("device_id", device_id);
-            put("bbs_device_id", device_id);
+            put("device_fp", getDeviceId().replace("-", "").substring(8, 21));
+            put("device_id", getDeviceId());
+            put("bbs_device_id", getDeviceId());
             put("ext_fields", deviceUtils.getExtFields());
             put("app_name", "bbs_cn");
             put("seed_time", String.valueOf(System.currentTimeMillis()));

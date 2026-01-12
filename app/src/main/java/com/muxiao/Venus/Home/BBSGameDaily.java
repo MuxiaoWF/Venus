@@ -292,7 +292,7 @@ public class BBSGameDaily {
     /**
      * 签到(最开始的)
      */
-    public void signAccount() {
+    public void run() {
         if (account_list.isEmpty()) {
             notification.sendErrorNotification("游戏签到出错", "没有绑定任何" + game_name + "账号");
             statusNotifier.notifyListeners("签到失败，并没有绑定任何" + game_name + "账号，请先绑定");

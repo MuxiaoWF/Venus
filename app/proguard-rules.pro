@@ -23,16 +23,3 @@
 # 抑制 R8 警告
 -dontwarn javax.imageio.**
 -dontwarn javax.imageio.spi.**
-
-# 保留Sensebot库
--keep class sensebot.** { *; }
-
-# 保留OAID库
--keep class com.github.gzuliyujiang.oaid.** { *; }
-
-# 保留Geetest验证码库
--keep class com.geetest.sdk.** { *; }
--keep class com.geetest.sensebot.** { *; }
-
-# 保留自定义的类和接口
--keep class com.muxiao.Venus.** { *; }
