@@ -298,6 +298,7 @@ public class BBSDaily {
                         notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
                 }
             }
+            //noinspection BusyWait
             Thread.sleep(500 + new Random().nextInt(1500));
         }
     }
@@ -364,6 +365,7 @@ public class BBSDaily {
                         notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
                 }
             }
+            //noinspection BusyWait
             Thread.sleep(500 + new Random().nextInt(1500));
         }
     }
@@ -431,12 +433,14 @@ public class BBSDaily {
      * @param headers  请求头
      */
     private void performVerificationWithCallback(Map<String, String> headers) {
+        gt3Controller.updateTaskStatusWaring("米游币任务");
         Geetest.geetest(headers, new GeetestVerificationCallback() {
             @Override
             public void onVerificationSuccess(Map<String, String> code) {
                 notifier.notifyListeners("人机验证成功，继续执行签到...");
                 geetest_code = code;
                 gt3Controller.destroyButton(); // 销毁按钮
+                gt3Controller.updateTaskStatusInProgress("米游币任务");
                 synchronized (BBSDaily.this) {
                     BBSDaily.this.notifyAll();
                 }

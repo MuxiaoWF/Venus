@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Setting;
 
+import static com.muxiao.Venus.common.Constants.Prefs.*;
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
@@ -30,6 +31,7 @@ import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -47,16 +49,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executors;
 
 public class SettingsFragment extends Fragment {
     private SharedPreferences sharedPreferences;
     private SharedPreferences configPreferences;
-    private static final String PREFS_NAME = "settings_prefs";
-    private static final String CONFIG_PREFS_NAME = "config_prefs";
-    private static final String UPDATE_PREFS_NAME = "update_prefs";
-    private static final String AUTO_UPDATE_ENABLED = "auto_update_enabled";
-    private static final String THEME_PREFS_NAME = "theme_prefs";
-    private static final String BACKGROUND_PREFS_NAME = "background_prefs";
     private static final int THEME_DEFAULT = 0;
     private static final int THEME_BLUE = 1;
     private static final int THEME_GREEN = 2;
@@ -64,13 +61,11 @@ public class SettingsFragment extends Fragment {
     private static final int THEME_YELLOW = 4;
     private static final int THEME_LIGHT = 5;
     private static final int THEME_DARK = 6;
-    private static final String SELECTED_THEME = "selected_theme";
 
     // 添加主题深浅色常量
     private static final int THEME_VARIANT_DEFAULT = 0;
     private static final int THEME_VARIANT_LIGHT = 1;
     private static final int THEME_VARIANT_DARK = 2;
-    private static final String SELECTED_THEME_VARIANT = "selected_theme_variant";
 
     // 配置显示文本视图
     private MaterialTextView salt6xValue;
@@ -83,11 +78,10 @@ public class SettingsFragment extends Fragment {
 
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
-    private static final String BACKGROUND_IMAGE_URI = "background_image_uri";
-    private static final String BACKGROUND_ALPHA = "background_alpha";
+
     // ActivityResult 启动器
     private ActivityResultLauncher<Intent> selectImageLauncher; // ACTION_OPEN_DOCUMENT (老设备)
-    private ActivityResultLauncher<PickVisualMediaRequest>  pickMedia; // Photo Picker (API33+)
+    private ActivityResultLauncher<PickVisualMediaRequest> pickMedia; // Photo Picker (API33+)
     private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
 
     @Override
@@ -105,39 +99,74 @@ public class SettingsFragment extends Fragment {
         CollapsibleCardView backgroundCard = view.findViewById(R.id.background_card);
         CollapsibleCardView notificationCard = view.findViewById(R.id.notification_card);
         CollapsibleCardView aboutCard = view.findViewById(R.id.about_card);
+        CollapsibleCardView sklandCard = view.findViewById(R.id.skland_card);
 
-        ViewGroup dailyView = bbsCard.getContentLayout();
-        ViewGroup bbsGameView = bbsGameCard.getContentLayout();
-        ViewGroup utilsView = bbsUtilsCard.getContentLayout();
-        ViewGroup updateView = updateCard.getContentLayout();
-        ViewGroup cacheView = cacheCard.getContentLayout();
-        ViewGroup themeView = themeCard.getContentLayout();
-        ViewGroup backgroundView = backgroundCard.getContentLayout();
-        ViewGroup notificationView = notificationCard.getContentLayout();
-        ViewGroup aboutView = aboutCard.getContentLayout();
+        bbsCard.setContent(R.layout.item_setting_bbs_daily);
+        bbsGameCard.setContent(R.layout.item_setting_game_daily);
+        bbsUtilsCard.setContent(R.layout.item_setting_bbs_utils);
+        updateCard.setContent(R.layout.item_setting_update);
+        cacheCard.setContent(R.layout.item_setting_cache);
+        themeCard.setContent(R.layout.item_setting_theme);
+        backgroundCard.setContent(R.layout.item_setting_background_picture);
+        notificationCard.setContent(R.layout.item_setting_notification);
+        aboutCard.setContent(R.layout.item_setting_about);
+        sklandCard.setContent(R.layout.item_setting_skland);
 
-        bbsCard.setContent(inflater.inflate(R.layout.item_setting_bbs_daily, dailyView, false));
-        bbsGameCard.setContent(inflater.inflate(R.layout.item_setting_game_daily, bbsGameView, false));
-        bbsUtilsCard.setContent(inflater.inflate(R.layout.item_setting_bbs_utils, utilsView, false));
-        updateCard.setContent(inflater.inflate(R.layout.item_setting_update, updateView, false));
-        cacheCard.setContent(inflater.inflate(R.layout.item_setting_cache, cacheView, false));
-        themeCard.setContent(inflater.inflate(R.layout.item_setting_theme, themeView, false));
-        backgroundCard.setContent(inflater.inflate(R.layout.item_setting_background_picture, backgroundView, false));
-        notificationCard.setContent(inflater.inflate(R.layout.item_setting_notification, notificationView, false));
-        aboutCard.setContent(inflater.inflate(R.layout.item_setting_about, aboutView, false));
+        View dailyView = bbsCard.getContentLayout();
+        View bbsGameView = bbsGameCard.getContentLayout();
+        View utilsView = bbsUtilsCard.getContentLayout();
+        View updateView = updateCard.getContentLayout();
+        View cacheView = cacheCard.getContentLayout();
+        View themeView = themeCard.getContentLayout();
+        View backgroundView = backgroundCard.getContentLayout();
+        View notificationView = notificationCard.getContentLayout();
+        View aboutView = aboutCard.getContentLayout();
+        View sklandView = sklandCard.getContentLayout();
 
         // 初始化SharedPreferences
-        sharedPreferences = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
         configPreferences = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
         backgroundPreferences = requireActivity().getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
 
-        // 初始化Activity结果启动器
-        initActivityLauncher();
+        // 初始化图片选择启动器
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), this::startCropActivity);
+        else
+            selectImageLauncher = registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                            Uri selectedImageUri = result.getData().getData();
+                            if (selectedImageUri != null)
+                                // 启动裁剪
+                                startCropActivity(selectedImageUri);
+                        }
+                    }
+            );
+        // UCrop 裁剪结果启动器
+        cropImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        // 获取裁剪后的图片URI
+                        Uri croppedImageUri = UCrop.getOutput(result.getData());
+                        if (croppedImageUri != null)
+                            // 将裁剪后的图片复制到应用私有目录并保存
+                            saveBackgroundImage(croppedImageUri);
+                    } else if (result.getResultCode() == UCrop.RESULT_ERROR) {
+                        // 处理裁剪错误
+                        if (result.getData() != null) {
+                            final Throwable cropError = UCrop.getError(result.getData());
+                            show_error_dialog(requireContext(), "图片裁剪失败: " + Objects.requireNonNull(cropError).getMessage());
+                        }
+                    }
+                }
+        );
 
         // 查找所有Switch和CheckBox控件
         SwitchMaterial dailySwitchButton = dailyView.findViewById(R.id.daily_switch_button);
         SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
-        SwitchMaterial notificationSwitch = notificationCard.getContentLayout().findViewById(R.id.notification_switch);
+        SwitchMaterial notificationSwitch = notificationView.findViewById(R.id.notification_switch);
 
         MaterialCheckBox dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
         MaterialCheckBox dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
@@ -165,38 +194,38 @@ public class SettingsFragment extends Fragment {
         updateTime = utilsView.findViewById(R.id.update_time);
 
         // 恢复保存的状态
-        dailySwitchButton.setChecked(sharedPreferences.getBoolean("daily_switch_button", true));
-        gameDailySwitchButton.setChecked(sharedPreferences.getBoolean("game_daily_switch_button", true));
-        notificationSwitch.setChecked(sharedPreferences.getBoolean("notification_switch", false));
+        dailySwitchButton.setChecked(sharedPreferences.getBoolean(DAILY, true));
+        gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
+        notificationSwitch.setChecked(sharedPreferences.getBoolean(NOTIFICATION, false));
 
-        dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean("daily_checkbox_genshin", false));
-        dailyCheckboxZzz.setChecked(sharedPreferences.getBoolean("daily_checkbox_zzz", false));
-        dailyCheckboxSrg.setChecked(sharedPreferences.getBoolean("daily_checkbox_srg", false));
-        dailyCheckboxHr3.setChecked(sharedPreferences.getBoolean("daily_checkbox_hr3", false));
-        dailyCheckboxHr2.setChecked(sharedPreferences.getBoolean("daily_checkbox_hr2", false));
-        dailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean("daily_checkbox_weiding", false));
-        dailyCheckboxDabieye.setChecked(sharedPreferences.getBoolean("daily_checkbox_dabieye", true));
-        dailyCheckboxHna.setChecked(sharedPreferences.getBoolean("daily_checkbox_hna", false));
+        dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(DAILY_GENSHIN, false));
+        dailyCheckboxZzz.setChecked(sharedPreferences.getBoolean(DAILY_ZZZ, false));
+        dailyCheckboxSrg.setChecked(sharedPreferences.getBoolean(DAILY_SRG, false));
+        dailyCheckboxHr3.setChecked(sharedPreferences.getBoolean(DAILY_HR3, false));
+        dailyCheckboxHr2.setChecked(sharedPreferences.getBoolean(DAILY_HR2, false));
+        dailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean(DAILY_WEIDING, false));
+        dailyCheckboxDabieye.setChecked(sharedPreferences.getBoolean(DAILY_DABIEYE, true));
+        dailyCheckboxHna.setChecked(sharedPreferences.getBoolean(DAILY_HNA, false));
 
-        gameDailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_genshin", false));
-        gameDailyCheckboxZzz.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_zzz", false));
-        gameDailyCheckboxSrg.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_srg", false));
-        gameDailyCheckboxHr3.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_hr3", false));
-        gameDailyCheckboxHr2.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_hr2", false));
-        gameDailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean("game_daily_checkbox_weiding", false));
+        gameDailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(GAME_DAILY_GENSHIN, false));
+        gameDailyCheckboxZzz.setChecked(sharedPreferences.getBoolean(GAME_DAILY_ZZZ, false));
+        gameDailyCheckboxSrg.setChecked(sharedPreferences.getBoolean(GAME_DAILY_SRG, false));
+        gameDailyCheckboxHr3.setChecked(sharedPreferences.getBoolean(GAME_DAILY_HR3, false));
+        gameDailyCheckboxHr2.setChecked(sharedPreferences.getBoolean(GAME_DAILY_HR2, false));
+        gameDailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean(GAME_DAILY_WEIDING, false));
 
         // 所有控件设置监听器以保存状态
         dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_switch_button", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY, isChecked).apply());
 
         gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_switch_button", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY, isChecked).apply());
 
         notificationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 // 用户开启了通知开关，检查实际的通知权限
                 Notification notificationUtil = new Notification(requireContext());
-                if (!notificationUtil.areNotificationsEnabled()) {
+                if (notificationUtil.areNotificationsDisabled()) {
                     // 实际权限未开启，提示用户去设置
                     new MaterialAlertDialogBuilder(requireContext())
                             .setTitle("需要通知权限")
@@ -214,38 +243,38 @@ public class SettingsFragment extends Fragment {
                     return;
                 }
             }
-            sharedPreferences.edit().putBoolean("notification_switch", isChecked).apply();
+            sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
         });
 
         dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_genshin", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_GENSHIN, isChecked).apply());
         dailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_zzz", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_ZZZ, isChecked).apply());
         dailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_srg", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_SRG, isChecked).apply());
         dailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_hr3", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_HR3, isChecked).apply());
         dailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_hr2", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_HR2, isChecked).apply());
         dailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_weiding", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_WEIDING, isChecked).apply());
         dailyCheckboxDabieye.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_dabieye", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_DABIEYE, isChecked).apply());
         dailyCheckboxHna.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("daily_checkbox_hna", isChecked).apply());
+                sharedPreferences.edit().putBoolean(DAILY_HNA, isChecked).apply());
 
         gameDailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_genshin", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_GENSHIN, isChecked).apply());
         gameDailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_zzz", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_ZZZ, isChecked).apply());
         gameDailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_srg", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_SRG, isChecked).apply());
         gameDailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_hr3", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_HR3, isChecked).apply());
         gameDailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_hr2", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_HR2, isChecked).apply());
         gameDailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean("game_daily_checkbox_weiding", isChecked).apply());
+                sharedPreferences.edit().putBoolean(GAME_DAILY_WEIDING, isChecked).apply());
 
         // 关于
         MaterialTextView githubLink = aboutView.findViewById(R.id.github_link);
@@ -273,12 +302,10 @@ public class SettingsFragment extends Fragment {
         setupBackgroundSelection(backgroundView);
         // 自动更新设置
         SwitchMaterial autoUpdateSwitch = updateView.findViewById(R.id.auto_update_switch);
-        SharedPreferences updatePreferences = requireActivity().getSharedPreferences(UPDATE_PREFS_NAME, Context.MODE_PRIVATE);
-        boolean autoUpdateEnabled = updatePreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
+        boolean autoUpdateEnabled = sharedPreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
         autoUpdateSwitch.setChecked(autoUpdateEnabled);
         autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
-                updatePreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
-
+                sharedPreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
         // 手动检查更新按钮
         MaterialButton checkUpdateButton = updateView.findViewById(R.id.check_update_button_github);
         checkUpdateButton.setOnClickListener(v -> {
@@ -289,7 +316,7 @@ public class SettingsFragment extends Fragment {
         checkUpdateButton2.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
             startActivity(intent);
-            copyToClipboard(view,requireContext(),"mxwf"); // 提取码
+            copyToClipboard(view, requireContext(), "mxwf"); // 提取码
         });
 
         // 看图按钮
@@ -306,6 +333,48 @@ public class SettingsFragment extends Fragment {
         calculateCacheSize(cacheSizeText);
         // 设置清理缓存按钮
         clearCacheButton.setOnClickListener(v -> clearCache(cacheSizeText));
+
+        //森空岛设置
+        SwitchMaterial sklandSwitch = sklandView.findViewById(R.id.skland_switch);
+        sklandSwitch.setChecked(sharedPreferences.getBoolean(SKLAND_ENABLED, false));
+        sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
+                sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply());
+        MaterialTextView skland_link = sklandView.findViewById(R.id.skland_link);
+        skland_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
+        skland_link.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_LOGIN_URL));
+            startActivity(intent);
+        });
+        MaterialTextView skland_cookie_link = sklandView.findViewById(R.id.skland_cookie_link);
+        skland_cookie_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
+        skland_cookie_link.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_COOKIE_URL));
+            startActivity(intent);
+        });
+        MaterialButton sklandButton = sklandView.findViewById(R.id.skland_button);
+        sklandButton.setOnClickListener(v -> {
+            // 获取当前保存的森空岛token值
+            String currentToken = sharedPreferences.getString(SKLAND_COOKIE, "");
+            // 创建一个EditText用于输入token
+            TextInputEditText editText = new TextInputEditText(requireContext());
+            editText.setText(currentToken);
+            editText.setHint("请输入森空岛content");
+            // 创建对话框
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("森空岛content设置")
+                    .setMessage("请完成上方两个步骤并复制第二个步骤里content:\"xxxx\"中xxxx的值保存在此")
+                    .setView(editText)
+                    .setPositiveButton("保存", (dialog, which) -> {
+                        String newToken = Objects.requireNonNull(editText.getText()).toString().trim();
+                        // 保存到SharedPreferences
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putString(SKLAND_COOKIE, newToken);
+                        editor.apply();
+                        showCustomSnackbar(view, requireContext(), "森空岛content已保存");
+                    }).setNegativeButton("取消", (dialog, which) -> {
+                        // 用户选择取消，不做任何操作
+                    }).show();
+        });
         return view;
     }
 
@@ -315,51 +384,9 @@ public class SettingsFragment extends Fragment {
         // 更新通知开关状态
         if (sharedPreferences != null && getView() != null) {
             SwitchMaterial notificationSwitch = getView().findViewById(R.id.notification_switch);
-            boolean notificationEnabled = sharedPreferences.getBoolean("notification_switch", false);
+            boolean notificationEnabled = sharedPreferences.getBoolean(NOTIFICATION, false);
             notificationSwitch.setChecked(notificationEnabled);
         }
-    }
-
-    /**
-     * 初始化Activity结果启动器
-     */
-    private void initActivityLauncher() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), this::startCropActivity);
-        } else {
-            selectImageLauncher = registerForActivityResult(
-                    new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                            Uri selectedImageUri = result.getData().getData();
-                            if (selectedImageUri != null) {
-                                // 启动裁剪
-                                startCropActivity(selectedImageUri);
-                            }
-                        }
-                    }
-            );
-        }
-        // UCrop 裁剪结果启动器
-        cropImageLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        // 获取裁剪后的图片URI
-                        Uri croppedImageUri = UCrop.getOutput(result.getData());
-                        if (croppedImageUri != null) {
-                            // 将裁剪后的图片复制到应用私有目录并保存
-                            saveBackgroundImage(croppedImageUri);
-                        }
-                    } else if (result.getResultCode() == UCrop.RESULT_ERROR) {
-                        // 处理裁剪错误
-                        if (result.getData() != null) {
-                            final Throwable cropError = UCrop.getError(result.getData());
-                            show_error_dialog(requireContext(), "图片裁剪失败: " + Objects.requireNonNull(cropError).getMessage());
-                        }
-                    }
-                }
-        );
     }
 
     /**
@@ -424,15 +451,13 @@ public class SettingsFragment extends Fragment {
 
             // 删除临时裁剪文件
             File temp = new File(requireContext().getCacheDir(), "temp_cropped_background.jpg");
-            if (temp.exists()) {
-                try {
-                    temp.delete();
-                } catch (Exception ignored) {}
-            }
+            if (temp.exists())
+                temp.delete();
 
             // 显示提示信息
             View view = getView();
-            if (view != null) showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
+            if (view != null)
+                showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
         } catch (Exception e) {
             show_error_dialog(requireContext(), "保存背景图片失败: " + e.getMessage());
         }
@@ -476,10 +501,10 @@ public class SettingsFragment extends Fragment {
                         File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
                         if (backgroundFile.exists()) backgroundFile.delete();
                     } else {
-                        try { requireContext().getContentResolver().delete(backgroundUri, null, null); } catch (Exception ignored) {}
+                        requireContext().getContentResolver().delete(backgroundUri, null, null);
                     }
                 } catch (Exception e) {
-                    show_error_dialog(requireContext(),"删除背景图片出错："+ e);
+                    show_error_dialog(requireContext(), "删除背景图片出错：" + e);
                 }
             }
             backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
@@ -753,13 +778,13 @@ public class SettingsFragment extends Fragment {
      * 显示当前配置值
      */
     private void displayCurrentConfigValues() {
-        String salt6x = configPreferences.getString("SALT_6X", MiHoYoBBSConstants.SALT_6X_final);
-        String salt4x = configPreferences.getString("SALT_4X", MiHoYoBBSConstants.SALT_4X_final);
-        String lk2 = configPreferences.getString("LK2", MiHoYoBBSConstants.LK2_final);
-        String k2 = configPreferences.getString("K2", MiHoYoBBSConstants.K2_final);
-        String bbsVersion = configPreferences.getString("bbs_version", MiHoYoBBSConstants.bbs_version_final);
-        String update_time = configPreferences.getString("update_time", "2025.09");
-        String update_time_Local = configPreferences.getString("update_time_local", "2025.09");
+        String salt6x = configPreferences.getString(SALT_6X_PREF, MiHoYoBBSConstants.SALT_6X_final);
+        String salt4x = configPreferences.getString(SALT_4X_PREF, MiHoYoBBSConstants.SALT_4X_final);
+        String lk2 = configPreferences.getString(LK2_PREF, MiHoYoBBSConstants.LK2_final);
+        String k2 = configPreferences.getString(K2_PREF, MiHoYoBBSConstants.K2_final);
+        String bbsVersion = configPreferences.getString(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
+        String update_time = configPreferences.getString(UPDATE_TIME_PREF, MiHoYoBBSConstants.update_time);
+        String update_time_Local = configPreferences.getString(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
         salt6xValue.setText(new StringBuilder("SALT_6X: " + salt6x));
         salt4xValue.setText(new StringBuilder("SALT_4X: " + salt4x));
@@ -786,13 +811,13 @@ public class SettingsFragment extends Fragment {
                     SharedPreferences configPrefs = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = configPrefs.edit();
                     // 使用解析的数据，如果不存在则使用默认值
-                    editor.putString("SALT_6X", getDataOrDefault(data, "SALT_6X",  MiHoYoBBSConstants.SALT_6X_final));
-                    editor.putString("SALT_4X", getDataOrDefault(data, "SALT_4X",  MiHoYoBBSConstants.SALT_4X_final));
-                    editor.putString("LK2", getDataOrDefault(data, "LK2", MiHoYoBBSConstants.LK2_final));
-                    editor.putString("K2", getDataOrDefault(data, "K2", MiHoYoBBSConstants.K2_final));
-                    editor.putString("bbs_version", getDataOrDefault(data, "bbs_version", MiHoYoBBSConstants.bbs_version_final));
-                    editor.putString("update_time", getDataOrDefault(data, "update_time", "2025-09"));
-                    editor.putString("update_time_local", getDataOrDefault(data, "update_time_local", "2025-09"));
+                    editor.putString(SALT_6X_PREF, getDataOrDefault(data, SALT_6X_PREF, MiHoYoBBSConstants.SALT_6X_final));
+                    editor.putString(SALT_4X_PREF, getDataOrDefault(data, SALT_4X_PREF, MiHoYoBBSConstants.SALT_4X_final));
+                    editor.putString(LK2_PREF, getDataOrDefault(data, LK2_PREF, MiHoYoBBSConstants.LK2_final));
+                    editor.putString(K2_PREF, getDataOrDefault(data, K2_PREF, MiHoYoBBSConstants.K2_final));
+                    editor.putString(BBS_VERSION_PREF, getDataOrDefault(data, BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final));
+                    editor.putString(UPDATE_TIME_PREF, getDataOrDefault(data, UPDATE_TIME_PREF, MiHoYoBBSConstants.update_time));
+                    editor.putString(UPDATE_TIME_LOCAL_PREF, getDataOrDefault(data, UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time));
                     editor.apply();
                     requireActivity().runOnUiThread(() -> {
                         displayCurrentConfigValues();
@@ -815,17 +840,53 @@ public class SettingsFragment extends Fragment {
      * @param cacheSizeText 显示缓存大小的TextView
      */
     private void calculateCacheSize(MaterialTextView cacheSizeText) {
-        new Thread(() -> {
-            try {
-                long cacheSize = getDirSize(requireContext().getCacheDir()) + getDirSize(requireContext().getExternalCacheDir());
-                String sizeText = formatFileSize(cacheSize);
-                requireActivity().runOnUiThread(() ->
-                        cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() ->
-                        cacheSizeText.setText("当前缓存大小: 计算失败"));
-            }
-        }).start();
+        try (java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            executor.execute(() -> {
+                try {
+                    long totalSize = 0;
+                    File internalCache = requireContext().getCacheDir();
+                    totalSize += getDirSizeSafe(internalCache);
+
+                    File externalCache = requireContext().getExternalCacheDir();
+                    if (externalCache != null)
+                        totalSize += getDirSizeSafe(externalCache);
+                    String sizeText = formatFileSize(totalSize);
+                    requireActivity().runOnUiThread(() -> cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
+                } catch (Exception e) {
+                    requireActivity().runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: 计算失败"));
+                }
+            });
+        }
+    }
+
+    /**
+     * 清理缓存
+     *
+     * @param cacheSizeText 显示缓存大小的TextView
+     */
+    private void clearCache(MaterialTextView cacheSizeText) {
+        try (java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            executor.execute(() -> {
+                boolean success = true;
+                try {
+                    success &= deleteDirSafe(requireContext().getCacheDir());
+                    File externalCache = requireContext().getExternalCacheDir();
+                    if (externalCache != null)
+                        success &= deleteDirSafe(externalCache);
+                } catch (Exception e) {
+                    success = false;
+                }
+                boolean finalSuccess = success;
+                requireActivity().runOnUiThread(() -> {
+                    if (finalSuccess) {
+                        cacheSizeText.setText("当前缓存大小: 0 B");
+                        showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
+                    } else {
+                        showCustomSnackbar(getView(), requireContext(), "部分缓存清理失败");
+                    }
+                });
+            });
+        }
     }
 
     /**
@@ -834,16 +895,14 @@ public class SettingsFragment extends Fragment {
      * @param dir 目录
      * @return 目录大小（字节）
      */
-    private long getDirSize(File dir) {
+    private long getDirSizeSafe(File dir) {
         if (dir == null || !dir.exists()) return 0;
-        long size = 0;
         if (dir.isFile()) return dir.length();
+        long size = 0;
         File[] files = dir.listFiles();
-        if (files != null) {
+        if (files != null)
             for (File file : files)
-                if (file.isFile()) size += file.length();
-                else size += getDirSize(file);
-        }
+                size += getDirSizeSafe(file);
         return size;
     }
 
@@ -861,47 +920,25 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 清理缓存
-     *
-     * @param cacheSizeText 显示缓存大小的TextView
-     */
-    private void clearCache(MaterialTextView cacheSizeText) {
-        new Thread(() -> {
-            try {
-                // 清理内部缓存
-                deleteDir(requireContext().getCacheDir());
-                // 清理外部缓存
-                File externalCacheDir = requireContext().getExternalCacheDir();
-                if (externalCacheDir != null) deleteDir(externalCacheDir);
-                requireActivity().runOnUiThread(() -> {
-                    cacheSizeText.setText("当前缓存大小: 0 B");
-                    showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
-                });
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() ->
-                        showCustomSnackbar(getView(), requireContext(), "缓存清理失败: " + e.getMessage()));
-            }
-        }).start();
-    }
-
-    /**
      * 删除目录及其内容
      *
      * @param dir 目录
      * @return 是否删除成功
      */
-    private boolean deleteDir(File dir) {
+    private boolean deleteDirSafe(File dir) {
         if (dir == null || !dir.exists()) return true;
-        if (dir.isDirectory()) {
-            File[] files = dir.listFiles();
-            if (files != null)
-                for (File file : files)
-                    if (!deleteDir(file)) return false;
-        }
+        if (dir.isFile()) return dir.delete();
+        File[] files = dir.listFiles();
+        if (files != null)
+            for (File file : files)
+                if (!deleteDirSafe(file))
+                    return false;
         return dir.delete();
     }
 
-    // 上面方法的辅助方法
+    /**
+     * 获取更新salt返回的JSON对象中的数据，如果数据不存在则返回默认值
+     */
     private String getDataOrDefault(JsonObject data, String key, String defaultValue) {
         if (data != null && data.has(key) && !data.get(key).isJsonNull())
             return data.get(key).getAsString();

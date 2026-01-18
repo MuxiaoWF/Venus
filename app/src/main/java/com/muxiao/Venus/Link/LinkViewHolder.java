@@ -11,10 +11,10 @@ import com.muxiao.Venus.R;
  * 链接视图持有者，绑定列表项中的UI组件
  */
 public class LinkViewHolder extends RecyclerView.ViewHolder {
-    MaterialTextView uidTextView;
-    MaterialTextView linkTextView;
-    MaterialTextView currentUserTextView;
-    com.google.android.material.button.MaterialButton copyButton;
+    final MaterialTextView uidTextView;
+    final MaterialTextView linkTextView;
+    final MaterialTextView currentUserTextView;
+    final com.google.android.material.button.MaterialButton copyButton;
 
     public LinkViewHolder(View itemView) {
         super(itemView);

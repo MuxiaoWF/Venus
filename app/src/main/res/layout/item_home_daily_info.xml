@@ -2,8 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:orientation="vertical">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="wrap_content"
@@ -26,5 +25,6 @@
         android:layout_marginTop="8dp"
         android:text="如果遇到一些问题，可以尝试在设置里更新配置。（不用经常更新）"
         android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="?attr/colorOnSurfaceVariant" />
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:paddingBottom="16dp"/>
 </LinearLayout>

@@ -95,4 +95,5 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     public int getItemCount() {
         return uid_link_map.size();
     }
+
 }

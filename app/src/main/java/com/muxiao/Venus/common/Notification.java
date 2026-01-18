@@ -1,5 +1,8 @@
 package com.muxiao.Venus.common;
 
+import static com.muxiao.Venus.common.Constants.Prefs.NOTIFICATION;
+import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
+
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -15,8 +18,6 @@ import com.muxiao.Venus.R;
 
 public class Notification {
     private final Context context;
-    private static final int NOTIFICATION_ID_WORK = Constants.NOTIFICATION_ID_WORK;
-    private static final int NOTIFICATION_ID_ERROR = Constants.NOTIFICATION_ID_ERROR;
     public Notification(Context context) {
         this.context = context;
     }
@@ -30,8 +31,8 @@ public class Notification {
      */
     private void sendSystemNotification(String title, String content, boolean isError) {
         // 检查设置中的通知开关
-        SharedPreferences prefs = context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE);
-        boolean notificationEnabled = prefs.getBoolean("notification_switch", false);
+        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
 
         // 只有当通知开启时才发送通知
         if (notificationEnabled) {
@@ -71,12 +72,12 @@ public class Notification {
                     .setAutoCancel(true)
                     .setContentIntent(pendingIntent); // 设置点击意图
             if (isError) {
-                builder.setPriority(NotificationCompat.PRIORITY_DEFAULT).setSmallIcon(R.drawable.ic_error_notification).setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
+                builder.setPriority(NotificationCompat.PRIORITY_DEFAULT).setSmallIcon(R.drawable.ic_error).setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
                 // 使用固定ID发送通知，确保只会有一个通知
-                notificationManager.notify(NOTIFICATION_ID_ERROR, builder.build());
+                notificationManager.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
             } else {
                 builder.setPriority(NotificationCompat.PRIORITY_LOW).setSmallIcon(R.drawable.ic_notification).setSound(null);
-                notificationManager.notify(NOTIFICATION_ID_WORK, builder.build());
+                notificationManager.notify(Constants.NOTIFICATION_ID_WORK, builder.build());
             }
         }
     }
@@ -102,18 +103,17 @@ public class Notification {
     }
     
     /**
-     * 检查通知权限是否已启用
+     * 检查通知权限是否被禁用
      *
-     * @return true 表示已启用，false 表示未启用
+     * @return true 表示已禁用，false 表示未禁用
      */
-    public boolean areNotificationsEnabled() {
+    public boolean areNotificationsDisabled() {
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         // 检查 Android M (API 23) 及以上版本的通知权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            return notificationManager.areNotificationsEnabled();
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+            return !notificationManager.areNotificationsEnabled();
         // 对于低于 Android M 的版本，默认返回 true
-        return true;
+        return false;
     }
     
     /**

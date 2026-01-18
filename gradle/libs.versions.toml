@@ -17,7 +17,6 @@ okhttp = "5.3.2"
 sensebot = "4.4.4"
 touchimageview = "3.7.1"
 ucrop = "2.2.11"
-exifinterface = "1.4.1"
 
 [libraries]
 com-google-code-gson-gson3 = { module = "com.google.code.gson:gson", version.ref = "comGoogleCodeGsonGson" }
@@ -37,7 +36,6 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 sensebot = { module = "com.geetest.sensebot:sensebot", version.ref = "sensebot" }
 touchimageview = { module = "com.github.MikeOrtiz:TouchImageView", version.ref = "touchimageview" }
 ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

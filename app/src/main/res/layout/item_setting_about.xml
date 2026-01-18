@@ -3,13 +3,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:layout_marginBottom="6dp">
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/github_link"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:drawableEnd="@drawable/ic_link_url"
         android:drawablePadding="6dp"
         android:text="Github开源地址（可提bug）"

@@ -2,7 +2,6 @@ package com.muxiao.Venus.Link;
 
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
-import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
@@ -179,7 +178,11 @@ public class LinkFragment extends Fragment {
                     else // 绝区零（不存在是云游戏的情形）
                         result = gachaLink.zzz();
                 } catch (Exception e) {
-                    show_error_dialog(requireContext(), e.getMessage());
+                    requireActivity().runOnUiThread(() -> {
+                        errorTextView.setText(e.getMessage());
+                        progressBar.setVisibility(View.GONE);
+                        errorTextView.setVisibility(View.VISIBLE);
+                    });
                     return;
                 }
                 // 获取到结果并更新UI

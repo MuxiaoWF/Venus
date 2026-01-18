@@ -2,7 +2,6 @@ package com.muxiao.Venus.User;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -12,6 +11,8 @@ import android.view.ViewGroup;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
@@ -34,9 +35,8 @@ public class UserManagementFragment extends Fragment {
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
         noUserPrompt = rootView.findViewById(R.id.no_user_prompt);
-        noUserPrompt.setVisibility(View.GONE);
 
-        MaterialButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
+        ExtendedFloatingActionButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
         userLoginBtn.setOnClickListener(v -> {
             if (isTaskRunning()) {
                 showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法添加用户");
@@ -88,14 +88,14 @@ public class UserManagementFragment extends Fragment {
                 else
                     performRelogin(username);
             });
-            
+
             renameButton.setOnClickListener(v -> {
                 if (isTaskRunning())
                     showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
                 else
                     showRenameUserDialog(username);
             });
-            
+
             deleteButton.setOnClickListener(v -> {
                 if (isTaskRunning())
                     showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
@@ -109,11 +109,11 @@ public class UserManagementFragment extends Fragment {
 
     /**
      * 显示重命名用户对话框
+     *
      * @param oldUsername 旧用户名
      */
     private void showRenameUserDialog(String oldUsername) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("重命名用户");
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext()).setTitle("重命名用户");
 
         final TextInputLayout inputLayout = new TextInputLayout(requireContext());
         final TextInputEditText input = new TextInputEditText(requireContext());
@@ -133,14 +133,13 @@ public class UserManagementFragment extends Fragment {
                 else
                     renameUser(oldUsername, newUsername);
             }
-        });
-        builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
-
+        }).setNegativeButton("取消", (dialog, which) -> dialog.cancel());
         builder.show();
     }
 
     /**
      * 重命名用户
+     *
      * @param oldUsername 旧用户名
      * @param newUsername 新用户名
      */
@@ -160,6 +159,7 @@ public class UserManagementFragment extends Fragment {
 
     /**
      * 显示删除用户对话框
+     *
      * @param username 用户名
      */
     private void showDeleteUserDialog(String username) {
@@ -167,11 +167,10 @@ public class UserManagementFragment extends Fragment {
             showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
             return;
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("删除用户");
-        builder.setMessage("确定要删除用户 \"" + username + "\" 吗？此操作无法撤销。");
-
-        builder.setPositiveButton("删除", (dialog, which) -> {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("删除用户")
+                .setMessage("确定要删除用户 \"" + username + "\" 吗？此操作无法撤销。")
+                .setPositiveButton("删除", (dialog, which) -> {
             if (isTaskRunning()) {
                 showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
                 return;
@@ -179,12 +178,10 @@ public class UserManagementFragment extends Fragment {
             userManager.removeUser(username);
             refreshUserList();
             showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
-        });
-        builder.setNegativeButton("取消", (dialog, which) -> dialog.cancel());
-
-        builder.show();
+        }).setNegativeButton("取消", (dialog, which) -> dialog.cancel())
+                .show();
     }
-    
+
     /**
      * 检查是否有任务正在运行
      */
@@ -194,6 +191,7 @@ public class UserManagementFragment extends Fragment {
 
     /**
      * 执行重新登录操作
+     *
      * @param username 用户名
      */
     private void performRelogin(String username) {

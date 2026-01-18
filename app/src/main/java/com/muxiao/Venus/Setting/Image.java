@@ -51,6 +51,9 @@ public class Image {
         });
     }
 
+    /**
+     * 解析图片数据
+     */
     public List<Map<String, Object>> parseImageData(String jsonResponse) {
         List<Map<String, Object>> imagePosts = new ArrayList<>();
         JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
@@ -148,8 +151,7 @@ public class Image {
 
     // 关闭线程池，释放资源
     public void destroy() {
-        if (executorService != null && !executorService.isShutdown()) {
+        if (executorService != null && !executorService.isShutdown())
             executorService.shutdown();
-        }
     }
 }

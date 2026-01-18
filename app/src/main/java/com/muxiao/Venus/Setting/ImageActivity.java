@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Setting;
 
+import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -48,7 +49,6 @@ import java.util.Map;
 
 public class ImageActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
-    private ImageAdapter imageAdapter;
     private Image imageLoader;
     private List<Map<String, Object>> imageDataList;
     private final List<Integer> selectedItems = new ArrayList<>();
@@ -56,7 +56,6 @@ public class ImageActivity extends AppCompatActivity {
     private MenuItem downloadMenuItem;
     private View rootView;
 
-    private static final int PERMISSION_REQUEST_CODE = 1001;
     private int downloadProgress = 0;
     private int totalDownloads = 0;
     private List<Integer> itemsToDownload = new ArrayList<>();
@@ -208,10 +207,6 @@ public class ImageActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setTitle("图片浏览");
         }
-        handleBackPress();
-    }
-
-    private void handleBackPress() {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -223,6 +218,9 @@ public class ImageActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * 加载图片
+     */
     private void loadImages(String params) {
         showCustomSnackbar(rootView, this, "加载图片中...");
         imageLoader = new Image(this);
@@ -231,7 +229,7 @@ public class ImageActivity extends AppCompatActivity {
             public void onImageLoaded(List<Map<String, Object>> imageData) {
                 // 数据加载成功，更新UI
                 imageDataList = imageData;
-                imageAdapter = new ImageAdapter(imageData);
+                ImageAdapter imageAdapter = new ImageAdapter(imageData);
                 recyclerView.setAdapter(imageAdapter);
             }
 
@@ -257,27 +255,16 @@ public class ImageActivity extends AppCompatActivity {
             checkPermissionsAndDownload();
             return true;
         } else if (item.getItemId() == android.R.id.home) {
-            if (isSelectionMode) {
-                exitSelectionMode();
-            } else {
-                finish();
-            }
+            if (isSelectionMode) exitSelectionMode();
+            else finish();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    private void enterSelectionMode() {
-        if (isSelectionMode) return;
-        isSelectionMode = true;
-        downloadMenuItem.setVisible(true);
-        // 更新ActionBar标题和返回按钮
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle(selectedItems.size() + " 项已选择");
-            getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_error);
-        }
-    }
-
+    /**
+    * 退出多选模式
+    */
     private void exitSelectionMode() {
         isSelectionMode = false;
         downloadMenuItem.setVisible(false);
@@ -297,6 +284,9 @@ public class ImageActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 更新图片选择状态（选中与否）
+     */
     private void updateSelectionState(ImageViewHolder holder, int position) {
         if (selectedItems.contains(position)) {
             // 设置选中状态的视觉效果
@@ -313,7 +303,7 @@ public class ImageActivity extends AppCompatActivity {
     /**
      * 切换选择状态
      *
-     * @param holder ViewHolder
+     * @param holder   ViewHolder
      * @param position 索引位置
      */
     private void toggleSelection(ImageViewHolder holder, int position) {
@@ -377,13 +367,29 @@ public class ImageActivity extends AppCompatActivity {
             holder.itemView.setOnClickListener(v -> {
                 if (isSelectionMode)
                     toggleSelection(holder, position);
-                else
-                    openFullscreenImage(position);
+                else {// 跳转到全屏图片
+                    Intent intent = new Intent(ImageActivity.this, FullscreenImageActivity.class);
+                    Map<String, Object> currentItemData = imageDataList.get(position);
+                    List<Map<String, Object>> singleItemList = new ArrayList<>();
+                    singleItemList.add(currentItemData);
+                    Gson gson = new Gson();
+                    String jsonData = gson.toJson(singleItemList);
+                    intent.putExtra("imageDataListJson", jsonData);
+                    intent.putExtra("position", 0);
+                    startActivity(intent);
+                }
             });
             // 长按进入多选模式
             holder.itemView.setOnLongClickListener(v -> {
-                if (!isSelectionMode)
-                    enterSelectionMode();
+                if (!isSelectionMode) {
+                    isSelectionMode = true;
+                    downloadMenuItem.setVisible(true);
+                    // 更新ActionBar标题和返回按钮
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle(selectedItems.size() + " 项已选择");
+                        getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_error);
+                    }
+                }
                 toggleSelection(holder, position);
                 return true;
             });
@@ -405,7 +411,7 @@ public class ImageActivity extends AppCompatActivity {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED)
                 ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE);
+                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_PERMISSION_REQUEST_CODE);
             else
                 downloadSelectedImages();
         else
@@ -504,7 +510,7 @@ public class ImageActivity extends AppCompatActivity {
 
                         @Override
                         public void onLoadFailed(Drawable errorDrawable) {
-                            runOnUiThread(() -> show_error_dialog(ImageActivity.this,"图片下载失败: " + imageUrl));
+                            runOnUiThread(() -> show_error_dialog(ImageActivity.this, "图片下载失败: " + imageUrl));
                             downloadProgress++;
                             currentImageIndexInPost++;
                             downloadNextImage();
@@ -533,14 +539,14 @@ public class ImageActivity extends AppCompatActivity {
             fos.flush();
             fos.close();
         } catch (IOException e) {
-            runOnUiThread(() -> show_error_dialog(ImageActivity.this,"图片保存失败: " + e.getMessage()));
+            runOnUiThread(() -> show_error_dialog(ImageActivity.this, "图片保存失败: " + e.getMessage()));
         }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
+        if (requestCode == WRITE_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
                 downloadSelectedImages();
             else
@@ -548,25 +554,13 @@ public class ImageActivity extends AppCompatActivity {
         }
     }
 
-    private void openFullscreenImage(int position) {
-        Intent intent = new Intent(ImageActivity.this, FullscreenImageActivity.class);
-        Map<String, Object> currentItemData = imageDataList.get(position);
-        List<Map<String, Object>> singleItemList = new ArrayList<>();
-        singleItemList.add(currentItemData);
-        Gson gson = new Gson();
-        String jsonData = gson.toJson(singleItemList);
-        intent.putExtra("imageDataListJson", jsonData);
-        intent.putExtra("position", 0);
-        startActivity(intent);
-    }
-
     private static class ImageViewHolder extends RecyclerView.ViewHolder {
-        ImageView imageView;
-        TextView authorTextView;
-        TextView descriptionTextView;
-        MaterialCardView cardView;
-        TextView titleTextView;
-        TextView timeTextView;
+        private final ImageView imageView;
+        private final TextView authorTextView;
+        private final TextView descriptionTextView;
+        private final MaterialCardView cardView;
+        private final TextView titleTextView;
+        private final TextView timeTextView;
 
         public ImageViewHolder(View itemView) {
             super(itemView);
@@ -596,9 +590,8 @@ public class ImageActivity extends AppCompatActivity {
      */
     private void setupTabLayout(TabLayout tabLayout, boolean startWithDaily) {
         tabLayout.removeAllTabs();
-        if (!startWithDaily) {
+        if (!startWithDaily)
             tabLayout.addTab(tabLayout.newTab().setText("日榜"));
-        }
         tabLayout.addTab(tabLayout.newTab().setText("周榜"));
         tabLayout.addTab(tabLayout.newTab().setText("月榜"));
     }

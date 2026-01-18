@@ -1,11 +1,12 @@
 鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
-[gzu-liyujiang/Android_CN_OAID 部分Android信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)
-[com.geetest.sensebot » sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.3.3)
-[MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)
-[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)
-还有Google Android组件支持
+[gzu-liyujiang/Android_CN_OAID 部分Android信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)，
+[com.geetest.sensebot » sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.3.3)，
+[MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)，
+[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)，
+[YueHen14/skyland-auto-sign 森空岛签到转写](https://github.com/YueHen14/skyland-auto-sign)，
+还有Google Android组件支持，以及AI的~~薛定谔的~~大力辅助。
 
 非常非常简陋的APP，运行速度也非常缓慢。应该没人用（，写来玩的
 
@@ -23,9 +24,31 @@
 
 ---
 
+2026.01.18
+
+时间减屎2。并尽量调整了一下样式，尽管还是~~有点~~挺丑。同样为了俺方便加了一个森空岛的签到功能（
+
+---
+
+2026.01.12
+
+突然发现被自己手机识别成病毒了…关键还不说具体是哪个东西，估摸着应该是OAID库的原因，~~调整一下~~尽量减少看看先，现在属于有毒与没毒的叠加态（有概率报毒）。谁知道Android.Riskware.Gray.VPN.B.YYTS这个是啥问题可以可以和俺说一声（
+
+---
+
+2026.01.11
+
+2026新年新气象，见鬼了怎么能写出这么屎的代码
+
+---
+
+2025.12.15
+
 原本想调一个后台运行的，结果验证码似乎不太好搞，那就不搞了（，等个一分钟应该也算可以了🤔有空整理一下屎山代码
 
 ---
+
+2025.09.06
 
 原本想加一个微信原神小程序的，结果发现要code，就懒得再搞了，这里mark一下有兴趣的可以看看：
 
@@ -98,12 +121,6 @@
 
 ---
 
+2025.09.04
+
 本来还想加一个米游社里战绩功能的，抓不到，懒了，不搞了（
-
----
-
-2026新年新气象，见鬼了怎么能写出这么屎的代码
-
----
-
-突然发现被自己手机识别成病毒了…关键还不说具体是哪个东西，估摸着应该是OAID库的原因，调整一下看看先。谁知道Android.Riskware.Gray.VPN.B.YYTS这个是啥问题可以可以和俺说一声（

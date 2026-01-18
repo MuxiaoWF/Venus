@@ -22,9 +22,9 @@ import java.util.Map;
 
 public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.ImageViewHolder> {
     private final Context context;
-    private final List<ImageItem> imageItems; // 修改为ImageItem列表
+    private final List<ImageItem> imageItems;
+    private final FullscreenImageActivity fullscreenActivity;
 
-    // 创建一个内部类来保存图片信息
     public static class ImageItem {
         private final String imageUrl;
         private final Map<String, Object> imageData;
@@ -45,6 +45,7 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
 
     public ImagePagerAdapter(Context context, List<Map<String, Object>> imageDataList) {
         this.context = context;
+        this.fullscreenActivity = (FullscreenImageActivity) context;
         this.imageItems = new ArrayList<>();
         // 为每个图片URL创建一个ImageItem
         for (Map<String, Object> imageData : imageDataList) {
@@ -86,6 +87,17 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
                             // 加载成功，隐藏进度条并设置图片
                             holder.progressBar.setVisibility(View.GONE);
                             holder.imageView.setImageDrawable(resource);
+                            // 设置缩放监听器
+                            holder.imageView.setOnTouchImageViewListener(() -> {
+                                // 当图片缩放或移动时，根据缩放级别决定是否隐藏底部信息栏
+                                float currentZoom = holder.imageView.getCurrentZoom();
+                                // 如果当前缩放大于1（即图片被放大），则隐藏底部信息栏
+                                if (currentZoom > 1.0f)
+                                    fullscreenActivity.hideBottomInfo();
+                                else if (currentZoom <= 1.0f)
+                                    // 如果当前缩放小于等于1（即图片未被放大），则显示底部信息栏
+                                    fullscreenActivity.showBottomInfo();
+                            });
                         }
 
                         @Override
@@ -122,8 +134,8 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
     }
 
     public static class ImageViewHolder extends RecyclerView.ViewHolder {
-        TouchImageView imageView;
-        ProgressBar progressBar;
+        final TouchImageView imageView;
+        final ProgressBar progressBar;
 
         @SuppressLint("ClickableViewAccessibility")
         public ImageViewHolder(@NonNull View itemView) {

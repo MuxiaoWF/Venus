@@ -23,3 +23,5 @@
 # 抑制 R8 警告
 -dontwarn javax.imageio.**
 -dontwarn javax.imageio.spi.**
+
+-keep class com.geetest.sdk.** {*;}

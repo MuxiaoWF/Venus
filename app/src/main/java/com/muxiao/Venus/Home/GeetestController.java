@@ -35,4 +35,14 @@ public interface GeetestController {
      * 销毁验证码Utils
      */
     void destroyUtils();
+
+    /**
+     * 更新任务状态为警告
+     */
+    void updateTaskStatusWaring(String taskName);
+
+    /**
+     * 更新任务状态为正常运行
+     */
+    void updateTaskStatusInProgress(String taskName);
 }

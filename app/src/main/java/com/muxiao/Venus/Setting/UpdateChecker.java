@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Setting;
 
+import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
@@ -17,14 +18,13 @@ import com.google.gson.JsonParser;
 import com.muxiao.Venus.common.Constants;
 
 public class UpdateChecker {
-    private static final String PREFS_NAME = "update_prefs";
     private static final String LAST_CHECK_TIME = "last_check_time";
     private final Context context;
     private final SharedPreferences sharedPreferences;
 
     public UpdateChecker(Context context) {
         this.context = context;
-        this.sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.sharedPreferences = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     /**

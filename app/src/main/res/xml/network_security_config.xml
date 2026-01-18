@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!-- 针对所有域名允许使用自签名证书 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api-takumi.mihoyo.com</domain>
+        <domain includeSubdomains="true">bbs-api.miyoushe.com</domain>
+        <domain includeSubdomains="true">hk4e-sdk.mihoyo.com</domain>
+        <domain includeSubdomains="true">passport-api.mihoyo.com</domain>
+        <domain includeSubdomains="true">public-data-api.mihoyo.com</domain>
+        <domain includeSubdomains="true">api.github.com</domain>
+        <domain includeSubdomains="true">muxiaowf.dpdns.org</domain>
+        <domain includeSubdomains="true">wwzq.lanzouq.com</domain>
+
+        <!-- 允许信任用户添加的CA证书和自签名证书 -->
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </domain-config>
+
+    <!-- 允许信任系统预装CA和用户安装的CA -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"
+                tools:ignore="AcceptsUserCertificates" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

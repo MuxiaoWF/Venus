@@ -1,121 +1,162 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
         android:text="选择应用主题："
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurface" />
 
-    <RadioGroup
-        android:id="@+id/theme_radio_group"
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="vertical">
+        android:layout_marginBottom="8dp"
+        app:cardCornerRadius="8dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="?attr/colorOutline">
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_default"
+        <GridLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="默认主题（会随着系统变化 - 推荐，其余均不太好看）"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:columnCount="3"
+            android:rowCount="3"
+            android:padding="8dp">
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_blue"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="蓝色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_default"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="系统"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_green"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="绿色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_blue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="蓝色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_red"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="红色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_green"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="绿色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_yellow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="黄色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_red"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="红色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_light"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="浅色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_yellow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="黄色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_dark"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="深色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_light"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="浅色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-    </RadioGroup>
+            <com.google.android.material.radiobutton.MaterialRadioButton
+                android:id="@+id/theme_dark"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:text="深色"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface" />
 
-    <!-- 添加深浅色控制选项 -->
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_columnWeight="1" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_columnWeight="1" />
+
+        </GridLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
         android:text="主题深浅设置："
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurface" />
 
-    <RadioGroup
-        android:id="@+id/theme_variant_group"
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="vertical">
+        app:cardCornerRadius="8dp"
+        android:layout_marginBottom="6dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="?attr/colorOutline">
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_variant_default"
+        <RadioGroup
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="默认深浅色（跟随系统）"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:padding="8dp"
+            android:orientation="horizontal">
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_variant_light"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="强制浅色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+                <com.google.android.material.radiobutton.MaterialRadioButton
+                    android:id="@+id/theme_variant_default"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="跟随"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
-            android:id="@+id/theme_variant_dark"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="强制深色主题"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
-    </RadioGroup>
+                <com.google.android.material.radiobutton.MaterialRadioButton
+                    android:id="@+id/theme_variant_light"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="浅色"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <com.google.android.material.radiobutton.MaterialRadioButton
+                    android:id="@+id/theme_variant_dark"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="深色"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurface" />
+
+        </RadioGroup>
+
+    </com.google.android.material.card.MaterialCardView>
+
 </LinearLayout>

@@ -1,25 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="8dp"
+    android:clipToPadding="false">
 
     <com.ortiz.touchview.TouchImageView
         android:id="@+id/fullscreenImageView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:layout_gravity="center"
         android:scaleType="fitCenter"
-        android:contentDescription="全屏图片" />
+        android:contentDescription="全屏图片"
+        android:transitionName="imageTransition"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
         android:indeterminate="true"
         android:visibility="gone"
         app:indicatorSize="48dp"
-        app:trackThickness="4dp" />
+        app:trackThickness="4dp"
+        app:layout_constraintTop_toTopOf="@id/fullscreenImageView"
+        app:layout_constraintBottom_toBottomOf="@id/fullscreenImageView"
+        app:layout_constraintStart_toStartOf="@id/fullscreenImageView"
+        app:layout_constraintEnd_toEndOf="@id/fullscreenImageView" />
 
-</FrameLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

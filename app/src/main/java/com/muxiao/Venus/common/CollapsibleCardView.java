@@ -1,13 +1,16 @@
 package com.muxiao.Venus.common;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.Animation;
-import android.view.animation.Transformation;
+import android.view.ViewTreeObserver;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -18,15 +21,16 @@ import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 
 /**
- * 可折叠卡片视图类
- * 提供可展开/收起的内容区域
+ * 可折叠卡片视图
  */
 public class CollapsibleCardView extends FrameLayout {
 
-    private MaterialTextView titleText; // 标题文本
-    private ImageView toggleIcon; // 切换图标视图
-    private ViewGroup contentLayout; // 内容布局容器
-    private boolean isExpanded = true; // 是否处于展开状态
+    private ImageView toggleIcon;
+    private ViewGroup contentLayout;
+    private boolean isExpanded = true;
+    // 完全展开时的高度
+    private int expandedHeight = -1;
+    private ValueAnimator heightAnimator;
 
     /**
      * 构造函数，用于代码创建实例
@@ -66,10 +70,10 @@ public class CollapsibleCardView extends FrameLayout {
      *
      * @param attrs XML属性集合，可为null
      */
-    private void init(AttributeSet attrs) {
+    private void init(@Nullable AttributeSet attrs) {
         LayoutInflater.from(getContext()).inflate(R.layout.style_collapsible_card_view, this, true);
 
-        titleText = findViewById(R.id.title_text);
+        MaterialTextView titleText = findViewById(R.id.title_text);
         toggleIcon = findViewById(R.id.toggle_icon);
         contentLayout = findViewById(R.id.content_layout);
 
@@ -83,23 +87,25 @@ public class CollapsibleCardView extends FrameLayout {
             }
         }
 
+        toggleIcon.setImageResource(R.drawable.ic_0collapse_180expand);
         toggleIcon.setOnClickListener(v -> toggle());
-        // 由属性控制初始展开/折叠
-        if (!isExpanded) {
-            contentLayout.setVisibility(View.GONE);
-            toggleIcon.setImageResource(R.drawable.ic_expand);
-        } else {
-            toggleIcon.setImageResource(R.drawable.ic_collapse);
-        }
-    }
 
-    /**
-     * 设置卡片标题
-     *
-     * @param title 标题文本
-     */
-    public void setTitle(String title) {
-        titleText.setText(title);
+        // 在layout完成后获取真实高度
+        contentLayout.getViewTreeObserver()
+                .addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        contentLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                        expandedHeight = contentLayout.getHeight();
+                        if (!isExpanded) {
+                            setContentHeight(0);
+                            contentLayout.setVisibility(GONE);
+                            toggleIcon.setRotation(180f);
+                        } else {
+                            toggleIcon.setRotation(0f);
+                        }
+                    }
+                });
     }
 
     /**
@@ -118,11 +124,11 @@ public class CollapsibleCardView extends FrameLayout {
      */
     public void setContent(View contentView) {
         contentLayout.removeAllViews();
-        if (contentView.getParent() != null) {
+        if (contentView.getParent() != null)
             // 如果视图已经有父视图，先从父视图中移除
             ((ViewGroup) contentView.getParent()).removeView(contentView);
-        }
         contentLayout.addView(contentView);
+        requestRecalculateHeight();
     }
 
     /**
@@ -133,6 +139,24 @@ public class CollapsibleCardView extends FrameLayout {
     public void setContent(int layoutResId) {
         contentLayout.removeAllViews();
         LayoutInflater.from(getContext()).inflate(layoutResId, contentLayout, true);
+        requestRecalculateHeight();
+    }
+
+    /**
+     * 获取当前内容区域是否已展开
+     *
+     * @return true表示已展开，false表示已折叠
+     */
+    public boolean isExpanded() {
+        return isExpanded;
+    }
+
+    /**
+     * 切换内容区域为展开或折叠
+     */
+    public void toggle() {
+        if (isExpanded) collapse();
+        else expand();
     }
 
     /**
@@ -141,23 +165,11 @@ public class CollapsibleCardView extends FrameLayout {
     public void expand() {
         if (isExpanded) return;
 
-        // 延迟到有宽度时再执行（防止 getWidth()==0）
-        if (getWidth() == 0) {
-            post(this::expand);
-            return;
-        }
+        cancelHeightAnim();
 
-        contentLayout.measure(
-                MeasureSpec.makeMeasureSpec(Math.max(0, getWidth()), MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-        // 立即把高度设为 0，确保不会把内容瞬间显示完整
-        ViewGroup.LayoutParams lp = contentLayout.getLayoutParams();
-        lp.height = 0;
-        contentLayout.setLayoutParams(lp);
         contentLayout.setVisibility(View.VISIBLE);
-        // 开始动画到 targetHeight
-        animateHeight(0, contentLayout.getMeasuredHeight());
-        toggleIcon.setImageResource(R.drawable.ic_collapse);
+        animateHeight(getCurrentHeight(), expandedHeight, true);
+        animateToggleIcon(0f);
         isExpanded = true;
     }
 
@@ -167,76 +179,88 @@ public class CollapsibleCardView extends FrameLayout {
     public void collapse() {
         if (!isExpanded) return;
 
-        int initialHeight = contentLayout.getHeight();
-        animateHeight(initialHeight, 0);
-        toggleIcon.setImageResource(R.drawable.ic_expand);
+        cancelHeightAnim();
+
+        animateHeight(getCurrentHeight(), 0, false);
+        animateToggleIcon(180f);
         isExpanded = false;
     }
 
     /**
-     * 切换展开/收起状态
+     * 取得当前内容区域的高度
      */
-    public void toggle() {
-        if (isExpanded)
-            collapse();
-        else
-            expand();
+    private int getCurrentHeight() {
+        ViewGroup.LayoutParams lp = contentLayout.getLayoutParams();
+        return lp.height >= 0 ? lp.height : contentLayout.getHeight();
     }
 
     /**
-     * 获取当前展开状态
-     *
-     * @return true表示已展开，false表示已收起
+     * 设置内容高度
      */
-    public boolean isExpanded() {
-        return isExpanded;
+    private void setContentHeight(int height) {
+        ViewGroup.LayoutParams lp = contentLayout.getLayoutParams();
+        lp.height = height;
+        contentLayout.setLayoutParams(lp);
     }
 
     /**
-     * 高度变化动画
+     * 内容高度动画
      *
-     * @param startHeight 起始高度
-     * @param endHeight   结束高度
+     * @param start     起始高度
+     * @param end       目标高度
+     * @param expanding 是否正在展开
      */
-    private void animateHeight(int startHeight, int endHeight) {
-        final boolean expanding = endHeight > 0;
+    private void animateHeight(int start, int end, boolean expanding) {
+        heightAnimator = ValueAnimator.ofInt(start, end);
+        heightAnimator.setDuration(300).setInterpolator(new AccelerateDecelerateInterpolator());
 
-        Animation animation = new Animation() {
+        heightAnimator.addUpdateListener(animation -> {
+            int value = (int) animation.getAnimatedValue();
+            setContentHeight(value);
+        });
+
+        heightAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
-            protected void applyTransformation(float interpolatedTime, Transformation t) {
-                int newHeight = (int) (startHeight + (endHeight - startHeight) * interpolatedTime);
-                ViewGroup.LayoutParams lp = contentLayout.getLayoutParams();
-                lp.height = newHeight;
-                contentLayout.setLayoutParams(lp);
-            }
-        };
-
-        animation.setDuration(300);
-        animation.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {
-            }
-
-            @Override
-            public void onAnimationEnd(Animation animation) {
-                // 动画结束时修正为 WRAP_CONTENT 或 GONE
-                ViewGroup.LayoutParams lp = contentLayout.getLayoutParams();
-                lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                contentLayout.setLayoutParams(lp);
-
-                if (!expanding) {
+            public void onAnimationEnd(Animator animation) {
+                if (!expanding)
                     contentLayout.setVisibility(View.GONE);
-                } else {
-                    contentLayout.setVisibility(View.VISIBLE);
-                }
-                contentLayout.clearAnimation();
-            }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {
             }
         });
 
-        contentLayout.startAnimation(animation);
+        heightAnimator.start();
+    }
+
+    /**
+     * 取消高度动画
+     */
+    private void cancelHeightAnim() {
+        if (heightAnimator != null && heightAnimator.isRunning())
+            heightAnimator.cancel();
+    }
+
+    /**
+     * 绘制旋转图标
+     */
+    private void animateToggleIcon(float rotation) {
+        toggleIcon.animate()
+                .rotation(rotation)
+                .setDuration(200)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .start();
+    }
+
+    /**
+     * 当内容变化 / 屏幕变化时重新计算展开高度
+     */
+    private void requestRecalculateHeight() {
+        expandedHeight = -1;
+        contentLayout.post(() -> expandedHeight = contentLayout.getHeight());
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (w != oldw)
+            requestRecalculateHeight();
     }
 }

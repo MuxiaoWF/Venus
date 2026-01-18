@@ -3,17 +3,5 @@
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
 
     </style>
-    <style name="CustomSnackbarStyle" parent="Widget.Material3.Snackbar">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_marginStart">16dp</item>
-        <item name="android:layout_marginEnd">16dp</item>
-        <item name="android:layout_marginBottom">80dp</item>
-    </style>
 
-    <style name="CustomSnackbarTextViewStyle" parent="Widget.Material3.Snackbar.TextView">
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingEnd">16dp</item>
-        <item name="android:maxLines">2</item>
-        <item name="android:textSize">14sp</item>
-    </style>
 </resources>

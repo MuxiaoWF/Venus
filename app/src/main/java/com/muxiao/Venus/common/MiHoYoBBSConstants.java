@@ -1,5 +1,7 @@
 package com.muxiao.Venus.common;
 
+import static com.muxiao.Venus.common.Constants.Prefs.*;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -15,12 +17,13 @@ public class MiHoYoBBSConstants {
     public String LK2;
     public String K2;
     public String bbs_version;
-    public static String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
-    public static String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static String LK2_final = "DlOUwIupfU6YespEUWDJmXtutuXV6owG";
-    public static String K2_final = "b0EofkfMKq2saWV9fwux18J5vzcFTlex";
-    public static String bbs_version_final = "2.99.1";
-    public static String PACKAGE_NAME = "com.mihoyo.hyperion";
+    public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
+    public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
+    public static final String LK2_final = "DlOUwIupfU6YespEUWDJmXtutuXV6owG";
+    public static final String K2_final = "b0EofkfMKq2saWV9fwux18J5vzcFTlex";
+    public static final String bbs_version_final = "2.99.1";
+    public static final String update_time = "2026.01.12";
+    public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     private final Context context;
 
     public MiHoYoBBSConstants(Context context) {
@@ -29,19 +32,13 @@ public class MiHoYoBBSConstants {
     }
 
     private void updateSalt() {
-        // 默认值
-        String defaultSalt6x = SALT_6X_final;
-        String defaultSalt4x = SALT_4X_final;
-        String defaultLk2 = LK2_final;
-        String defaultK2 = K2_final;
-        String defaultBbsVersion = bbs_version_final;
         // 尝试从配置中获取值
-        SharedPreferences configPrefs = context.getSharedPreferences("config_prefs", Context.MODE_PRIVATE);
-        SALT_6X = configPrefs.getString("SALT_6X", defaultSalt6x);
-        SALT_4X = configPrefs.getString("SALT_4X", defaultSalt4x);
-        LK2 = configPrefs.getString("LK2", defaultLk2);
-        K2 = configPrefs.getString("K2", defaultK2);
-        bbs_version = configPrefs.getString("bbs_version", defaultBbsVersion);
+        SharedPreferences configPrefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+        SALT_6X = configPrefs.getString(SALT_6X_PREF, SALT_6X_final);
+        SALT_4X = configPrefs.getString(SALT_4X_PREF, SALT_4X_final);
+        LK2 = configPrefs.getString(LK2_PREF, LK2_final);
+        K2 = configPrefs.getString(K2_PREF, K2_final);
+        bbs_version = configPrefs.getString(BBS_VERSION_PREF, bbs_version_final);
     }
 
     private static final String Honkai2_act_id = "e202203291431091";

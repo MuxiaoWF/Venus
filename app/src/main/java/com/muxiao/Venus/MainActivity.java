@@ -1,8 +1,12 @@
 package com.muxiao.Venus;
 
+import static com.muxiao.Venus.common.Constants.Prefs.*;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -12,6 +16,7 @@ import android.widget.ImageView;
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.pm.PackageInfoCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -53,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 检查更新
         checkForUpdatesIfNeeded();
+        checkAndUpdateConfig(this);
 
         // 初始化ViewPager2和底部导航
         viewPager = findViewById(R.id.viewPager);
@@ -60,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
         // 设置ViewPager2适配器
         ViewPagerAdapter adapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(adapter);
-        
+
         // 设置页面切换监听器，使滑动与底部导航联动
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
@@ -91,9 +97,9 @@ public class MainActivity extends AppCompatActivity {
      */
     private void checkForUpdatesIfNeeded() {
         // 检查是否启用了自动更新
-        boolean autoUpdateEnabled = getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
-                .getBoolean("auto_update_enabled", true);
-        
+        boolean autoUpdateEnabled = getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(AUTO_UPDATE_ENABLED, true);
+
         if (autoUpdateEnabled) {
             UpdateChecker updateChecker = new UpdateChecker(this);
             updateChecker.checkForUpdatesIfNeeded();
@@ -102,6 +108,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 根据菜单ID获取位置
+     *
      * @param menuId 菜单AndroidID
      * @return 位置
      */
@@ -115,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 根据位置获取菜单ID
+     *
      * @param position 位置
      * @return 菜单AndroidID
      */
@@ -182,8 +190,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
-                show_error_dialog(this,"没有权限访问背景图片，清除背景设置" + e);
-                getSharedPreferences("background_prefs", Context.MODE_PRIVATE)
+                show_error_dialog(this, "没有权限访问背景图片，清除背景设置" + e);
+                getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                         .edit()
                         .remove("background_image_uri")
                         .apply();
@@ -191,7 +199,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 // 出现其他异常时隐藏背景图片
                 backgroundImage.setVisibility(android.view.View.GONE);
-                show_error_dialog(this,"设置背景图片出错，隐藏背景图片" + e);
+                show_error_dialog(this, "设置背景图片出错，隐藏背景图片" + e);
             }
         } else {
             backgroundImage.setVisibility(android.view.View.GONE);
@@ -219,8 +227,32 @@ public class MainActivity extends AppCompatActivity {
                 return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
             }
         } catch (Exception e) {
-            show_error_dialog(this,"从Uri获取Drawable出错" + e);
+            show_error_dialog(this, "从Uri获取Drawable出错" + e);
             return null;
+        }
+    }
+
+    /**
+     * 检查应用版本并在更新时清除配置
+     */
+    public static void checkAndUpdateConfig(Context context) {
+        SharedPreferences appPrefs = context.getSharedPreferences(APP_INFO_PREFS_NAME, Context.MODE_PRIVATE);
+        int lastVersion = appPrefs.getInt(LAST_VERSION, 0);
+        int currentVersion;
+        try {
+            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            long fullVersionCode = PackageInfoCompat.getLongVersionCode(pInfo);
+            // 低32位的versionCode部分（去除高32位的versionCodeMajor）
+            currentVersion = (int)(fullVersionCode & 0xFFFFFFFFL);
+        } catch (PackageManager.NameNotFoundException e) {
+            currentVersion = 0;
+        }
+        if (currentVersion > lastVersion) {
+            // 应用已更新，清除旧配置
+            SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+            prefs.edit().clear().apply();
+            // 更新最后运行的版本号
+            appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
         }
     }
 }
