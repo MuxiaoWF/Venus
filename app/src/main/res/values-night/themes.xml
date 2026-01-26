@@ -3,5 +3,16 @@
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
 
     </style>
+    <!-- 深色模式下的Splash启动页Style -->
+    <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <!-- 启动画面icon图标：这里可以是图片、帧动画等-->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+        <!-- icon动画在关闭之前显示的时长-->
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <!-- Splash退出后的主题（原先主主题）-->
+        <item name="postSplashScreenTheme">@style/Theme.Venus</item>
+    </style>
 
 </resources>

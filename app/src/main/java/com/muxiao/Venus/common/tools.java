@@ -31,6 +31,8 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okio.GzipSource;
+import okio.Okio;
 
 public class tools {
     /**
@@ -63,102 +65,106 @@ public class tools {
         }
 
         public void notifyListeners(String status) {
-            for (StatusInterface listener : listeners) {
+            for (StatusInterface listener : listeners)
                 listener.onLoginStatusChanged(status);
-            }
         }
     }
 
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params) {
-        try {
-            StringBuilder urlBuilder = new StringBuilder(urlStr);
-            if (params != null) {
-                urlBuilder.append("?");
-                for (Map.Entry<String, String> entry : params.entrySet()) {
-                    urlBuilder.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
-                }
-                urlBuilder.deleteCharAt(urlBuilder.length() - 1);
-            }
-            OkHttpClient client = new OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
-                    .followRedirects(true)
-                    .followSslRedirects(true)
-                    .build();
-
-            Request.Builder requestBuilder = new Request.Builder()
-                    .url(urlBuilder.toString())
-                    .get();
-
-            // 添加请求头
-            if (headers != null) {
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    requestBuilder.addHeader(entry.getKey(), entry.getValue());
-                }
-            }
-
-            Request request = requestBuilder.build();
-            try (Response response = client.newCall(request).execute()) {
-                ResponseBody responseBody = response.body();
-                // 使用string()方法自动处理gzip解压缩和字符编码
+        StringBuilder urlBuilder = new StringBuilder(urlStr);
+        // 向url中添加参数
+        if (params != null) {
+            urlBuilder.append("?");
+            for (Map.Entry<String, String> entry : params.entrySet())
+                urlBuilder.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
+            urlBuilder.deleteCharAt(urlBuilder.length() - 1);
+        }
+        // 构建请求
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build();
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(urlBuilder.toString())
+                .get();
+        // 添加请求头
+        if (headers != null)
+            for (Map.Entry<String, String> entry : headers.entrySet())
+                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        // 发送请求
+        Request request = requestBuilder.build();
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful())
+                throw new RuntimeException("请求失败，状态码：" + response.code());
+            ResponseBody responseBody = response.body();
+            if ("gzip".equals(response.header("Content-Encoding"))) {
+                // 数据被gzip压缩，进行解码
+                GzipSource gzipSource = new GzipSource(responseBody.source());
+                return Okio.buffer(gzipSource).readUtf8();
+            } else {
+                // 如果没有压缩，直接返回字符串
                 return responseBody.string();
             }
         } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查是否联网"+e);
+            throw new RuntimeException("请检查是否联网" + e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public static String sendPostRequest(String urlStr, Map<String, String> headers, Map<String, Object> body) {
-        try {
-            OkHttpClient client = new OkHttpClient.Builder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
-                    .followRedirects(true)
-                    .followSslRedirects(true)
-                    .build();
-
-            RequestBody requestBody;
-            if (body != null) {
-                // 构造JSON请求体
-                Gson gson = new Gson();
-                String jsonBody = gson.toJson(body);
-                requestBody = RequestBody.create(jsonBody, MediaType.parse("application/json; charset=utf-8"));
+        // 构建请求
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build();
+        RequestBody requestBody;
+        if (body != null) {
+            Gson gson = new Gson();
+            String jsonBody = gson.toJson(body);
+            requestBody = RequestBody.create(jsonBody, MediaType.parse("application/json; charset=utf-8"));
+        } else {
+            requestBody = RequestBody.create(new byte[0], null);
+        }
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(urlStr)
+                .post(requestBody);
+        // 添加请求头
+        if (headers != null)
+            for (Map.Entry<String, String> entry : headers.entrySet())
+                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        // 发送请求
+        try (Response response = client.newCall(requestBuilder.build()).execute()) {
+            if (!response.isSuccessful())
+                throw new RuntimeException("请求失败，状态码：" + response.code());
+            ResponseBody responseBody = response.body();
+            if ("gzip".equals(response.header("Content-Encoding"))) {
+                // 数据被gzip压缩，进行解码
+                GzipSource gzipSource = new GzipSource(responseBody.source());
+                return Okio.buffer(gzipSource).readUtf8();
             } else {
-                requestBody = RequestBody.create(new byte[0], null);
+                // 如果没有压缩，直接返回字符串
+                return responseBody.string();
             }
-            Request.Builder requestBuilder = new Request.Builder()
-                    .url(urlStr)
-                    .post(requestBody);
-
-            // 添加请求头
-            if (headers != null) {
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    requestBuilder.addHeader(entry.getKey(), entry.getValue());
-                }
-            }
-
-            Request request = requestBuilder.build();
-            try (Response response = client.newCall(request).execute()) {
-                return response.body().string();
-            }
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查是否联网"+e);
+        } catch (java.net.UnknownHostException e) {
+            throw new RuntimeException("请检查网络连接：" + e.getMessage(), e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("请求失败：" + e.getMessage(), e);
         }
     }
 
     /**
      * 将用户数据写入SharedPreferences
      *
-     * @param context 上下文
-     * @param userId  用户标识
-     * @param key     数据键名
-     * @param value   数据值
+     * @param userId 用户标识
+     * @param key    数据键名
+     * @param value  数据值
      */
     public static void write(Context context, String userId, String key, String value) {
         SharedPreferences sharedPreferences = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
@@ -170,9 +176,8 @@ public class tools {
     /**
      * 从SharedPreferences中读取用户数据
      *
-     * @param context 上下文
-     * @param userId  用户标识
-     * @param key     数据键名
+     * @param userId 用户标识
+     * @param key    数据键名
      * @return 用户数据
      */
     public static String read(Context context, String userId, String key) {
@@ -187,27 +192,26 @@ public class tools {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
         // 获取Snackbar的视图
         View snackbarView = snackbar.getView();
-        
+
         // 设置背景颜色（使用主题颜色或自定义颜色）
-        snackbarView.setBackgroundColor(context.getResources().getColor(R.color.snackbar_background, null));
-        
+        snackbarView.setBackgroundColor(context.getResources().getColor(R.color.snackbar_background, context.getTheme()));
+
         // 设置文本颜色
         MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
         if (textView != null) {
-            textView.setTextColor(context.getResources().getColor(R.color.snackbar_text, null));
+            textView.setTextColor(context.getResources().getColor(R.color.snackbar_text, context.getTheme()));
             // 设置文本居中
             textView.setGravity(android.view.Gravity.CENTER);
         }
         
         // 设置动作文本颜色（如果有动作按钮）
         MaterialButton actionView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_action);
-        if (actionView != null) {
-            actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, null));
-        }
-        
+        if (actionView != null)
+            actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
+
         // 设置阴影
         snackbarView.setElevation(8f);
-        
+
         // 设置内边距
         snackbarView.setPadding(24, 12, 24, 12);
         snackbarView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -226,7 +230,7 @@ public class tools {
      *
      * @param error_message 错误信息
      */
-    public static void show_error_dialog(Context context,String error_message) {
+    public static void show_error_dialog(Context context, String error_message) {
         // 使用ContextThemeWrapper包装context，确保MaterialAlertDialogBuilder能正常工作
         Context themedContext = new android.view.ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar);
         new MaterialAlertDialogBuilder(themedContext)
@@ -247,33 +251,29 @@ public class tools {
 
     /**
      * 复制文本到剪贴板
-     * */
-    public static void copyToClipboard(View view, Context context,String text) {
+     */
+    public static void copyToClipboard(View view, Context context, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText("Copy Venus", text);
         clipboard.setPrimaryClip(clip);
-        showCustomSnackbar(view, context ,"链接已复制到剪贴板");
+        showCustomSnackbar(view, context, "链接已复制到剪贴板");
     }
 
     /**
      * 复制文件
      *
-     * @param context 上下文
      * @param sourceUri 源文件URI
-     * @param destFile 目标文件
-     * @throws Exception 复制过程中可能发生的异常
+     * @param destFile  目标文件
      */
     public static void copyFile(Context context, Uri sourceUri, File destFile) throws Exception {
         try (InputStream inputStream = context.getContentResolver().openInputStream(sourceUri);
              OutputStream outputStream = new FileOutputStream(destFile)) {
-            if (inputStream == null) {
+            if (inputStream == null)
                 throw new Exception("无法打开源文件");
-            }
             byte[] buffer = new byte[8192];
             int length;
-            while ((length = inputStream.read(buffer)) > 0) {
+            while ((length = inputStream.read(buffer)) > 0)
                 outputStream.write(buffer, 0, length);
-            }
             outputStream.flush();
         }
     }

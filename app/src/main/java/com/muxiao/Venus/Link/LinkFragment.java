@@ -246,43 +246,6 @@ public class LinkFragment extends Fragment {
     }
 
     /**
-     * 销毁 WebView（安全清理）
-     */
-    private void destroyWebView() {
-        if (webView != null) {
-            webViewContainer.removeView(webView);
-            webView.destroy();
-            webView = null;
-        }
-    }
-
-    /**
-     * 更新用户下拉框
-     */
-    private void updateDropdown() {
-        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
-                userManager.getUsernames()
-        );
-        userDropdown.setAdapter(dropdownAdapter);
-        // 设置当前用户为默认选中项
-        String currentUser = userManager.getCurrentUser();
-        if (currentUser != null && !currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
-            userDropdown.setText(currentUser, false);
-            currentUserId = currentUser;
-            this.adapter.setCurrentUser(currentUser);
-        } else if (!userManager.getUsernames().isEmpty()) {
-            // 如果没有设置当前用户但有用户存在，默认选择第一个
-            String firstUser = userManager.getUsernames().get(0);
-            userDropdown.setText(firstUser, false);
-            userManager.setCurrentUser(firstUser);
-            currentUserId = firstUser;
-            this.adapter.setCurrentUser(firstUser);
-        } // 否则什么都不干
-    }
-
-    /**
      * 创建云游戏 WebView 并监听 URL，以便捕捉抽卡链接
      */
     @SuppressLint("SetJavaScriptEnabled")
@@ -290,18 +253,21 @@ public class LinkFragment extends Fragment {
         linkItemsRecyclerView.setVisibility(View.GONE);
         webViewContainer.setVisibility(View.VISIBLE);
 
-        // 如果 WebView 为 null，则重新创建
-        if (webView == null) {
-            webView = new WebView(requireContext());
-            webView.setLayoutParams(new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.MATCH_PARENT
-            ));
-            webViewContainer.addView(webView);
-        }
-
+        webView = new WebView(requireContext());
+        webView.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+        ));
+        webViewContainer.addView(webView);
+        // 配置WebView设置
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
+        webView.getSettings().setLoadWithOverviewMode(true);
+        webView.getSettings().setUseWideViewPort(true);
+        webView.getSettings().setSupportZoom(false);
+        webView.getSettings().setBuiltInZoomControls(false);
+        webView.getSettings().setDisplayZoomControls(false);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -347,6 +313,48 @@ public class LinkFragment extends Fragment {
 
         // 加载米哈游云游戏页面
         webView.loadUrl("https://mhyy.mihoyo.com/");
+    }
+
+    /**
+     * 销毁 WebView（安全清理）
+     */
+    private void destroyWebView() {
+        if (webView != null) {
+            // 在销毁前清除缓存和历史记录
+            webView.clearHistory();
+            webView.clearCache(true);
+            webView.loadUrl("about:blank"); // 加载空白页以停止当前页面的执行
+            webViewContainer.removeView(webView);
+            webView.removeAllViews();
+            webView.destroy();
+            webView = null;
+        }
+    }
+
+    /**
+     * 更新用户下拉框
+     */
+    private void updateDropdown() {
+        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_dropdown_item_1line,
+                userManager.getUsernames()
+        );
+        userDropdown.setAdapter(dropdownAdapter);
+        // 设置当前用户为默认选中项
+        String currentUser = userManager.getCurrentUser();
+        if (currentUser != null && !currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
+            userDropdown.setText(currentUser, false);
+            currentUserId = currentUser;
+            this.adapter.setCurrentUser(currentUser);
+        } else if (!userManager.getUsernames().isEmpty()) {
+            // 如果没有设置当前用户但有用户存在，默认选择第一个
+            String firstUser = userManager.getUsernames().get(0);
+            userDropdown.setText(firstUser, false);
+            userManager.setCurrentUser(firstUser);
+            currentUserId = firstUser;
+            this.adapter.setCurrentUser(firstUser);
+        } // 否则什么都不干
     }
 
     @Override

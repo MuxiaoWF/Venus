@@ -514,10 +514,24 @@ public class SettingsFragment extends Fragment {
         // 设置不透明度滑块
         float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
         backgroundAlphaSlider.setValue(currentAlpha * 100);
+        backgroundAlphaSlider.setLabelFormatter(value -> (int) value + "%");
         backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
-            float alpha = value / 100.0f;
-            backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, alpha).apply();
-            showCustomSnackbar(view, requireContext(), "不透明度已设置为 " + (int) value + "%，将在下次启动时生效");
+            if (fromUser) {
+                float alpha = value / 100.0f;
+                backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, alpha).apply();
+            }
+        });
+        backgroundAlphaSlider.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
+            @Override
+            public void onStartTrackingTouch(@NonNull Slider slider) {
+                // 开始滑动时
+            }
+
+            @Override
+            public void onStopTrackingTouch(@NonNull Slider slider) {
+                // 滑动结束时
+                showCustomSnackbar(view, requireContext(), "不透明度已设置为 " + (int) slider.getValue() + "%，将在下次启动时生效");
+            }
         });
     }
 

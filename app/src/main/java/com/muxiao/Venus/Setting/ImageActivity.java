@@ -229,6 +229,8 @@ public class ImageActivity extends AppCompatActivity {
             public void onImageLoaded(List<Map<String, Object>> imageData) {
                 // 数据加载成功，更新UI
                 imageDataList = imageData;
+                if(imageDataList.isEmpty())
+                    showCustomSnackbar(rootView, ImageActivity.this, "没有加载到图片");
                 ImageAdapter imageAdapter = new ImageAdapter(imageData);
                 recyclerView.setAdapter(imageAdapter);
             }

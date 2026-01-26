@@ -164,7 +164,7 @@ public class SklandDaily {
             put("sign", t.get("sign"));
             put("platform", signBase.get("platform"));
             put("timestamp", t.get("timestamp"));
-            put("dId", "");
+            put("dId", signBase.get("dId"));
             put("vName", signBase.get("vName"));
         }};
         String resp = sendPostRequest(URL_SIGN, headers, body);
@@ -391,42 +391,40 @@ public class SklandDaily {
     // 获取DES规则
     private static Map<String, DesRule> getDesRules() {
         Map<String, DesRule> rules = new HashMap<>();
-        rules.put("appId", new DesRule("DES", 1, "uy7mzc4h", "xx"));
-        rules.put("box", new DesRule("", 0, "", "jf"));
-        rules.put("canvas", new DesRule("DES", 1, "snrn887t", "yk"));
-        rules.put("clientSize", new DesRule("DES", 1, "cpmjjgsu", "zx"));
-        rules.put("organization", new DesRule("DES", 1, "78moqjfc", "dp"));
-        rules.put("os", new DesRule("DES", 1, "je6vk6t4", "pj"));
-        rules.put("platform", new DesRule("DES", 1, "pakxhcd2", "gm"));
-        rules.put("plugins", new DesRule("DES", 1, "v51m3pzl", "kq"));
-        rules.put("pmf", new DesRule("DES", 1, "2mdeslu3", "vw"));
-        rules.put("protocol", new DesRule("", 0, "", "protocol"));
-        rules.put("referer", new DesRule("DES", 1, "y7bmrjlc", "ab"));
-        rules.put("res", new DesRule("DES", 1, "whxqm2a7", "hf"));
-        rules.put("rtype", new DesRule("DES", 1, "x8o2h2bl", "lo"));
-        rules.put("sdkver", new DesRule("DES", 1, "9q3dcxp2", "sc"));
-        rules.put("status", new DesRule("DES", 1, "2jbrxxw4", "an"));
-        rules.put("subVersion", new DesRule("DES", 1, "eo3i2puh", "ns"));
-        rules.put("svm", new DesRule("DES", 1, "fzj3kaeh", "qr"));
-        rules.put("time", new DesRule("DES", 1, "q2t3odsk", "nb"));
-        rules.put("timezone", new DesRule("DES", 1, "1uv05lj5", "as"));
-        rules.put("tn", new DesRule("DES", 1, "x9nzj1bp", "py"));
-        rules.put("trees", new DesRule("DES", 1, "acfs0xo4", "pi"));
-        rules.put("ua", new DesRule("DES", 1, "k92crp1t", "bj"));
-        rules.put("url", new DesRule("DES", 1, "y95hjkoo", "cf"));
-        rules.put("version", new DesRule("", 0, "", "version"));
-        rules.put("vpw", new DesRule("DES", 1, "r9924ab5", "ca"));
+        rules.put("appId", new DesRule(1, "uy7mzc4h", "xx"));
+        rules.put("box", new DesRule(0, "", "jf"));
+        rules.put("canvas", new DesRule(1, "snrn887t", "yk"));
+        rules.put("clientSize", new DesRule(1, "cpmjjgsu", "zx"));
+        rules.put("organization", new DesRule(1, "78moqjfc", "dp"));
+        rules.put("os", new DesRule(1, "je6vk6t4", "pj"));
+        rules.put("platform", new DesRule(1, "pakxhcd2", "gm"));
+        rules.put("plugins", new DesRule(1, "v51m3pzl", "kq"));
+        rules.put("pmf", new DesRule(1, "2mdeslu3", "vw"));
+        rules.put("protocol", new DesRule(0, "", "protocol"));
+        rules.put("referer", new DesRule(1, "y7bmrjlc", "ab"));
+        rules.put("res", new DesRule(1, "whxqm2a7", "hf"));
+        rules.put("rtype", new DesRule(1, "x8o2h2bl", "lo"));
+        rules.put("sdkver", new DesRule(1, "9q3dcxp2", "sc"));
+        rules.put("status", new DesRule(1, "2jbrxxw4", "an"));
+        rules.put("subVersion", new DesRule(1, "eo3i2puh", "ns"));
+        rules.put("svm", new DesRule(1, "fzj3kaeh", "qr"));
+        rules.put("time", new DesRule(1, "q2t3odsk", "nb"));
+        rules.put("timezone", new DesRule(1, "1uv05lj5", "as"));
+        rules.put("tn", new DesRule(1, "x9nzj1bp", "py"));
+        rules.put("trees", new DesRule(1, "acfs0xo4", "pi"));
+        rules.put("ua", new DesRule(1, "k92crp1t", "bj"));
+        rules.put("url", new DesRule(1, "y95hjkoo", "cf"));
+        rules.put("version", new DesRule(0, "", "version"));
+        rules.put("vpw", new DesRule(1, "r9924ab5", "ca"));
         return rules;
     }
 
     private static class DesRule {
-        String cipher;
-        int isEncrypt;
-        String key;
-        String obfuscatedName;
+        private final int isEncrypt;
+        private final String key;
+        private final String obfuscatedName;
 
-        DesRule(String cipher, int isEncrypt, String key, String obfuscatedName) {
-            this.cipher = cipher;
+        DesRule(int isEncrypt, String key, String obfuscatedName) {
             this.isEncrypt = isEncrypt;
             this.key = key;
             this.obfuscatedName = obfuscatedName;

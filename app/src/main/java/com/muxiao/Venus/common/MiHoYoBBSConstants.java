@@ -19,10 +19,10 @@ public class MiHoYoBBSConstants {
     public String bbs_version;
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2_final = "DlOUwIupfU6YespEUWDJmXtutuXV6owG";
-    public static final String K2_final = "b0EofkfMKq2saWV9fwux18J5vzcFTlex";
-    public static final String bbs_version_final = "2.99.1";
-    public static final String update_time = "2026.01.12";
+    public static final String LK2_final = "AUtLYA9P6PLDXW6VC7pEBDLRarap3RsA";
+    public static final String K2_final = "SVHcDPuPJYhcm57aSLDe7IwI5gvjgAib";
+    public static final String bbs_version_final = "2.100.0";
+    public static final String update_time = "2026.01.20";
     public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     private final Context context;
 

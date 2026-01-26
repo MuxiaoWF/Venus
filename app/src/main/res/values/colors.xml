@@ -3,6 +3,8 @@
     <color name="transparent_10">#1A000000</color>
 
     <color name="icon_background">#E3FDFD</color>
+    <color name="icon_foreground">#71C9C1</color>
+    <color name="splash_background">#E3FDFD</color>
 
     <color name="snackbar_background">#323232</color>
     <color name="snackbar_text">#FFFFFF</color>

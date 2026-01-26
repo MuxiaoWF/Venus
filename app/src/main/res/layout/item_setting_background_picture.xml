@@ -58,7 +58,7 @@
         android:value="30"
         android:valueFrom="0"
         android:valueTo="80"
-        app:labelBehavior="gone"
+        app:labelBehavior="floating"
         app:haloColor="?attr/colorPrimary"
         app:thumbColor="?attr/colorPrimary"
         app:trackColorActive="?attr/colorPrimary"

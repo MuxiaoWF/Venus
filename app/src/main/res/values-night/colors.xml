@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="splash_background">#457C77</color>
     <!-- 蓝色主题 -->
     <color name="blue_theme_primary">#AAC7FF</color>
     <color name="blue_theme_onPrimary">#0A305F</color>
@@ -193,4 +194,7 @@
     <color name="yellow_theme_surfaceContainerHigh">#2C2A21</color>
     <color name="yellow_theme_surfaceContainerHighest">#37352C</color>
 
+    <color name="snackbar_background">#323232</color>
+    <color name="snackbar_text">#000000</color>
+    <color name="snackbar_action">#BB86FC</color>
 </resources>

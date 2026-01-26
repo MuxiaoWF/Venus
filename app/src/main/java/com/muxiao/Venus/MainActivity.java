@@ -17,6 +17,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.pm.PackageInfoCompat;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -43,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 启动闪屏
+        SplashScreen.installSplashScreen(this);
         // 应用选定的主题
         int selectedTheme = SettingsFragment.getSelectedTheme(this);
         setTheme(selectedTheme);
@@ -66,6 +69,9 @@ public class MainActivity extends AppCompatActivity {
         // 设置ViewPager2适配器
         ViewPagerAdapter adapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(adapter);
+
+        // 设置预加载相邻页面数量
+        viewPager.setOffscreenPageLimit(3);
 
         // 设置页面切换监听器，使滑动与底部导航联动
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -243,7 +249,7 @@ public class MainActivity extends AppCompatActivity {
             PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
             long fullVersionCode = PackageInfoCompat.getLongVersionCode(pInfo);
             // 低32位的versionCode部分（去除高32位的versionCodeMajor）
-            currentVersion = (int)(fullVersionCode & 0xFFFFFFFFL);
+            currentVersion = (int) (fullVersionCode & 0xFFFFFFFFL);
         } catch (PackageManager.NameNotFoundException e) {
             currentVersion = 0;
         }

@@ -64,9 +64,9 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     }
 
     public static class TaskViewHolder extends RecyclerView.ViewHolder {
-        MaterialTextView taskName;
-        LinearProgressIndicator taskProgress;
-        ImageView statusIcon;
+        private final MaterialTextView taskName;
+        private final LinearProgressIndicator taskProgress;
+        private final ImageView statusIcon;
 
         public TaskViewHolder(@NonNull View itemView) {
             super(itemView);

@@ -310,6 +310,8 @@ public class HomeFragment extends Fragment {
                                     // 成功完成
                                     updateTaskStatus(game_name + "签到", 2); // 完成，无错误
                                 } catch (Exception e) {
+                                    // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
+                                    if (isTaskCancelled()) return;
                                     updateTaskStatus(game_name + "签到", 3); // 有错误
                                     String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                                     notification.sendErrorNotification(game_name + "签到失败", error_message);
@@ -332,8 +334,11 @@ public class HomeFragment extends Fragment {
                             skland.run();
                             updateTaskStatus("森空岛签到", 2);
                         } catch (Exception e) {
+                            // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
+                            if (isTaskCancelled()) return;
                             requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "森空岛签到失败：" + e.getMessage()));
                             updateTaskStatus("森空岛签到", 3);
+                            notifier.notifyListeners("任务出现错误");
                         }
                     }
                     notifier.notifyListeners("任务完成");
