@@ -137,8 +137,7 @@ public class SettingsFragment extends Fragment {
                     result -> {
                         if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                             Uri selectedImageUri = result.getData().getData();
-                            if (selectedImageUri != null)
-                                // 启动裁剪
+                            if (selectedImageUri != null) // 启动裁剪
                                 startCropActivity(selectedImageUri);
                         }
                     }
@@ -231,14 +230,8 @@ public class SettingsFragment extends Fragment {
                             .setTitle("需要通知权限")
                             .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
                             .setPositiveButton("去设置", (dialog, which) -> notificationUtil.goToNotificationSettings())
-                            .setNegativeButton("稍后再说", (dialog, which) -> {
-                                // 用户选择稍后处理，将开关状态设为关闭
-                                notificationSwitch.setChecked(false);
-                            }).setOnCancelListener(dialog -> {
-                                // 用户取消对话框，也将开关状态设为关闭
-                                notificationSwitch.setChecked(false);
-                            })
-                            .show();
+                            .setNegativeButton("稍后再说", (dialog, which) -> notificationSwitch.setChecked(false))
+                            .setOnCancelListener(dialog -> notificationSwitch.setChecked(false)).show();
                     // 不保存设置，保持开关关闭状态
                     return;
                 }
@@ -762,16 +755,12 @@ public class SettingsFragment extends Fragment {
                 Uri backgroundUri = Uri.parse(uriString);
                 if ("file".equals(backgroundUri.getScheme())) {
                     File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
-                    if (backgroundFile.exists()) {
-                        return backgroundUri;
-                    }
+                    if (backgroundFile.exists()) return backgroundUri;
                 }
             } catch (Exception e) {
                 // 如果解析Uri失败，直接使用文件路径
                 File backgroundFile = new File(uriString);
-                if (backgroundFile.exists()) {
-                    return Uri.fromFile(backgroundFile);
-                }
+                if (backgroundFile.exists()) return Uri.fromFile(backgroundFile);
             }
         }
         return null;
@@ -797,7 +786,7 @@ public class SettingsFragment extends Fragment {
         String lk2 = configPreferences.getString(LK2_PREF, MiHoYoBBSConstants.LK2_final);
         String k2 = configPreferences.getString(K2_PREF, MiHoYoBBSConstants.K2_final);
         String bbsVersion = configPreferences.getString(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
-        String update_time = configPreferences.getString(UPDATE_TIME_PREF, MiHoYoBBSConstants.update_time);
+        String update_time = configPreferences.getString(UPDATE_TIME_PREF, "未获取");
         String update_time_Local = configPreferences.getString(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
         salt6xValue.setText(new StringBuilder("SALT_6X: " + salt6x));

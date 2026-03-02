@@ -284,7 +284,14 @@ public class HomeFragment extends Fragment {
                                 // 如果没有错误才标记为完成
                                 if (!isTaskCancelled() && !Thread.currentThread().isInterrupted())
                                     updateTaskStatus("米游币签到", 2); // 完成，无错误
+                                else if (isTaskCancelled())
+                                    updateTaskStatus("米游币签到", 5); // 已取消
                             } catch (Exception e) {
+                                // 检查线程中断状态
+                                if (isTaskCancelled()){
+                                    updateTaskStatus("米游币签到", 5); // 已取消
+                                    return;
+                                }
                                 // 发生异常时标记为有错误
                                 updateTaskStatus("米游币签到", 3); // 有错误
                                 requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败：" + e.getMessage()));
@@ -294,13 +301,14 @@ public class HomeFragment extends Fragment {
                             requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败，请先去设置里设置勾选至少一个获取米游币的板块"));
                         }
                     }
+
                     if (isTaskCancelled()) return; // 检查线程中断状态
+
                     // 米游社游戏签到任务开始
                     if (Objects.equals(settings.get(GAME_DAILY), true)) {
                         String[] game = (String[]) settings.get("game_daily");
                         if (game != null && game.length > 0) {
                             for (String game_name : game) {
-                                if (isTaskCancelled()) return; // 检查线程中断状态
                                 updateTaskStatus(game_name + "签到", 1); // 开始执行，无错误
                                 try {
                                     BBSGameDaily game_module = new BBSGameDaily(requireActivity(), user_manager.getCurrentUser(), game_name, notifier, controller);
@@ -311,7 +319,10 @@ public class HomeFragment extends Fragment {
                                     updateTaskStatus(game_name + "签到", 2); // 完成，无错误
                                 } catch (Exception e) {
                                     // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
-                                    if (isTaskCancelled()) return;
+                                    if (isTaskCancelled()){
+                                        updateTaskStatus(game_name + "签到", 5); // 已取消
+                                        return;
+                                    }
                                     updateTaskStatus(game_name + "签到", 3); // 有错误
                                     String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
                                     notification.sendErrorNotification(game_name + "签到失败", error_message);
@@ -326,6 +337,7 @@ public class HomeFragment extends Fragment {
                     }
 
                     if (isTaskCancelled()) return; // 检查线程中断状态
+
                     // 森空岛任务
                     if (sklandEnabled()) {
                         updateTaskStatus("森空岛签到", 1);
@@ -335,7 +347,10 @@ public class HomeFragment extends Fragment {
                             updateTaskStatus("森空岛签到", 2);
                         } catch (Exception e) {
                             // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
-                            if (isTaskCancelled()) return;
+                            if (isTaskCancelled()){
+                                updateTaskStatus("森空岛签到", 5); // 已取消
+                                return;
+                            }
                             requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "森空岛签到失败：" + e.getMessage()));
                             updateTaskStatus("森空岛签到", 3);
                             notifier.notifyListeners("任务出现错误");
@@ -435,10 +450,13 @@ public class HomeFragment extends Fragment {
      */
     @SuppressLint("NotifyDataSetChanged")
     private void resetTaskList() {
-        // 重置所有任务状态为未开始未完成
+        // 重置所有任务状态
         for (TaskItem task : taskList) {
             task.setCompleted(false);
             task.setInProgress(false);
+            task.setError(false);
+            task.setWarning(false);
+            task.setCancel(false);
         }
         // 根据当前设置更新任务列表
         Map<String, Object> settings = get_settings();
@@ -471,6 +489,7 @@ public class HomeFragment extends Fragment {
                         taskList.get(i).setError(false);
                         taskList.get(i).setWarning(false);
                         taskList.get(i).setCompleted(false);
+                        taskList.get(i).setCancel(false);
                         switch (status) {
                             case 1:
                                 taskList.get(i).setInProgress(true);
@@ -483,6 +502,9 @@ public class HomeFragment extends Fragment {
                                 break;
                             case 4:
                                 taskList.get(i).setWarning(true);
+                                break;
+                            case 5:
+                                taskList.get(i).setCancel(true);
                                 break;
                         }
                         taskAdapter.notifyItemChanged(i);

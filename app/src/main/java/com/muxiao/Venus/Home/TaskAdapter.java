@@ -51,6 +51,10 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             holder.statusIcon.setImageResource(R.drawable.ic_warning);
             holder.taskProgress.setVisibility(View.VISIBLE);
             holder.taskProgress.setIndeterminate(true);
+        }else if(task.isCancel()){ // 取消
+            holder.statusIcon.setImageResource(R.drawable.ic_pending);
+            holder.taskProgress.setVisibility(View.VISIBLE);
+            holder.taskProgress.setIndeterminate(false);
         }else { // 未开始
             holder.statusIcon.setImageResource(R.drawable.ic_pending);
             holder.taskProgress.setVisibility(View.GONE);

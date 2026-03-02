@@ -6,6 +6,7 @@ public class TaskItem {
     private boolean inProgress;
     private boolean error;
     private boolean warning;
+    private boolean cancel;
 
     public TaskItem(String name, boolean completed) {
         this.name = name;
@@ -13,6 +14,7 @@ public class TaskItem {
         this.inProgress = false;
         this.error = false;
         this.warning = false;
+        this.cancel = false;
     }
 
     public String getName() {
@@ -53,5 +55,13 @@ public class TaskItem {
 
     public void setWarning(boolean warning) {
         this.warning = warning;
+    }
+
+    public boolean isCancel() {
+        return cancel;
+    }
+
+    public void setCancel(boolean cancel) {
+        this.cancel = cancel;
     }
 }

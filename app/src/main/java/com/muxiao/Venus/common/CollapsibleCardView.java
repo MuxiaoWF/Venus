@@ -217,6 +217,7 @@ public class CollapsibleCardView extends FrameLayout {
         heightAnimator.addUpdateListener(animation -> {
             int value = (int) animation.getAnimatedValue();
             setContentHeight(value);
+            requestLayout();
         });
 
         heightAnimator.addListener(new AnimatorListenerAdapter() {
@@ -254,7 +255,10 @@ public class CollapsibleCardView extends FrameLayout {
      */
     private void requestRecalculateHeight() {
         expandedHeight = -1;
-        contentLayout.post(() -> expandedHeight = contentLayout.getHeight());
+        contentLayout.post(() -> {
+            expandedHeight = contentLayout.getHeight();
+            requestLayout();
+        });
     }
 
     @Override
