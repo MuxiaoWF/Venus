@@ -156,8 +156,7 @@ public class HomeFragment extends Fragment {
         executorService = Executors.newSingleThreadExecutor();
         controller.createUtils();
         File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
-        if (!logDir.exists())
-            logDir.mkdirs();
+        if (!logDir.exists()) logDir.mkdirs();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         String date = dateFormat.format(new Date());
         logFile = new File(logDir, "daily_task_log_" + date + ".txt");
@@ -169,6 +168,11 @@ public class HomeFragment extends Fragment {
         notifier.addListener(message -> requireActivity().runOnUiThread(() -> {
             // 写入日志文件
             try {
+                // 确保日志文件存在
+                if(!logFile.exists()){
+                    if (!logDir.exists()) logDir.mkdirs();
+                    logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+                }
                 SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
                 String timestamp = timeFormat.format(new Date());
                 String logEntry = "[" + timestamp + "] " + message + "\n";

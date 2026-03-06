@@ -1,3 +1,5 @@
+如果在获取抽卡链接报invalid request的，建议在设置里刷新一下米游社配置，LK2被俺填错了一个字母
+
 鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
@@ -21,6 +23,22 @@
 <mark>可以提功能，但是大概率不会加（</mark>
 
 有bug也凑合用吧，提出来可能会解决？
+
+---
+
+运行参考图：
+
+![header](pic/3.jpg)
+
+---
+
+---
+
+更新日志：
+
+2026.03.06
+
+突然发现好像之前的LK2参数错了一个字母，但是不知道为什么只有获取抽卡链接的时候才报了错，米游社日常签到功能却没有报错，正常运行…
 
 ---
 

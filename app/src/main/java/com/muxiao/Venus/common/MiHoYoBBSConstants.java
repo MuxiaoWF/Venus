@@ -19,7 +19,7 @@ public class MiHoYoBBSConstants {
     public String bbs_version;
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2_final = "yBh10ikxtLPyIhgwgPZSv5dmfaOTSJ6a";
+    public static final String LK2_final = "yBh10ikxtLPoIhgwgPZSv5dmfaOTSJ6a";
     public static final String K2_final = "lX8m5VO5at5JG7hR8hzqFwzyL5aB1tYo";
     public static final String bbs_version_final = "2.102.1";
     public static final String update_time = "2026.02.28";
