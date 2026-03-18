@@ -36,6 +36,12 @@
 
 更新日志：
 
+2026.03.21
+
+添加终末地的签到，修正观看米游社图片的可能的内存泄漏问题，同时修改了一点点样式。
+
+---
+
 2026.03.06
 
 突然发现好像之前的LK2参数错了一个字母，但是不知道为什么只有获取抽卡链接的时候才报了错，米游社日常签到功能却没有报错，正常运行…
@@ -68,7 +74,7 @@
 
 2025.09.06
 
-原本想加一个微信原神小程序的，结果发现要code，就懒得再搞了，这里mark一下有兴趣的可以看看：
+~~原本想加一个微信原神小程序的，结果发现要code，就懒得再搞了，这里mark一下有兴趣的可以看看：~~ 已无效，原神 小程序不再更新
 
 * GET https://hk4e-api.mihoyo.com/event/doorman/v1/event/wechat_shop/wechatmp/exchange?app=event&client_name=wechat_shop&platform=wechatmp&code=
     * 后面的code可能是微信小程序的code？

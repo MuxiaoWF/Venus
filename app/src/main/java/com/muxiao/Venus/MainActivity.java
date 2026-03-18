@@ -40,7 +40,7 @@ import java.io.InputStream;
 
 public class MainActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
-    private BottomNavigationView bottomNavigationView;
+    public BottomNavigationView bottomNavigationView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

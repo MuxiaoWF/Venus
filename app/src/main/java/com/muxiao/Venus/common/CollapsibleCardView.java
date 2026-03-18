@@ -76,6 +76,7 @@ public class CollapsibleCardView extends FrameLayout {
         MaterialTextView titleText = findViewById(R.id.title_text);
         toggleIcon = findViewById(R.id.toggle_icon);
         contentLayout = findViewById(R.id.content_layout);
+        View headerContainer = findViewById(R.id.header_container);
 
         if (attrs != null) {
             try (TypedArray a = getContext().obtainStyledAttributes(attrs, R.styleable.CollapsibleCardView)) {
@@ -89,6 +90,8 @@ public class CollapsibleCardView extends FrameLayout {
 
         toggleIcon.setImageResource(R.drawable.ic_0collapse_180expand);
         toggleIcon.setOnClickListener(v -> toggle());
+        if (headerContainer != null)
+            headerContainer.setOnClickListener(v -> toggle());
 
         // 在layout完成后获取真实高度
         contentLayout.getViewTreeObserver()

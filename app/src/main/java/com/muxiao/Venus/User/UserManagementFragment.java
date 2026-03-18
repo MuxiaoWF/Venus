@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.fragment.app.Fragment;
 
@@ -17,6 +18,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 
 import java.util.List;
@@ -31,6 +33,18 @@ public class UserManagementFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
+
+        View bottomPaddingView = rootView.findViewById(R.id.bottom_padding_view);
+        // 设置底部空白高度
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
+            if (bottomNavHeight > 0 && bottomPaddingView != null) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
+                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
+                bottomPaddingView.setLayoutParams(params);
+            }
+        }
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);

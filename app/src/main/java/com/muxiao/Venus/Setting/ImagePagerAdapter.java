@@ -78,8 +78,14 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
             holder.progressBar.setVisibility(View.VISIBLE);
 
             // 使用CustomTarget方式加载图片
+            // 获取屏幕尺寸作为最大限制，以避免图片过大导致内存泄漏
+            int maxWidth = context.getResources().getDisplayMetrics().widthPixels;
+            int maxHeight = context.getResources().getDisplayMetrics().heightPixels;
+            
             Glide.with(context)
                     .load(imageUrl)
+                    .override(maxWidth, maxHeight)
+                    .fitCenter()
                     .into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
                         @Override
                         public void onResourceReady(@NonNull android.graphics.drawable.Drawable resource,

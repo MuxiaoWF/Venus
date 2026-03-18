@@ -21,6 +21,7 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 
@@ -62,6 +63,18 @@ public class LinkFragment extends Fragment {
         MaterialButton getLinkButton = view.findViewById(R.id.get_link_button);
         webViewContainer = view.findViewById(R.id.webViewContainer);
         webView = view.findViewById(R.id.webView);
+
+        View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
+        // 设置底部空白高度
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
+            if (bottomNavHeight > 0 && bottomPaddingView != null) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
+                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
+                bottomPaddingView.setLayoutParams(params);
+            }
+        }
 
         // 设置ProgressBar为indeterminate模式以显示旋转动画
         progressBar.setIndeterminate(true);

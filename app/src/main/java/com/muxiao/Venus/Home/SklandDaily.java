@@ -43,7 +43,8 @@ public class SklandDaily {
     private static final String URL_GRANT = "https://as.hypergryph.com/user/oauth2/v2/grant";
     private static final String URL_CRED = "https://zonai.skland.com/web/v1/user/auth/generate_cred_by_code";
     private static final String URL_BIND = "https://zonai.skland.com/api/v1/game/player/binding";
-    private static final String URL_SIGN = "https://zonai.skland.com/api/v1/game/attendance";
+    private static final String URL_SIGN_ARKNIGHTS = "https://zonai.skland.com/api/v1/game/attendance";
+    private static final String URL_SIGN_ENDFIELD = "https://zonai.skland.com/web/v1/game/endfield/attendance";
     private static final String SM_PUBKEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCmxMNr7n8ZeT0tE1R9j/mPixoinPkeM+k4VGIn/s0k7N5rJAfnZ0eMER+QhwFvshzo0LNmeUkpR8uIlU/GEVr8mN28sKmwd2gpygqj0ePnBmOW4v0ZVwbSYK+izkhVFk2V/doLoMbWy6b+UnA8mkjvg0iYWRByfRsK2gdl7llqCwIDAQAB";
     private final tools.StatusNotifier notifier;
     private final String token;
@@ -132,10 +133,16 @@ public class SklandDaily {
         List<Role> list = new ArrayList<>();
         for (JsonElement e : j.getAsJsonObject("data").getAsJsonArray("list")) {
             JsonObject o = e.getAsJsonObject();
-            if (!"arknights".equals(o.get("appCode").getAsString())) continue;
             for (JsonElement b : o.getAsJsonArray("bindingList")) {
                 JsonObject r = b.getAsJsonObject();
-                list.add(new Role(r.get("uid").getAsString(), r.get("nickName").getAsString()));
+                if ("arknights".equals(o.get("appCode").getAsString())) {
+                    list.add(new Role(r.get("uid").getAsString(), r.get("nickName").getAsString(), r.get("gameId").getAsInt()));
+                } else {
+                    for (JsonElement r1 : r.getAsJsonArray("roles")) {
+                        JsonObject r2o = r1.getAsJsonObject();
+                        list.add(new Role(r2o.get("roleId").getAsString(), r2o.get("nickname").getAsString(), r.get("gameId").getAsInt(), r2o.get("serverId").getAsString()));
+                    }
+                }
             }
         }
         return list;
@@ -145,39 +152,70 @@ public class SklandDaily {
      * 执行签到
      */
     private void doSign(Cred cred, Role role) throws Exception {
-        Map<String, Object> body = new HashMap<>() {{
-            put("gameId", 1);
-            put("uid", role.uid);
-        }};
         Map<String, String> signBase = new LinkedHashMap<>() {{
             put("platform", "");
             put("timestamp", "");
             put("dId", "");
             put("vName", "");
         }};
-        Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
-        Map<String, String> headers = new HashMap<>() {{
-            put("cred", cred.cred);
-            put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-            put("Accept-Encoding", "gzip");
-            put("Connection", "close");
-            put("sign", t.get("sign"));
-            put("platform", signBase.get("platform"));
-            put("timestamp", t.get("timestamp"));
-            put("dId", signBase.get("dId"));
-            put("vName", signBase.get("vName"));
-        }};
-        String resp = sendPostRequest(URL_SIGN, headers, body);
-        JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
-        if (j.get("code").getAsInt() == 0) {
-            JsonArray awards = j.getAsJsonObject("data").getAsJsonArray("awards");
-            for (JsonElement award : awards) {
-                JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
-                int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
-                notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+        if (role.gameId != 1) {
+            Map<String, String> t = generateSignature(cred.token, "/web/v1/game/endfield/attendance", "{}", signBase);
+            Map<String, String> headers = new HashMap<>() {{
+                put("Content-Type", "application/json");
+                put("cred", cred.cred);
+                put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
+                put("Accept-Encoding", "gzip");
+                put("Connection", "close");
+                put("sign", t.get("sign"));
+                put("platform", signBase.get("platform"));
+                put("timestamp", t.get("timestamp"));
+                put("dId", signBase.get("dId"));
+                put("vName", signBase.get("vName"));
+                put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
+                put("referer", "https://game.skland.com/");
+                put("origin", "https://game.skland.com/");
+            }};
+            String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
+            JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
+            if (j.get("code").getAsInt() == 0) {
+                JsonArray awardids = j.getAsJsonObject("data").getAsJsonArray("awardIds");
+                for (JsonElement awardid : awardids) {
+                    String id = awardid.getAsJsonObject().get("id").getAsString();
+                    JsonObject r1 = j.getAsJsonObject("data").getAsJsonObject("resourceInfoMap").getAsJsonObject(id);
+                    notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
+                }
+            } else {
+                notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
             }
         } else {
-            notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
+            Map<String, Object> body = new HashMap<>() {{
+                put("gameId", role.gameId);
+                put("uid", role.uid);
+            }};
+            Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
+            Map<String, String> headers = new HashMap<>() {{
+                put("cred", cred.cred);
+                put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
+                put("Accept-Encoding", "gzip");
+                put("Connection", "close");
+                put("sign", t.get("sign"));
+                put("platform", signBase.get("platform"));
+                put("timestamp", t.get("timestamp"));
+                put("dId", signBase.get("dId"));
+                put("vName", signBase.get("vName"));
+            }};
+            String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
+            JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
+            if (j.get("code").getAsInt() == 0) {
+                JsonArray awards = j.getAsJsonObject("data").getAsJsonArray("awards");
+                for (JsonElement award : awards) {
+                    JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
+                    int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
+                    notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+                }
+            } else {
+                notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
+            }
         }
     }
 
@@ -444,10 +482,20 @@ public class SklandDaily {
     private static class Role {
         public final String uid;
         public final String name;
+        public final int gameId;
+        public String serverId = "";
 
-        public Role(String uid, String name) {
+        public Role(String uid, String name, int gameId) {
             this.uid = uid;
             this.name = name;
+            this.gameId = gameId;
+        }
+
+        public Role(String uid, String name, int gameId, String serverId) {
+            this.uid = uid;
+            this.name = name;
+            this.gameId = gameId;
+            this.serverId = serverId;
         }
     }
 }

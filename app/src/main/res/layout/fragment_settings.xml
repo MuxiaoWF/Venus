@@ -1,147 +1,163 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/setting_toolbar"
+        style="@style/Widget.Venus.Toolbar"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:padding="16dp">
+        app:title="设置"
+        app:subtitle="管理应用偏好"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/setting_title_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="设置"
-            android:textAppearance="?attr/textAppearanceHeadlineSmall"
-            android:textColor="?attr/colorOnSurface"
-            android:textStyle="bold"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+    <ScrollView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/setting_toolbar">
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/daily_card"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardTitle="米游币签到设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/setting_title_text" />
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="8dp">
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/game_daily_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="米游社游戏签到设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/daily_card" />
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="签到设置"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorPrimary" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/config_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="米游社配置信息"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/game_daily_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/daily_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardTitle="米游币签到"
+                app:initialExpanded="false" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/update_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="应用更新设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/config_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/game_daily_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardTitle="游戏签到"
+                app:initialExpanded="false" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/cache_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="缓存管理"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/update_card" />
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="配置"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorPrimary" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/theme_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="主题设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cache_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/config_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardTitle="配置信息"
+                app:initialExpanded="false" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/background_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="背景设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/theme_card" />
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="应用"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorPrimary" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/notification_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="通知设置"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/background_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/update_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardTitle="更新"
+                app:initialExpanded="false" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/about_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="关于"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/notification_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/cache_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardTitle="缓存"
+                app:initialExpanded="false" />
 
-        <com.google.android.material.divider.MaterialDivider
-            android:id="@+id/divider"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/about_card" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/theme_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardTitle="主题"
+                app:initialExpanded="false" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/image_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="12dp"
-            android:text="看米游社榜单图"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/divider" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/background_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardTitle="背景"
+                app:initialExpanded="false" />
 
-        <com.muxiao.Venus.common.CollapsibleCardView
-            android:id="@+id/skland_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardTitle="森空岛签到"
-            app:initialExpanded="false"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/image_button" />
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/notification_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardTitle="通知"
+                app:initialExpanded="false" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
+                android:text="其他"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorPrimary" />
+
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/skland_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardTitle="森空岛签到"
+                app:initialExpanded="false" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/image_button"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="查看米游社榜单图"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                app:icon="@drawable/ic_link_url" />
+
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/about_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="16dp"
+                app:cardTitle="关于"
+                app:initialExpanded="false" />
+            <View
+                android:id="@+id/bottom_padding_view"
+                android:layout_width="match_parent"
+                android:layout_height="96dp" />
+        </LinearLayout>
+    </ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

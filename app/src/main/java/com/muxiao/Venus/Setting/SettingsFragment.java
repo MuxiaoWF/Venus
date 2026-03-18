@@ -18,6 +18,9 @@ import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
+import android.widget.LinearLayout;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
@@ -36,6 +39,7 @@ import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Constants;
@@ -122,6 +126,18 @@ public class SettingsFragment extends Fragment {
         View notificationView = notificationCard.getContentLayout();
         View aboutView = aboutCard.getContentLayout();
         View sklandView = sklandCard.getContentLayout();
+
+        View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
+        // 设置底部空白高度
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
+            if (bottomNavHeight > 0 && bottomPaddingView != null) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
+                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
+                bottomPaddingView.setLayoutParams(params);
+            }
+        }
 
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -532,49 +548,72 @@ public class SettingsFragment extends Fragment {
      * 设置主题选择功能
      */
     private void setupThemeSelection(View view) {
-        // 获取主题SharedPreferences
         SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
         int selectedThemeVariant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
 
-        // 查找所有主题单选按钮
-        MaterialRadioButton themeDefault = view.findViewById(R.id.theme_default);
-        MaterialRadioButton themeBlue = view.findViewById(R.id.theme_blue);
-        MaterialRadioButton themeGreen = view.findViewById(R.id.theme_green);
-        MaterialRadioButton themeRed = view.findViewById(R.id.theme_red);
-        MaterialRadioButton themeYellow = view.findViewById(R.id.theme_yellow);
-        MaterialRadioButton themeLight = view.findViewById(R.id.theme_light);
-        MaterialRadioButton themeDark = view.findViewById(R.id.theme_dark);
+        AutoCompleteTextView themeDropdown = view.findViewById(R.id.theme_dropdown);
+
+        String[] themes = {"系统", "蓝色", "绿色", "红色", "黄色", "浅色", "深色"};
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_dropdown_item_1line, themes);
+        themeDropdown.setAdapter(adapter);
+
+        switch (selectedTheme) {
+            case THEME_DEFAULT:
+                themeDropdown.setText("系统", false);
+                break;
+            case THEME_BLUE:
+                themeDropdown.setText("蓝色", false);
+                break;
+            case THEME_GREEN:
+                themeDropdown.setText("绿色", false);
+                break;
+            case THEME_RED:
+                themeDropdown.setText("红色", false);
+                break;
+            case THEME_YELLOW:
+                themeDropdown.setText("黄色", false);
+                break;
+            case THEME_LIGHT:
+                themeDropdown.setText("浅色", false);
+                break;
+            case THEME_DARK:
+                themeDropdown.setText("深色", false);
+                break;
+        }
+
+        themeDropdown.setOnItemClickListener((parent, view1, position, id) -> {
+            String selectedThemeName = themes[position];
+            switch (selectedThemeName) {
+                case "系统":
+                    saveAndApplyTheme(THEME_DEFAULT);
+                    break;
+                case "蓝色":
+                    saveAndApplyTheme(THEME_BLUE);
+                    break;
+                case "绿色":
+                    saveAndApplyTheme(THEME_GREEN);
+                    break;
+                case "红色":
+                    saveAndApplyTheme(THEME_RED);
+                    break;
+                case "黄色":
+                    saveAndApplyTheme(THEME_YELLOW);
+                    break;
+                case "浅色":
+                    saveAndApplyTheme(THEME_LIGHT);
+                    break;
+                case "深色":
+                    saveAndApplyTheme(THEME_DARK);
+                    break;
+            }
+        });
 
         // 查找所有主题变体单选按钮
         MaterialRadioButton themeVariantDefault = view.findViewById(R.id.theme_variant_default);
         MaterialRadioButton themeVariantLight = view.findViewById(R.id.theme_variant_light);
         MaterialRadioButton themeVariantDark = view.findViewById(R.id.theme_variant_dark);
-
-        // 根据保存的设置选中对应的主题
-        switch (selectedTheme) {
-            case THEME_DEFAULT:
-                themeDefault.setChecked(true);
-                break;
-            case THEME_BLUE:
-                themeBlue.setChecked(true);
-                break;
-            case THEME_GREEN:
-                themeGreen.setChecked(true);
-                break;
-            case THEME_RED:
-                themeRed.setChecked(true);
-                break;
-            case THEME_YELLOW:
-                themeYellow.setChecked(true);
-                break;
-            case THEME_LIGHT:
-                themeLight.setChecked(true);
-                break;
-            case THEME_DARK:
-                themeDark.setChecked(true);
-                break;
-        }
 
         // 根据保存的设置选中对应的深浅色模式
         switch (selectedThemeVariant) {
@@ -588,29 +627,6 @@ public class SettingsFragment extends Fragment {
                 themeVariantDark.setChecked(true);
                 break;
         }
-
-        // 为每个单选按钮设置监听器
-        themeDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_DEFAULT);
-        });
-        themeBlue.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_BLUE);
-        });
-        themeGreen.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_GREEN);
-        });
-        themeRed.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_RED);
-        });
-        themeYellow.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_YELLOW);
-        });
-        themeLight.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_LIGHT);
-        });
-        themeDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyTheme(THEME_DARK);
-        });
 
         // 为每个主题变体单选按钮设置监听器
         themeVariantDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {

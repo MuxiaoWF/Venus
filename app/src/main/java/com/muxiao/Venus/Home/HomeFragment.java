@@ -25,6 +25,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.CollapsibleCardView;
@@ -147,6 +148,18 @@ public class HomeFragment extends Fragment {
         geetestContainer = view.findViewById(R.id.geetest_container);
         TextInputLayout user_dropdown_layout = view.findViewById(R.id.user_dropdown_layout);
 
+        View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
+        // 设置底部空白高度
+        if (getActivity() instanceof MainActivity) {
+            MainActivity mainActivity = (MainActivity) getActivity();
+            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
+            if (bottomNavHeight > 0 && bottomPaddingView != null) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
+                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
+                bottomPaddingView.setLayoutParams(params);
+            }
+        }
+
         // 提示框
         CollapsibleCardView homeInfoCard = view.findViewById(R.id.home_info_card);
         homeInfoCard.setContent(R.layout.item_home_daily_info);
@@ -216,15 +229,6 @@ public class HomeFragment extends Fragment {
 
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
-            if (current_user.isEmpty()) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("未选择用户")
-                        .setMessage("请先从下拉列表中选择一个用户再开始任务")
-                        .setPositiveButton("确定", null)
-                        .show();
-                return;
-            }
-
             if (homeInfoCard.isExpanded())
                 homeInfoCard.toggle();
 
@@ -279,6 +283,14 @@ public class HomeFragment extends Fragment {
                     }
                     // 米游币签到任务
                     if (Objects.equals(settings.get(DAILY), true)) {
+                        if (current_user.isEmpty()) {
+                            new MaterialAlertDialogBuilder(requireContext())
+                                    .setTitle("未选择用户")
+                                    .setMessage("请先从下拉列表中选择一个用户再开始任务")
+                                    .setPositiveButton("确定", null)
+                                    .show();
+                            return;
+                        }
                         updateTaskStatus("米游币签到", 1); // 开始执行，无错误
                         BBSDaily b = new BBSDaily(requireActivity(), user_manager.getCurrentUser(), notifier, controller);
                         String[] daily = (String[]) settings.get("daily");
@@ -310,6 +322,14 @@ public class HomeFragment extends Fragment {
 
                     // 米游社游戏签到任务开始
                     if (Objects.equals(settings.get(GAME_DAILY), true)) {
+                        if (current_user.isEmpty()) {
+                            new MaterialAlertDialogBuilder(requireContext())
+                                    .setTitle("未选择用户")
+                                    .setMessage("请先从下拉列表中选择一个用户再开始任务")
+                                    .setPositiveButton("确定", null)
+                                    .show();
+                            return;
+                        }
                         String[] game = (String[]) settings.get("game_daily");
                         if (game != null && game.length > 0) {
                             for (String game_name : game) {

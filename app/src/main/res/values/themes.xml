@@ -1,15 +1,15 @@
 <resources>
     <!-- Base application theme. -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
     </style>
 
     <style name="Theme.Venus.Light" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
     </style>
 
     <style name="Theme.Venus.Dark" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
-
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
     </style>
 
     <!-- Splash启动页Style -->
@@ -27,6 +27,7 @@
 
     <!-- 蓝色主题 -->
     <style name="Theme.Venus.Blue" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
         <item name="colorPrimary">@color/blue_theme_primary</item>
         <item name="colorOnPrimary">@color/blue_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/blue_theme_primaryContainer</item>
@@ -77,6 +78,7 @@
 
     <!-- 绿色主题 -->
     <style name="Theme.Venus.Green" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
         <item name="colorPrimary">@color/green_theme_primary</item>
         <item name="colorOnPrimary">@color/green_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/green_theme_primaryContainer</item>
@@ -127,6 +129,7 @@
 
     <!-- 红色主题 -->
     <style name="Theme_Venus_Red" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
         <item name="colorPrimary">@color/red_theme_primary</item>
         <item name="colorOnPrimary">@color/red_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/red_theme_primaryContainer</item>
@@ -177,6 +180,7 @@
 
     <!-- 黄色主题 -->
     <style name="Theme.Venus.Yellow" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
+        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
         <item name="colorPrimary">@color/yellow_theme_primary</item>
         <item name="colorOnPrimary">@color/yellow_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/yellow_theme_primaryContainer</item>

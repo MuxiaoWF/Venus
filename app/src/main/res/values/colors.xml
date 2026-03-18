@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="transparent_10">#1A000000</color>
+    <color name="transparent">#00000000</color>
 
     <color name="icon_background">#E3FDFD</color>
     <color name="icon_foreground">#71C9C1</color>
