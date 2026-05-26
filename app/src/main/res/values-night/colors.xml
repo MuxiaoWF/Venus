@@ -197,4 +197,7 @@
     <color name="snackbar_background">#323232</color>
     <color name="snackbar_text">#000000</color>
     <color name="snackbar_action">#BB86FC</color>
+
+    <!-- Divider color (colorOutline at 8% opacity for dark mode) -->
+    <color name="divider_color">#148E9099</color>
 </resources>

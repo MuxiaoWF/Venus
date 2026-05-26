@@ -2,7 +2,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingHorizontal="@dimen/spacing_md"
+    android:paddingVertical="@dimen/spacing_sm">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -10,6 +12,7 @@
         android:text="建议不要经常刷新"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
+
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -17,10 +20,12 @@
         android:text="当前配置值："
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
+
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
+        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginBottom="@dimen/spacing_sm"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
         style="@style/Widget.Venus.Card">
@@ -33,76 +38,77 @@
             android:paddingEnd="12dp"
             android:paddingBottom="12dp">
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/update_time_local"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="本机参数更新时间: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/update_time_local"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="本机参数更新时间: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/update_time"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="云端参数更新时间: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/update_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="云端参数更新时间: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/bbs_version_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="米游社版本: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/bbs_version_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="米游社版本: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/salt_6x_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="SALT_6X: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/salt_6x_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="SALT_6X: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/salt_4x_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="SALT_4X: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/salt_4x_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="SALT_4X: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/lk2_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="LK2: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/lk2_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="LK2: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/k2_value"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="K2: 加载中..."
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/k2_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="K2: 加载中..."
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/update_config_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:layout_marginTop="8dp"
-            android:text="更新配置" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/update_config_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="8dp"
+                android:text="更新配置" />
+
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>

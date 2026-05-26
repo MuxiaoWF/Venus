@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
-
+    android:minHeight="@dimen/setting_row_height"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingHorizontal="@dimen/spacing_md"
+    android:paddingVertical="@dimen/spacing_sm">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/notification_switch"
@@ -12,15 +16,20 @@
         android:checked="false"
         android:text="启用任务通知提示"
         android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface"/>
+        android:textColor="?attr/colorOnSurface" />
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:layout_marginBottom="6dp"
-        android:text="在任务开始、完成或出错时显示通知（没什么用的功能）"
+        android:layout_marginTop="@dimen/spacing_xs"
+        android:text="在任务开始、完成或出错时显示通知"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height"
+        android:layout_marginTop="@dimen/spacing_sm"
+        android:alpha="0.15"/>
+
 </LinearLayout>

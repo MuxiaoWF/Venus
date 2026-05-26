@@ -56,6 +56,10 @@ import java.util.Objects;
 import java.util.concurrent.Executors;
 
 public class SettingsFragment extends Fragment {
+
+    {
+        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    }
     private SharedPreferences sharedPreferences;
     private SharedPreferences configPreferences;
     private static final int THEME_DEFAULT = 0;

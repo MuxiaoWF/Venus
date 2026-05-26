@@ -17,22 +17,23 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:animateLayoutChanges="true"
         android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="16dp">
+        android:paddingHorizontal="@dimen/spacing_lg"
+        android:paddingTop="@dimen/spacing_sm"
+        android:paddingBottom="@dimen/spacing_md">
 
+        <!-- User selector grouped section -->
         <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Venus.Card"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            style="@style/Widget.Venus.Card">
+            android:layout_height="wrap_content">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="@dimen/spacing_md">
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/user_dropdown_layout"
@@ -54,16 +55,18 @@
                     android:id="@+id/get_link_button"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="@dimen/spacing_md"
                     android:text="获取抽卡链接" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Tabs grouped section -->
         <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Venus.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            style="@style/Widget.Venus.Card">
+            android:layout_marginTop="@dimen/spacing_sm">
 
             <com.google.android.material.tabs.TabLayout
                 android:id="@+id/tabLayout"
@@ -96,12 +99,13 @@
             </com.google.android.material.tabs.TabLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- WebView container -->
         <LinearLayout
             android:id="@+id/webViewContainer"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="@dimen/spacing_sm"
             android:background="@drawable/bg_surface_container_rounded"
             android:orientation="vertical"
             android:padding="12dp"
@@ -130,6 +134,7 @@
                     android:text="请在网页中登录并打开抽卡记录页面"
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textStyle="bold" />
+
             </LinearLayout>
 
             <com.google.android.material.textview.MaterialTextView
@@ -138,7 +143,7 @@
                 android:layout_marginTop="4dp"
                 android:text="提示：登录后请打开一次抽卡记录页面，将自动捕获链接。\n获取完记得退出游戏哦"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:textAppearance="?attr/textAppearanceBodySmall"/>
+                android:textAppearance="?attr/textAppearanceBodySmall" />
 
             <WebView
                 android:id="@+id/webView"
@@ -151,7 +156,7 @@
             android:id="@+id/errorTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="@dimen/spacing_sm"
             android:gravity="center"
             android:textColor="?attr/colorError"
             android:textSize="16sp"
@@ -162,19 +167,30 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:paddingTop="16dp"
+            android:paddingTop="@dimen/spacing_md"
             app:indicatorColor="?attr/colorPrimary"
             android:visibility="gone" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerView"
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/recycler_card"
+            style="@style/Widget.Venus.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:padding="12dp" />
+            android:layout_marginTop="@dimen/spacing_sm"
+            android:visibility="gone">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false" />
+        </com.google.android.material.card.MaterialCardView>
+
         <View
             android:id="@+id/bottom_padding_view"
             android:layout_width="match_parent"
             android:layout_height="96dp" />
+
     </LinearLayout>
 </LinearLayout>

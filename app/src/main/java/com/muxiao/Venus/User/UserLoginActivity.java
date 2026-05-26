@@ -72,10 +72,12 @@ public class UserLoginActivity extends AppCompatActivity {
 
         username_input = findViewById(R.id.username_input);
         login_btn = findViewById(R.id.login_btn);
-        MaterialButton back_main_btn = findViewById(R.id.back_main_btn);
         MaterialTextView login_status_text = findViewById(R.id.login_status_text);
         ScrollView login_scroll_view = findViewById(R.id.login_scroll_view);
         login_qr_code_image = findViewById(R.id.login_qr_code_image);
+
+        com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.user_login_toolbar);
+        toolbar.setNavigationOnClickListener(v -> finish());
 
         // 如果是重新登录模式，自动填充用户名并隐藏输入框
         if (relogin_mode && relogin_username != null) {
@@ -95,12 +97,6 @@ public class UserLoginActivity extends AppCompatActivity {
         login_btn.setOnClickListener(v -> {
             login_status_text.setText("");
             handleLogin();
-        });
-        back_main_btn.setOnClickListener(v -> {
-            Intent intentB = new Intent(UserLoginActivity.this, MainActivity.class);
-            intentB.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intentB);
-            finish();
         });
         // 回车开始执行
         username_input.setOnEditorActionListener((v, actionId, event) -> {

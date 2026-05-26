@@ -6,13 +6,13 @@
     android:layout_height="match_parent"
     tools:context=".Setting.FullscreenImageActivity">
 
-    <!-- 图片展示区域 -->
+    <!-- Image display area -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 浮动在图片上方的返回按钮 -->
+    <!-- Floating back button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/backButton"
         style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
@@ -23,22 +23,27 @@
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
         android:layout_gravity="top|start" />
 
-    <!-- 使用NestedScrollView包装底部信息卡片以支持滚动折叠 -->
+    <!-- Bottom info card -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottomInfoCard"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:elevation="8dp"
+        android:elevation="0dp"
+        app:strokeWidth="0.5dp"
+        app:strokeColor="@color/divider_color"
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
-        app:cardCornerRadius="24dp"
+        app:cardCornerRadius="16dp"
+        app:cardBackgroundColor="?attr/colorSurfaceContainer"
         app:cardUseCompatPadding="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:paddingHorizontal="@dimen/spacing_lg"
+            android:paddingTop="@dimen/spacing_lg"
+            android:paddingBottom="@dimen/spacing_xl">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -52,15 +57,15 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="图片标题"
-                    android:textAppearance="?attr/textAppearanceHeadlineSmall"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
+                    android:textSize="@dimen/text_card_title"
+                    android:textFontWeight="600"
+                    android:textColor="?attr/colorOnSurface" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/counterTextView"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
+                    android:layout_marginStart="@dimen/spacing_md"
                     android:text="1/10"
                     android:textAppearance="?attr/textAppearanceLabelSmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
@@ -70,7 +75,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:orientation="horizontal">
 
                 <com.google.android.material.textview.MaterialTextView
@@ -79,7 +84,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="作者名称"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textSize="@dimen/text_caption"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <com.google.android.material.textview.MaterialTextView
@@ -87,7 +92,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="2024-05-20"
-                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textSize="@dimen/text_caption"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
@@ -96,20 +101,20 @@
                 android:id="@+id/descriptionTextView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/spacing_md"
                 android:ellipsize="end"
                 android:maxLines="3"
                 android:text="详细介绍内容"
-                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurface" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/downloadButton"
+                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="24dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_lg"
                 android:text="下载图片"
-                app:cornerRadius="16dp"
                 app:icon="@drawable/ic_download"
                 app:iconGravity="textStart" />
 

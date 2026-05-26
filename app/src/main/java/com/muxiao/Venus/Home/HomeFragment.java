@@ -50,6 +50,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class HomeFragment extends Fragment {
+
+    {
+        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    }
     private UserManager user_manager;
     private ExecutorService executorService;
     private LinearLayout geetestContainer;
@@ -224,6 +228,7 @@ public class HomeFragment extends Fragment {
 
         // 设置任务列表RecyclerView
         tasksRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        tasksRecyclerView.setItemAnimator(new com.muxiao.Venus.common.ScaleInItemAnimator());
         taskAdapter = new TaskAdapter(taskList);
         tasksRecyclerView.setAdapter(taskAdapter);
 

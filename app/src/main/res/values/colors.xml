@@ -10,6 +10,9 @@
     <color name="snackbar_text">#FFFFFF</color>
     <color name="snackbar_action">#BB86FC</color>
 
+    <!-- Divider color (colorOutline at 15% opacity) -->
+    <color name="divider_color">#2674777F</color>
+
     <!-- 蓝色主题 -->
     <color name="blue_theme_primary">#415F91</color>
     <color name="blue_theme_onPrimary">#FFFFFF</color>

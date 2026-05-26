@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Widget.Venus.Card"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="12dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginBottom="4dp">
+    android:background="?attr/selectableItemBackground"
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="@dimen/item_padding_vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -30,9 +30,9 @@
                 android:maxLines="1"
                 android:text="用户名"
                 android:textAlignment="viewStart"
-                android:textColor="?attr/colorOnSurface"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:textSize="@dimen/text_card_title"
+                android:textFontWeight="600"
+                android:textColor="?attr/colorOnSurface" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/rename_user_button"
@@ -74,4 +74,10 @@
 
     </LinearLayout>
 
-</com.google.android.material.card.MaterialCardView>
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height"
+        android:layout_marginStart="@dimen/spacing_md"
+        android:alpha="0.15" />
+
+</LinearLayout>

@@ -16,6 +16,7 @@ import android.view.MenuItem;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.view.View;
+import android.view.animation.AnimationUtils;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -83,7 +84,14 @@ public class FullscreenImageActivity extends AppCompatActivity {
 
         // 设置进入动画
         viewPager.setAlpha(0f);
-        viewPager.animate().alpha(1f).setDuration(300).start();
+        viewPager.setScaleX(0.95f);
+        viewPager.setScaleY(0.95f);
+        viewPager.animate()
+                .alpha(1f).scaleX(1f).scaleY(1f)
+                .setDuration(400)
+                .setInterpolator(AnimationUtils.loadInterpolator(this,
+                        android.R.interpolator.fast_out_slow_in))
+                .start();
 
         imageAdapter = new ImagePagerAdapter(this, Objects.requireNonNull(imageDataList)); // 保存adapter引用
         viewPager.setAdapter(imageAdapter);
@@ -91,18 +99,16 @@ public class FullscreenImageActivity extends AppCompatActivity {
 
         // 设置页面间间距和边缘装饰效果
         viewPager.setPageTransformer((page, position) -> {
-            page.setTranslationX(-position * page.getWidth() * 0.1f);
+            page.setTranslationX(-position * page.getWidth() * 0.15f);
 
-            if (position <= -1.0f || position >= 1.0f) {
-                // 页面完全不可见
-                page.setAlpha(0.5f);
-            } else if (position == 0.0f) {
-                // 当前页面
-                page.setAlpha(1.0f);
+            float absPos = Math.abs(position);
+            if (absPos >= 1.0f) {
+                page.setAlpha(0.6f);
             } else {
-                // 过渡效果
-                page.setAlpha(1.0f - Math.abs(position) * 0.5f);
+                page.setAlpha(1.0f - absPos * 0.4f);
             }
+            page.setScaleX(1f - absPos * 0.04f);
+            page.setScaleY(1f - absPos * 0.04f);
         });
         // 设置页面变化监听器
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -338,7 +344,10 @@ public class FullscreenImageActivity extends AppCompatActivity {
         if (isBottomInfoVisible && bottomInfoCard != null && bottomInfoCard.getVisibility() == View.VISIBLE)
             bottomInfoCard.animate()
                     .translationY(bottomInfoCard.getHeight())
-                    .setDuration(200)
+                    .alpha(0f)
+                    .setDuration(300)
+                    .setInterpolator(AnimationUtils.loadInterpolator(this,
+                            android.R.interpolator.fast_out_linear_in))
                     .withEndAction(() -> isBottomInfoVisible = false)
                     .start();
     }
@@ -347,11 +356,16 @@ public class FullscreenImageActivity extends AppCompatActivity {
      * 显示底部信息栏
      */
     public void showBottomInfo() {
-        if (!isBottomInfoVisible && bottomInfoCard != null)
+        if (!isBottomInfoVisible && bottomInfoCard != null) {
+            bottomInfoCard.setAlpha(0f);
             bottomInfoCard.animate()
                     .translationY(0)
-                    .setDuration(200)
+                    .alpha(1f)
+                    .setDuration(350)
+                    .setInterpolator(AnimationUtils.loadInterpolator(this,
+                            android.R.interpolator.fast_out_slow_in))
                     .withEndAction(() -> isBottomInfoVisible = true)
                     .start();
+        }
     }
 }

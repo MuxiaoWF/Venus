@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.button.MaterialButton;
@@ -24,6 +25,7 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.ScaleInItemAnimator;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,6 +39,10 @@ import android.widget.LinearLayout;
 
 public class LinkFragment extends Fragment {
 
+    {
+        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    }
+
     private MaterialTextView errorTextView;
     private LinkAdapter adapter;
     private String currentUserId;
@@ -46,6 +52,7 @@ public class LinkFragment extends Fragment {
     private WebView webView;
     private LinearLayout webViewContainer;
     private RecyclerView linkItemsRecyclerView;
+    private MaterialCardView recyclerCard;
 
     // 按 tab -> userId -> (roleId -> link) 存储
     private final Map<Integer, Map<String, Map<Integer, String>>> tabResults = new HashMap<>();
@@ -57,6 +64,7 @@ public class LinkFragment extends Fragment {
 
         TabLayout tabLayout = view.findViewById(R.id.tabLayout);
         linkItemsRecyclerView = view.findViewById(R.id.recyclerView);
+        recyclerCard = view.findViewById(R.id.recycler_card);
         CircularProgressIndicator progressBar = view.findViewById(R.id.progressBar);
         errorTextView = view.findViewById(R.id.errorTextView);
         userDropdown = view.findViewById(R.id.user_dropdown);
@@ -81,6 +89,7 @@ public class LinkFragment extends Fragment {
 
         // 设置RecyclerView
         linkItemsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        linkItemsRecyclerView.setItemAnimator(new ScaleInItemAnimator());
         adapter = new LinkAdapter(view, requireContext());
         linkItemsRecyclerView.setAdapter(adapter);
 
@@ -103,22 +112,22 @@ public class LinkFragment extends Fragment {
                 if (resultsForUser != null && !resultsForUser.isEmpty()) {
                     // 传入拷贝，避免引用共享
                     adapter.setLinks(new HashMap<>(resultsForUser));
-                    linkItemsRecyclerView.setVisibility(View.VISIBLE);
-                    errorTextView.setVisibility(View.GONE);
+                    setRecyclerVisible(true);
+                    setErrorTextVisible(false);
                     return;
                 } else if (perUser.containsKey(selectedUser)) {
                     // 已加载但为空
                     adapter.setLinks(new HashMap<>());
                     errorTextView.setText("没有游戏角色或获取链接出错");
-                    errorTextView.setVisibility(View.VISIBLE);
-                    linkItemsRecyclerView.setVisibility(View.GONE);
+                    setErrorTextVisible(true);
+                    setRecyclerVisible(false);
                     return;
                 }
             }
             // 没有任何已保存结果：清空显示
             adapter.setLinks(new HashMap<>());
-            linkItemsRecyclerView.setVisibility(View.GONE);
-            errorTextView.setVisibility(View.GONE);
+            setRecyclerVisible(false);
+            setErrorTextVisible(false);
         });
 
         // 设置Tab选择栏监听器，委托到类级别方法处理
@@ -139,25 +148,25 @@ public class LinkFragment extends Fragment {
                         Map<Integer, String> resultsForCurrentUser = perUser.get(currentUserId);
                         if (resultsForCurrentUser != null && !resultsForCurrentUser.isEmpty()) {
                             adapter.setLinks(new HashMap<>(resultsForCurrentUser));
-                            linkItemsRecyclerView.setVisibility(View.VISIBLE);
-                            errorTextView.setVisibility(View.GONE);
+                            setRecyclerVisible(true);
+                            setErrorTextVisible(false);
                         } else if (perUser.containsKey(currentUserId)) {
                             // 已加载过但为空
                             adapter.setLinks(new HashMap<>());
                             errorTextView.setText("没有游戏角色或获取链接出错");
-                            errorTextView.setVisibility(View.VISIBLE);
-                            linkItemsRecyclerView.setVisibility(View.GONE);
+                            setErrorTextVisible(true);
+                            setRecyclerVisible(false);
                         } else {
                             // 未加载过该标签页+用户的结果
                             adapter.setLinks(new HashMap<>());
-                            errorTextView.setVisibility(View.GONE);
-                            linkItemsRecyclerView.setVisibility(View.GONE);
+                            setErrorTextVisible(false);
+                            setRecyclerVisible(false);
                         }
                     } else {
                         // 该 tab 完全没加载过任何用户
                         adapter.setLinks(new HashMap<>());
-                        errorTextView.setVisibility(View.GONE);
-                        linkItemsRecyclerView.setVisibility(View.GONE);
+                        setErrorTextVisible(false);
+                        setRecyclerVisible(false);
                     }
                     destroyWebView();
                 }
@@ -176,11 +185,11 @@ public class LinkFragment extends Fragment {
         getLinkButton.setOnClickListener(v -> {
             if (currentUserId == null || currentUserId.isEmpty()) {
                 errorTextView.setText("请先选择一个用户");
-                errorTextView.setVisibility(View.VISIBLE);
+                setErrorTextVisible(true);
                 return;
             }
             progressBar.setVisibility(View.VISIBLE);
-            errorTextView.setVisibility(View.GONE);
+            setErrorTextVisible(false);
             int gameType = tabLayout.getSelectedTabPosition();
             executor.execute(() -> {
                 Map<Integer, String> result;
@@ -194,7 +203,7 @@ public class LinkFragment extends Fragment {
                     requireActivity().runOnUiThread(() -> {
                         errorTextView.setText(e.getMessage());
                         progressBar.setVisibility(View.GONE);
-                        errorTextView.setVisibility(View.VISIBLE);
+                        setErrorTextVisible(true);
                     });
                     return;
                 }
@@ -215,15 +224,15 @@ public class LinkFragment extends Fragment {
                         // 直接更新UI
                         if (currentTabPosition == gameType) {
                             adapter.setLinks(new HashMap<>(result)); // 传入拷贝到 adapter
-                            errorTextView.setVisibility(View.GONE);
-                            linkItemsRecyclerView.setVisibility(View.VISIBLE);
+                            setErrorTextVisible(false);
+                            setRecyclerVisible(true);
                         }
                     } else {
                         // 空结果，显示错误信息
                         if (currentTabPosition == gameType) {
                             errorTextView.setText("没有游戏角色或获取链接出错");
-                            errorTextView.setVisibility(View.VISIBLE);
-                            linkItemsRecyclerView.setVisibility(View.GONE);
+                            setErrorTextVisible(true);
+                            setRecyclerVisible(false);
                         }
                     }
                 });
@@ -253,9 +262,9 @@ public class LinkFragment extends Fragment {
             userDropdownLayout.setVisibility(dropdownVisible ? View.VISIBLE : View.GONE);
         if (getLinkButton != null)
             getLinkButton.setVisibility(buttonVisible ? View.VISIBLE : View.GONE);
-        linkItemsRecyclerView.setVisibility(recyclerViewVisible ? View.VISIBLE : View.GONE);
-        errorTextView.setVisibility(errorTextVisible ? View.VISIBLE : View.GONE);
-        webViewContainer.setVisibility(webViewVisible ? View.VISIBLE : View.GONE);
+        setRecyclerVisible(recyclerViewVisible);
+        setErrorTextVisible(errorTextVisible);
+        setWebViewContainerVisible(webViewVisible);
     }
 
     /**
@@ -263,8 +272,8 @@ public class LinkFragment extends Fragment {
      */
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebViewForCloudGame() {
-        linkItemsRecyclerView.setVisibility(View.GONE);
-        webViewContainer.setVisibility(View.VISIBLE);
+        setRecyclerVisible(false);
+        setWebViewContainerVisible(true);
 
         webView = new WebView(requireContext());
         webView.setLayoutParams(new LinearLayout.LayoutParams(
@@ -383,5 +392,53 @@ public class LinkFragment extends Fragment {
         super.onResume();
         // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
         updateDropdown();
+    }
+
+    private void setRecyclerVisible(boolean visible) {
+        int vis = visible ? View.VISIBLE : View.GONE;
+        recyclerCard.setVisibility(vis);
+        linkItemsRecyclerView.setVisibility(vis);
+    }
+
+    private void setErrorTextVisible(boolean visible) {
+        if (visible && errorTextView.getVisibility() != View.VISIBLE) {
+            errorTextView.setVisibility(View.VISIBLE);
+            errorTextView.setAlpha(0f);
+            errorTextView.animate()
+                    .alpha(1f)
+                    .setDuration(300)
+                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                            getContext(), android.R.interpolator.fast_out_slow_in))
+                    .start();
+        } else if (!visible) {
+            errorTextView.setVisibility(View.GONE);
+        }
+    }
+
+    private void setWebViewContainerVisible(boolean visible) {
+        if (visible && webViewContainer.getVisibility() != View.VISIBLE) {
+            webViewContainer.setVisibility(View.VISIBLE);
+            webViewContainer.setAlpha(0f);
+            webViewContainer.setTranslationY(60f);
+            webViewContainer.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(400)
+                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                            getContext(), android.R.interpolator.fast_out_slow_in))
+                    .start();
+        } else if (!visible) {
+            webViewContainer.animate()
+                    .alpha(0f)
+                    .translationY(40f)
+                    .setDuration(250)
+                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                            getContext(), android.R.interpolator.fast_out_linear_in))
+                    .withEndAction(() -> {
+                        webViewContainer.setVisibility(View.GONE);
+                        webViewContainer.setTranslationY(0f);
+                    })
+                    .start();
+        }
     }
 }

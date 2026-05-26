@@ -26,6 +26,10 @@ import java.util.Objects;
 
 public class UserManagementFragment extends Fragment {
 
+    {
+        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    }
+
     private UserManager userManager;
     private ViewGroup userListContainer;
     private MaterialTextView noUserPrompt;

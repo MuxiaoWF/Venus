@@ -10,7 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -215,7 +215,22 @@ public class CollapsibleCardView extends FrameLayout {
      */
     private void animateHeight(int start, int end, boolean expanding) {
         heightAnimator = ValueAnimator.ofInt(start, end);
-        heightAnimator.setDuration(300).setInterpolator(new AccelerateDecelerateInterpolator());
+        heightAnimator.setDuration(350);
+        heightAnimator.setInterpolator(AnimationUtils.loadInterpolator(getContext(),
+                android.R.interpolator.fast_out_slow_in));
+
+        if (expanding) {
+            contentLayout.setAlpha(0f);
+            contentLayout.animate().alpha(1f).setDuration(350)
+                    .setInterpolator(AnimationUtils.loadInterpolator(getContext(),
+                            android.R.interpolator.fast_out_slow_in))
+                    .start();
+        } else {
+            contentLayout.animate().alpha(0f).setDuration(200)
+                    .setInterpolator(AnimationUtils.loadInterpolator(getContext(),
+                            android.R.interpolator.fast_out_linear_in))
+                    .start();
+        }
 
         heightAnimator.addUpdateListener(animation -> {
             int value = (int) animation.getAnimatedValue();
@@ -226,8 +241,10 @@ public class CollapsibleCardView extends FrameLayout {
         heightAnimator.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                if (!expanding)
+                if (!expanding) {
                     contentLayout.setVisibility(View.GONE);
+                    contentLayout.setAlpha(1f);
+                }
             }
         });
 
@@ -248,8 +265,9 @@ public class CollapsibleCardView extends FrameLayout {
     private void animateToggleIcon(float rotation) {
         toggleIcon.animate()
                 .rotation(rotation)
-                .setDuration(200)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .setDuration(350)
+                .setInterpolator(AnimationUtils.loadInterpolator(getContext(),
+                        android.R.interpolator.fast_out_slow_in))
                 .start();
     }
 

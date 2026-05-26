@@ -20,9 +20,9 @@
         android:layout_height="0dp"
         android:clipToPadding="false"
         android:fillViewport="true"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="16dp"
+        android:paddingHorizontal="@dimen/spacing_lg"
+        android:paddingTop="@dimen/spacing_sm"
+        android:paddingBottom="@dimen/spacing_md"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -31,16 +31,19 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
             android:orientation="vertical">
 
+            <!-- Info collapsible section -->
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/home_info_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="@dimen/spacing_sm"
                 app:cardTitle="日常"
                 app:initialExpanded="false" />
 
+            <!-- User selector grouped section -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
@@ -49,15 +52,14 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_md">
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/user_dropdown_layout"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
                         android:hint="选择用户">
 
                         <com.google.android.material.textfield.MaterialAutoCompleteTextView
@@ -71,9 +73,9 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/start_daily"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginTop="@dimen/spacing_md"
                         android:text="运行签到" />
 
                     <com.google.android.material.button.MaterialButton
@@ -81,40 +83,44 @@
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
+                        android:layout_marginTop="@dimen/spacing_sm"
                         android:text="取消任务"
                         android:visibility="gone" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Geetest container -->
             <LinearLayout
                 android:id="@+id/geetest_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:orientation="horizontal"
                 android:paddingHorizontal="12dp"
-                android:paddingVertical="8dp"
+                android:paddingVertical="@dimen/spacing_sm"
                 android:visibility="visible" />
 
+            <!-- Task list grouped section -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardElevation="0dp">
+                android:layout_marginTop="@dimen/spacing_sm">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:paddingTop="@dimen/spacing_md">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="@dimen/spacing_md"
+                        android:paddingBottom="@dimen/spacing_sm">
 
                         <ImageView
                             android:layout_width="16dp"
@@ -129,9 +135,9 @@
                             android:layout_marginStart="12dp"
                             android:layout_weight="1"
                             android:text="任务列表"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textStyle="bold" />
+                            android:textSize="@dimen/text_card_title"
+                            android:textFontWeight="600"
+                            android:textColor="?attr/colorOnSurface" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/view_log_btn"
@@ -140,13 +146,8 @@
                             android:layout_height="wrap_content"
                             android:text="查看日志"
                             android:visibility="invisible" />
-                    </LinearLayout>
 
-                    <com.google.android.material.divider.MaterialDivider
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="8dp" />
+                    </LinearLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/tasks_recycler_view"
@@ -154,7 +155,7 @@
                         android:layout_height="wrap_content"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
-                        android:paddingBottom="8dp"
+                        android:paddingBottom="@dimen/spacing_sm"
                         android:scrollbars="vertical" />
 
                 </LinearLayout>
@@ -164,6 +165,7 @@
                 android:id="@+id/bottom_padding_view"
                 android:layout_width="match_parent"
                 android:layout_height="96dp" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

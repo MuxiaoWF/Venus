@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spacing System -->
+    <dimen name="spacing_xs">4dp</dimen>
+    <dimen name="spacing_sm">8dp</dimen>
+    <dimen name="spacing_md">16dp</dimen>
+    <dimen name="spacing_lg">20dp</dimen>
+    <dimen name="spacing_xl">28dp</dimen>
+    <dimen name="spacing_xxl">36dp</dimen>
+
+    <!-- Corner Radius -->
+    <dimen name="radius_grouped_section">16dp</dimen>
+    <dimen name="radius_inner_component">12dp</dimen>
+    <dimen name="radius_button">20dp</dimen>
+    <dimen name="radius_bottom_nav">28dp</dimen>
+
+    <!-- Typography -->
+    <dimen name="text_page_title">28sp</dimen>
+    <dimen name="text_section_header">13sp</dimen>
+    <dimen name="text_card_title">17sp</dimen>
+    <dimen name="text_body">15sp</dimen>
+    <dimen name="text_caption">12sp</dimen>
+    <dimen name="text_nav_label">11sp</dimen>
+
+    <!-- Divider -->
+    <dimen name="divider_height">0.5dp</dimen>
+    <dimen name="divider_indent_icon">56dp</dimen>
+
+    <!-- Component Heights -->
+    <dimen name="setting_row_height">52dp</dimen>
+    <dimen name="item_padding_vertical">14dp</dimen>
+</resources>

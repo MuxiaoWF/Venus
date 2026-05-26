@@ -51,7 +51,7 @@
         android:layout_marginLeft="32dp"
         android:layout_marginRight="32dp"
         android:layout_marginBottom="8dp"
-        app:elevation="8dp"
+        app:elevation="4dp"
         app:itemIconTint="@color/selector"
         app:itemTextColor="@color/selector"
         app:labelVisibilityMode="labeled"
