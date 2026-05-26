@@ -17,6 +17,8 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.pm.PackageInfoCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -72,6 +74,14 @@ public class MainActivity extends AppCompatActivity {
 
         // 设置预加载相邻页面数量
         viewPager.setOffscreenPageLimit(3);
+
+        // 处理状态栏内边距，避免工具栏被状态栏遮挡
+        ViewCompat.setOnApplyWindowInsetsListener(viewPager, (v, insets) -> {
+            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            v.setPadding(v.getPaddingLeft(), statusBarHeight,
+                    v.getPaddingRight(), v.getPaddingBottom());
+            return insets;
+        });
 
         // 设置页面切换监听器，使滑动与底部导航联动
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {

@@ -4,6 +4,7 @@ public class Constants {
     public static final int WRITE_PERMISSION_REQUEST_CODE = 10001;
     public static final int NOTIFICATION_ID_WORK = 50628;
     public static final int NOTIFICATION_ID_ERROR = 50629;
+    public static final int NOTIFICATION_ID_PROGRESS = 50630;
 
     public static class Urls {
         private static final String BASE_URL = "https://api-takumi.mihoyo.com";

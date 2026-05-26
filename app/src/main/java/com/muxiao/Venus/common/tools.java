@@ -35,6 +35,25 @@ import okio.GzipSource;
 import okio.Okio;
 
 public class tools {
+    private static volatile OkHttpClient sharedClient;
+
+    private static OkHttpClient getSharedClient() {
+        if (sharedClient == null) {
+            synchronized (tools.class) {
+                if (sharedClient == null) {
+                    sharedClient = new OkHttpClient.Builder()
+                            .connectTimeout(10, TimeUnit.SECONDS)
+                            .readTimeout(30, TimeUnit.SECONDS)
+                            .writeTimeout(30, TimeUnit.SECONDS)
+                            .followRedirects(true)
+                            .followSslRedirects(true)
+                            .build();
+                }
+            }
+        }
+        return sharedClient;
+    }
+
     /**
      * 监听器接口
      */
@@ -79,14 +98,6 @@ public class tools {
                 urlBuilder.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
             urlBuilder.deleteCharAt(urlBuilder.length() - 1);
         }
-        // 构建请求
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build();
         Request.Builder requestBuilder = new Request.Builder()
                 .url(urlBuilder.toString())
                 .get();
@@ -96,16 +107,14 @@ public class tools {
                 requestBuilder.addHeader(entry.getKey(), entry.getValue());
         // 发送请求
         Request request = requestBuilder.build();
-        try (Response response = client.newCall(request).execute()) {
+        try (Response response = getSharedClient().newCall(request).execute()) {
             if (!response.isSuccessful())
                 throw new RuntimeException("请求失败，状态码：" + response.code());
             ResponseBody responseBody = response.body();
             if ("gzip".equals(response.header("Content-Encoding"))) {
-                // 数据被gzip压缩，进行解码
                 GzipSource gzipSource = new GzipSource(responseBody.source());
                 return Okio.buffer(gzipSource).readUtf8();
             } else {
-                // 如果没有压缩，直接返回字符串
                 return responseBody.string();
             }
         } catch (UnknownHostException e) {
@@ -116,14 +125,6 @@ public class tools {
     }
 
     public static String sendPostRequest(String urlStr, Map<String, String> headers, Map<String, Object> body) {
-        // 构建请求
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build();
         RequestBody requestBody;
         if (body != null) {
             Gson gson = new Gson();
@@ -140,7 +141,7 @@ public class tools {
             for (Map.Entry<String, String> entry : headers.entrySet())
                 requestBuilder.addHeader(entry.getKey(), entry.getValue());
         // 发送请求
-        try (Response response = client.newCall(requestBuilder.build()).execute()) {
+        try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
                 throw new RuntimeException("请求失败，状态码：" + response.code());
             ResponseBody responseBody = response.body();

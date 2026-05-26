@@ -16,7 +16,16 @@ public class ScaleInItemAnimator extends DefaultItemAnimator {
         setAddDuration(300);
         setRemoveDuration(200);
         setMoveDuration(300);
-        setChangeDuration(250);
+    }
+
+    @Override
+    public boolean animateChange(@NonNull RecyclerView.ViewHolder holder,
+                                 @NonNull RecyclerView.ViewHolder newHolder,
+                                 int fromLeft, int fromTop, int toLeft, int toTop) {
+        // 禁用 change 动画，防止数据更新时的交叉淡入
+        dispatchChangeFinished(holder, true);
+        dispatchChangeFinished(newHolder, false);
+        return false;
     }
 
     @Override

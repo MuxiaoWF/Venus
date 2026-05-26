@@ -79,26 +79,23 @@ public class SklandDaily {
      */
     private static Cred getCredByToken(String token) throws Exception {
         // 获取设备ID
-        Map<String, String> headers = new HashMap<>() {{
-            put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-            put("Accept-Encoding", "gzip");
-            put("Connection", "close");
-            put("dId", getDid());
-        }};
-        Map<String, Object> signBase = new HashMap<>() {{
-            put("appCode", APP_CODE);
-            put("token", token);
-            put("type", 0);
-        }};
+        Map<String, String> headers = Map.of(
+                "User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0",
+                "Accept-Encoding", "gzip",
+                "Connection", "close",
+                "dId", getDid()
+        );
+        Map<String, Object> signBase = Map.of(
+                "appCode", APP_CODE,
+                "token", token,
+                "type", 0
+        );
         String grant = sendPostRequest(URL_GRANT, headers, signBase);
         JsonObject g = JsonParser.parseString(grant).getAsJsonObject();
         if (g.get("status").getAsInt() != 0)
             throw new RuntimeException("grant 失败：" + g.get("msg").getAsString());
         String code = g.getAsJsonObject("data").get("code").getAsString();
-        Map<String, Object> cred = new HashMap<>() {{
-            put("code", code);
-            put("kind", 1);
-        }};
+        Map<String, Object> cred = Map.of("code", code, "kind", 1);
         String credResp = sendPostRequest(URL_CRED, headers, cred);
         JsonObject d = JsonParser.parseString(credResp).getAsJsonObject().getAsJsonObject("data");
         return new Cred(d.get("cred").getAsString(), d.get("token").getAsString());
@@ -108,24 +105,22 @@ public class SklandDaily {
      * 获取绑定的角色列表
      */
     private static List<Role> getRoles(Cred cred) throws Exception {
-        Map<String, String> signBase = new LinkedHashMap<>() {{
-            put("platform", "");
-            put("timestamp", "");
-            put("dId", "");
-            put("vName", "");
-        }};
+        Map<String, String> signBase = new LinkedHashMap<>();
+        signBase.put("platform", "");
+        signBase.put("timestamp", "");
+        signBase.put("dId", "");
+        signBase.put("vName", "");
         Map<String, String> sig = generateSignature(cred.token, "/api/v1/game/player/binding", "", signBase);
-        Map<String, String> headers = new LinkedHashMap<>() {{
-            put("User-Agent", "'Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0'");
-            put("Accept-Encoding", "gzip");
-            put("Connection", "close");
-            put("cred", cred.cred);
-            put("dId", signBase.get("dId"));
-            put("platform", signBase.get("platform"));
-            put("timestamp", sig.get("timestamp"));
-            put("vName", signBase.get("vName"));
-            put("sign", sig.get("sign"));
-        }};
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("User-Agent", "'Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0'");
+        headers.put("Accept-Encoding", "gzip");
+        headers.put("Connection", "close");
+        headers.put("cred", cred.cred);
+        headers.put("dId", signBase.get("dId"));
+        headers.put("platform", signBase.get("platform"));
+        headers.put("timestamp", sig.get("timestamp"));
+        headers.put("vName", signBase.get("vName"));
+        headers.put("sign", sig.get("sign"));
         String resp = sendGetRequest(URL_BIND, headers, null);
         JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
         if (j.get("code").getAsInt() != 0)
@@ -152,29 +147,27 @@ public class SklandDaily {
      * 执行签到
      */
     private void doSign(Cred cred, Role role) throws Exception {
-        Map<String, String> signBase = new LinkedHashMap<>() {{
-            put("platform", "");
-            put("timestamp", "");
-            put("dId", "");
-            put("vName", "");
-        }};
+        Map<String, String> signBase = new LinkedHashMap<>();
+        signBase.put("platform", "");
+        signBase.put("timestamp", "");
+        signBase.put("dId", "");
+        signBase.put("vName", "");
         if (role.gameId != 1) {
             Map<String, String> t = generateSignature(cred.token, "/web/v1/game/endfield/attendance", "{}", signBase);
-            Map<String, String> headers = new HashMap<>() {{
-                put("Content-Type", "application/json");
-                put("cred", cred.cred);
-                put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-                put("Accept-Encoding", "gzip");
-                put("Connection", "close");
-                put("sign", t.get("sign"));
-                put("platform", signBase.get("platform"));
-                put("timestamp", t.get("timestamp"));
-                put("dId", signBase.get("dId"));
-                put("vName", signBase.get("vName"));
-                put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
-                put("referer", "https://game.skland.com/");
-                put("origin", "https://game.skland.com/");
-            }};
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Content-Type", "application/json");
+            headers.put("cred", cred.cred);
+            headers.put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
+            headers.put("Accept-Encoding", "gzip");
+            headers.put("Connection", "close");
+            headers.put("sign", t.get("sign"));
+            headers.put("platform", signBase.get("platform"));
+            headers.put("timestamp", t.get("timestamp"));
+            headers.put("dId", signBase.get("dId"));
+            headers.put("vName", signBase.get("vName"));
+            headers.put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
+            headers.put("referer", "https://game.skland.com/");
+            headers.put("origin", "https://game.skland.com/");
             String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
             JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
             if (j.get("code").getAsInt() == 0) {
@@ -188,22 +181,20 @@ public class SklandDaily {
                 notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
             }
         } else {
-            Map<String, Object> body = new HashMap<>() {{
-                put("gameId", role.gameId);
-                put("uid", role.uid);
-            }};
+            Map<String, Object> body = new HashMap<>();
+            body.put("gameId", role.gameId);
+            body.put("uid", role.uid);
             Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
-            Map<String, String> headers = new HashMap<>() {{
-                put("cred", cred.cred);
-                put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-                put("Accept-Encoding", "gzip");
-                put("Connection", "close");
-                put("sign", t.get("sign"));
-                put("platform", signBase.get("platform"));
-                put("timestamp", t.get("timestamp"));
-                put("dId", signBase.get("dId"));
-                put("vName", signBase.get("vName"));
-            }};
+            Map<String, String> headers = new HashMap<>();
+            headers.put("cred", cred.cred);
+            headers.put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
+            headers.put("Accept-Encoding", "gzip");
+            headers.put("Connection", "close");
+            headers.put("sign", t.get("sign"));
+            headers.put("platform", signBase.get("platform"));
+            headers.put("timestamp", t.get("timestamp"));
+            headers.put("dId", signBase.get("dId"));
+            headers.put("vName", signBase.get("vName"));
             String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
             JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
             if (j.get("code").getAsInt() == 0) {
@@ -238,10 +229,10 @@ public class SklandDaily {
         String hexS = bytesToHex(hmacBytes);   // 64 字符 ASCII
         MessageDigest md5 = MessageDigest.getInstance("MD5");
         byte[] md5Bytes = md5.digest(hexS.getBytes(StandardCharsets.UTF_8));
-        return new HashMap<>() {{
-            put("sign", bytesToHex(md5Bytes));
-            put("timestamp", String.valueOf(timestamp));
-        }};
+        Map<String, String> result = new HashMap<>();
+        result.put("sign", bytesToHex(md5Bytes));
+        result.put("timestamp", String.valueOf(timestamp));
+        return result;
     }
 
     /**
@@ -253,22 +244,21 @@ public class SklandDaily {
         String ep = rsa(uid);
         long currentTime = System.currentTimeMillis();
         // 创建浏览器环境副本
-        Map<String, Object> browser = new HashMap<>() {{
-            put("plugins", "MicrosoftEdgePDFPluginPortableDocumentFormatinternal-pdf-viewer1,MicrosoftEdgePDFViewermhjfbmdgcfjbbpaeojofohoefgiehjai1");
-            put("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0");
-            put("canvas", "259ffe69");
-            put("timezone", -480);
-            put("platform", "Win64");
-            put("url", "https://www.skland.com/");
-            put("referer", "");
-            put("res", "1920_1080_24_1.25");
-            put("clientSize", "0_0_1080_1920_1920_1080");
-            put("status", "0011");
-            put("vpw", deviceID);
-            put("svm", currentTime);
-            put("trees", deviceID);
-            put("pmf", currentTime);
-        }};
+        Map<String, Object> browser = new HashMap<>();
+        browser.put("plugins", "MicrosoftEdgePDFPluginPortableDocumentFormatinternal-pdf-viewer1,MicrosoftEdgePDFViewermhjfbmdgcfjbbpaeojofohoefgiehjai1");
+        browser.put("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0");
+        browser.put("canvas", "259ffe69");
+        browser.put("timezone", -480);
+        browser.put("platform", "Win64");
+        browser.put("url", "https://www.skland.com/");
+        browser.put("referer", "");
+        browser.put("res", "1920_1080_24_1.25");
+        browser.put("clientSize", "0_0_1080_1920_1920_1080");
+        browser.put("status", "0011");
+        browser.put("vpw", deviceID);
+        browser.put("svm", currentTime);
+        browser.put("trees", deviceID);
+        browser.put("pmf", currentTime);
 
         // 创建目标数据结构
         Map<String, Object> desTarget = new HashMap<>(browser);
@@ -297,15 +287,14 @@ public class SklandDaily {
         byte[] gz = android.util.Base64.encode(b.toByteArray(), android.util.Base64.NO_WRAP);
         String aes = aes(gz, pri);
 
-        Map<String, Object> requestBody = new HashMap<>() {{
-            put("data", aes);
-            put("ep", ep);
-            put("compress", 2);
-            put("encode", 5);
-            put("appId", "default");
-            put("organization", "UWXspnCCJN4sfYlNfqps");
-            put("os", "web");
-        }};
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("data", aes);
+        requestBody.put("ep", ep);
+        requestBody.put("compress", 2);
+        requestBody.put("encode", 5);
+        requestBody.put("appId", "default");
+        requestBody.put("organization", "UWXspnCCJN4sfYlNfqps");
+        requestBody.put("os", "web");
         String resp = sendPostRequest("https://fp-it.portal101.cn/deviceprofile/v4", new HashMap<>(), requestBody);
 
         return "B" + JsonParser.parseString(resp)

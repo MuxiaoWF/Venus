@@ -32,33 +32,39 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     @Override
     public void onBindViewHolder(@NonNull TaskViewHolder holder, int position) {
         TaskItem task = taskList.get(position);
-
         holder.taskName.setText(task.getName());
 
-        if (task.isError()) {// 错误.
-            holder.statusIcon.setImageResource(R.drawable.ic_error);
-            holder.taskProgress.setVisibility(View.GONE);
-            holder.taskProgress.setIndeterminate(false);
-        } else if (task.isInProgress()) {  // 正在进行中
-            holder.statusIcon.setImageResource(R.drawable.ic_pending);
-            holder.taskProgress.setVisibility(View.VISIBLE);
-            holder.taskProgress.setIndeterminate(true);
-        } else if (task.isCompleted()) { // 已完成
-            holder.statusIcon.setImageResource(R.drawable.ic_check);
-            holder.taskProgress.setVisibility(View.GONE);
-            holder.taskProgress.setIndeterminate(false);
-        }else if(task.isWarning()){ // 警告
-            holder.statusIcon.setImageResource(R.drawable.ic_warning);
-            holder.taskProgress.setVisibility(View.VISIBLE);
-            holder.taskProgress.setIndeterminate(true);
-        }else if(task.isCancel()){ // 取消
-            holder.statusIcon.setImageResource(R.drawable.ic_pending);
-            holder.taskProgress.setVisibility(View.VISIBLE);
-            holder.taskProgress.setIndeterminate(false);
-        }else { // 未开始
-            holder.statusIcon.setImageResource(R.drawable.ic_pending);
-            holder.taskProgress.setVisibility(View.GONE);
-            holder.taskProgress.setIndeterminate(false);
+        switch (task.getStatus()) {
+            case IN_PROGRESS:
+                holder.statusIcon.setImageResource(R.drawable.ic_pending);
+                holder.taskProgress.setVisibility(View.VISIBLE);
+                holder.taskProgress.setIndeterminate(true);
+                break;
+            case COMPLETED:
+                holder.statusIcon.setImageResource(R.drawable.ic_check);
+                holder.taskProgress.setVisibility(View.GONE);
+                holder.taskProgress.setIndeterminate(false);
+                break;
+            case ERROR:
+                holder.statusIcon.setImageResource(R.drawable.ic_error);
+                holder.taskProgress.setVisibility(View.GONE);
+                holder.taskProgress.setIndeterminate(false);
+                break;
+            case WARNING:
+                holder.statusIcon.setImageResource(R.drawable.ic_warning);
+                holder.taskProgress.setVisibility(View.VISIBLE);
+                holder.taskProgress.setIndeterminate(true);
+                break;
+            case CANCELLED:
+                holder.statusIcon.setImageResource(R.drawable.ic_pending);
+                holder.taskProgress.setVisibility(View.VISIBLE);
+                holder.taskProgress.setIndeterminate(false);
+                break;
+            default: // PENDING
+                holder.statusIcon.setImageResource(R.drawable.ic_pending);
+                holder.taskProgress.setVisibility(View.GONE);
+                holder.taskProgress.setIndeterminate(false);
+                break;
         }
     }
 

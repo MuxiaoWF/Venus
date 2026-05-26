@@ -13,6 +13,8 @@ import android.widget.ScrollView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
@@ -23,7 +25,6 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
@@ -78,6 +79,14 @@ public class UserLoginActivity extends AppCompatActivity {
 
         com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.user_login_toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
+
+        // 处理状态栏内边距
+        ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, insets) -> {
+            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            v.setPadding(v.getPaddingLeft(), statusBarHeight,
+                    v.getPaddingRight(), v.getPaddingBottom());
+            return insets;
+        });
 
         // 如果是重新登录模式，自动填充用户名并隐藏输入框
         if (relogin_mode && relogin_username != null) {

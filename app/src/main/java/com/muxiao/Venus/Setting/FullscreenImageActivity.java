@@ -16,11 +16,14 @@ import android.view.MenuItem;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -125,7 +128,17 @@ public class FullscreenImageActivity extends AppCompatActivity {
         downloadButton.setOnClickListener(v -> checkPermissionAndDownload());
 
         // 返回按钮点击事件
-        findViewById(R.id.backButton).setOnClickListener(v -> finish());
+        MaterialButton backButton = findViewById(R.id.backButton);
+        backButton.setOnClickListener(v -> finish());
+
+        // 处理状态栏内边距，避免返回按钮被状态栏遮挡
+        ViewCompat.setOnApplyWindowInsetsListener(backButton, (v, insets) -> {
+            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            params.topMargin = statusBarHeight + (int) (8 * getResources().getDisplayMetrics().density);
+            v.setLayoutParams(params);
+            return insets;
+        });
 
         // 设置页面滑动监听，用于处理缩放时的底部信息栏显示
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {

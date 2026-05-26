@@ -137,38 +137,43 @@ public class LinkFragment extends Fragment {
                 currentTabPosition = tab.getPosition();
                 if (currentTabPosition == 2) {
                     // 云游戏
-                    setViewsVisibility(false, false, false, false, true);
+                    adapter.setLinksSilently(new HashMap<>());
+                    setRecyclerVisible(false);
+                    setErrorTextVisible(false);
+                    setTopCardVisible(false);
+                    setWebViewContainerVisible(true);
                     setupWebViewForCloudGame();
                 } else {
-                    // 原神 / 绝区零
-                    setViewsVisibility(true, true, true, true, false);
+                    // 原神 / 绝区零 — 先设置数据，再设置可见性
+                    destroyWebView();
+                    setWebViewContainerVisible(false);
+                    setTopCardVisible(true);
 
                     Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
                     if (perUser != null) {
                         Map<Integer, String> resultsForCurrentUser = perUser.get(currentUserId);
                         if (resultsForCurrentUser != null && !resultsForCurrentUser.isEmpty()) {
-                            adapter.setLinks(new HashMap<>(resultsForCurrentUser));
+                            adapter.setLinksSilently(new HashMap<>(resultsForCurrentUser));
                             setRecyclerVisible(true);
                             setErrorTextVisible(false);
                         } else if (perUser.containsKey(currentUserId)) {
                             // 已加载过但为空
-                            adapter.setLinks(new HashMap<>());
+                            adapter.setLinksSilently(new HashMap<>());
                             errorTextView.setText("没有游戏角色或获取链接出错");
-                            setErrorTextVisible(true);
                             setRecyclerVisible(false);
+                            setErrorTextVisible(true);
                         } else {
                             // 未加载过该标签页+用户的结果
-                            adapter.setLinks(new HashMap<>());
-                            setErrorTextVisible(false);
+                            adapter.setLinksSilently(new HashMap<>());
                             setRecyclerVisible(false);
+                            setErrorTextVisible(false);
                         }
                     } else {
                         // 该 tab 完全没加载过任何用户
-                        adapter.setLinks(new HashMap<>());
-                        setErrorTextVisible(false);
+                        adapter.setLinksSilently(new HashMap<>());
                         setRecyclerVisible(false);
+                        setErrorTextVisible(false);
                     }
-                    destroyWebView();
                 }
             }
 
@@ -180,6 +185,15 @@ public class LinkFragment extends Fragment {
             public void onTabReselected(TabLayout.Tab tab) {
             }
         });
+
+        // 恢复当前 tab 的可见性状态（处理 view 重建的情况）
+        if (currentTabPosition == 2) {
+            setTopCardVisible(false);
+            setRecyclerVisible(false);
+            setErrorTextVisible(false);
+            setWebViewContainerVisible(true);
+            setupWebViewForCloudGame();
+        }
 
         // 获取链接按钮点击事件
         getLinkButton.setOnClickListener(v -> {
@@ -240,31 +254,21 @@ public class LinkFragment extends Fragment {
         });
 
         // 关闭 WebView 按钮
-        view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> {
-            setViewsVisibility(true, true, true, true, false);
-            Objects.requireNonNull(tabLayout.getTabAt(0)).select();
-            destroyWebView();
-        });
+        view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> Objects.requireNonNull(tabLayout.getTabAt(0)).select());
 
         return view;
     }
 
     /**
-     * 设置视图可见性
+     * 设置顶部操作区卡片（用户下拉框 + 按钮）可见性
      */
-    private void setViewsVisibility(boolean dropdownVisible, boolean buttonVisible,
-                                    boolean recyclerViewVisible, boolean errorTextVisible,
-                                    boolean webViewVisible) {
+    private void setTopCardVisible(boolean visible) {
         LinearLayout userDropdownLayout = requireView().findViewById(R.id.user_dropdown_layout);
-        MaterialButton getLinkButton = requireView().findViewById(R.id.get_link_button);
-
-        if (userDropdownLayout != null)
-            userDropdownLayout.setVisibility(dropdownVisible ? View.VISIBLE : View.GONE);
-        if (getLinkButton != null)
-            getLinkButton.setVisibility(buttonVisible ? View.VISIBLE : View.GONE);
-        setRecyclerVisible(recyclerViewVisible);
-        setErrorTextVisible(errorTextVisible);
-        setWebViewContainerVisible(webViewVisible);
+        if (userDropdownLayout != null) {
+            View card = (View) userDropdownLayout.getParent().getParent();
+            if (card != null)
+                card.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
     }
 
     /**
@@ -401,6 +405,7 @@ public class LinkFragment extends Fragment {
     }
 
     private void setErrorTextVisible(boolean visible) {
+        errorTextView.animate().cancel();
         if (visible && errorTextView.getVisibility() != View.VISIBLE) {
             errorTextView.setVisibility(View.VISIBLE);
             errorTextView.setAlpha(0f);
@@ -416,6 +421,9 @@ public class LinkFragment extends Fragment {
     }
 
     private void setWebViewContainerVisible(boolean visible) {
+        webViewContainer.animate().cancel();
+        webViewContainer.setTranslationY(0f);
+        webViewContainer.setAlpha(1f);
         if (visible && webViewContainer.getVisibility() != View.VISIBLE) {
             webViewContainer.setVisibility(View.VISIBLE);
             webViewContainer.setAlpha(0f);
@@ -428,17 +436,7 @@ public class LinkFragment extends Fragment {
                             getContext(), android.R.interpolator.fast_out_slow_in))
                     .start();
         } else if (!visible) {
-            webViewContainer.animate()
-                    .alpha(0f)
-                    .translationY(40f)
-                    .setDuration(250)
-                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
-                            getContext(), android.R.interpolator.fast_out_linear_in))
-                    .withEndAction(() -> {
-                        webViewContainer.setVisibility(View.GONE);
-                        webViewContainer.setTranslationY(0f);
-                    })
-                    .start();
+            webViewContainer.setVisibility(View.GONE);
         }
     }
 }

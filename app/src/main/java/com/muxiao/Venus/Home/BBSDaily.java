@@ -23,36 +23,80 @@ import java.util.Objects;
 import java.util.Random;
 
 public class BBSDaily {
-    private final Map<String, Boolean> taskDo = new HashMap<>() {{
-        put("sign", false);
-        put("read", false);
-        put("like", false);
-        put("share", false);
-    }};
-    private final Map<String, Integer> taskTimes = new HashMap<>() {{
-        put("read_num", 3);
-        put("like_num", 5);
-    }};
-    private final List<Map<String, String>> bbs_check_in_list = new ArrayList<>();
-    private int todayCanGetCoins; // 当天可获取的米游币
-    private int todayHaveGetCoins; // 当天已获取的米游币
-    private int haveCoins; // 已获取的米游币
+
+    private static final int MAX_RETRIES = 3;
+    private static final int DEFAULT_READ_COUNT = 3;
+    private static final int DEFAULT_LIKE_COUNT = 5;
+    private static final int POST_LIST_CAP = 5;
+    private static final int DELAY_MIN_MS = 500;
+    private static final int DELAY_RANGE_MS = 1500;
+    private static final Random RANDOM = new Random();
+
+    private void randomDelay() throws InterruptedException {
+        Thread.sleep(DELAY_MIN_MS + RANDOM.nextInt(DELAY_RANGE_MS));
+    }
+
+    @FunctionalInterface
+    private interface ApiCall {
+        JsonObject execute() throws Exception;
+    }
+
+    private JsonObject executeWithRetry(ApiCall call, String taskDescription) throws Exception {
+        for (int retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
+            JsonObject data = call.execute();
+            if (data.get("retcode").getAsInt() == 1034) {
+                notifier.notifyListeners("需要进行人机验证...");
+                notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
+                Map<String, String> headers = getBbsHeaders();
+                if (geetCode != null) headers.putAll(geetCode);
+                performVerificationWithCallback(headers);
+                synchronized (this) { while (!verificationComplete) this.wait(); }
+            } else if (data.get("retcode").getAsInt() == -100) {
+                String errorMsg = taskDescription + "失败，你的cookie可能已过期，请重新设置cookie。";
+                notifier.notifyListeners(errorMsg);
+                notification.sendErrorNotification(taskDescription + "失败", errorMsg);
+                throw new RuntimeException(errorMsg);
+            } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
+                return data;
+            } else {
+                String errorMsg = taskDescription + "失败,错误信息为: " + data;
+                notifier.notifyListeners(errorMsg);
+                notification.sendErrorNotification(taskDescription + "失败", errorMsg);
+                if (retryCount < MAX_RETRIES - 1)
+                    notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
+            }
+        }
+        throw new RuntimeException(taskDescription + "重试次数已达上限");
+    }
+
+    private final Map<String, Boolean> completedTasks = new HashMap<>();
+    private final Map<String, Integer> remainingCounts = new HashMap<>();
+    private final List<Map<String, String>> bbsCheckInList = new ArrayList<>();
+    private int todayEarnableCoins; // 当天可获取的米游币
+    private int todayEarnedCoins; // 当天已获取的米游币
+    private int totalCoins; // 已获取的米游币
     private List<List<String>> postsList;
     private final tools.StatusNotifier notifier;
     private final GeetestController gt3Controller;
     private final Notification notification;
-    private final HeaderManager header_manager;
+    private final HeaderManager headerManager;
     private final String cookie;
 
     public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, GeetestController gt3Controller) {
+        completedTasks.put("sign", false);
+        completedTasks.put("read", false);
+        completedTasks.put("like", false);
+        completedTasks.put("share", false);
+        remainingCounts.put("read_num", DEFAULT_READ_COUNT);
+        remainingCounts.put("like_num", DEFAULT_LIKE_COUNT);
         this.gt3Controller = gt3Controller;
         this.notification = new Notification(context);
-        this.header_manager = new HeaderManager(context);
+        this.headerManager = new HeaderManager(context);
         this.notifier = notifier;
         String stoken = tools.read(context, userId, "stoken");
         String mid = tools.read(context, userId, "mid");
         String stuid = "ltuid=" + tools.read(context, userId, "stuid");
-        if (stoken == null | mid == null | tools.read(context, userId, "stuid") == null) {
+        if (stoken == null || mid == null || tools.read(context, userId, "stuid") == null) {
             String errorMsg = "stoken/mid/stuid为null,请尝试重新登陆";
             notification.sendErrorNotification("登录错误", errorMsg);
             throw new RuntimeException(errorMsg);
@@ -68,7 +112,7 @@ public class BBSDaily {
     public void runTask(String[] name) throws Exception {
         // 添加需要签到的板块信息
         for (String key : name)
-            bbs_check_in_list.add(MiHoYoBBSConstants.name_to_forum_id(key));
+            bbsCheckInList.add(MiHoYoBBSConstants.name_to_forum_id(key));
         // 获取任务完成状态
         JsonObject data = checkTasksList();
         if (data != null) {
@@ -85,15 +129,14 @@ public class BBSDaily {
         } else //任务已经完成
             notifier.notifyListeners("今天已经完成了所有米游币任务，明天再来吧");
 
-        notifier.notifyListeners("今天已经获得" + this.todayHaveGetCoins + "个米游币\n" + "还能获得" + this.todayCanGetCoins + "个米游币\n目前有" + this.haveCoins + "个米游币");
+        notifier.notifyListeners("今天已经获得" + this.todayEarnedCoins + "个米游币\n" + "还能获得" + this.todayEarnableCoins + "个米游币\n目前有" + this.totalCoins + "个米游币");
         notifier.notifyListeners("米游币任务执行完毕");
-        notification.sendNormalNotification("米游币任务完成", "今日获得" + this.todayHaveGetCoins + "个米游币，目前共有" + this.haveCoins + "个米游币");
     }
 
-    private Map<String, String> get_bbs_headers() {
-        Map<String, String> bbs_headers = header_manager.get_bbs_headers();
-        bbs_headers.put("Cookie", cookie);
-        return bbs_headers;
+    private Map<String, String> getBbsHeaders() {
+        Map<String, String> bbsHeaders = headerManager.get_bbs_headers();
+        bbsHeaders.put("Cookie", cookie);
+        return bbsHeaders;
     }
 
     /**
@@ -101,8 +144,8 @@ public class BBSDaily {
      */
     private JsonObject checkTasksList() {
         notifier.notifyListeners("正在获取任务列表");
-        Map<String, String> bbs_headers = get_bbs_headers();
-        String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, bbs_headers, null);
+        Map<String, String> bbsHeaders = getBbsHeaders();
+        String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, bbsHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
         if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
@@ -110,14 +153,14 @@ public class BBSDaily {
             notification.sendErrorNotification("任务获取失败", errorMsg);
             throw new RuntimeException(errorMsg);
         }
-        this.todayCanGetCoins = data.get("can_get_points").getAsInt();
-        this.todayHaveGetCoins = data.get("already_received_points").getAsInt();
-        this.haveCoins = data.get("total_points").getAsInt();
-        if (this.todayCanGetCoins == 0) { // 完成所有任务
-            this.taskDo.put("sign", true);
-            this.taskDo.put("read", true);
-            this.taskDo.put("like", true);
-            this.taskDo.put("share", true);
+        this.todayEarnableCoins = data.get("can_get_points").getAsInt();
+        this.todayEarnedCoins = data.get("already_received_points").getAsInt();
+        this.totalCoins = data.get("total_points").getAsInt();
+        if (this.todayEarnableCoins == 0) { // 完成所有任务
+            this.completedTasks.put("sign", true);
+            this.completedTasks.put("read", true);
+            this.completedTasks.put("like", true);
+            this.completedTasks.put("share", true);
             return null;
         }
         return data;
@@ -129,12 +172,12 @@ public class BBSDaily {
     private void getTasksList(JsonObject data) {
 
         // 任务列表
-        Map<Integer, Map<String, String>> tasks = new HashMap<>() {{
-            put(58, Map.of("attr", "sign", "done", "is_get_award"));
-            put(59, Map.of("attr", "read", "done", "is_get_award", "num_attr", "read_num"));
-            put(60, Map.of("attr", "like", "done", "is_get_award", "num_attr", "like_num"));
-            put(61, Map.of("attr", "share", "done", "is_get_award"));
-        }};
+        Map<Integer, Map<String, String>> tasks = Map.of(
+                58, Map.of("attr", "sign", "done", "is_get_award"),
+                59, Map.of("attr", "read", "done", "is_get_award", "num_attr", "read_num"),
+                60, Map.of("attr", "like", "done", "is_get_award", "num_attr", "like_num"),
+                61, Map.of("attr", "share", "done", "is_get_award")
+        );
         // 查找对应id的任务，判断哪些任务完成/未完成
         for (int taskID : tasks.keySet()) {
             JsonObject missionState = null;
@@ -150,22 +193,22 @@ public class BBSDaily {
             Map<String, String> doTask = tasks.get(taskID);
             if (missionState.get(Objects.requireNonNull(doTask).get("done")).getAsBoolean()) {
                 // 这个任务已经完成
-                this.taskDo.put(doTask.get("attr"), true);
+                this.completedTasks.put(doTask.get("attr"), true);
             } else if (doTask.containsKey("num_attr")) {
                 // 这个任务部分完成，获取任务完成次数
                 JsonElement happenedTimesElement = missionState.get("happened_times");
                 if (happenedTimesElement != null && !happenedTimesElement.isJsonNull()) {
-                    Integer num = this.taskTimes.get(doTask.get("num_attr"));
-                    int num_attr = (num != null) ? num : 0;
-                    this.taskTimes.put(doTask.get("num_attr"), num_attr - happenedTimesElement.getAsInt());
+                    Integer num = this.remainingCounts.get(doTask.get("num_attr"));
+                    int numAttr = (num != null) ? num : 0;
+                    this.remainingCounts.put(doTask.get("num_attr"), numAttr - happenedTimesElement.getAsInt());
                 }
             }
         }
         if (data.get("states").getAsJsonArray().get(0).getAsJsonObject().get("mission_id").getAsInt() >= 62)
             // 新的一天（一个币都没拿）
-            notifier.notifyListeners("新的一天，今天可以获得" + this.todayCanGetCoins + "个米游币");
+            notifier.notifyListeners("新的一天，今天可以获得" + this.todayEarnableCoins + "个米游币");
         else // 不是新的一天（只剩部分硬币）
-            notifier.notifyListeners("似乎还有任务没完成，今天还能获得" + this.todayCanGetCoins + "个米游币");
+            notifier.notifyListeners("似乎还有任务没完成，今天还能获得" + this.todayEarnableCoins + "个米游币");
     }
 
     /**
@@ -176,15 +219,15 @@ public class BBSDaily {
     private List<List<String>> getList() {
         List<List<String>> tempList = new ArrayList<>();
         notifier.notifyListeners("正在获取帖子列表......");
-        Map<String, String> bbs_headers = get_bbs_headers();
-        String response = tools.sendGetRequest(Constants.Urls.BBS_POST_URL, bbs_headers,
-                Map.of("forum_id", Objects.requireNonNull(bbs_check_in_list.get(0).get("forumId")), "is_good", "false", "is_hot", "false", "page_size", "20", "sort_type", "1"));
+        Map<String, String> bbsHeaders = getBbsHeaders();
+        String response = tools.sendGetRequest(Constants.Urls.BBS_POST_URL, bbsHeaders,
+                Map.of("forum_id", Objects.requireNonNull(bbsCheckInList.get(0).get("forumId")), "is_good", "false", "is_hot", "false", "page_size", "20", "sort_type", "1"));
         JsonArray list = JsonParser.parseString(response).getAsJsonObject().getAsJsonObject("data").getAsJsonArray("list");
         for (JsonElement postElement : list) {
             JsonObject post = postElement.getAsJsonObject().getAsJsonObject("post");
             tempList.add(List.of(post.get("post_id").getAsString(), post.get("subject").getAsString()));
             notifier.notifyListeners("已获取" + tempList.size() + "个帖子");
-            if (tempList.size() >= 5)
+            if (tempList.size() >= POST_LIST_CAP)
                 break;
         }
         return tempList;
@@ -194,112 +237,65 @@ public class BBSDaily {
      * 签到米游币
      */
     private void signPosts() throws Exception {
-        if (Boolean.TRUE.equals(this.taskDo.get("sign"))) {
+        if (Boolean.TRUE.equals(this.completedTasks.get("sign"))) {
             notifier.notifyListeners("讨论区任务(每日签到)已经完成过了~");
             return;
         }
         notifier.notifyListeners("正在签到......");
-        Map<String, String> header = get_bbs_headers();
-        for (Map<String, String> forum : bbs_check_in_list) {
-            for (int retryCount = 0; retryCount < 3; retryCount++) {
-                // 构建 Map 类型的请求体
-                Map<String, Object> postDataMap = new HashMap<>();
-                postDataMap.put("gids", Integer.parseInt(Objects.requireNonNull(forum.get("id"))));
-                // 生成 DS 签名
-                String postDataJson = new Gson().toJson(postDataMap);
-                header.put("DS", header_manager.getDS_signIn(postDataJson));
-                // 如果是之前进行了人机验证的，添加请求头
-                if(geetest_code != null)
-                    header.putAll(geetest_code);
+        for (Map<String, String> forum : bbsCheckInList) {
+            Map<String, Object> postDataMap = new HashMap<>();
+            postDataMap.put("gids", Integer.parseInt(Objects.requireNonNull(forum.get("id"))));
+            String postDataJson = new Gson().toJson(postDataMap);
+
+            JsonObject result = executeWithRetry(() -> {
+                Map<String, String> header = getBbsHeaders();
+                header.put("DS", headerManager.getDS_signIn(postDataJson));
+                if (geetCode != null) header.putAll(geetCode);
                 String response = sendPostRequest(Constants.Urls.BBS_SIGN_IN_URL, header, postDataMap);
-                JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-                if (data.get("retcode").getAsInt() == 1034) {
-                    // 当返回码为1034时，触发验证码验证
-                    notifier.notifyListeners("需要进行人机验证...");
-                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
-                    // 回调验证
-                    performVerificationWithCallback(header);
-                    synchronized (this) {
-                        this.wait();
-                    }
-                } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
-                    // 签到成功
-                    notifier.notifyListeners(forum.get("name") + data.get("message").getAsString());
-                    break;
-                } else if (data.get("retcode").getAsInt() == -100) {
-                    String errorMsg = "签到失败，你的cookie可能已过期，请重新设置cookie。";
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("签到失败", errorMsg);
-                    throw new RuntimeException(errorMsg);
-                } else {
-                    String errorMsg = "未知错误: " + response;
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("签到异常", errorMsg);
-                    if (retryCount < 2)
-                        notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
-                }
-            }
-            Thread.sleep(500 + new Random().nextInt(1500));
+                return JsonParser.parseString(response).getAsJsonObject();
+            }, "签到");
+
+            notifier.notifyListeners(forum.get("name") + result.get("message").getAsString());
+            randomDelay();
         }
+    }
+
+    private boolean isTaskAlreadyDone(String taskKey, String taskLabel) {
+        if (Boolean.TRUE.equals(completedTasks.get(taskKey))) {
+            notifier.notifyListeners(taskLabel + "任务已经完成过了~");
+            return true;
+        }
+        if (postsList == null) {
+            notifier.notifyListeners("没有获取到帖子列表");
+            notification.sendErrorNotification(taskLabel, "没有获取到帖子列表");
+            return true;
+        }
+        return false;
     }
 
     /**
      * 看帖任务
      */
     private void readPosts() throws Exception {
-        if (Boolean.TRUE.equals(this.taskDo.get("read"))) {
-            notifier.notifyListeners("看帖任务已经完成过了~");
-            return;
-        } else if (postsList == null) {
-            notifier.notifyListeners("没有获取到帖子列表");
-            notification.sendErrorNotification("看帖任务", "没有获取到帖子列表");
-            return;
-        }
+        if (isTaskAlreadyDone("read", "看帖")) return;
         notifier.notifyListeners("正在看帖......");
-        Integer readNum = this.taskTimes.get("read_num");
+        Integer readNum = this.remainingCounts.get("read_num");
         int num = (readNum != null) ? readNum : 3;
-        // 循环看帖(数量取需要里和帖子列表里小的)
         for (int i = 0; i < (Math.min(num, postsList.size())); i++) {
             List<String> post = postsList.get(i);
-            // 失败重复
-            for (int retryCount = 0; retryCount < 3; retryCount++) {
-                // 构建 Map 类型的请求体
-                Map<String, String> postDataMap = new HashMap<>();
-                postDataMap.put("post_id", post.get(0));
-                postDataMap.put("gid", bbs_check_in_list.get(0).get("id"));
-                Map<String, String> bbs_headers = get_bbs_headers();
-                // 如果是之前进行了人机验证的，添加请求头
-                if(geetest_code != null)
-                    bbs_headers.putAll(geetest_code);
-                String response = tools.sendGetRequest(Constants.Urls.BBS_POST_FULL_URL, bbs_headers, postDataMap);
-                JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-                if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
-                    notifier.notifyListeners("看帖: " + post.get(1) + " 成功");
-                    break;
-                } else if (data.get("retcode").getAsInt() == 1034) {
-                    // 当返回码为1034时，触发验证码验证
-                    notifier.notifyListeners("需要进行人机验证...");
-                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
-                    // 回调验证
-                    performVerificationWithCallback(bbs_headers);
-                    synchronized (this) {
-                        this.wait();
-                    }
-                } else if (data.get("retcode").getAsInt() == -100) {
-                    String errorMsg = "看帖失败，你的cookie可能已过期，请重新设置cookie。";
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("看帖失败", errorMsg);
-                    throw new RuntimeException(errorMsg);
-                } else {
-                    String errorMsg = "看帖: " + post.get(1) + " 失败,错误信息为: " + response;
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("看帖失败", errorMsg);
-                    if (retryCount < 2)
-                        notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
-                }
-            }
-            //noinspection BusyWait
-            Thread.sleep(500 + new Random().nextInt(1500));
+            Map<String, String> postDataMap = new HashMap<>();
+            postDataMap.put("post_id", post.get(0));
+            postDataMap.put("gid", bbsCheckInList.get(0).get("id"));
+
+            executeWithRetry(() -> {
+                Map<String, String> bbsHeaders = getBbsHeaders();
+                if (geetCode != null) bbsHeaders.putAll(geetCode);
+                String response = tools.sendGetRequest(Constants.Urls.BBS_POST_FULL_URL, bbsHeaders, postDataMap);
+                return JsonParser.parseString(response).getAsJsonObject();
+            }, "看帖");
+
+            notifier.notifyListeners("看帖: " + post.get(1) + " 成功");
+            randomDelay();
         }
     }
 
@@ -307,66 +303,32 @@ public class BBSDaily {
      * 点赞帖子
      */
     private void likePosts() throws Exception {
-        if (Boolean.TRUE.equals(this.taskDo.get("like"))) {
-            notifier.notifyListeners("点赞任务已经完成过了~");
-            return;
-        } else if (postsList == null) {
-            String msg = "没有获取到帖子列表";
-            notifier.notifyListeners(msg);
-            notification.sendErrorNotification("点赞任务", msg);
-            return;
-        }
+        if (isTaskAlreadyDone("like", "点赞")) return;
         notifier.notifyListeners("正在点赞......");
-        Integer likeNum = this.taskTimes.get("like_num");
+        Integer likeNum = this.remainingCounts.get("like_num");
         int num = (likeNum != null) ? likeNum : 5;
         for (int i = 0; i < (Math.min(num, postsList.size())); i++) {
             List<String> post = postsList.get(i);
-            for (int retryCount = 0; retryCount < 3; retryCount++) {
-                // 构建请求体
-                Map<String, Object> postDataMap = new HashMap<>() {{
-                    put("post_id", post.get(0));
-                    put("is_cancel", false);
-                }};
-                Map<String, String> bbs_headers = get_bbs_headers();
-                // 如果是之前进行了人机验证的，添加请求头
-                if(geetest_code != null)
-                    bbs_headers.putAll(geetest_code);
-                String response = sendPostRequest(Constants.Urls.BBS_LIKE_URL, bbs_headers, postDataMap);
-                JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-                if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
-                    notifier.notifyListeners("点赞: " + post.get(1) + " 成功");
-                    // 取消点赞
-                    postDataMap.put("is_cancel", true);
-                    bbs_headers = get_bbs_headers();
-                    String cancelResponse = sendPostRequest(Constants.Urls.BBS_LIKE_URL, bbs_headers, postDataMap);
-                    JsonObject cancelData = JsonParser.parseString(cancelResponse).getAsJsonObject();
-                    if (!cancelData.get("message").getAsString().contains("err") && cancelData.get("retcode").getAsInt() == 0)
-                        notifier.notifyListeners("取消点赞: " + post.get(1) + " 成功");
-                    break;
-                } else if (data.get("retcode").getAsInt() == 1034) {
-                    // 当返回码为1034时，触发验证码验证
-                    notifier.notifyListeners("需要进行人机验证...");
-                    notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
-                    // 回调验证
-                    performVerificationWithCallback(bbs_headers);
-                    synchronized (this) {
-                        this.wait();
-                    }
-                } else if (data.get("retcode").getAsInt() == -100) {
-                    String errorMsg = "点赞失败，你的cookie可能已过期，请重新设置cookie。";
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("点赞失败", errorMsg);
-                    throw new RuntimeException(errorMsg);
-                } else {
-                    String errorMsg = "点赞: " + post.get(1) + " 失败,错误信息为: " + response;
-                    notifier.notifyListeners(errorMsg);
-                    notification.sendErrorNotification("点赞失败", errorMsg);
-                    if (retryCount < 2)
-                        notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
-                }
-            }
-            //noinspection BusyWait
-            Thread.sleep(500 + new Random().nextInt(1500));
+            Map<String, Object> postDataMap = new HashMap<>();
+            postDataMap.put("post_id", post.get(0));
+            postDataMap.put("is_cancel", false);
+
+            executeWithRetry(() -> {
+                Map<String, String> bbsHeaders = getBbsHeaders();
+                if (geetCode != null) bbsHeaders.putAll(geetCode);
+                String response = sendPostRequest(Constants.Urls.BBS_LIKE_URL, bbsHeaders, postDataMap);
+                return JsonParser.parseString(response).getAsJsonObject();
+            }, "点赞");
+
+            notifier.notifyListeners("点赞: " + post.get(1) + " 成功");
+            // 取消点赞
+            postDataMap.put("is_cancel", true);
+            Map<String, String> cancelHeaders = getBbsHeaders();
+            String cancelResponse = sendPostRequest(Constants.Urls.BBS_LIKE_URL, cancelHeaders, postDataMap);
+            JsonObject cancelData = JsonParser.parseString(cancelResponse).getAsJsonObject();
+            if (!cancelData.get("message").getAsString().contains("err") && cancelData.get("retcode").getAsInt() == 0)
+                notifier.notifyListeners("取消点赞: " + post.get(1) + " 成功");
+            randomDelay();
         }
     }
 
@@ -374,89 +336,48 @@ public class BBSDaily {
      * 分享帖子
      */
     private void sharePosts() throws Exception {
-        if (Boolean.TRUE.equals(this.taskDo.get("share"))) {
-            notifier.notifyListeners("分享任务已经完成过了~");
-            return;
-        } else if (postsList == null) {
-            String msg = "没有获取到帖子列表";
-            notifier.notifyListeners(msg);
-            notification.sendErrorNotification("分享任务出错", msg);
-            return;
-        }
+        if (isTaskAlreadyDone("share", "分享")) return;
         notifier.notifyListeners("正在分享......");
         List<String> post = postsList.get(0);
-        for (int retryCount = 0; retryCount < 3; retryCount++) {
-            // 构建 Map 类型的请求体
-            Map<String, String> postDataMap = new HashMap<>() {{
-                put("entity_id", post.get(0));
-                put("entity_type", "1");
-            }};
-            Map<String, String> bbs_header = get_bbs_headers();
-            // 如果是之前进行了人机验证的，添加请求头
-            if(geetest_code != null)
-                bbs_header.putAll(geetest_code);
-            String response = tools.sendGetRequest(Constants.Urls.BBS_SHARE_URL, bbs_header, postDataMap);
-            JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-            if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
-                notifier.notifyListeners("分享: " + post.get(1) + " 成功");
-                break;
-            } else if (data.get("retcode").getAsInt() == 1034) {
-                // 当返回码为1034时，触发验证码验证
-                notifier.notifyListeners("需要进行人机验证...");
-                notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
-                // 回调验证
-                performVerificationWithCallback(bbs_header);
-                synchronized (this) {
-                    this.wait();
-                }
-            } else if (data.get("retcode").getAsInt() == -100) {
-                String errorMsg = "分享失败，你的cookie可能已过期，请重新设置cookie。";
-                notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("分享失败", errorMsg);
-                throw new RuntimeException(errorMsg);
-            } else {
-                String errorMsg = "分享任务执行失败，正在执行第" + (retryCount + 2) + "次，共3次";
-                notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("分享失败", errorMsg);
-                if (retryCount < 2)
-                    notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
-            }
-        }
-        Thread.sleep(500 + new Random().nextInt(1500));
+        Map<String, String> postDataMap = new HashMap<>();
+        postDataMap.put("entity_id", post.get(0));
+        postDataMap.put("entity_type", "1");
+
+        executeWithRetry(() -> {
+            Map<String, String> bbsHeader = getBbsHeaders();
+            if (geetCode != null) bbsHeader.putAll(geetCode);
+            String response = tools.sendGetRequest(Constants.Urls.BBS_SHARE_URL, bbsHeader, postDataMap);
+            return JsonParser.parseString(response).getAsJsonObject();
+        }, "分享");
+
+        notifier.notifyListeners("分享: " + post.get(1) + " 成功");
+        randomDelay();
     }
 
-    private Map<String, String> geetest_code = null;
+    private Map<String, String> geetCode = null;
+    private volatile boolean verificationComplete = false;
 
-    /**
-     * 回调验证
-     *
-     * @param headers  请求头
-     */
     private void performVerificationWithCallback(Map<String, String> headers) {
-        gt3Controller.updateTaskStatusWaring("米游币签到");
-        Geetest.geetest(headers, new GeetestVerificationCallback() {
-            @Override
-            public void onVerificationSuccess(Map<String, String> code) {
-                notifier.notifyListeners("人机验证成功，继续执行签到...");
-                geetest_code = code;
-                gt3Controller.destroyButton(); // 销毁按钮
-                gt3Controller.updateTaskStatusInProgress("米游币签到");
-                synchronized (BBSDaily.this) {
-                    BBSDaily.this.notifyAll();
-                }
-            }
+        verificationComplete = false;
+        CaptchaVerifier.performVerification(gt3Controller, notifier, "米游币签到", headers,
+                new CaptchaVerifier.VerificationCallback() {
+                    @Override
+                    public void onSuccess(Map<String, String> code) {
+                        geetCode = code;
+                        synchronized (BBSDaily.this) {
+                            verificationComplete = true;
+                            BBSDaily.this.notifyAll();
+                        }
+                    }
 
-            @Override
-            public void onVerificationFailed(String error) {
-                notifier.notifyListeners("人机验证失败: " + error);
-                notifier.notifyListeners("验证失败");
-                geetest_code = null;
-                gt3Controller.destroyButton(); // 销毁按钮
-                synchronized (BBSDaily.this) {
-                    BBSDaily.this.notifyAll();
-                }
-                throw new RuntimeException("人机验证失败");
-            }
-        }, gt3Controller);
+                    @Override
+                    public void onFailure() {
+                        geetCode = null;
+                        synchronized (BBSDaily.this) {
+                            verificationComplete = true;
+                            BBSDaily.this.notifyAll();
+                        }
+                    }
+                });
     }
 }

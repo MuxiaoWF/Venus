@@ -87,6 +87,14 @@
                         android:text="取消任务"
                         android:visibility="gone" />
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/start_daily_bg"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/spacing_sm"
+                        android:text="后台运行" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -99,7 +107,7 @@
                 android:orientation="horizontal"
                 android:paddingHorizontal="12dp"
                 android:paddingVertical="@dimen/spacing_sm"
-                android:visibility="visible" />
+                android:visibility="gone" />
 
             <!-- Task list grouped section -->
             <com.google.android.material.card.MaterialCardView
@@ -144,8 +152,7 @@
                             style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="查看日志"
-                            android:visibility="invisible" />
+                            android:text="查看日志" />
 
                     </LinearLayout>
 

@@ -41,11 +41,10 @@ public class Geetest {
             public void onButtonClick() {
                 // 在这里调用API1获取gt和challenge参数
                 // 将参数传递给Geetest SDK
-                Map<String, Object> mapData = new HashMap<>() {{
-                    put("gt", gt);
-                    put("challenge", challenge);
-                    put("success", 1);
-                }};
+                Map<String, Object> mapData = new HashMap<>();
+                mapData.put("gt", gt);
+                mapData.put("challenge", challenge);
+                mapData.put("success", 1);
                 // 设置API1的JSON数据
                 gt3ConfigBean.setApi1Json(new JSONObject(mapData));
                 gt3Controller.getGeetestUtils().getGeetest();
@@ -61,27 +60,24 @@ public class Geetest {
                 Gson gson = new Gson();
                 JsonObject resultObj = gson.fromJson(result, JsonObject.class);
                 // 获取验证参数
-                String geetest_challenge = resultObj.get("geetest_challenge").getAsString();
-                String geetest_validate = resultObj.get("geetest_validate").getAsString();
-                String geetest_seccode = resultObj.get("geetest_seccode").getAsString();
+                String geetestChallenge = resultObj.get("geetest_challenge").getAsString();
+                String geetestValidate = resultObj.get("geetest_validate").getAsString();
+                String geetestSeccode = resultObj.get("geetest_seccode").getAsString();
                 Map<String, Object> body = new HashMap<>();
-                body.put("geetest_challenge", geetest_challenge);
-                body.put("geetest_seccode", geetest_seccode);
-                body.put("geetest_validate", geetest_validate);
+                body.put("geetest_challenge", geetestChallenge);
+                body.put("geetest_seccode", geetestSeccode);
+                body.put("geetest_validate", geetestValidate);
                 //二次验证
                 new Thread(() -> {
                     String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, headers, body);
                     JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
                     if (check.get("retcode").getAsInt() == 0 && check.getAsJsonObject("data").get("challenge").getAsString() != null) {
-                        // 存储验证信息，以便在签到时使用
-                        Map<String, String> geetest_code = new HashMap<>() {{
-                            put("x-rpc-challenge", check.getAsJsonObject("data").get("challenge").getAsString());
-                            put("x-rpc-validate", geetest_validate);
-                            put("x-rpc-seccode", geetest_validate + "|jordan");
-                        }};
+                        Map<String, String> geetCode = new HashMap<>();
+                        geetCode.put("x-rpc-challenge", check.getAsJsonObject("data").get("challenge").getAsString());
+                        geetCode.put("x-rpc-validate", geetestValidate);
+                        geetCode.put("x-rpc-seccode", geetestValidate + "|jordan");
                         gt3Controller.getGeetestUtils().showSuccessDialog();
-                        // 调用成功的回调
-                        callback.onVerificationSuccess(geetest_code);
+                        callback.onVerificationSuccess(geetCode);
                     } else {
                         // 验证失败，调用失败的回调
                         callback.onVerificationFailed("二次验证失败: " + checkResponse);

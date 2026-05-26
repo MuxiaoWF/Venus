@@ -1,67 +1,33 @@
 package com.muxiao.Venus.Home;
 
 public class TaskItem {
-    private String name;
-    private boolean completed;
-    private boolean inProgress;
-    private boolean error;
-    private boolean warning;
-    private boolean cancel;
 
-    public TaskItem(String name, boolean completed) {
+    public enum TaskStatus {
+        PENDING,
+        IN_PROGRESS,
+        COMPLETED,
+        ERROR,
+        WARNING,
+        CANCELLED
+    }
+
+    private final String name;
+    private TaskStatus status;
+
+    public TaskItem(String name) {
         this.name = name;
-        this.completed = completed;
-        this.inProgress = false;
-        this.error = false;
-        this.warning = false;
-        this.cancel = false;
+        this.status = TaskStatus.PENDING;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public TaskStatus getStatus() {
+        return status;
     }
 
-    public boolean isCompleted() {
-        return completed;
-    }
-
-    public void setCompleted(boolean completed) {
-        this.completed = completed;
-    }
-
-    public boolean isInProgress() {
-        return inProgress;
-    }
-
-    public void setInProgress(boolean inProgress) {
-        this.inProgress = inProgress;
-    }
-
-    public boolean isError() {
-        return error;
-    }
-
-    public void setError(boolean error) {
-        this.error = error;
-    }
-
-    public boolean isWarning() {
-        return warning;
-    }
-
-    public void setWarning(boolean warning) {
-        this.warning = warning;
-    }
-
-    public boolean isCancel() {
-        return cancel;
-    }
-
-    public void setCancel(boolean cancel) {
-        this.cancel = cancel;
+    public void setStatus(TaskStatus status) {
+        this.status = status;
     }
 }

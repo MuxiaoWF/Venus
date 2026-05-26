@@ -1,10 +1,14 @@
 package com.muxiao.Venus.Home;
 
-import static com.muxiao.Venus.common.Constants.Prefs.*;
+import static com.muxiao.Venus.common.Constants.Prefs.NOTIFICATION;
+import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -30,6 +34,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Notification;
+import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
 
 import java.io.BufferedReader;
@@ -40,11 +45,8 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -54,15 +56,17 @@ public class HomeFragment extends Fragment {
     {
         setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
     }
-    private UserManager user_manager;
+    private UserManager userManager;
     private ExecutorService executorService;
     private LinearLayout geetestContainer;
     private static Future<?> currentTaskFuture; // 任务
-    private String current_user;
+    private String currentUser;
     private MaterialAutoCompleteTextView user_dropdown;
+    private MaterialButton start_daily_bg_btn;
     private TaskAdapter taskAdapter;
     private List<TaskItem> taskList;
     private File logFile; // 日志文件路径
+    private BroadcastReceiver taskStateReceiver;
 
     private final GeetestController controller = new GeetestController() {
         private GT3GeetestUtils gt3GeetestUtils;
@@ -96,6 +100,7 @@ public class HomeFragment extends Fragment {
                 geetestButton.setLayoutParams(params);
                 // 添加到容器中
                 geetestContainer.addView(geetestButton);
+                geetestContainer.setVisibility(View.VISIBLE);
                 gt3GeetestUtils.init(gt3ConfigBean);
                 geetestButton.setGeetestUtils(gt3GeetestUtils);
             });
@@ -108,6 +113,7 @@ public class HomeFragment extends Fragment {
                 if (geetestButton != null && geetestContainer != null) {
                     geetestContainer.removeView(geetestButton);
                     geetestButton = null;
+                    geetestContainer.setVisibility(View.GONE);
                 }
             });
             // 销毁工具
@@ -129,12 +135,12 @@ public class HomeFragment extends Fragment {
 
         @Override
         public void updateTaskStatusWaring(String taskName) {
-            updateTaskStatus(taskName, 4);
+            updateTaskStatus(taskName, TaskItem.TaskStatus.WARNING);
         }
 
         @Override
         public void updateTaskStatusInProgress(String taskName) {
-            updateTaskStatus(taskName, 1);
+            updateTaskStatus(taskName, TaskItem.TaskStatus.IN_PROGRESS);
         }
     };
 
@@ -147,6 +153,7 @@ public class HomeFragment extends Fragment {
         user_dropdown = view.findViewById(R.id.user_dropdown);
         MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
+        start_daily_bg_btn = view.findViewById(R.id.start_daily_bg);
         MaterialButton view_log_btn = view.findViewById(R.id.view_log_btn);
         RecyclerView tasksRecyclerView = view.findViewById(R.id.tasks_recycler_view);
         geetestContainer = view.findViewById(R.id.geetest_container);
@@ -169,7 +176,7 @@ public class HomeFragment extends Fragment {
         homeInfoCard.setContent(R.layout.item_home_daily_info);
 
         // 初始化
-        user_manager = new UserManager(requireContext());
+        userManager = new UserManager(requireContext());
         executorService = Executors.newSingleThreadExecutor();
         controller.createUtils();
         File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
@@ -203,27 +210,27 @@ public class HomeFragment extends Fragment {
         }));
 
         // 初始化下拉框
-        List<String> usernames = user_manager.getUsernames();
+        List<String> usernames = userManager.getUsernames();
         user_dropdown.setAdapter(new ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
                 usernames
         ));
         // 设置当前用户为默认选中项
-        current_user = user_manager.getCurrentUser();
-        if (!current_user.isEmpty() && usernames.contains(current_user)) {
-            user_dropdown.setText(current_user, false);
-            notifier.notifyListeners("当前用户" + current_user);
+        currentUser = userManager.getCurrentUser();
+        if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
+            user_dropdown.setText(currentUser, false);
+            notifier.notifyListeners("当前用户" + currentUser);
         } else if (!usernames.isEmpty()) {
             // 如果当前用户不存在或为空，设置为第一个用户
-            current_user = usernames.get(0);
-            user_dropdown.setText(current_user, false);
-            notifier.notifyListeners("当前用户" + current_user);
+            currentUser = usernames.get(0);
+            user_dropdown.setText(currentUser, false);
+            notifier.notifyListeners("当前用户" + currentUser);
         }
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
-            current_user = (String) parent.getItemAtPosition(position);
-            user_manager.setCurrentUser(current_user);
-            notifier.notifyListeners("当前用户" + current_user);
+            currentUser = (String) parent.getItemAtPosition(position);
+            userManager.setCurrentUser(currentUser);
+            notifier.notifyListeners("当前用户" + currentUser);
         });
 
         // 设置任务列表RecyclerView
@@ -261,8 +268,6 @@ public class HomeFragment extends Fragment {
                         }).show();
                 return;
             }
-            notification.sendNormalNotification("Venus", "开始任务");
-
             // 清空上一次的日志
             try {
                 FileWriter writer = new FileWriter(logFile, false); // false 覆盖模式
@@ -277,124 +282,42 @@ public class HomeFragment extends Fragment {
             user_dropdown_layout.setVisibility(View.GONE);// 隐藏用户下拉框
             cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
             start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
-            view_log_btn.setVisibility(View.VISIBLE); // 显示查看日志按钮
 
             currentTaskFuture = executorService.submit(() -> {
                 try {
-                    Map<String, Object> settings = get_settings();
-                    if (Objects.equals(settings.get(DAILY), false) && Objects.equals(settings.get(GAME_DAILY), false) && !sklandEnabled()) {
+                    TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+                    if (!settings.hasAnyTaskEnabled()) {
                         requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "请先去设置里设置任务"));
                         return;
                     }
-                    // 米游币签到任务
-                    if (Objects.equals(settings.get(DAILY), true)) {
-                        if (current_user.isEmpty()) {
-                            new MaterialAlertDialogBuilder(requireContext())
-                                    .setTitle("未选择用户")
-                                    .setMessage("请先从下拉列表中选择一个用户再开始任务")
-                                    .setPositiveButton("确定", null)
-                                    .show();
-                            return;
-                        }
-                        updateTaskStatus("米游币签到", 1); // 开始执行，无错误
-                        BBSDaily b = new BBSDaily(requireActivity(), user_manager.getCurrentUser(), notifier, controller);
-                        String[] daily = (String[]) settings.get("daily");
-                        if (daily != null && daily.length > 0) {
-                            try {
-                                b.runTask(daily);
-                                // 如果没有错误才标记为完成
-                                if (!isTaskCancelled() && !Thread.currentThread().isInterrupted())
-                                    updateTaskStatus("米游币签到", 2); // 完成，无错误
-                                else if (isTaskCancelled())
-                                    updateTaskStatus("米游币签到", 5); // 已取消
-                            } catch (Exception e) {
-                                // 检查线程中断状态
-                                if (isTaskCancelled()){
-                                    updateTaskStatus("米游币签到", 5); // 已取消
-                                    return;
+                    TaskExecutor taskExecutor = new TaskExecutor(
+                            requireActivity(), currentUser, notifier, controller, notification,
+                            new TaskExecutor.Callback() {
+                                @Override
+                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
+                                    updateTaskStatus(taskName, status);
                                 }
-                                // 发生异常时标记为有错误
-                                updateTaskStatus("米游币签到", 3); // 有错误
-                                requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败：" + e.getMessage()));
-                            }
-                        } else {
-                            updateTaskStatus("米游币签到", 3); // 有错误
-                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "米游币签到失败，请先去设置里设置勾选至少一个获取米游币的板块"));
-                        }
-                    }
-
-                    if (isTaskCancelled()) return; // 检查线程中断状态
-
-                    // 米游社游戏签到任务开始
-                    if (Objects.equals(settings.get(GAME_DAILY), true)) {
-                        if (current_user.isEmpty()) {
-                            new MaterialAlertDialogBuilder(requireContext())
-                                    .setTitle("未选择用户")
-                                    .setMessage("请先从下拉列表中选择一个用户再开始任务")
-                                    .setPositiveButton("确定", null)
-                                    .show();
-                            return;
-                        }
-                        String[] game = (String[]) settings.get("game_daily");
-                        if (game != null && game.length > 0) {
-                            for (String game_name : game) {
-                                updateTaskStatus(game_name + "签到", 1); // 开始执行，无错误
-                                try {
-                                    BBSGameDaily game_module = new BBSGameDaily(requireActivity(), user_manager.getCurrentUser(), game_name, notifier, controller);
-                                    notifier.notifyListeners("正在进行" + game_name + "签到");
-                                    game_module.run();
-                                    notification.sendNormalNotification(game_name, game_name + "签到完成");
-                                    // 成功完成
-                                    updateTaskStatus(game_name + "签到", 2); // 完成，无错误
-                                } catch (Exception e) {
-                                    // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
-                                    if (isTaskCancelled()){
-                                        updateTaskStatus(game_name + "签到", 5); // 已取消
-                                        return;
-                                    }
-                                    updateTaskStatus(game_name + "签到", 3); // 有错误
-                                    String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
-                                    notification.sendErrorNotification(game_name + "签到失败", error_message);
-                                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), error_message));
+                                @Override
+                                public void onAllTasksCompleted() {
+                                    notifier.notifyListeners("任务完成");
                                 }
-                            }
-                            notifier.notifyListeners("游戏签到完成");
-                        } else {
-                            updateTaskStatus("游戏签到", 3); // 有错误
-                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "游戏签到失败，请先去设置里设置勾选获取至少一个游戏进行签到"));
-                        }
-                    }
-
-                    if (isTaskCancelled()) return; // 检查线程中断状态
-
-                    // 森空岛任务
-                    if (sklandEnabled()) {
-                        updateTaskStatus("森空岛签到", 1);
-                        try {
-                            SklandDaily skland = new SklandDaily(requireActivity(), notifier);
-                            skland.run();
-                            updateTaskStatus("森空岛签到", 2);
-                        } catch (Exception e) {
-                            // 检查是否是因为任务被取消导致的异常，如果任务已被取消，则不显示错误消息
-                            if (isTaskCancelled()){
-                                updateTaskStatus("森空岛签到", 5); // 已取消
-                                return;
-                            }
-                            requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "森空岛签到失败：" + e.getMessage()));
-                            updateTaskStatus("森空岛签到", 3);
-                            notifier.notifyListeners("任务出现错误");
-                        }
-                    }
-                    notifier.notifyListeners("任务完成");
-                    notification.sendNormalNotification("Venus", "任务完成");
+                                @Override
+                                public void onError(String message) {
+                                    requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), message));
+                                }
+                                @Override
+                                public boolean isCancelled() {
+                                    return isTaskCancelled();
+                                }
+                            });
+                    taskExecutor.executeAll(settings);
                 } finally {
                     requireActivity().runOnUiThread(() -> {
-                        controller.destroyButton(); // 销毁验证码按钮
-                        controller.createUtils(); // 重新创建验证码工具
-                        // 恢复按钮状态
-                        user_dropdown_layout.setVisibility(View.VISIBLE); // 恢复下拉框
-                        cancel_daily_btn.setVisibility(View.GONE); // 隐藏取消按钮
-                        start_daily_btn.setVisibility(View.VISIBLE); // 恢复启动按钮
+                        controller.destroyButton();
+                        controller.createUtils();
+                        user_dropdown_layout.setVisibility(View.VISIBLE);
+                        cancel_daily_btn.setVisibility(View.GONE);
+                        start_daily_btn.setVisibility(View.VISIBLE);
                     });
                 }
             });
@@ -411,10 +334,71 @@ public class HomeFragment extends Fragment {
                         controller.createUtils(); // 创建验证码Utils以备下次使用
                     }
                     notifier.notifyListeners("任务已取消");
-                    notification.sendNormalNotification("Venus", "任务已取消");
                 })
                 .setNegativeButton("继续任务", null)
                 .show());
+
+        // 后台运行/取消按钮
+        start_daily_bg_btn.setOnClickListener(v -> {
+            if (ForegroundTaskService.isRunning()) {
+                // 取消后台任务
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("确认取消")
+                        .setMessage("确定要取消后台任务吗？")
+                        .setPositiveButton("确定", (dialog, which) -> {
+                            Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
+                            stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
+                            requireContext().startService(stopIntent);
+                        })
+                        .setNegativeButton("继续任务", null)
+                        .show();
+                return;
+            }
+
+            if (homeInfoCard.isExpanded()) homeInfoCard.toggle();
+            TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+            if (!settings.hasAnyTaskEnabled()) {
+                show_error_dialog(requireContext(), "请先去设置里设置任务");
+                return;
+            }
+            if (currentUser == null || currentUser.isEmpty()) {
+                show_error_dialog(requireContext(), "请先选择一个用户");
+                return;
+            }
+
+            // 检查通知开关
+            SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+            boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
+            if (!notificationEnabled) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("需要开启通知")
+                        .setMessage("后台运行需要开启通知才能正常工作。是否前往设置开启？")
+                        .setPositiveButton("去设置", (d, w) -> {
+                            if (getActivity() instanceof MainActivity) {
+                                ((MainActivity) getActivity()).bottomNavigationView
+                                        .setSelectedItemId(R.id.navigation_settings);
+                            }
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+                return;
+            }
+            if (notification.areNotificationsDisabled()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("需要通知权限")
+                        .setMessage("系统通知权限尚未开启，后台任务无法运行。是否前往系统设置开启？")
+                        .setPositiveButton("去设置", (d, w) -> notification.goToNotificationSettings())
+                        .setNegativeButton("取消", null)
+                        .show();
+                return;
+            }
+
+            Intent serviceIntent = new Intent(requireContext(), ForegroundTaskService.class);
+            serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
+            serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, currentUser);
+            androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
+            tools.showCustomSnackbar(getView(), requireContext(), "后台任务已启动");
+        });
 
         // 查看日志按钮
         view_log_btn.setOnClickListener(v -> {
@@ -427,14 +411,27 @@ public class HomeFragment extends Fragment {
                         content.append(line).append("\n");
                     reader.close();
 
+                    // 创建可滚动的 TextView
+                    android.widget.ScrollView scrollView = new android.widget.ScrollView(requireContext());
+                    int padding = (int) (16 * getResources().getDisplayMetrics().density);
+                    scrollView.setPadding(padding, padding / 2, padding, 0);
+
+                    com.google.android.material.textview.MaterialTextView logTextView =
+                            new com.google.android.material.textview.MaterialTextView(requireContext());
+                    logTextView.setText(content.toString());
+                    logTextView.setTextSize(12);
+                    logTextView.setTextIsSelectable(true);
+                    logTextView.setTypeface(android.graphics.Typeface.MONOSPACE);
+                    scrollView.addView(logTextView);
+
                     // 显示日志内容对话框
                     new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
-                            .setTitle("日志内容")
-                            .setMessage(content.toString())
+                            .setTitle("日志 (" + logFile.getName() + ")")
+                            .setView(scrollView)
                             .setPositiveButton("确定", null)
                             .setNegativeButton("清空日志", (dialog, which) -> {
                                 try {
-                                    FileWriter writer = new FileWriter(logFile, false); // false表示覆盖模式
+                                    FileWriter writer = new FileWriter(logFile, false);
                                     writer.write("");
                                     writer.close();
                                     tools.showCustomSnackbar(getView(), requireContext(), "日志已清空");
@@ -458,20 +455,9 @@ public class HomeFragment extends Fragment {
      */
     private void initializeTaskList() {
         taskList = new ArrayList<>();
-        // 根据设置初始化任务列表
-        Map<String, Object> settings = get_settings();
-        if (Objects.equals(settings.get(DAILY), true))
-            taskList.add(new TaskItem("米游币签到", false));
-        String[] game_daily = (String[]) settings.get("game_daily");
-        if (Objects.equals(settings.get(GAME_DAILY), true) && game_daily != null)
-            for (String gameName : game_daily)
-                taskList.add(new TaskItem(gameName + "签到", false));
-        if (sklandEnabled())
-            taskList.add(new TaskItem("森空岛签到", false));
-    }
-
-    private boolean sklandEnabled() {
-        return requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE).getBoolean(SKLAND_ENABLED, false);
+        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+        for (String taskName : settings.getTaskNames())
+            taskList.add(new TaskItem(taskName));
     }
 
     /**
@@ -479,25 +465,10 @@ public class HomeFragment extends Fragment {
      */
     @SuppressLint("NotifyDataSetChanged")
     private void resetTaskList() {
-        // 重置所有任务状态
-        for (TaskItem task : taskList) {
-            task.setCompleted(false);
-            task.setInProgress(false);
-            task.setError(false);
-            task.setWarning(false);
-            task.setCancel(false);
-        }
-        // 根据当前设置更新任务列表
-        Map<String, Object> settings = get_settings();
+        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
         List<TaskItem> newTaskList = new ArrayList<>();
-        if (Objects.equals(settings.get(DAILY), true))
-            newTaskList.add(new TaskItem("米游币签到", false));
-        String[] game_daily = (String[]) settings.get("game_daily");
-        if (Objects.equals(settings.get(GAME_DAILY), true) && game_daily != null)
-            for (String gameName : game_daily)
-                newTaskList.add(new TaskItem(gameName + "签到", false));
-        if (sklandEnabled())
-            newTaskList.add(new TaskItem("森空岛签到", false));
+        for (String taskName : settings.getTaskNames())
+            newTaskList.add(new TaskItem(taskName));
         taskList.clear();
         taskList.addAll(newTaskList);
         if (taskAdapter != null) taskAdapter.notifyDataSetChanged();
@@ -507,35 +478,14 @@ public class HomeFragment extends Fragment {
      * 更新特定任务的状态
      *
      * @param taskName 任务名称
-     * @param status   任务状态，1表示正在执行中，2表示已完成，3表示有错误，4表示有警告
+     * @param status   任务状态
      */
-    private void updateTaskStatus(String taskName, int status) {
+    private void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         requireActivity().runOnUiThread(() -> {
             if (taskAdapter != null && taskList != null) {
                 for (int i = 0; i < taskList.size(); i++) {
                     if (taskList.get(i).getName().equals(taskName)) {
-                        taskList.get(i).setInProgress(false);
-                        taskList.get(i).setError(false);
-                        taskList.get(i).setWarning(false);
-                        taskList.get(i).setCompleted(false);
-                        taskList.get(i).setCancel(false);
-                        switch (status) {
-                            case 1:
-                                taskList.get(i).setInProgress(true);
-                                break;
-                            case 2:
-                                taskList.get(i).setCompleted(true);
-                                break;
-                            case 3:
-                                taskList.get(i).setError(true);
-                                break;
-                            case 4:
-                                taskList.get(i).setWarning(true);
-                                break;
-                            case 5:
-                                taskList.get(i).setCancel(true);
-                                break;
-                        }
+                        taskList.get(i).setStatus(status);
                         taskAdapter.notifyItemChanged(i);
                         break;
                     }
@@ -544,13 +494,32 @@ public class HomeFragment extends Fragment {
         });
     }
 
+    private void updateBgButtonState(boolean running) {
+        if (start_daily_bg_btn == null) return;
+        start_daily_bg_btn.setText(running ? "取消后台任务" : "后台运行");
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        // 注册后台任务状态广播接收器
+        taskStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                boolean running = intent.getBooleanExtra(ForegroundTaskService.EXTRA_IS_RUNNING, false);
+                updateBgButtonState(running);
+            }
+        };
+        IntentFilter filter = new IntentFilter(ForegroundTaskService.ACTION_TASK_STATE_CHANGED);
+        androidx.core.content.ContextCompat.registerReceiver(
+                requireContext(), taskStateReceiver, filter,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        updateBgButtonState(ForegroundTaskService.isRunning());
+
         // 更新下拉框中的用户列表
-        if (user_manager != null && user_dropdown != null) {
-            current_user = user_manager.getCurrentUser();
-            List<String> usernames = user_manager.getUsernames();
+        if (userManager != null && user_dropdown != null) {
+            currentUser = userManager.getCurrentUser();
+            List<String> usernames = userManager.getUsernames();
             ArrayAdapter<String> adapter = new ArrayAdapter<>(
                     requireContext(),
                     android.R.layout.simple_dropdown_item_1line,
@@ -559,41 +528,37 @@ public class HomeFragment extends Fragment {
             user_dropdown.setAdapter(adapter);
 
             // 恢复之前选中的用户（如果仍然存在于列表中）
-            if (!current_user.isEmpty() && usernames.contains(current_user))
-                user_dropdown.setText(current_user, false);
+            if (!currentUser.isEmpty() && usernames.contains(currentUser))
+                user_dropdown.setText(currentUser, false);
             else if (!usernames.isEmpty())
                 // 如果之前选中的用户不存在了，设置为第一个用户
                 user_dropdown.setText(usernames.get(0), false);
         }
 
         if (!isTaskRunning()) {
-            // 更新任务列表（仅在任务配置发生变化时）
             if (taskList == null) {
                 initializeTaskList();
                 return;
             }
-            // 获取当前设置的任务列表
-            Map<String, Object> settings = get_settings();
-            List<String> newTasks = new ArrayList<>();
-            if (Objects.equals(settings.get(DAILY), true))
-                newTasks.add("米游币签到");
-            String[] game_daily = (String[]) settings.get("game_daily");
-            if (Objects.equals(settings.get(GAME_DAILY), true) && game_daily != null)
-                for (String gameName : game_daily)
-                    newTasks.add(gameName + "签到");
-            if (Objects.equals(sklandEnabled(), true))
-                newTasks.add("森空岛签到");
-            // 检查是否有变化
-            boolean hasChanges = false;
-            if (taskList.size() != newTasks.size())
-                hasChanges = true;
-            else
+            TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+            List<String> newTasks = settings.getTaskNames();
+            boolean hasChanges = taskList.size() != newTasks.size();
+            if (!hasChanges)
                 for (int i = 0; i < taskList.size(); i++)
                     if (!taskList.get(i).getName().equals(newTasks.get(i))) {
                         hasChanges = true;
                         break;
                     }
             if (hasChanges) resetTaskList();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (taskStateReceiver != null) {
+            requireContext().unregisterReceiver(taskStateReceiver);
+            taskStateReceiver = null;
         }
     }
 
@@ -605,52 +570,6 @@ public class HomeFragment extends Fragment {
 
         // 清理GT相关资源
         controller.destroyButton();
-    }
-
-    /**
-     * 获取设置
-     */
-    private Map<String, Object> get_settings() {
-        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        boolean daily_switch = prefs.getBoolean(DAILY, true);
-        boolean game_daily_switch = prefs.getBoolean(GAME_DAILY, true);
-        boolean daily_genshin = prefs.getBoolean(DAILY_GENSHIN, false);
-        boolean daily_zzz = prefs.getBoolean(DAILY_ZZZ, false);
-        boolean daily_srg = prefs.getBoolean(DAILY_SRG, false);
-        boolean daily_hr3 = prefs.getBoolean(DAILY_HR3, false);
-        boolean daily_hr2 = prefs.getBoolean(DAILY_HR2, false);
-        boolean daily_weiding = prefs.getBoolean(DAILY_WEIDING, false);
-        boolean daily_dabieye = prefs.getBoolean(DAILY_DABIEYE, true);
-        boolean daily_hna = prefs.getBoolean(DAILY_HNA, false);
-        boolean game_daily_genshin = prefs.getBoolean(GAME_DAILY_GENSHIN, false);
-        boolean game_daily_zzz = prefs.getBoolean(GAME_DAILY_ZZZ, false);
-        boolean game_daily_srg = prefs.getBoolean(GAME_DAILY_SRG, false);
-        boolean game_daily_hr3 = prefs.getBoolean(GAME_DAILY_HR3, false);
-        boolean game_daily_hr2 = prefs.getBoolean(GAME_DAILY_HR2, false);
-        boolean game_daily_weiding = prefs.getBoolean(GAME_DAILY_WEIDING, false);
-        Map<String, Object> settings = new HashMap<>();
-        settings.put(DAILY, daily_switch);
-        settings.put(GAME_DAILY, game_daily_switch);
-        ArrayList<String> daily = new ArrayList<>();
-        if (daily_genshin) daily.add("原神");
-        if (daily_zzz) daily.add("绝区零");
-        if (daily_srg) daily.add("星铁");
-        if (daily_hr3) daily.add("崩坏3");
-        if (daily_hr2) daily.add("崩坏2");
-        if (daily_weiding) daily.add("未定事件簿");
-        if (daily_dabieye) daily.add("大别野");
-        if (daily_hna) daily.add("崩坏因缘精灵");
-        //转成String[]
-        settings.put("daily", daily.toArray(new String[0]));
-        ArrayList<String> game_daily = new ArrayList<>();
-        if (game_daily_genshin) game_daily.add("原神");
-        if (game_daily_zzz) game_daily.add("绝区零");
-        if (game_daily_srg) game_daily.add("星铁");
-        if (game_daily_hr3) game_daily.add("崩坏3");
-        if (game_daily_hr2) game_daily.add("崩坏2");
-        if (game_daily_weiding) game_daily.add("未定事件簿");
-        settings.put("game_daily", game_daily.toArray(new String[0]));
-        return settings;
     }
 
     /**

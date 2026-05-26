@@ -61,6 +61,16 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     }
 
     /**
+     * 静默更新数据，不触发 item 动画（用于 tab 切换等需要避免交叉淡入的场景）
+     */
+    public void setLinksSilently(Map<Integer, String> newLinks) {
+        this.uid_link_map.clear();
+        if (newLinks != null)
+            this.uid_link_map.putAll(newLinks);
+        notifyDataSetChanged();
+    }
+
+    /**
      * 创建ViewHolder
      */
     @NonNull
