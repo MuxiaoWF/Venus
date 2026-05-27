@@ -60,25 +60,16 @@ public class UpdateChecker {
                 // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
-                    if (updateAuto) // 是否自动检查更新-是否展示提示
-                        showNoUpdateDialog("\n没能成功获取GitHub更新，请切换更新方式并手动更新\n当前版本：" + currentVersion);
+                    if (updateAuto)
+                        showNoUpdateDialog("\n没能成功获取GitHub更新，请手动前往下载页面\n当前版本：" + currentVersion);
                     return;
                 }
 
                 String latestVersion = releaseInfo.get("tag_name").getAsString();
-                String releaseNotes = releaseInfo.has("body") ? releaseInfo.get("body").getAsString() : "";
-                String downloadUrl = null;
-
-                // 获取APK下载链接
-                if (releaseInfo.has("assets")) {
-                    JsonObject assets = releaseInfo.getAsJsonArray("assets").get(0).getAsJsonObject();
-                    if (assets.has("browser_download_url"))
-                        downloadUrl = assets.get("browser_download_url").getAsString();
-                }
 
                 // 比较版本
                 if (isUpdateAvailable(currentVersion, latestVersion))
-                    showUpdateDialog(latestVersion, releaseNotes, downloadUrl);
+                    showUpdateDialog(latestVersion, releaseInfo);
                 else if (updateAuto)
                     showNoUpdateDialog("");
             } catch (Exception e) {
@@ -113,28 +104,15 @@ public class UpdateChecker {
 
     /**
      * 比较版本号判断是否有更新
-     *
-     * @param currentVersion 当前版本
-     * @param latestVersion  最新版本
-     * @return 是否有更新
      */
     private boolean isUpdateAvailable(String currentVersion, String latestVersion) {
-        // 移除版本号前的"v"字符（如果有的话）
         if (latestVersion.startsWith("v"))
             latestVersion = latestVersion.substring(1);
         if (currentVersion.startsWith("v"))
             currentVersion = currentVersion.substring(1);
-        // 按数字部分比较版本号
         return compareVersions(latestVersion, currentVersion) > 0;
     }
 
-    /**
-     * 比较两个版本号
-     *
-     * @param version1 版本号1
-     * @param version2 版本号2
-     * @return 如果version1 > version2返回正数，相等返回0，小于返回负数
-     */
     private int compareVersions(String version1, String version2) {
         String[] parts1 = version1.split("\\.");
         String[] parts2 = version2.split("\\.");
@@ -143,38 +121,37 @@ public class UpdateChecker {
         for (int i = 0; i < length; i++) {
             int part1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
             int part2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
-            if (part1 != part2) {
+            if (part1 != part2)
                 return part1 - part2;
-            }
         }
         return 0;
     }
 
     /**
-     * 显示更新对话框
+     * 显示更新对话框，引导用户前往浏览器下载
      */
-    private void showUpdateDialog(String latestVersion, String releaseNotes, String downloadUrl) {
+    private void showUpdateDialog(String latestVersion, JsonObject releaseInfo) {
         new Handler(Looper.getMainLooper()).post(() -> {
-            String message = String.format("发现新版本 %1$s，是否立即更新？", latestVersion);
+            String releaseNotes = releaseInfo.has("body") ? releaseInfo.get("body").getAsString() : "";
+            // 构造 releases 页面链接
+            String tagName = releaseInfo.has("tag_name") ? releaseInfo.get("tag_name").getAsString() : latestVersion;
+            String releasesPageUrl = Constants.Urls.MUXIAO_MINE_GITHUB_URL + "/releases/tag/" + tagName;
+
+            String message = String.format("发现新版本 %1$s，请前往 GitHub 下载安装", latestVersion);
             if (releaseNotes != null && !releaseNotes.isEmpty())
                 message += "\n\n更新内容：\n" + releaseNotes;
             new MaterialAlertDialogBuilder(context)
                     .setTitle("发现新版本")
                     .setMessage(message)
-                    .setPositiveButton("立即更新", (dialog, which) -> {
-                        if (downloadUrl != null && !downloadUrl.isEmpty()) {
-                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
-                            context.startActivity(intent);
-                        }
+                    .setPositiveButton("前往下载", (dialog, which) -> {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(releasesPageUrl));
+                        context.startActivity(intent);
                     })
                     .setNegativeButton("稍后更新", null)
                     .show();
         });
     }
 
-    /**
-     * 显示无更新对话框
-     */
     private void showNoUpdateDialog(String message) {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (message == null || message.isEmpty())
@@ -183,7 +160,7 @@ public class UpdateChecker {
                         .setMessage("当前已是最新版本")
                         .setPositiveButton(android.R.string.ok, null)
                         .show();
-            else //有错误信息
+            else
                 new MaterialAlertDialogBuilder(context)
                         .setTitle("无更新？")
                         .setMessage(message)

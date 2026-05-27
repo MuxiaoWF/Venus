@@ -123,17 +123,21 @@ public class Notification {
     }
 
     /**
-     * 将进度通知转为完成通知
+     * 将进度通知转为完成通知（使用默认重要性渠道，确保用户能看到）
      */
     public void completeProgressNotification(NotificationCompat.Builder builder,
                                               String title, String content) {
-        builder.setContentTitle(title)
+        ensureChannels();
+        NotificationCompat.Builder completed = new NotificationCompat.Builder(context, CHANNEL_WORK)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
                 .setContentText(content)
-                .setProgress(0, 0, false)
-                .setOngoing(false)
-                .setAutoCancel(true);
+                .setContentIntent(createHomePendingIntent())
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.notify(Constants.NOTIFICATION_ID_PROGRESS, builder.build());
+        nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
+        nm.notify(Constants.NOTIFICATION_ID_PROGRESS, completed.build());
     }
 
     public boolean areNotificationsDisabled() {

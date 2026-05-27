@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Home;
 
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.NOTIFICATION;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
@@ -32,6 +33,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.TaskSettings;
@@ -341,64 +343,34 @@ public class HomeFragment extends Fragment {
         // 后台运行/取消按钮
         start_daily_bg_btn.setOnClickListener(v -> {
             if (ForegroundTaskService.isRunning()) {
-                // 取消后台任务
+                // 已有任务运行中，让用户选择继续或重新运行
                 new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("确认取消")
-                        .setMessage("确定要取消后台任务吗？")
-                        .setPositiveButton("确定", (dialog, which) -> {
+                        .setTitle("后台任务运行中")
+                        .setMessage("当前已有后台任务正在执行。")
+                        .setPositiveButton("继续原任务", null)
+                        .setNeutralButton("取消任务", (dialog, which) -> {
                             Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
                             stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
                             requireContext().startService(stopIntent);
                         })
-                        .setNegativeButton("继续任务", null)
+                        .setNegativeButton("重新运行", (dialog, which) -> {
+                            // 停止当前任务，延迟后启动新任务
+                            Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
+                            stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
+                            requireContext().startService(stopIntent);
+                            // 等待服务停止后再启动新任务
+                            start_daily_bg_btn.postDelayed(() -> checkAndStartTask(currentUser), 500);
+                        })
                         .show();
                 return;
             }
 
             if (homeInfoCard.isExpanded()) homeInfoCard.toggle();
-            TaskSettings settings = TaskSettings.fromPreferences(requireContext());
-            if (!settings.hasAnyTaskEnabled()) {
-                show_error_dialog(requireContext(), "请先去设置里设置任务");
-                return;
-            }
-            if (currentUser == null || currentUser.isEmpty()) {
-                show_error_dialog(requireContext(), "请先选择一个用户");
-                return;
-            }
-
-            // 检查通知开关
-            SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-            boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
-            if (!notificationEnabled) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("需要开启通知")
-                        .setMessage("后台运行需要开启通知才能正常工作。是否前往设置开启？")
-                        .setPositiveButton("去设置", (d, w) -> {
-                            if (getActivity() instanceof MainActivity) {
-                                ((MainActivity) getActivity()).bottomNavigationView
-                                        .setSelectedItemId(R.id.navigation_settings);
-                            }
-                        })
-                        .setNegativeButton("取消", null)
-                        .show();
-                return;
-            }
-            if (notification.areNotificationsDisabled()) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("需要通知权限")
-                        .setMessage("系统通知权限尚未开启，后台任务无法运行。是否前往系统设置开启？")
-                        .setPositiveButton("去设置", (d, w) -> notification.goToNotificationSettings())
-                        .setNegativeButton("取消", null)
-                        .show();
-                return;
-            }
-
-            Intent serviceIntent = new Intent(requireContext(), ForegroundTaskService.class);
-            serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
-            serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, currentUser);
-            androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
-            tools.showCustomSnackbar(getView(), requireContext(), "后台任务已启动");
+            checkAndStartTask(currentUser);
         });
+
+        // 根据设置显示/隐藏后台运行按钮
+        updateBgButtonVisibility();
 
         // 查看日志按钮
         view_log_btn.setOnClickListener(v -> {
@@ -499,6 +471,72 @@ public class HomeFragment extends Fragment {
         start_daily_bg_btn.setText(running ? "取消后台任务" : "后台运行");
     }
 
+    private void checkAndStartTask(String userId) {
+        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+        if (!settings.hasAnyTaskEnabled()) {
+            show_error_dialog(requireContext(), "请先去设置里设置任务");
+            return;
+        }
+        if (userId == null || userId.isEmpty()) {
+            show_error_dialog(requireContext(), "请先选择一个用户");
+            return;
+        }
+
+        Notification notification = new Notification(requireContext());
+        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
+        if (!notificationEnabled) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("需要开启通知")
+                    .setMessage("后台运行需要开启通知才能正常工作。是否前往设置开启？")
+                    .setPositiveButton("去设置", (d, w) -> {
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).bottomNavigationView
+                                    .setSelectedItemId(R.id.navigation_settings);
+                        }
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            return;
+        }
+        if (notification.areNotificationsDisabled()) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("需要通知权限")
+                    .setMessage("系统通知权限尚未开启，后台任务无法运行。是否前往系统设置开启？")
+                    .setPositiveButton("去设置", (d, w) -> notification.goToNotificationSettings())
+                    .setNegativeButton("取消", null)
+                    .show();
+            return;
+        }
+
+        if (!BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("需要关闭电池优化")
+                    .setMessage("系统电池优化可能会中断后台任务。请在电池设置中将本应用设为\"不受限制\"以确保任务正常执行。\n\n关闭后此提示将不再出现。")
+                    .setPositiveButton("去设置", (d, w) -> BatteryHelper.openBatterySettings(requireContext()))
+                    .setNegativeButton("忽略", (d, w) -> startTaskService(userId))
+                    .show();
+            return;
+        }
+
+        startTaskService(userId);
+    }
+
+    private void startTaskService(String userId) {
+        Intent serviceIntent = new Intent(requireContext(), ForegroundTaskService.class);
+        serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
+        serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
+        androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
+        tools.showCustomSnackbar(getView(), requireContext(), "后台任务已启动");
+    }
+
+    private void updateBgButtonVisibility() {
+        if (start_daily_bg_btn == null) return;
+        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(BACKGROUND_TASK_ENABLED, false);
+        start_daily_bg_btn.setVisibility(enabled ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
@@ -515,6 +553,7 @@ public class HomeFragment extends Fragment {
                 requireContext(), taskStateReceiver, filter,
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         updateBgButtonState(ForegroundTaskService.isRunning());
+        updateBgButtonVisibility();
 
         // 更新下拉框中的用户列表
         if (userManager != null && user_dropdown != null) {

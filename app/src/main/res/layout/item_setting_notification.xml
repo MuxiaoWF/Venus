@@ -32,4 +32,22 @@
         android:layout_marginTop="@dimen/spacing_sm"
         android:alpha="0.15"/>
 
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/background_task_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_sm"
+        android:checked="false"
+        android:text="启用后台运行"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:textColor="?attr/colorOnSurface" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_xs"
+        android:text="显示后台运行按钮，可在后台执行签到任务"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
 </LinearLayout>

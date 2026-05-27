@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MotionEvent;
 
 import android.widget.ImageView;
 
@@ -270,5 +271,11 @@ public class MainActivity extends AppCompatActivity {
             // 更新最后运行的版本号
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
+        return super.dispatchTouchEvent(event);
     }
 }

@@ -6,7 +6,10 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -276,6 +279,26 @@ public class tools {
             while ((length = inputStream.read(buffer)) > 0)
                 outputStream.write(buffer, 0, length);
             outputStream.flush();
+        }
+    }
+
+    /**
+     * 在 Activity 的 dispatchTouchEvent 中调用，点击输入框外区域时自动收起键盘
+     */
+    public static void hideKeyboardOnTouchOutside(Activity activity, MotionEvent event) {
+        if (event.getAction() != MotionEvent.ACTION_DOWN) return;
+        View focused = activity.getCurrentFocus();
+        if (focused instanceof EditText) {
+            int[] location = new int[2];
+            focused.getLocationOnScreen(location);
+            int x = (int) event.getRawX();
+            int y = (int) event.getRawY();
+            if (x < location[0] || x > location[0] + focused.getWidth()
+                    || y < location[1] || y > location[1] + focused.getHeight()) {
+                focused.clearFocus();
+                InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.hideSoftInputFromWindow(focused.getWindowToken(), 0);
+            }
         }
     }
 }

@@ -3,7 +3,9 @@ package com.muxiao.Venus.Home;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import androidx.core.app.NotificationCompat;
 
@@ -35,6 +37,7 @@ public class ForegroundTaskService extends Service {
     private Future<?> currentTaskFuture;
     private NotificationCompat.Builder notificationBuilder;
     private tools.StatusNotifier notifier;
+    private PowerManager.WakeLock wakeLock;
 
     private static ForegroundTaskService instance;
 
@@ -100,6 +103,11 @@ public class ForegroundTaskService extends Service {
     }
 
     private void executeTasks(String userId) {
+        // 获取 WakeLock，防止 CPU 休眠导致任务中断
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Venus:TaskWakeLock");
+        wakeLock.acquire(30 * 60 * 1000L); // 最长30分钟，防止意外泄漏
+
         currentTaskFuture = executorService.submit(() -> {
             try {
                 TaskSettings settings = TaskSettings.fromPreferences(this);
@@ -125,11 +133,6 @@ public class ForegroundTaskService extends Service {
 
                             @Override
                             public void onAllTasksCompleted() {
-                                notificationHelper.updateProgressNotification(
-                                        notificationBuilder, "Venus", "所有任务已完成",
-                                        totalTasks, totalTasks);
-                                // 延迟转为完成通知
-                                try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
                                 notificationHelper.completeProgressNotification(
                                         notificationBuilder, "Venus", "所有任务已完成");
                             }
@@ -149,9 +152,10 @@ public class ForegroundTaskService extends Service {
                 taskExecutor.executeAll(settings);
             } finally {
                 broadcastState(false);
-                stopForeground(true);
-                stopSelf();
+                releaseWakeLock();
+                dismissForegroundNotification();
                 instance = null;
+                stopSelf();
             }
         });
     }
@@ -227,9 +231,25 @@ public class ForegroundTaskService extends Service {
         return null;
     }
 
+    private void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void dismissForegroundNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            stopForeground(STOP_FOREGROUND_DETACH);
+        } else {
+            stopForeground(false);
+        }
+    }
+
     @Override
     public void onDestroy() {
         super.onDestroy();
+        releaseWakeLock();
         if (executorService != null && !executorService.isShutdown())
             executorService.shutdown();
         instance = null;

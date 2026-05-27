@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ScrollView;
@@ -358,5 +359,11 @@ public class UserLoginActivity extends AppCompatActivity {
             String ltoken = result.getAsJsonObject("data").get("ltoken").getAsString();
             tools.write(context, username, "ltoken", ltoken);
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
+        return super.dispatchTouchEvent(event);
     }
 }

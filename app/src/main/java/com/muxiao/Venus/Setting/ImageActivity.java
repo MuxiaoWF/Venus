@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.view.MotionEvent;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Menu;
@@ -748,6 +749,12 @@ public class ImageActivity extends AppCompatActivity {
             titleTextView = v.findViewById(R.id.titleTextView);
             cardView = (MaterialCardView) v;
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
+        return super.dispatchTouchEvent(event);
     }
 
     /**

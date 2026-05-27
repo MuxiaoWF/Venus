@@ -1,7 +1,6 @@
 package com.muxiao.Venus.Setting;
 
 import static com.muxiao.Venus.common.Constants.Prefs.*;
-import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -186,6 +185,7 @@ public class SettingsFragment extends Fragment {
         SwitchMaterial dailySwitchButton = dailyView.findViewById(R.id.daily_switch_button);
         SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
         SwitchMaterial notificationSwitch = notificationView.findViewById(R.id.notification_switch);
+        SwitchMaterial backgroundTaskSwitch = notificationView.findViewById(R.id.background_task_switch);
 
         MaterialCheckBox dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
         MaterialCheckBox dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
@@ -216,6 +216,7 @@ public class SettingsFragment extends Fragment {
         dailySwitchButton.setChecked(sharedPreferences.getBoolean(DAILY, true));
         gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
         notificationSwitch.setChecked(sharedPreferences.getBoolean(NOTIFICATION, false));
+        backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
 
         dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(DAILY_GENSHIN, false));
         dailyCheckboxZzz.setChecked(sharedPreferences.getBoolean(DAILY_ZZZ, false));
@@ -257,6 +258,19 @@ public class SettingsFragment extends Fragment {
                 }
             }
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
+        });
+
+        backgroundTaskSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked && !sharedPreferences.getBoolean(NOTIFICATION, false)) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("需要开启通知")
+                        .setMessage("后台运行需要先开启任务通知。请先开启上方的通知开关。")
+                        .setPositiveButton("确定", null)
+                        .show();
+                backgroundTaskSwitch.setChecked(false);
+                return;
+            }
+            sharedPreferences.edit().putBoolean(BACKGROUND_TASK_ENABLED, isChecked).apply();
         });
 
         dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
@@ -327,9 +341,15 @@ public class SettingsFragment extends Fragment {
         });
         MaterialButton checkUpdateButton2 = updateView.findViewById(R.id.check_update_button_pan);
         checkUpdateButton2.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
-            startActivity(intent);
-            copyToClipboard(view, requireContext(), "mxwf"); // 提取码
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("网盘下载")
+                    .setMessage("即将跳转到蓝奏云下载页面\n提取码：mxwf")
+                    .setPositiveButton("前往下载", (dialog, which) -> {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
         });
 
         // 看图按钮
@@ -399,6 +419,9 @@ public class SettingsFragment extends Fragment {
             SwitchMaterial notificationSwitch = getView().findViewById(R.id.notification_switch);
             boolean notificationEnabled = sharedPreferences.getBoolean(NOTIFICATION, false);
             notificationSwitch.setChecked(notificationEnabled);
+
+            SwitchMaterial backgroundTaskSwitch = getView().findViewById(R.id.background_task_switch);
+            backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
         }
     }
 
@@ -874,9 +897,13 @@ public class SettingsFragment extends Fragment {
                     if (externalCache != null)
                         totalSize += getDirSizeSafe(externalCache);
                     String sizeText = formatFileSize(totalSize);
-                    requireActivity().runOnUiThread(() -> cacheSizeText.setText(new StringBuilder("当前缓存大小: " + sizeText)));
+                    android.app.Activity activity = getActivity();
+                    if (activity != null)
+                        activity.runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: " + sizeText));
                 } catch (Exception e) {
-                    requireActivity().runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: 计算失败"));
+                    android.app.Activity activity = getActivity();
+                    if (activity != null)
+                        activity.runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: 计算失败"));
                 }
             });
         }
@@ -900,14 +927,16 @@ public class SettingsFragment extends Fragment {
                     success = false;
                 }
                 boolean finalSuccess = success;
-                requireActivity().runOnUiThread(() -> {
-                    if (finalSuccess) {
-                        cacheSizeText.setText("当前缓存大小: 0 B");
-                        showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
-                    } else {
-                        showCustomSnackbar(getView(), requireContext(), "部分缓存清理失败");
-                    }
-                });
+                android.app.Activity activity = getActivity();
+                if (activity != null)
+                    activity.runOnUiThread(() -> {
+                        if (finalSuccess) {
+                            cacheSizeText.setText("当前缓存大小: 0 B");
+                            showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
+                        } else {
+                            showCustomSnackbar(getView(), requireContext(), "部分缓存清理失败");
+                        }
+                    });
             });
         }
     }

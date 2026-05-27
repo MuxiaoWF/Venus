@@ -182,7 +182,7 @@ public class BBSGameDaily {
         statusNotifier.notifyListeners("正在获取签到奖励列表...");
         for (int i = 0; i < MAX_RETRIES; i++) {
             String rewards_api = gameName.equals("绝区零") ? Constants.Urls.BBS_GAME_REWARDS_ZZZ_URL : Constants.Urls.BBS_GAME_REWARDS_URL;
-            String response = sendGetRequest(rewards_api, getGameLoginHeaders(), Map.of("lang", "zh-cn", "actId", actId));
+            String response = sendGetRequest(rewards_api, getGameLoginHeaders(), Map.of("lang", "zh-cn", "act_id", actId));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (data.get("retcode").getAsInt() == 0) {
                 JsonArray awardsArray = data.getAsJsonObject("data").getAsJsonArray("awards");
@@ -217,7 +217,7 @@ public class BBSGameDaily {
     private Map<String, Object> isSign(String region, String uid) {
         Map<String, String> gameLoginHeaders = getGameLoginHeaders();
         String isSignApi = gameName.equals("绝区零") ? Constants.Urls.BBS_GAME_REWARDS_ZZZ_INFO_URL : Constants.Urls.BBS_GAME_REWARDS_INFO_URL;
-        String response = sendGetRequest(isSignApi, gameLoginHeaders, Map.of("lang", "zh-cn", "actId", actId, "region", region, "uid", uid));
+        String response = sendGetRequest(isSignApi, gameLoginHeaders, Map.of("lang", "zh-cn", "act_id", actId, "region", region, "uid", uid));
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         // CookieToken需要刷新
         if (data.get("retcode").getAsInt() == -100) {
@@ -265,7 +265,7 @@ public class BBSGameDaily {
             // 如果是之前进行了人机验证的，添加请求头
             if (geetCode != null)
                 gameLoginHeader.putAll(geetCode);
-            response = sendPostRequest(signApi, gameLoginHeader, Map.of("actId", actId, "region", Objects.requireNonNull(account.get("region")), "uid", Objects.requireNonNull(account.get("game_uid"))));
+            response = sendPostRequest(signApi, gameLoginHeader, Map.of("act_id", actId, "region", Objects.requireNonNull(account.get("region")), "uid", Objects.requireNonNull(account.get("game_uid"))));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (data.get("retcode").getAsInt() == 429) {
                 Thread.sleep(RATE_LIMIT_COOLDOWN_MS);
