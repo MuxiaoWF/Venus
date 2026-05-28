@@ -17,6 +17,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.common.Constants;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class UpdateChecker {
     private static final String LAST_CHECK_TIME = "last_check_time";
     private final Context context;
@@ -48,9 +51,9 @@ public class UpdateChecker {
     /**
      * 检查更新
      *
-     * @param updateAuto 是否是自动检查的更新
+     * @param isManual 是否是用户手动触发的检查
      */
-    private void checkForUpdates(boolean updateAuto) {
+    private void checkForUpdates(boolean isManual) {
         new Thread(() -> {
             try {
                 // 保存检查时间
@@ -60,7 +63,7 @@ public class UpdateChecker {
                 // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
-                    if (updateAuto)
+                    if (isManual)
                         showNoUpdateDialog("\n没能成功获取GitHub更新，请手动前往下载页面\n当前版本：" + currentVersion);
                     return;
                 }
@@ -70,10 +73,10 @@ public class UpdateChecker {
                 // 比较版本
                 if (isUpdateAvailable(currentVersion, latestVersion))
                     showUpdateDialog(latestVersion, releaseInfo);
-                else if (updateAuto)
+                else if (isManual)
                     showNoUpdateDialog("");
             } catch (Exception e) {
-                if (updateAuto)
+                if (isManual)
                     showNoUpdateDialog(e.toString());
             }
         }).start();
@@ -92,14 +95,27 @@ public class UpdateChecker {
      */
     private JsonObject getLatestReleaseInfo() {
         try {
-            String response = com.muxiao.Venus.common.tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_URL, null, null);
+            Map<String, String> headers = new HashMap<>();
+            headers.put("User-Agent", "Venus-Android/" + getCurrentVersion());
+            String response = com.muxiao.Venus.common.tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_URL, headers, null);
             if (!response.isEmpty()) {
                 return JsonParser.parseString(response).getAsJsonObject();
             }
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.contains("403")) {
+                postErrorToMainThread("GitHub API 请求被限流，请稍后再试");
+            } else {
+                postErrorToMainThread("获取GitHub发布信息失败：" + msg);
+            }
         } catch (Exception e) {
-            show_error_dialog(context, "获取GitHub发布信息失败" + e);
+            postErrorToMainThread("获取GitHub发布信息失败：" + e);
         }
         return null;
+    }
+
+    private void postErrorToMainThread(String message) {
+        new Handler(Looper.getMainLooper()).post(() -> show_error_dialog(context, message));
     }
 
     /**

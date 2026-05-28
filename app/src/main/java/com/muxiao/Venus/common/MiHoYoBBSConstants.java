@@ -22,7 +22,7 @@ public class MiHoYoBBSConstants {
     public static final String LK2_final = "32a0d9cd9d22b5ba31a10f400e7b7223";
     public static final String K2_final = "3696e0273f0f60d35de192ff7068bd44";
     public static final String bbs_version_final = "2.107.1";
-    public static final String update_time = "2026.05.27";
+    public static final String update_time = "2026.05.28";
     public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     private final Context context;
 

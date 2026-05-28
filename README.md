@@ -1,5 +1,3 @@
-如果在获取抽卡链接报invalid request的，建议在设置里刷新一下米游社配置，LK2被俺填错了一个字母
-
 鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
@@ -35,6 +33,12 @@
 ---
 
 更新日志：
+
+2026.05.28
+
+删除没用的点赞等米游币任务（不得不说每日米游币给的是越来越少了），同时改了一点样式。用ai vibe coding了后台任务（也挺鸡肋的）
+
+---
 
 2026.03.21
 
