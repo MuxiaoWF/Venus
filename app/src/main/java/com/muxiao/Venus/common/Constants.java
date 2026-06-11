@@ -5,7 +5,6 @@ public class Constants {
     public static final int NOTIFICATION_ID_WORK = 50628;
     public static final int NOTIFICATION_ID_ERROR = 50629;
     public static final int NOTIFICATION_ID_PROGRESS = 50630;
-    public static final int NOTIFICATION_ID_CAPTCHA = 50631;
 
     // 后台人机验证广播 Action
     public static final String ACTION_CAPTCHA_RESULT = "com.muxiao.Venus.CAPTCHA_RESULT";
@@ -109,5 +108,8 @@ public class Constants {
         // Venus应用信息
         public static final String APP_INFO_PREFS_NAME = "app_info";
         public static final String LAST_VERSION = "last_version";
+
+        // 后台人机验证标记
+        public static final String PREF_CAPTCHA_PENDING = "captcha_pending";
     }
 }

@@ -2,9 +2,14 @@ package com.muxiao.Venus.Home;
 
 import android.content.Context;
 
-import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class TaskExecutor {
 
@@ -28,7 +33,7 @@ public class TaskExecutor {
 
     public TaskExecutor(Context context, String userId,
                         tools.StatusNotifier notifier, GeetestController controller,
-                        Notification notification, Callback callback) {
+                        Callback callback) {
         this.context = context;
         this.userId = userId;
         this.notifier = notifier;
@@ -37,24 +42,36 @@ public class TaskExecutor {
     }
 
     public void executeAll(TaskSettings settings) {
-        try {
-            if (settings.isDailyEnabled()) {
-                executeBbsDaily(settings.getDailyForums());
-            }
-            if (callback.isCancelled()) return;
+        notifier.notifyListeners("开始执行任务，用户: " + userId);
+        List<Future<?>> futures = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(3);
 
-            if (settings.isGameDailyEnabled()) {
-                executeGameDaily(settings.getGameDailyGames());
-            }
-            if (callback.isCancelled()) return;
+        if (settings.isDailyEnabled()) {
+            futures.add(pool.submit(() -> executeBbsDaily(settings.getDailyForums())));
+        }
+        if (settings.isGameDailyEnabled()) {
+            futures.add(pool.submit(() -> executeGameDaily(settings.getGameDailyGames())));
+        }
+        if (settings.isSklandEnabled()) {
+            futures.add(pool.submit(this::executeSklandDaily));
+        }
 
-            if (settings.isSklandEnabled()) {
-                executeSklandDaily();
+        // 等待所有任务完成，处理异常
+        for (Future<?> f : futures) {
+            try {
+                f.get();
+            } catch (InterruptedException e) {
+                pool.shutdownNow();
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception e) {
+                notifier.notifyListeners("任务执行异常: " + e.getMessage());
             }
+        }
+        pool.shutdown();
 
+        if (!callback.isCancelled()) {
             callback.onAllTasksCompleted();
-        } catch (Exception e) {
-            notifier.notifyListeners("任务执行异常: " + e.getMessage());
         }
     }
 

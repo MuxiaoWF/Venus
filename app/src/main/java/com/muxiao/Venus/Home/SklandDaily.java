@@ -47,10 +47,12 @@ public class SklandDaily {
     private static final String URL_SIGN_ENDFIELD = "https://zonai.skland.com/web/v1/game/endfield/attendance";
     private static final String SM_PUBKEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCmxMNr7n8ZeT0tE1R9j/mPixoinPkeM+k4VGIn/s0k7N5rJAfnZ0eMER+QhwFvshzo0LNmeUkpR8uIlU/GEVr8mN28sKmwd2gpygqj0ePnBmOW4v0ZVwbSYK+izkhVFk2V/doLoMbWy6b+UnA8mkjvg0iYWRByfRsK2gdl7llqCwIDAQAB";
     private final tools.StatusNotifier notifier;
+    private final Context context;
     private final String token;
     private static String deviceID;
 
     public SklandDaily(Context context, tools.StatusNotifier notifier) {
+        this.context = context;
         this.token = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE).getString(SKLAND_COOKIE, "");
         if (token.isEmpty())
             throw new RuntimeException("森空岛content未设置");
@@ -168,17 +170,25 @@ public class SklandDaily {
             headers.put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
             headers.put("referer", "https://game.skland.com/");
             headers.put("origin", "https://game.skland.com/");
-            String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
-            JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
-            if (j.get("code").getAsInt() == 0) {
-                JsonArray awardids = j.getAsJsonObject("data").getAsJsonArray("awardIds");
-                for (JsonElement awardid : awardids) {
-                    String id = awardid.getAsJsonObject().get("id").getAsString();
-                    JsonObject r1 = j.getAsJsonObject("data").getAsJsonObject("resourceInfoMap").getAsJsonObject(id);
-                    notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
+            try {
+                String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
+                JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
+                if (j.get("code").getAsInt() == 0) {
+                    JsonArray awardids = j.getAsJsonObject("data").getAsJsonArray("awardIds");
+                    for (JsonElement awardid : awardids) {
+                        String id = awardid.getAsJsonObject().get("id").getAsString();
+                        JsonObject r1 = j.getAsJsonObject("data").getAsJsonObject("resourceInfoMap").getAsJsonObject(id);
+                        notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
+                    }
+                } else {
+                    notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
                 }
-            } else {
-                notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
+            } catch (RuntimeException e) {
+                if (e.getMessage() != null && e.getMessage().contains("403")) {
+                    tools.writeLog(context, "[" + role.name + "] 今日已签到（重复签到）");
+                } else {
+                    throw e;
+                }
             }
         } else {
             Map<String, Object> body = new HashMap<>();
@@ -195,17 +205,25 @@ public class SklandDaily {
             headers.put("timestamp", t.get("timestamp"));
             headers.put("dId", signBase.get("dId"));
             headers.put("vName", signBase.get("vName"));
-            String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
-            JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
-            if (j.get("code").getAsInt() == 0) {
-                JsonArray awards = j.getAsJsonObject("data").getAsJsonArray("awards");
-                for (JsonElement award : awards) {
-                    JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
-                    int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
-                    notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+            try {
+                String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
+                JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
+                if (j.get("code").getAsInt() == 0) {
+                    JsonArray awards = j.getAsJsonObject("data").getAsJsonArray("awards");
+                    for (JsonElement award : awards) {
+                        JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
+                        int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
+                        notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+                    }
+                } else {
+                    notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
                 }
-            } else {
-                notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
+            } catch (RuntimeException e) {
+                if (e.getMessage() != null && e.getMessage().contains("403")) {
+                    tools.writeLog(context, "[" + role.name + "] 今日已签到（重复签到）");
+                } else {
+                    throw e;
+                }
             }
         }
     }

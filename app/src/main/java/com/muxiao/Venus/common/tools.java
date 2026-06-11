@@ -20,11 +20,16 @@ import com.muxiao.Venus.R;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -194,38 +199,41 @@ public class tools {
      */
     public static void showCustomSnackbar(View view, Context context, String message) {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
-        // 获取Snackbar的视图
         View snackbarView = snackbar.getView();
 
-        // 设置背景颜色（使用主题颜色或自定义颜色）
-        snackbarView.setBackgroundColor(context.getResources().getColor(R.color.snackbar_background, context.getTheme()));
+        // 圆角背景
+        snackbarView.setBackgroundResource(R.drawable.snackbar_background);
 
-        // 设置文本颜色
+        // 文本样式
         MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
         if (textView != null) {
             textView.setTextColor(context.getResources().getColor(R.color.snackbar_text, context.getTheme()));
-            // 设置文本居中
             textView.setGravity(android.view.Gravity.CENTER);
+            textView.setTextSize(13);
+            textView.setMaxLines(3);
         }
-        
-        // 设置动作文本颜色（如果有动作按钮）
+
+        // 动作按钮颜色
         MaterialButton actionView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_action);
         if (actionView != null)
             actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
 
-        // 设置阴影
-        snackbarView.setElevation(8f);
+        // 阴影和内边距
+        snackbarView.setElevation(6f);
+        int h = (int) (16 * context.getResources().getDisplayMetrics().density);
+        int v = (int) (10 * context.getResources().getDisplayMetrics().density);
+        snackbarView.setPadding(h, v, h, v);
 
-        // 设置内边距
-        snackbarView.setPadding(24, 12, 24, 12);
-        snackbarView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+        // 居中显示，留出底部间距
+        android.view.ViewGroup.LayoutParams lp = snackbarView.getLayoutParams();
+        lp.width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
+        if (lp instanceof android.widget.FrameLayout.LayoutParams) {
+            android.widget.FrameLayout.LayoutParams flp = (android.widget.FrameLayout.LayoutParams) lp;
+            flp.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
+            flp.bottomMargin = (int) (80 * context.getResources().getDisplayMetrics().density);
+        }
+        snackbarView.setLayoutParams(lp);
 
-        // 居中显示Snackbar
-        android.widget.FrameLayout.LayoutParams params = (android.widget.FrameLayout.LayoutParams) snackbarView.getLayoutParams();
-        params.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-        params.bottomMargin = 100; // 设置距离底部的距离
-        snackbarView.setLayoutParams(params);
-        
         snackbar.show();
     }
 
@@ -300,5 +308,54 @@ public class tools {
                 imm.hideSoftInputFromWindow(focused.getWindowToken(), 0);
             }
         }
+    }
+
+    /**
+     * 清理过期的日志文件，只保留今天的日志。
+     * 在任务开始时调用。
+     */
+    public static void cleanOldLogs(Context context) {
+        File logDir = new File(context.getExternalFilesDir(null), "logs");
+        if (!logDir.exists()) return;
+        String todayPrefix = "daily_task_log_" + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        File[] files = logDir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isFile() && file.getName().startsWith("daily_task_log_") && !file.getName().startsWith(todayPrefix)) {
+                file.delete();
+            }
+        }
+    }
+
+    /**
+     * 静默写入日志文件，不触发通知。
+     */
+    public static void writeLog(Context context, String message) {
+        try {
+            File logDir = new File(context.getExternalFilesDir(null), "logs");
+            if (!logDir.exists()) logDir.mkdirs();
+            String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+            File logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+            String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+            FileWriter writer = new FileWriter(logFile, true);
+            writer.append("[").append(timestamp).append("] ").append(message).append("\n");
+            writer.close();
+        } catch (IOException ignored) {}
+    }
+
+    /**
+     * 向当天日志文件写入一条分隔符，用于区分不同次任务执行。
+     */
+    public static void writeLogSeparator(Context context) {
+        try {
+            File logDir = new File(context.getExternalFilesDir(null), "logs");
+            if (!logDir.exists()) logDir.mkdirs();
+            String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+            File logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+            String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+            FileWriter writer = new FileWriter(logFile, true);
+            writer.append("\n==================== ").append(timestamp).append(" ====================\n\n");
+            writer.close();
+        } catch (IOException ignored) {}
     }
 }

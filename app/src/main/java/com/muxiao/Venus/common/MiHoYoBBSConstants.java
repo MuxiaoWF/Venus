@@ -19,16 +19,54 @@ public class MiHoYoBBSConstants {
     public String bbs_version;
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2_final = "32a0d9cd9d22b5ba31a10f400e7b7223";
-    public static final String K2_final = "3696e0273f0f60d35de192ff7068bd44";
-    public static final String bbs_version_final = "2.107.1";
-    public static final String update_time = "2026.05.28";
+    public static final String LK2_final = "7cb250ce0015057d33ef639b0e30e432";
+    public static final String K2_final = "15f1f47145cb28fe26b18a6789080fe2";
+    public static final String bbs_version_final = "2.108.0";
+    public static final String update_time = "2026.06.09";
     public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     private final Context context;
 
     public MiHoYoBBSConstants(Context context) {
         this.context = context;
         updateSalt();
+    }
+
+    /**
+     * 从云端获取最新配置并更新本地 SharedPreferences。
+     * 应在后台线程调用。
+     *
+     * @return true 如果获取并更新成功
+     */
+    public static boolean updateConfigFromWeb(Context context) {
+        try {
+            java.util.Map<String, String> headers = new java.util.HashMap<>();
+            headers.put("User-Agent", "Venus/1.0");
+            String response = tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_SALT_URL, headers, null);
+            if (response == null || response.isEmpty()) return false;
+
+            com.google.gson.JsonObject data = com.google.gson.JsonParser.parseString(response).getAsJsonObject();
+            if (data == null) return false;
+
+            SharedPreferences configPrefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = configPrefs.edit();
+            editor.putString(SALT_6X_PREF, getDataOrDefault(data, SALT_6X_PREF, SALT_6X_final));
+            editor.putString(SALT_4X_PREF, getDataOrDefault(data, SALT_4X_PREF, SALT_4X_final));
+            editor.putString(LK2_PREF, getDataOrDefault(data, LK2_PREF, LK2_final));
+            editor.putString(K2_PREF, getDataOrDefault(data, K2_PREF, K2_final));
+            editor.putString(BBS_VERSION_PREF, getDataOrDefault(data, BBS_VERSION_PREF, bbs_version_final));
+            editor.putString(UPDATE_TIME_PREF, getDataOrDefault(data, UPDATE_TIME_PREF, update_time));
+            editor.putString(UPDATE_TIME_LOCAL_PREF, getDataOrDefault(data, UPDATE_TIME_LOCAL_PREF, update_time));
+            editor.apply();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static String getDataOrDefault(com.google.gson.JsonObject data, String key, String defaultValue) {
+        if (data != null && data.has(key) && !data.get(key).isJsonNull())
+            return data.get(key).getAsString();
+        return defaultValue;
     }
 
     private void updateSalt() {

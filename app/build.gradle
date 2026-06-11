@@ -6,6 +6,10 @@ android {
     namespace = 'com.muxiao.Venus'
     compileSdkVersion = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId "com.muxiao.Venus"
         minSdkVersion 23

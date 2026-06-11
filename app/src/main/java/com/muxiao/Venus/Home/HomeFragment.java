@@ -1,7 +1,6 @@
 package com.muxiao.Venus.Home;
 
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
-import static com.muxiao.Venus.common.Constants.Prefs.NOTIFICATION;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -50,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -65,6 +65,7 @@ public class HomeFragment extends Fragment {
     private static Future<?> currentTaskFuture; // 任务
     private String currentUser;
     private MaterialAutoCompleteTextView user_dropdown;
+    private MaterialButton start_daily_btn;
     private MaterialButton start_daily_bg_btn;
     private TaskAdapter taskAdapter;
     private List<TaskItem> taskList;
@@ -83,29 +84,36 @@ public class HomeFragment extends Fragment {
 
         @Override
         public void createButton(GT3ConfigBean gt3ConfigBean) {
+            android.util.Log.e("VenusCaptcha", "Foreground controller createButton called");
             createUtils();
             requireActivity().runOnUiThread(() -> {
-                // 动态创建GT3GeetestButton
-                // 如果按钮已存在，先销毁
-                if (geetestButton != null && geetestContainer != null) {
-                    geetestContainer.removeView(geetestButton);
-                    geetestButton = null;
+                android.util.Log.e("VenusCaptcha", "Running on UI thread, creating button");
+                try {
+                    // 动态创建GT3GeetestButton
+                    // 如果按钮已存在，先销毁
+                    if (geetestButton != null && geetestContainer != null) {
+                        geetestContainer.removeView(geetestButton);
+                        geetestButton = null;
+                    }
+                    // 创建新的GT3GeetestButton实例
+                    geetestButton = new GT3GeetestButton(requireContext());
+                    // 设置布局参数
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                            (int) (290 * getResources().getDisplayMetrics().density),
+                            (int) (44 * getResources().getDisplayMetrics().density)
+                    );
+                    params.setMargins(0, (int) (12 * getResources().getDisplayMetrics().density), 0, (int) (12 * getResources().getDisplayMetrics().density));
+                    params.gravity = Gravity.CENTER_HORIZONTAL;
+                    geetestButton.setLayoutParams(params);
+                    // 添加到容器中
+                    geetestContainer.addView(geetestButton);
+                    geetestContainer.setVisibility(View.VISIBLE);
+                    gt3GeetestUtils.init(gt3ConfigBean);
+                    geetestButton.setGeetestUtils(gt3GeetestUtils);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    android.util.Log.e("Geetest", "Error creating GT3GeetestButton", e);
                 }
-                // 创建新的GT3GeetestButton实例
-                geetestButton = new GT3GeetestButton(requireContext());
-                // 设置布局参数
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                        (int) (290 * getResources().getDisplayMetrics().density),
-                        (int) (44 * getResources().getDisplayMetrics().density)
-                );
-                params.setMargins(0, (int) (12 * getResources().getDisplayMetrics().density), 0, (int) (12 * getResources().getDisplayMetrics().density));
-                params.gravity = Gravity.CENTER_HORIZONTAL;
-                geetestButton.setLayoutParams(params);
-                // 添加到容器中
-                geetestContainer.addView(geetestButton);
-                geetestContainer.setVisibility(View.VISIBLE);
-                gt3GeetestUtils.init(gt3ConfigBean);
-                geetestButton.setGeetestUtils(gt3GeetestUtils);
             });
         }
 
@@ -152,9 +160,8 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        Notification notification = new Notification(requireContext());
         user_dropdown = view.findViewById(R.id.user_dropdown);
-        MaterialButton start_daily_btn = view.findViewById(R.id.start_daily);
+        start_daily_btn = view.findViewById(R.id.start_daily);
         MaterialButton cancel_daily_btn = view.findViewById(R.id.cancel_daily);
         start_daily_bg_btn = view.findViewById(R.id.start_daily_bg);
         MaterialButton view_log_btn = view.findViewById(R.id.view_log_btn);
@@ -182,6 +189,7 @@ public class HomeFragment extends Fragment {
         userManager = new UserManager(requireContext());
         executorService = Executors.newSingleThreadExecutor();
         controller.createUtils();
+        tools.cleanOldLogs(requireContext());
         File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
         if (!logDir.exists()) logDir.mkdirs();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
@@ -223,17 +231,14 @@ public class HomeFragment extends Fragment {
         currentUser = userManager.getCurrentUser();
         if (!currentUser.isEmpty() && usernames.contains(currentUser)) {
             user_dropdown.setText(currentUser, false);
-            notifier.notifyListeners("当前用户" + currentUser);
         } else if (!usernames.isEmpty()) {
             // 如果当前用户不存在或为空，设置为第一个用户
             currentUser = usernames.get(0);
             user_dropdown.setText(currentUser, false);
-            notifier.notifyListeners("当前用户" + currentUser);
         }
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             currentUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(currentUser);
-            notifier.notifyListeners("当前用户" + currentUser);
         });
 
         // 设置任务列表RecyclerView
@@ -247,31 +252,7 @@ public class HomeFragment extends Fragment {
             if (homeInfoCard.isExpanded())
                 homeInfoCard.toggle();
 
-            // 检查通知设置
-            SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-            boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
-
-            // 如果用户开启了通知功能，但系统通知权限未开启，则发送引导通知
-            if (notificationEnabled && notification.areNotificationsDisabled()) {
-                // 实际权限未开启，提示用户去设置
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("需要通知权限")
-                        .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
-                        .setPositiveButton("去设置", (dialog, which) -> startActivity(notification.getNotificationSettingsIntent()))
-                        .setNegativeButton("稍后再说", (dialog, which) -> {
-                            // 用户选择稍后处理，将开关状态设为关闭并保存
-                            SharedPreferences.Editor editor = prefs.edit();
-                            editor.putBoolean(NOTIFICATION, false);
-                            editor.apply();
-                        }).setOnCancelListener(dialog -> {
-                            // 用户取消对话框，也将开关状态设为关闭并保存
-                            SharedPreferences.Editor editor = prefs.edit();
-                            editor.putBoolean(NOTIFICATION, false);
-                            editor.apply();
-                        }).show();
-                return;
-            }
-            // 清空上一次的日志
+            // 清空上一次的日志并写入分隔符
             try {
                 FileWriter writer = new FileWriter(logFile, false); // false 覆盖模式
                 writer.write("");
@@ -279,12 +260,14 @@ public class HomeFragment extends Fragment {
             } catch (IOException e) {
                 show_error_dialog(requireContext(), "清空日志文件失败");
             }
+            tools.writeLogSeparator(requireContext());
             // 刷新任务列表状态
             resetTaskList();
 
             user_dropdown_layout.setVisibility(View.GONE);// 隐藏用户下拉框
             cancel_daily_btn.setVisibility(View.VISIBLE); // 显示取消按钮
             start_daily_btn.setVisibility(View.GONE); // 隐藏启动按钮
+            start_daily_bg_btn.setVisibility(View.GONE); // 隐藏后台运行按钮
 
             currentTaskFuture = executorService.submit(() -> {
                 try {
@@ -294,7 +277,7 @@ public class HomeFragment extends Fragment {
                         return;
                     }
                     TaskExecutor taskExecutor = new TaskExecutor(
-                            requireActivity(), currentUser, notifier, controller, notification,
+                            requireActivity(), currentUser, notifier, controller,
                             new TaskExecutor.Callback() {
                                 @Override
                                 public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
@@ -321,6 +304,7 @@ public class HomeFragment extends Fragment {
                         user_dropdown_layout.setVisibility(View.VISIBLE);
                         cancel_daily_btn.setVisibility(View.GONE);
                         start_daily_btn.setVisibility(View.VISIBLE);
+                        updateBgButtonVisibility(); // 恢复后台按钮可见性
                     });
                 }
             });
@@ -344,24 +328,16 @@ public class HomeFragment extends Fragment {
         // 后台运行/取消按钮
         start_daily_bg_btn.setOnClickListener(v -> {
             if (ForegroundTaskService.isRunning()) {
-                // 已有任务运行中，让用户选择继续或重新运行
                 new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("后台任务运行中")
-                        .setMessage("当前已有后台任务正在执行。")
-                        .setPositiveButton("继续原任务", null)
-                        .setNeutralButton("取消任务", (dialog, which) -> {
+                        .setTitle("确认取消")
+                        .setMessage("确定要取消后台任务吗？")
+                        .setPositiveButton("确定", (dialog, which) -> {
                             Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
                             stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
                             requireContext().startService(stopIntent);
+                            updateBgButtonState(false);
                         })
-                        .setNegativeButton("重新运行", (dialog, which) -> {
-                            // 停止当前任务，延迟后启动新任务
-                            Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
-                            stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
-                            requireContext().startService(stopIntent);
-                            // 等待服务停止后再启动新任务
-                            start_daily_bg_btn.postDelayed(() -> checkAndStartTask(currentUser), 500);
-                        })
+                        .setNegativeButton("继续任务", null)
                         .show();
                 return;
             }
@@ -376,20 +352,23 @@ public class HomeFragment extends Fragment {
         // 检查是否需要处理后台人机验证
         if (getActivity() != null && getActivity().getIntent() != null
                 && "ACTION_HANDLE_CAPTCHA".equals(getActivity().getIntent().getAction())) {
-            // 延迟执行，确保 UI 初始化完成
-            view.postDelayed(() -> performBackgroundCaptchaVerification(), 300);
+            getActivity().getIntent().setAction(null);
+            view.postDelayed(this::performBackgroundCaptchaVerification, 300);
         }
 
         // 查看日志按钮
         view_log_btn.setOnClickListener(v -> {
             try {
                 if (logFile.exists() && logFile.length() > 0) {
-                    StringBuilder content = new StringBuilder();
+                    List<String> lines = new ArrayList<>();
                     BufferedReader reader = new BufferedReader(new FileReader(logFile));
                     String line;
                     while ((line = reader.readLine()) != null)
-                        content.append(line).append("\n");
+                        lines.add(line);
                     reader.close();
+                    java.util.Collections.reverse(lines);
+                    StringBuilder content = new StringBuilder();
+                    for (String l : lines) content.append(l).append("\n");
 
                     // 创建可滚动的 TextView
                     android.widget.ScrollView scrollView = new android.widget.ScrollView(requireContext());
@@ -435,32 +414,57 @@ public class HomeFragment extends Fragment {
      * 在前台使用本地 GeetestController 展示验证 UI，完成后通过广播回传结果给后台 Service。
      */
     public void performBackgroundCaptchaVerification() {
-        // 显示提示信息
-        tools.show_error_dialog(requireContext(),
-                "后台任务需要进行人机验证。\n请在下方完成验证码，完成后任务将继续执行。");
+        android.util.Log.i("VenusCaptcha", "performBackgroundCaptchaVerification called, controller=" + controller);
+        // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
+        new Thread(() -> {
+            try {
+                // 优先使用后台任务保存的 headers（含 Cookie），确保 API2 二次验证能正确绑定会话
+                Map<String, String> headers = BackgroundGeetestController.consumePendingHeaders();
+                if (headers == null) {
+                    android.util.Log.e("VenusCaptcha", "No pending headers, using fresh BBS headers");
+                    headers = new HeaderManager(requireContext()).get_bbs_headers();
+                } else {
+                    android.util.Log.e("VenusCaptcha", "Using pending headers from background task");
+                }
 
-        // 使用本地 controller 在前台展示 Geetest UI
-        // BackgroundGeetestController 的 createButton 中已保存了 GT3ConfigBean
-        // 但这里需要用本地 controller 重新执行验证流程
-        // 直接调用 Geetest.geetest 重新获取验证参数并展示
-        Map<String, String> headers = new HeaderManager(requireContext()).getBbsHeaders();
+                // 检查是否有后台任务保存的 challenge（避免重复 API1 导致 challenge 不匹配）
+                String[] savedChallenge = BackgroundGeetestController.consumePendingChallenge();
+                GeetestVerificationCallback callback = new GeetestVerificationCallback() {
+                    @Override
+                    public void onVerificationSuccess(Map<String, String> geetestCode) {
+                        android.util.Log.e("VenusCaptcha", "Verification SUCCESS, sending broadcast...");
+                        controller.destroyButton();
+                        String resultJson = new com.google.gson.Gson().toJson(geetestCode);
+                        android.util.Log.e("VenusCaptcha", "Broadcast resultJson=" + resultJson);
+                        BackgroundGeetestController.notifyVerificationSuccess(requireContext(), resultJson, geetestCode);
+                        android.util.Log.e("VenusCaptcha", "Broadcast sent OK");
+                        new Notification(requireContext()).sendNormalNotification("人机验证成功", "验证通过，后台任务将继续执行", true);
+                    }
 
-        Geetest.geetest(headers, new GeetestVerificationCallback() {
-            @Override
-            public void onVerificationSuccess(Map<String, String> geetestCode) {
-                controller.destroyButton();
-                // 通过广播将结果回传给 BackgroundGeetestController
-                BackgroundGeetestController.notifyVerificationSuccess(requireContext(), geetestCode);
-                new Notification(requireContext()).sendNormalNotification("人机验证成功", "验证通过，后台任务将继续执行");
+                    @Override
+                    public void onVerificationFailed(String error) {
+                        android.util.Log.e("VenusCaptcha", "Verification FAILED: " + error);
+                        controller.destroyButton();
+                        BackgroundGeetestController.notifyVerificationFailure(requireContext(), error);
+                        new Notification(requireContext()).sendErrorNotification("人机验证失败", error, true);
+                    }
+                };
+
+                // 使用后台任务的 challenge 进行验证（同一 challenge，避免 1034 循环）
+                if (savedChallenge != null) {
+                    android.util.Log.e("VenusCaptcha", "Using saved challenge: gt=" + savedChallenge[0]);
+                    Geetest.geetestWithChallenge(savedChallenge[0], savedChallenge[1], headers, callback, controller);
+                } else {
+                    android.util.Log.e("VenusCaptcha", "No saved challenge, calling API1");
+                    Geetest.geetest(headers, callback, controller);
+                }
+            } catch (Exception e) {
+                android.util.Log.e("VenusCaptcha", "Exception in performBackgroundCaptchaVerification", e);
+                try {
+                    BackgroundGeetestController.notifyVerificationFailure(requireContext(), e.getMessage());
+                } catch (Exception ignored) {}
             }
-
-            @Override
-            public void onVerificationFailed(String error) {
-                controller.destroyButton();
-                BackgroundGeetestController.notifyVerificationFailure(requireContext(), error);
-                new Notification(requireContext()).sendErrorNotification("人机验证失败", error);
-            }
-        }, controller);
+        }).start();
     }
 
     /**
@@ -510,6 +514,9 @@ public class HomeFragment extends Fragment {
     private void updateBgButtonState(boolean running) {
         if (start_daily_bg_btn == null) return;
         start_daily_bg_btn.setText(running ? "取消后台任务" : "后台运行");
+        // 后台运行时隐藏前台按钮，停止后恢复
+        if (start_daily_btn != null)
+            start_daily_btn.setVisibility(running ? View.GONE : View.VISIBLE);
     }
 
     private void checkAndStartTask(String userId) {
@@ -524,22 +531,6 @@ public class HomeFragment extends Fragment {
         }
 
         Notification notification = new Notification(requireContext());
-        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        boolean notificationEnabled = prefs.getBoolean(NOTIFICATION, false);
-        if (!notificationEnabled) {
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("需要开启通知")
-                    .setMessage("后台运行需要开启通知才能正常工作。是否前往设置开启？")
-                    .setPositiveButton("去设置", (d, w) -> {
-                        if (getActivity() instanceof MainActivity) {
-                            ((MainActivity) getActivity()).bottomNavigationView
-                                    .setSelectedItemId(R.id.navigation_settings);
-                        }
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
-            return;
-        }
         if (notification.areNotificationsDisabled()) {
             new MaterialAlertDialogBuilder(requireContext())
                     .setTitle("需要通知权限")
@@ -568,7 +559,8 @@ public class HomeFragment extends Fragment {
         serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
         serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
         androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
-        tools.showCustomSnackbar(getView(), requireContext(), "后台任务已启动");
+        updateBgButtonState(true);
+        tools.showCustomSnackbar(getView(), requireContext(), "后台任务已启动，如遇到验证码会自动弹出，请留意通知");
     }
 
     private void updateBgButtonVisibility() {

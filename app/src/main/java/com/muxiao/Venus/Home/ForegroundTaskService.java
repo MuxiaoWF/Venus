@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Home;
 
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -18,6 +19,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -56,6 +58,7 @@ public class ForegroundTaskService extends Service {
         broadcastState(true);
         executorService = Executors.newSingleThreadExecutor();
         notifier = new tools.StatusNotifier();
+        tools.cleanOldLogs(this);
 
         // 添加日志写入监听器
         notifier.addListener(message -> {
@@ -94,6 +97,7 @@ public class ForegroundTaskService extends Service {
             notificationBuilder.addAction(R.drawable.ic_notification, "取消", stopPending);
 
             startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build());
+            tools.writeLogSeparator(this);
             executeTasks(userId);
         }
 
@@ -104,7 +108,7 @@ public class ForegroundTaskService extends Service {
         // 获取 WakeLock，防止 CPU 休眠导致任务中断
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Venus:TaskWakeLock");
-        wakeLock.acquire(30 * 60 * 1000L); // 最长30分钟，防止意外泄漏
+        wakeLock.acquire(10 * 60 * 1000L); // 最长10分钟，防止意外泄漏
 
         currentTaskFuture = executorService.submit(() -> {
             try {
@@ -113,31 +117,31 @@ public class ForegroundTaskService extends Service {
                         new com.muxiao.Venus.common.Notification(this);
 
                 int totalTasks = settings.getTaskNames().size();
-                int[] completedTasks = {0};
+                AtomicInteger completedTasks = new AtomicInteger(0);
 
                 GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
 
                 TaskExecutor taskExecutor = new TaskExecutor(
-                        this, userId, notifier, geetestController, notificationHelper,
+                        this, userId, notifier, geetestController,
                         new TaskExecutor.Callback() {
                             @Override
                             public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
                                 if (status == TaskItem.TaskStatus.COMPLETED) {
-                                    completedTasks[0]++;
+                                    completedTasks.incrementAndGet();
                                 }
                                 updateServiceNotification(taskName, status,
-                                        completedTasks[0], totalTasks);
+                                        completedTasks.get(), totalTasks);
                             }
 
                             @Override
                             public void onAllTasksCompleted() {
                                 notificationHelper.completeProgressNotification(
-                                        notificationBuilder, "Venus", "所有任务已完成");
+                                        "Venus", "所有任务已完成");
                             }
 
                             @Override
                             public void onError(String message) {
-                                notificationHelper.sendErrorNotification("任务失败", message);
+                                notificationHelper.sendErrorNotification("任务失败", message, true);
                             }
 
                             @Override
@@ -191,8 +195,14 @@ public class ForegroundTaskService extends Service {
         if (currentTaskFuture != null) {
             currentTaskFuture.cancel(true);
         }
-        android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
-        nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
+        broadcastState(false);
+        releaseWakeLock();
+        dismissForegroundNotification();
+        // 显式取消通知，确保在所有设备上都能销毁
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
+        instance = null;
+        stopSelf();
     }
 
     @Override
@@ -209,9 +219,9 @@ public class ForegroundTaskService extends Service {
     @SuppressWarnings("deprecation")
     private void dismissForegroundNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            stopForeground(STOP_FOREGROUND_DETACH);
+            stopForeground(STOP_FOREGROUND_REMOVE);
         } else {
-            stopForeground(false);
+            stopForeground(true);
         }
     }
 
@@ -219,6 +229,8 @@ public class ForegroundTaskService extends Service {
     public void onDestroy() {
         super.onDestroy();
         releaseWakeLock();
+        broadcastState(false);
+        dismissForegroundNotification();
         if (executorService != null && !executorService.isShutdown())
             executorService.shutdown();
         instance = null;

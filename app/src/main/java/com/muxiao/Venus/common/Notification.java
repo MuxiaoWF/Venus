@@ -60,9 +60,11 @@ public class Notification {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    private void sendSystemNotification(String title, String content, boolean isError) {
-        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        if (!prefs.getBoolean(NOTIFICATION, false)) return;
+    private void sendSystemNotification(String title, String content, boolean isError, boolean force) {
+        if (!force) {
+            SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+            if (!prefs.getBoolean(NOTIFICATION, false)) return;
+        }
 
         ensureChannels();
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -86,12 +88,16 @@ public class Notification {
         }
     }
 
-    public void sendNormalNotification(String title, String content) {
-        sendSystemNotification(title, content, false);
+    public void sendErrorNotification(String title, String content) {
+        sendSystemNotification(title, content, true, false);
     }
 
-    public void sendErrorNotification(String title, String content) {
-        sendSystemNotification(title, content, true);
+    public void sendNormalNotification(String title, String content, boolean force) {
+        sendSystemNotification(title, content, false, force);
+    }
+
+    public void sendErrorNotification(String title, String content, boolean force) {
+        sendSystemNotification(title, content, true, force);
     }
 
     /**
@@ -125,8 +131,7 @@ public class Notification {
     /**
      * 将进度通知转为完成通知（使用默认重要性渠道，确保用户能看到）
      */
-    public void completeProgressNotification(NotificationCompat.Builder builder,
-                                              String title, String content) {
+    public void completeProgressNotification(String title, String content) {
         ensureChannels();
         NotificationCompat.Builder completed = new NotificationCompat.Builder(context, CHANNEL_WORK)
                 .setSmallIcon(R.drawable.ic_notification)

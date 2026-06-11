@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api-takumi.mihoyo.com</domain>
+        <domain includeSubdomains="true">bbs-api.miyoushe.com</domain>
+        <domain includeSubdomains="true">hk4e-sdk.mihoyo.com</domain>
+        <domain includeSubdomains="true">passport-api.mihoyo.com</domain>
+        <domain includeSubdomains="true">public-data-api.mihoyo.com</domain>
+        <domain includeSubdomains="true">api.github.com</domain>
+        <domain includeSubdomains="true">muxiaowf.dpdns.org</domain>
+        <domain includeSubdomains="true">wwzq.lanzouq.com</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"
+                tools:ignore="AcceptsUserCertificates" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

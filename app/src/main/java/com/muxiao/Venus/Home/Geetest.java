@@ -21,8 +21,11 @@ public class Geetest {
      * 带回调的验证方法
      */
     public static void geetest(Map<String, String> headers, GeetestVerificationCallback callback, GeetestController gt3Controller) {
+        android.util.Log.e("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
         gt3Controller.createUtils(); // 防止未创建
+        android.util.Log.e("VenusCaptcha", "Calling API1...");
         String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
+        android.util.Log.e("VenusCaptcha", "API1 response: " + (response != null ? response.substring(0, Math.min(200, response.length())) : "null"));
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         if (data.get("retcode").getAsInt() != 0) {
             callback.onVerificationFailed("获取验证码失败misc/api/createVerification" + response);
@@ -30,16 +33,40 @@ public class Geetest {
         }
         String gt = data.getAsJsonObject("data").get("gt").getAsString();
         String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
+        // 保存后台任务的 challenge 和 headers，供前台使用同一 challenge 验证
+        if (gt3Controller instanceof BackgroundGeetestController) {
+            BackgroundGeetestController.savePendingChallenge(gt, challenge);
+            BackgroundGeetestController.savePendingHeaders(headers);
+            android.util.Log.e("VenusCaptcha", "Saved pending challenge and headers for background task");
+        }
+        setupAndCreateButton(gt, challenge, headers, callback, gt3Controller);
+    }
+
+    /**
+     * 使用已有的 gt 和 challenge 进行验证（跳过 API1 调用）。
+     * 用于前台复用后台任务的 challenge，避免重复 API1 导致 challenge 不匹配。
+     */
+    public static void geetestWithChallenge(String gt, String challenge, Map<String, String> headers,
+                                            GeetestVerificationCallback callback, GeetestController gt3Controller) {
+        android.util.Log.e("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
+        gt3Controller.createUtils();
+        setupAndCreateButton(gt, challenge, headers, callback, gt3Controller);
+    }
+
+    private static void setupAndCreateButton(String gt, String challenge, Map<String, String> headers,
+                                             GeetestVerificationCallback callback, GeetestController gt3Controller) {
         // 配置bean文件，也可在oncreate初始化
         GT3ConfigBean gt3ConfigBean = new GT3ConfigBean();
         // 设置验证模式，1：bind，2：unbind
         gt3ConfigBean.setPattern(1);
         gt3ConfigBean.setLang("zh");
+        // 标记验证是否已成功，防止 showSuccessDialog 触发 onClosed 后误报失败
+        final boolean[] verificationSucceeded = {false};
         // 设置回调监听
         gt3ConfigBean.setListener(new GT3Listener() {
             @Override
             public void onButtonClick() {
-                // 在这里调用API1获取gt和challenge参数
+                android.util.Log.e("VenusCaptcha", "onButtonClick fired, calling getGeetest()");
                 // 将参数传递给Geetest SDK
                 Map<String, Object> mapData = new HashMap<>();
                 mapData.put("gt", gt);
@@ -76,7 +103,10 @@ public class Geetest {
                         geetCode.put("x-rpc-challenge", check.getAsJsonObject("data").get("challenge").getAsString());
                         geetCode.put("x-rpc-validate", geetestValidate);
                         geetCode.put("x-rpc-seccode", geetestValidate + "|jordan");
-                        gt3Controller.getGeetestUtils().showSuccessDialog();
+                        verificationSucceeded[0] = true;
+                        try {
+                            gt3Controller.getGeetestUtils().showSuccessDialog();
+                        } catch (Exception ignored) {}
                         callback.onVerificationSuccess(geetCode);
                     } else {
                         // 验证失败，调用失败的回调
@@ -91,7 +121,10 @@ public class Geetest {
 
             @Override
             public void onClosed(int i) {
-                callback.onVerificationFailed("验证码已关闭");
+                // showSuccessDialog 动画结束后会触发 onClosed，此时不应视为失败
+                if (!verificationSucceeded[0]) {
+                    callback.onVerificationFailed("验证码已关闭");
+                }
             }
 
             @Override
@@ -103,6 +136,7 @@ public class Geetest {
                 callback.onVerificationFailed("验证码错误：" + errorBean);
             }
         });
+        android.util.Log.e("VenusCaptcha", "Calling gt3Controller.createButton()");
         gt3Controller.createButton(gt3ConfigBean); // 配置完毕，创建按钮
     }
 }

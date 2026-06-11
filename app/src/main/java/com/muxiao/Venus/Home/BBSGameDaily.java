@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.Home.BackgroundGeetestController;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -306,23 +307,23 @@ public class BBSGameDaily {
     public void run() {
         if (accountList.isEmpty()) {
             notification.sendErrorNotification("游戏签到出错", "没有绑定任何" + gameName + "账号");
-            statusNotifier.notifyListeners("签到失败，并没有绑定任何" + gameName + "账号，请先绑定");
+            statusNotifier.notifyListeners(gameName + "签到失败：没有绑定任何账号，请先绑定");
             return;
         }
         String playerName = MiHoYoBBSConstants.game_to_role(gameName);
-        statusNotifier.notifyListeners(gameName + ": ");
+        statusNotifier.notifyListeners("开始执行" + gameName + "签到，共" + accountList.size() + "个账号");
         try {
             for (Map<String, String> account : accountList) {
                 signDelay();
                 Map<String, Object> isData = isSign(account.get("region"), account.get("game_uid"));
                 if (isData.get("first_bind") != null && (Boolean) Objects.requireNonNull(isData.get("first_bind"))) {
                     notification.sendErrorNotification("游戏签到出错", playerName + account.get("nickname") + "是第一次绑定米游社，请先手动签到一次");
-                    statusNotifier.notifyListeners(playerName + account.get("nickname") + "是第一次绑定米游社，请先手动签到一次");
+                    statusNotifier.notifyListeners(playerName + account.get("nickname") + "是第一次绑定，请先手动签到一次");
                     continue;
                 }
                 int signDays = ((Number) Objects.requireNonNull(isData.get("total_sign_day"))).intValue() - 1;
                 if ((Boolean) Objects.requireNonNull(isData.get("is_sign"))) {
-                    statusNotifier.notifyListeners(playerName + account.get("nickname") + "今天已经签到过了~");
+                    statusNotifier.notifyListeners(playerName + account.get("nickname") + "今天已经签到过了");
                     signDays += 1;
                 } else {
                     signDelay();
@@ -330,25 +331,30 @@ public class BBSGameDaily {
                     JsonObject data = JsonParser.parseString(req).getAsJsonObject();
                     if (data.get("retcode").getAsInt() != 429) {
                         if (data.get("retcode").getAsInt() == 0 && data.getAsJsonObject("data").get("success").getAsInt() == 0) {
-                            statusNotifier.notifyListeners(playerName + account.get("nickname") + "签到成功~");
+                            statusNotifier.notifyListeners(playerName + account.get("nickname") + "签到成功");
                             signDays += 2;
                         } else if (data.get("retcode").getAsInt() == -5003) {
-                            statusNotifier.notifyListeners(playerName + account.get("nickname") + "今天已经签到过了~");
+                            statusNotifier.notifyListeners(playerName + account.get("nickname") + "今天已经签到过了");
                         } else {
-                            String s = "账号签到失败！\n" + req + "\n";
-                            if (!data.get("data").isJsonNull() && data.getAsJsonObject("data").has("success") && data.getAsJsonObject("data").get("success").getAsInt() != 0)
-                                s += "原因: 验证码\njson信息:" + req;
-                            statusNotifier.notifyListeners(s);
-                            notification.sendErrorNotification("游戏签到出错", s);
+                            String message = data.has("message") ? data.get("message").getAsString() : "未知错误";
+                            int retcode = data.get("retcode").getAsInt();
+                            boolean needCaptcha = !data.get("data").isJsonNull()
+                                    && data.getAsJsonObject("data").has("success")
+                                    && data.getAsJsonObject("data").get("success").getAsInt() != 0;
+                            String reason = needCaptcha ? "触发验证码" : message + " (retcode=" + retcode + ")";
+                            statusNotifier.notifyListeners(playerName + account.get("nickname") + "签到失败: " + reason);
+                            notification.sendErrorNotification("游戏签到出错", playerName + account.get("nickname") + "签到失败: " + reason);
                             continue;
                         }
                     } else {
-                        statusNotifier.notifyListeners(account.get("nickname") + "，本次签到失败");
+                        statusNotifier.notifyListeners(playerName + account.get("nickname") + "签到失败: 请求过于频繁(429)");
                         continue;
                     }
                 }
-                statusNotifier.notifyListeners(account.get("nickname") + "已连续签到" + signDays + "天");
-                statusNotifier.notifyListeners("今天获得的奖励是" + checkinRewards.get(signDays - 1).get("name") + "x" + checkinRewards.get(signDays - 1).get("cnt"));
+                statusNotifier.notifyListeners(playerName + account.get("nickname") + "已连续签到" + signDays + "天");
+                if (signDays > 0 && signDays <= checkinRewards.size()) {
+                    statusNotifier.notifyListeners("今天获得的奖励是" + checkinRewards.get(signDays - 1).get("name") + "x" + checkinRewards.get(signDays - 1).get("cnt"));
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e.toString());
@@ -364,21 +370,33 @@ public class BBSGameDaily {
                 new CaptchaVerifier.VerificationCallback() {
                     @Override
                     public void onSuccess(Map<String, String> code) {
-                        geetCode = code;
-                        synchronized (BBSGameDaily.this) {
-                            verificationComplete = true;
-                            BBSGameDaily.this.notifyAll();
-                        }
+                        setGeetCodeAndComplete(code);
                     }
 
                     @Override
                     public void onFailure() {
-                        geetCode = null;
-                        synchronized (BBSGameDaily.this) {
-                            verificationComplete = true;
-                            BBSGameDaily.this.notifyAll();
-                        }
+                        setGeetCodeAndComplete(null);
                     }
                 });
+        // 后台控制器：前台验证是独立流程，回调不会触发。
+        // 轮询从控制器读取验证结果。
+        if (gt3Controller instanceof BackgroundGeetestController) {
+            new Thread(() -> {
+                for (int i = 0; i < 50; i++) {
+                    try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+                    Map<String, String> result = BackgroundGeetestController.getGeetestResult();
+                    if (result != null) {
+                        setGeetCodeAndComplete(result);
+                        return;
+                    }
+                }
+            }).start();
+        }
+    }
+
+    private synchronized void setGeetCodeAndComplete(Map<String, String> code) {
+        geetCode = code;
+        verificationComplete = true;
+        notifyAll();
     }
 }

@@ -38,6 +38,8 @@ import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
+import com.muxiao.Venus.Home.ForegroundTaskService;
+import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.CollapsibleCardView;
@@ -184,7 +186,6 @@ public class SettingsFragment extends Fragment {
         // 查找所有Switch和CheckBox控件
         SwitchMaterial dailySwitchButton = dailyView.findViewById(R.id.daily_switch_button);
         SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
-        SwitchMaterial notificationSwitch = notificationView.findViewById(R.id.notification_switch);
         SwitchMaterial backgroundTaskSwitch = notificationView.findViewById(R.id.background_task_switch);
 
         MaterialCheckBox dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
@@ -215,7 +216,6 @@ public class SettingsFragment extends Fragment {
         // 恢复保存的状态
         dailySwitchButton.setChecked(sharedPreferences.getBoolean(DAILY, true));
         gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
-        notificationSwitch.setChecked(sharedPreferences.getBoolean(NOTIFICATION, false));
         backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
 
         dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(DAILY_GENSHIN, false));
@@ -235,73 +235,92 @@ public class SettingsFragment extends Fragment {
         gameDailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean(GAME_DAILY_WEIDING, false));
 
         // 所有控件设置监听器以保存状态
-        dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY, isChecked).apply());
+        dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY, isChecked).apply();
+        });
 
-        gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY, isChecked).apply());
-
-        notificationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                // 用户开启了通知开关，检查实际的通知权限
-                Notification notificationUtil = new Notification(requireContext());
-                if (notificationUtil.areNotificationsDisabled()) {
-                    // 实际权限未开启，提示用户去设置
-                    new MaterialAlertDialogBuilder(requireContext())
-                            .setTitle("需要通知权限")
-                            .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
-                            .setPositiveButton("去设置", (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
-                            .setNegativeButton("稍后再说", (dialog, which) -> notificationSwitch.setChecked(false))
-                            .setOnCancelListener(dialog -> notificationSwitch.setChecked(false)).show();
-                    // 不保存设置，保持开关关闭状态
-                    return;
-                }
-            }
-            sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
+        gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY, isChecked).apply();
         });
 
         backgroundTaskSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked && !sharedPreferences.getBoolean(NOTIFICATION, false)) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("需要开启通知")
-                        .setMessage("后台运行需要先开启任务通知。请先开启上方的通知开关。")
-                        .setPositiveButton("确定", null)
-                        .show();
-                backgroundTaskSwitch.setChecked(false);
-                return;
+            if (isChecked) {
+                // 检查系统通知权限
+                Notification notificationUtil = new Notification(requireContext());
+                if (notificationUtil.areNotificationsDisabled()) {
+                    new MaterialAlertDialogBuilder(requireContext())
+                            .setTitle("需要通知权限")
+                            .setMessage("后台运行需要系统通知权限。是否前往设置页面开启？")
+                            .setPositiveButton("去设置", (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
+                            .setNegativeButton("稍后再说", (dialog, which) -> backgroundTaskSwitch.setChecked(false))
+                            .setOnCancelListener(dialog -> backgroundTaskSwitch.setChecked(false)).show();
+                    return;
+                }
             }
             sharedPreferences.edit().putBoolean(BACKGROUND_TASK_ENABLED, isChecked).apply();
+            // 后台运行开启时同步开启通知，关闭时同步关闭
+            sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
         });
 
-        dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_GENSHIN, isChecked).apply());
-        dailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_ZZZ, isChecked).apply());
-        dailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_SRG, isChecked).apply());
-        dailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_HR3, isChecked).apply());
-        dailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_HR2, isChecked).apply());
-        dailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_WEIDING, isChecked).apply());
-        dailyCheckboxDabieye.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_DABIEYE, isChecked).apply());
-        dailyCheckboxHna.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(DAILY_HNA, isChecked).apply());
+        dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_GENSHIN, isChecked).apply();
+        });
+        dailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_ZZZ, isChecked).apply();
+        });
+        dailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_SRG, isChecked).apply();
+        });
+        dailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_HR3, isChecked).apply();
+        });
+        dailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_HR2, isChecked).apply();
+        });
+        dailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_WEIDING, isChecked).apply();
+        });
+        dailyCheckboxDabieye.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_DABIEYE, isChecked).apply();
+        });
+        dailyCheckboxHna.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(DAILY_HNA, isChecked).apply();
+        });
 
-        gameDailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_GENSHIN, isChecked).apply());
-        gameDailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_ZZZ, isChecked).apply());
-        gameDailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_SRG, isChecked).apply());
-        gameDailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_HR3, isChecked).apply());
-        gameDailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_HR2, isChecked).apply());
-        gameDailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(GAME_DAILY_WEIDING, isChecked).apply());
+        gameDailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_GENSHIN, isChecked).apply();
+        });
+        gameDailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_ZZZ, isChecked).apply();
+        });
+        gameDailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_SRG, isChecked).apply();
+        });
+        gameDailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_HR3, isChecked).apply();
+        });
+        gameDailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_HR2, isChecked).apply();
+        });
+        gameDailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(GAME_DAILY_WEIDING, isChecked).apply();
+        });
 
         // 关于
         MaterialTextView githubLink = aboutView.findViewById(R.id.github_link);
@@ -319,7 +338,17 @@ public class SettingsFragment extends Fragment {
 
         // 配置更新
         MaterialButton updateConfigButton = utilsView.findViewById(R.id.update_config_button);
-        updateConfigButton.setOnClickListener(v -> updateConfig(utilsView));
+        updateConfigButton.setOnClickListener(v -> {
+            if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("任务正在运行")
+                        .setMessage("请等待当前任务执行完成后再更新配置。")
+                        .setPositiveButton("确定", null)
+                        .show();
+                return;
+            }
+            updateConfig(utilsView);
+        });
         // 显示当前配置值
         displayCurrentConfigValues();
 
@@ -340,17 +369,15 @@ public class SettingsFragment extends Fragment {
             updateChecker.checkForUpdatesImmediately();
         });
         MaterialButton checkUpdateButton2 = updateView.findViewById(R.id.check_update_button_pan);
-        checkUpdateButton2.setOnClickListener(v -> {
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("网盘下载")
-                    .setMessage("即将跳转到蓝奏云下载页面\n提取码：mxwf")
-                    .setPositiveButton("前往下载", (dialog, which) -> {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
-                        startActivity(intent);
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
-        });
+        checkUpdateButton2.setOnClickListener(v -> new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("网盘下载")
+                .setMessage("即将跳转到蓝奏云下载页面\n提取码：mxwf")
+                .setPositiveButton("前往下载", (dialog, which) -> {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
+                    startActivity(intent);
+                })
+                .setNegativeButton("取消", null)
+                .show());
 
         // 看图按钮
         MaterialButton imageButton = view.findViewById(R.id.image_button);
@@ -370,8 +397,10 @@ public class SettingsFragment extends Fragment {
         //森空岛设置
         SwitchMaterial sklandSwitch = sklandView.findViewById(R.id.skland_switch);
         sklandSwitch.setChecked(sharedPreferences.getBoolean(SKLAND_ENABLED, false));
-        sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply());
+        sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply();
+        });
         MaterialTextView skland_link = sklandView.findViewById(R.id.skland_link);
         skland_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
         skland_link.setOnClickListener(v -> {
@@ -414,12 +443,8 @@ public class SettingsFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // 更新通知开关状态
+        // 更新后台运行开关状态
         if (sharedPreferences != null && getView() != null) {
-            SwitchMaterial notificationSwitch = getView().findViewById(R.id.notification_switch);
-            boolean notificationEnabled = sharedPreferences.getBoolean(NOTIFICATION, false);
-            notificationSwitch.setChecked(notificationEnabled);
-
             SwitchMaterial backgroundTaskSwitch = getView().findViewById(R.id.background_task_switch);
             backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
         }
@@ -986,6 +1011,23 @@ public class SettingsFragment extends Fragment {
                 if (!deleteDirSafe(file))
                     return false;
         return dir.delete();
+    }
+
+    /**
+     * 检查是否有任务正在运行，如果有则弹窗提示并恢复控件状态。
+     * @return true 表示已拦截（调用方应 return），false 表示可继续
+     */
+    private boolean blockIfTaskRunning(android.widget.CompoundButton buttonView, boolean isChecked) {
+        if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("任务正在运行")
+                    .setMessage("请等待当前任务执行完成后再修改设置。")
+                    .setPositiveButton("确定", null)
+                    .setOnDismissListener(dialog -> buttonView.setChecked(!isChecked))
+                    .show();
+            return true;
+        }
+        return false;
     }
 
     /**

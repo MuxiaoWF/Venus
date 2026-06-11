@@ -10,33 +10,9 @@
     android:paddingVertical="@dimen/spacing_sm">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/notification_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:checked="false"
-        android:text="启用任务通知提示"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_xs"
-        android:text="在任务开始、完成或出错时显示通知"
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:alpha="0.15"/>
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/background_task_switch"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
         android:checked="false"
         android:text="启用后台运行"
         android:textAppearance="?attr/textAppearanceBodyLarge"
@@ -46,7 +22,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_xs"
-        android:text="显示后台运行按钮，可在后台执行签到任务"
+        android:text="显示后台运行按钮，可在后台执行签到任务并发送通知（较为鸡肋的功能）"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 

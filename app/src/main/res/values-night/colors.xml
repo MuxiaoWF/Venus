@@ -194,9 +194,9 @@
     <color name="yellow_theme_surfaceContainerHigh">#2C2A21</color>
     <color name="yellow_theme_surfaceContainerHighest">#37352C</color>
 
-    <color name="snackbar_background">#323232</color>
-    <color name="snackbar_text">#000000</color>
-    <color name="snackbar_action">#BB86FC</color>
+    <color name="snackbar_background">#2F3036</color>
+    <color name="snackbar_text">#F1F0F7</color>
+    <color name="snackbar_action">#AAC7FF</color>
 
     <!-- Divider color (colorOutline at 8% opacity for dark mode) -->
     <color name="divider_color">#148E9099</color>

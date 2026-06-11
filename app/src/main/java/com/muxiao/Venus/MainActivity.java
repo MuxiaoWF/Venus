@@ -4,13 +4,18 @@ import static com.muxiao.Venus.common.Constants.Prefs.*;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
 
 import android.widget.ImageView;
+
+import com.google.android.material.card.MaterialCardView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -30,6 +35,7 @@ import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.BuildConfig;
 
 import android.graphics.Bitmap;
@@ -38,6 +44,7 @@ import android.graphics.ImageDecoder;
 import android.os.Build;
 
 import java.io.InputStream;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
@@ -73,6 +80,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 设置预加载相邻页面数量
         viewPager.setOffscreenPageLimit(3);
+
+        // 设置背景图片时降低卡片不透明度
+        adjustCardsForBackground();
 
         // 处理状态栏内边距，避免工具栏被状态栏遮挡
         ViewCompat.setOnApplyWindowInsetsListener(viewPager, (v, insets) -> {
@@ -111,32 +121,76 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
         handleCaptchaIntent(intent);
+        triggerCaptchaIfPending();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        triggerCaptchaIfPending();
+    }
+
+    /**
+     * 检查是否有待处理的后台人机验证，有则触发。
+     * 使用 commit() 同步写入 + postDelayed 轮询等待 Fragment 就绪。
+     */
+    private void triggerCaptchaIfPending() {
+        SharedPreferences configPrefs = getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+        boolean pending = configPrefs.getBoolean(PREF_CAPTCHA_PENDING, false);
+        android.util.Log.e("VenusCaptcha", "triggerCaptchaIfPending: pending=" + pending);
+        if (!pending) return;
+
+        // 同步清除标记，防止重复触发
+        configPrefs.edit().putBoolean(PREF_CAPTCHA_PENDING, false).commit();
+        viewPager.setCurrentItem(0, false);
+
+        // 轮询等待 HomeFragment 就绪（ViewPager 创建 Fragment 需要时间）
+        waitForHomeFragment(0);
+    }
+
+    private void waitForHomeFragment(int attempt) {
+        // 打印所有 Fragment 用于调试
+        if (attempt == 0) {
+            java.util.List<androidx.fragment.app.Fragment> allFragments = getSupportFragmentManager().getFragments();
+            android.util.Log.e("VenusCaptcha", "FragmentManager fragments count=" + allFragments.size());
+            for (int i = 0; i < allFragments.size(); i++) {
+                androidx.fragment.app.Fragment f = allFragments.get(i);
+                android.util.Log.e("VenusCaptcha", "  fragment[" + i + "]=" + f.getClass().getSimpleName() + " tag=" + f.getTag() + " added=" + f.isAdded());
+            }
+        }
+        HomeFragment homeFragment = getHomeFragment();
+        android.util.Log.e("VenusCaptcha", "waitForHomeFragment attempt=" + attempt + ", fragment=" + homeFragment);
+        if (homeFragment != null) {
+            homeFragment.performBackgroundCaptchaVerification();
+        } else if (attempt < 50) {
+            viewPager.postDelayed(() -> waitForHomeFragment(attempt + 1), 100);
+        }
     }
 
     private void handleCaptchaIntent(Intent intent) {
+        android.util.Log.e("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
         if (intent != null && "ACTION_HANDLE_CAPTCHA".equals(intent.getAction())) {
-            // 跳转到首页并触发人机验证
+            intent.setAction(null);
+            // 使用 commit() 同步写入，确保后续读取立即可见
+            getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putBoolean(PREF_CAPTCHA_PENDING, true).commit();
             viewPager.setCurrentItem(0, false);
-            // 通过 HomeFragment 执行验证
-            HomeFragment homeFragment = getHomeFragment();
-            if (homeFragment != null) {
-                homeFragment.performBackgroundCaptchaVerification();
-            }
         }
     }
 
     private HomeFragment getHomeFragment() {
-        // ViewPager2 使用 FragmentStateAdapter，通过 tag 查找
-        for (int i = 0; i < viewPager.getAdapter().getItemCount(); i++) {
-            String tag = "f" + viewPager.getId() + ":" + i;
-            androidx.fragment.app.Fragment f = getSupportFragmentManager().findFragmentByTag(tag);
+        // 遍历所有已添加的 Fragment 查找 HomeFragment（不依赖 tag 格式）
+        for (androidx.fragment.app.Fragment f : getSupportFragmentManager().getFragments()) {
             if (f instanceof HomeFragment) {
                 return (HomeFragment) f;
             }
         }
+        // 如果找不到，尝试通过 ViewPager adapter 的内部状态获取
+        androidx.fragment.app.Fragment primary = getSupportFragmentManager().getPrimaryNavigationFragment();
+        if (primary instanceof HomeFragment) return (HomeFragment) primary;
         return null;
     }
 
@@ -255,6 +309,37 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 设置背景图片时，降低卡片背景不透明度以露出背景图
+     */
+    private void adjustCardsForBackground() {
+        Uri bgUri = SettingsFragment.getBackgroundImageUri(this);
+        if (bgUri == null) return;
+        viewPager.post(() -> {
+            int semiTransparentColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
+                    viewPager, com.google.android.material.R.attr.colorSurfaceContainerLow, 0));
+            applyCardAlpha(viewPager, semiTransparentColor);
+            // 底部导航栏也适当降低不透明度，保留圆角
+            int navColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
+                    bottomNavigationView, com.google.android.material.R.attr.colorSurfaceContainer, 0));
+            android.graphics.drawable.Drawable bg = bottomNavigationView.getBackground().mutate();
+            bg.setTint(navColor);
+            bottomNavigationView.setBackground(bg);
+        });
+    }
+
+    private void applyCardAlpha(View view, int color) {
+        if (view instanceof MaterialCardView) {
+            ((MaterialCardView) view).setCardBackgroundColor(color);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyCardAlpha(group.getChildAt(i), color);
+            }
+        }
+    }
+
+    /**
      * 从Uri获取Drawable
      */
     private Drawable getDrawableFromUri(Uri uri) {
@@ -281,18 +366,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 检查应用版本并在更新时清除配置
+     * 检查应用版本并在更新时自动从云端获取最新配置
      */
     public static void checkAndUpdateConfig(Context context) {
         SharedPreferences appPrefs = context.getSharedPreferences(APP_INFO_PREFS_NAME, Context.MODE_PRIVATE);
         int lastVersion = appPrefs.getInt(LAST_VERSION, 0);
         int currentVersion = BuildConfig.VERSION_CODE;
         if (currentVersion > lastVersion) {
-            // 应用已更新，清除旧配置
+            // 应用已更新，清除旧配置（回退到内置默认值）
             SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
             prefs.edit().clear().apply();
             // 更新最后运行的版本号
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
+            // 后台自动从云端获取最新配置
+            new Thread(() -> MiHoYoBBSConstants.updateConfigFromWeb(context)).start();
         }
     }
 
