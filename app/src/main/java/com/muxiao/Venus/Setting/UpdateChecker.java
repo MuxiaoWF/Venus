@@ -6,8 +6,6 @@ import static com.muxiao.Venus.common.tools.show_error_dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,6 +13,7 @@ import android.os.Looper;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.common.Constants;
 
 import java.util.HashMap;
@@ -85,9 +84,8 @@ public class UpdateChecker {
     /**
      * 获取当前应用版本
      */
-    private String getCurrentVersion() throws PackageManager.NameNotFoundException {
-        PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-        return packageInfo.versionName;
+    private String getCurrentVersion() {
+        return BuildConfig.VERSION_NAME;
     }
 
     /**

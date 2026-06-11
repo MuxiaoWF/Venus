@@ -5,6 +5,13 @@ public class Constants {
     public static final int NOTIFICATION_ID_WORK = 50628;
     public static final int NOTIFICATION_ID_ERROR = 50629;
     public static final int NOTIFICATION_ID_PROGRESS = 50630;
+    public static final int NOTIFICATION_ID_CAPTCHA = 50631;
+
+    // 后台人机验证广播 Action
+    public static final String ACTION_CAPTCHA_RESULT = "com.muxiao.Venus.CAPTCHA_RESULT";
+    public static final String EXTRA_CAPTCHA_SUCCESS = "captcha_success";
+    public static final String EXTRA_CAPTCHA_CODE_JSON = "captcha_code_json";
+    public static final String EXTRA_CAPTCHA_ERROR = "captcha_error";
 
     public static class Urls {
         private static final String BASE_URL = "https://api-takumi.mihoyo.com";

@@ -147,7 +147,7 @@ public class Notification {
         return false;
     }
 
-    public void goToNotificationSettings() {
+    public Intent getNotificationSettingsIntent() {
         Intent intent = new Intent();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
@@ -157,7 +157,6 @@ public class Notification {
             intent.putExtra("app_package", context.getPackageName());
             intent.putExtra("app_uid", context.getApplicationInfo().uid);
         }
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
+        return intent;
     }
 }

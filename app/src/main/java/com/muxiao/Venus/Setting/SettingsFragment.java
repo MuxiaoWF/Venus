@@ -250,7 +250,7 @@ public class SettingsFragment extends Fragment {
                     new MaterialAlertDialogBuilder(requireContext())
                             .setTitle("需要通知权限")
                             .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
-                            .setPositiveButton("去设置", (dialog, which) -> notificationUtil.goToNotificationSettings())
+                            .setPositiveButton("去设置", (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
                             .setNegativeButton("稍后再说", (dialog, which) -> notificationSwitch.setChecked(false))
                             .setOnCancelListener(dialog -> notificationSwitch.setChecked(false)).show();
                     // 不保存设置，保持开关关闭状态

@@ -9,8 +9,6 @@ import android.os.PowerManager;
 
 import androidx.core.app.NotificationCompat;
 
-import com.geetest.sdk.GT3ConfigBean;
-import com.geetest.sdk.GT3GeetestUtils;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.TaskSettings;
@@ -117,10 +115,10 @@ public class ForegroundTaskService extends Service {
                 int totalTasks = settings.getTaskNames().size();
                 int[] completedTasks = {0};
 
-                GeetestController noOpController = createNoOpGeetestController();
+                GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
 
                 TaskExecutor taskExecutor = new TaskExecutor(
-                        this, userId, notifier, noOpController, notificationHelper,
+                        this, userId, notifier, geetestController, notificationHelper,
                         new TaskExecutor.Callback() {
                             @Override
                             public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
@@ -195,35 +193,6 @@ public class ForegroundTaskService extends Service {
         }
         android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
         nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
-    }
-
-    private GeetestController createNoOpGeetestController() {
-        return new GeetestController() {
-            @Override
-            public void createUtils() {}
-
-            @Override
-            public void createButton(GT3ConfigBean bean) {
-                notifier.notifyListeners("后台模式下无法进行人机验证，跳过");
-            }
-
-            @Override
-            public GT3GeetestUtils getGeetestUtils() {
-                return null;
-            }
-
-            @Override
-            public void destroyButton() {}
-
-            @Override
-            public void destroyUtils() {}
-
-            @Override
-            public void updateTaskStatusWaring(String taskName) {}
-
-            @Override
-            public void updateTaskStatusInProgress(String taskName) {}
-        };
     }
 
     @Override

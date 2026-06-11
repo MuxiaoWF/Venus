@@ -35,6 +35,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.CollapsibleCardView;
+import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
@@ -256,7 +257,7 @@ public class HomeFragment extends Fragment {
                 new MaterialAlertDialogBuilder(requireContext())
                         .setTitle("需要通知权限")
                         .setMessage("您已开启通知功能，但系统通知权限尚未开启。是否前往系统设置页面开启权限？")
-                        .setPositiveButton("去设置", (dialog, which) -> notification.goToNotificationSettings())
+                        .setPositiveButton("去设置", (dialog, which) -> startActivity(notification.getNotificationSettingsIntent()))
                         .setNegativeButton("稍后再说", (dialog, which) -> {
                             // 用户选择稍后处理，将开关状态设为关闭并保存
                             SharedPreferences.Editor editor = prefs.edit();
@@ -372,6 +373,13 @@ public class HomeFragment extends Fragment {
         // 根据设置显示/隐藏后台运行按钮
         updateBgButtonVisibility();
 
+        // 检查是否需要处理后台人机验证
+        if (getActivity() != null && getActivity().getIntent() != null
+                && "ACTION_HANDLE_CAPTCHA".equals(getActivity().getIntent().getAction())) {
+            // 延迟执行，确保 UI 初始化完成
+            view.postDelayed(() -> performBackgroundCaptchaVerification(), 300);
+        }
+
         // 查看日志按钮
         view_log_btn.setOnClickListener(v -> {
             try {
@@ -420,6 +428,39 @@ public class HomeFragment extends Fragment {
             }
         });
         return view;
+    }
+
+    /**
+     * 由 MainActivity 调用，处理后台人机验证通知跳转。
+     * 在前台使用本地 GeetestController 展示验证 UI，完成后通过广播回传结果给后台 Service。
+     */
+    public void performBackgroundCaptchaVerification() {
+        // 显示提示信息
+        tools.show_error_dialog(requireContext(),
+                "后台任务需要进行人机验证。\n请在下方完成验证码，完成后任务将继续执行。");
+
+        // 使用本地 controller 在前台展示 Geetest UI
+        // BackgroundGeetestController 的 createButton 中已保存了 GT3ConfigBean
+        // 但这里需要用本地 controller 重新执行验证流程
+        // 直接调用 Geetest.geetest 重新获取验证参数并展示
+        Map<String, String> headers = new HeaderManager(requireContext()).getBbsHeaders();
+
+        Geetest.geetest(headers, new GeetestVerificationCallback() {
+            @Override
+            public void onVerificationSuccess(Map<String, String> geetestCode) {
+                controller.destroyButton();
+                // 通过广播将结果回传给 BackgroundGeetestController
+                BackgroundGeetestController.notifyVerificationSuccess(requireContext(), geetestCode);
+                new Notification(requireContext()).sendNormalNotification("人机验证成功", "验证通过，后台任务将继续执行");
+            }
+
+            @Override
+            public void onVerificationFailed(String error) {
+                controller.destroyButton();
+                BackgroundGeetestController.notifyVerificationFailure(requireContext(), error);
+                new Notification(requireContext()).sendErrorNotification("人机验证失败", error);
+            }
+        }, controller);
     }
 
     /**
@@ -503,7 +544,7 @@ public class HomeFragment extends Fragment {
             new MaterialAlertDialogBuilder(requireContext())
                     .setTitle("需要通知权限")
                     .setMessage("系统通知权限尚未开启，后台任务无法运行。是否前往系统设置开启？")
-                    .setPositiveButton("去设置", (d, w) -> notification.goToNotificationSettings())
+                    .setPositiveButton("去设置", (d, w) -> startActivity(notification.getNotificationSettingsIntent()))
                     .setNegativeButton("取消", null)
                     .show();
             return;
@@ -512,8 +553,8 @@ public class HomeFragment extends Fragment {
         if (!BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
             new MaterialAlertDialogBuilder(requireContext())
                     .setTitle("需要关闭电池优化")
-                    .setMessage("系统电池优化可能会中断后台任务。请在电池设置中将本应用设为\"不受限制\"以确保任务正常执行。\n\n关闭后此提示将不再出现。")
-                    .setPositiveButton("去设置", (d, w) -> BatteryHelper.openBatterySettings(requireContext()))
+                    .setMessage("系统电池优化可能会中断后台任务。请在电池设置中将本应用设为\"不受限制\"以确保任务正常执行。\n\n如看到厂商设置页面，请将本应用加入不限制名单。\n\n关闭后此提示将不再出现。")
+                    .setPositiveButton("去设置", (d, w) -> BatteryHelper.openVendorBatterySettings(requireContext()))
                     .setNegativeButton("忽略", (d, w) -> startTaskService(userId))
                     .show();
             return;

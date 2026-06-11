@@ -5,8 +5,6 @@ import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -17,7 +15,6 @@ import android.widget.ImageView;
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.pm.PackageInfoCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.splashscreen.SplashScreen;
@@ -33,6 +30,7 @@ import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
+import com.muxiao.Venus.BuildConfig;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -107,6 +105,39 @@ public class MainActivity extends AppCompatActivity {
         // 默认加载首页Fragment
         if (savedInstanceState == null)
             viewPager.setCurrentItem(0);
+
+        // 处理后台人机验证通知跳转
+        handleCaptchaIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleCaptchaIntent(intent);
+    }
+
+    private void handleCaptchaIntent(Intent intent) {
+        if (intent != null && "ACTION_HANDLE_CAPTCHA".equals(intent.getAction())) {
+            // 跳转到首页并触发人机验证
+            viewPager.setCurrentItem(0, false);
+            // 通过 HomeFragment 执行验证
+            HomeFragment homeFragment = getHomeFragment();
+            if (homeFragment != null) {
+                homeFragment.performBackgroundCaptchaVerification();
+            }
+        }
+    }
+
+    private HomeFragment getHomeFragment() {
+        // ViewPager2 使用 FragmentStateAdapter，通过 tag 查找
+        for (int i = 0; i < viewPager.getAdapter().getItemCount(); i++) {
+            String tag = "f" + viewPager.getId() + ":" + i;
+            androidx.fragment.app.Fragment f = getSupportFragmentManager().findFragmentByTag(tag);
+            if (f instanceof HomeFragment) {
+                return (HomeFragment) f;
+            }
+        }
+        return null;
     }
 
     /**
@@ -255,15 +286,7 @@ public class MainActivity extends AppCompatActivity {
     public static void checkAndUpdateConfig(Context context) {
         SharedPreferences appPrefs = context.getSharedPreferences(APP_INFO_PREFS_NAME, Context.MODE_PRIVATE);
         int lastVersion = appPrefs.getInt(LAST_VERSION, 0);
-        int currentVersion;
-        try {
-            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            long fullVersionCode = PackageInfoCompat.getLongVersionCode(pInfo);
-            // 低32位的versionCode部分（去除高32位的versionCodeMajor）
-            currentVersion = (int) (fullVersionCode & 0xFFFFFFFFL);
-        } catch (PackageManager.NameNotFoundException e) {
-            currentVersion = 0;
-        }
+        int currentVersion = BuildConfig.VERSION_CODE;
         if (currentVersion > lastVersion) {
             // 应用已更新，清除旧配置
             SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
