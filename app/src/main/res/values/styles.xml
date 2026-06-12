@@ -6,11 +6,6 @@
         <item name="cornerSize">@dimen/radius_grouped_section</item>
     </style>
 
-    <style name="ShapeAppearance.Venus.Card.Small" parent="ShapeAppearance.Material3.SmallComponent">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">@dimen/radius_inner_component</item>
-    </style>
-
     <!-- Card: Grouped section container -->
     <style name="Widget.Venus.Card" parent="Widget.Material3.CardView.Elevated">
         <item name="cardElevation">0dp</item>
@@ -21,13 +16,6 @@
     </style>
 
     <!-- Card.ListItem: Kept for compatibility, no longer primary style -->
-    <style name="Widget.Venus.Card.ListItem" parent="Widget.Venus.Card">
-        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
-        <item name="strokeWidth">0dp</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card.Small</item>
-        <item name="android:foreground">?attr/selectableItemBackground</item>
-        <item name="cardElevation">0dp</item>
-    </style>
 
     <!-- Toolbar: Apple large title style -->
     <style name="Widget.Venus.Toolbar" parent="Widget.MaterialComponents.Toolbar">
@@ -38,16 +26,6 @@
     </style>
 
     <!-- Section Header: Uppercase muted label -->
-    <style name="TextAppearance.Venus.SectionHeader" parent="TextAppearance.Material3.LabelLarge">
-        <item name="android:textSize">@dimen/text_section_header</item>
-        <item name="android:textAllCaps">true</item>
-        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-        <item name="android:letterSpacing">0.05</item>
-    </style>
 
     <!-- Grouped Section Background -->
-    <style name="Widget.Venus.GroupedSection" parent="android:Widget">
-        <item name="android:background">@drawable/bg_grouped_section</item>
-        <item name="android:padding">@dimen/spacing_md</item>
-    </style>
 </resources>

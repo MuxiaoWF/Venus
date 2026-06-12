@@ -201,8 +201,10 @@ public class tools {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
         View snackbarView = snackbar.getView();
 
-        // 圆角背景
+        // 圆角背景，使用 tint 方式保留 Material3 基础样式
         snackbarView.setBackgroundResource(R.drawable.snackbar_background);
+        snackbarView.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(context.getResources().getColor(R.color.snackbar_background, context.getTheme())));
 
         // 文本样式
         MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
@@ -219,9 +221,10 @@ public class tools {
             actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
 
         // 阴影和内边距
-        snackbarView.setElevation(6f);
-        int h = (int) (16 * context.getResources().getDisplayMetrics().density);
-        int v = (int) (10 * context.getResources().getDisplayMetrics().density);
+        snackbarView.setElevation(4f);
+        float density = context.getResources().getDisplayMetrics().density;
+        int h = (int) (12 * density);
+        int v = (int) (6 * density);
         snackbarView.setPadding(h, v, h, v);
 
         // 居中显示，留出底部间距
@@ -230,7 +233,7 @@ public class tools {
         if (lp instanceof android.widget.FrameLayout.LayoutParams) {
             android.widget.FrameLayout.LayoutParams flp = (android.widget.FrameLayout.LayoutParams) lp;
             flp.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-            flp.bottomMargin = (int) (80 * context.getResources().getDisplayMetrics().density);
+            flp.bottomMargin = (int) (64 * density);
         }
         snackbarView.setLayoutParams(lp);
 

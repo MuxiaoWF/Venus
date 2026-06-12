@@ -42,33 +42,33 @@ public class TaskExecutor {
     }
 
     public void executeAll(TaskSettings settings) {
-        notifier.notifyListeners("开始执行任务，用户: " + userId);
+        notifier.notifyListeners("任务管理器 开始执行，用户: " + userId);
         List<Future<?>> futures = new ArrayList<>();
-        ExecutorService pool = Executors.newFixedThreadPool(3);
+        try (ExecutorService pool = Executors.newFixedThreadPool(3)) {
 
-        if (settings.isDailyEnabled()) {
-            futures.add(pool.submit(() -> executeBbsDaily(settings.getDailyForums())));
-        }
-        if (settings.isGameDailyEnabled()) {
-            futures.add(pool.submit(() -> executeGameDaily(settings.getGameDailyGames())));
-        }
-        if (settings.isSklandEnabled()) {
-            futures.add(pool.submit(this::executeSklandDaily));
-        }
+            if (settings.isDailyEnabled()) {
+                futures.add(pool.submit(() -> executeBbsDaily(settings.getDailyForums())));
+            }
+            if (settings.isGameDailyEnabled()) {
+                futures.add(pool.submit(() -> executeGameDaily(settings.getGameDailyGames())));
+            }
+            if (settings.isSklandEnabled()) {
+                futures.add(pool.submit(this::executeSklandDaily));
+            }
 
-        // 等待所有任务完成，处理异常
-        for (Future<?> f : futures) {
-            try {
-                f.get();
-            } catch (InterruptedException e) {
-                pool.shutdownNow();
-                Thread.currentThread().interrupt();
-                return;
-            } catch (Exception e) {
-                notifier.notifyListeners("任务执行异常: " + e.getMessage());
+            // 等待所有任务完成，处理异常
+            for (Future<?> f : futures) {
+                try {
+                    f.get();
+                } catch (InterruptedException e) {
+                    pool.shutdownNow();
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    notifier.notifyListeners("任务管理器 执行异常: " + e.getMessage());
+                }
             }
         }
-        pool.shutdown();
 
         if (!callback.isCancelled()) {
             callback.onAllTasksCompleted();
@@ -104,7 +104,7 @@ public class TaskExecutor {
         }
         if (forums == null || forums.length == 0) {
             callback.onTaskStatusChanged("米游币签到", TaskItem.TaskStatus.ERROR);
-            callback.onError("米游币签到失败，请先去设置里设置勾选至少一个获取米游币的板块");
+            callback.onError("米游币签到 失败，请先在设置中勾选至少一个板块");
             return;
         }
         executeTask("米游币签到", () -> {
@@ -120,18 +120,18 @@ public class TaskExecutor {
         }
         if (games == null || games.length == 0) {
             callback.onTaskStatusChanged("游戏签到", TaskItem.TaskStatus.ERROR);
-            callback.onError("游戏签到失败，请先去设置里设置勾选获取至少一个游戏进行签到");
+            callback.onError("游戏签到 失败，请先在设置中勾选至少一个游戏");
             return;
         }
         for (String gameName : games) {
             if (callback.isCancelled()) return;
             executeTask(gameName + "签到", () -> {
                 BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, controller);
-                notifier.notifyListeners("正在进行" + gameName + "签到");
+                notifier.notifyListeners(gameName + "签到 正在准备...");
                 gameModule.run();
             });
         }
-        notifier.notifyListeners("游戏签到完成");
+        notifier.notifyListeners("游戏签到 全部完成");
     }
 
     private void executeSklandDaily() {

@@ -242,30 +242,20 @@ public class HeaderManager {
     }
 
     /**
-     * 米游社图片接口
+     * 米游社图片/栏目接口（两个接口 header 完全相同）
      */
     public Map<String, String> get_images_headers() {
-        return new HashMap<>() {{
-            put("x-rpc-app_version", BBSconstants.bbs_version);
-            put("x-rpc-client_type", "2");
-            put("x-rpc-device_id", getDeviceId());
-            put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-            put("x-rpc-device_name", Build.DEVICE);
-            put("x-rpc-device_model", Build.MODEL);
-            put("x-rpc-device_fp", getFp());
-            put("x-rpc-channel", Build.MANUFACTURER);
-            put("x-rpc-h256_supported", "0");
-            put("Referer", Constants.Urls.APP_BASE_URL);
-            put("x-rpc-verify_key", app_id);
-            put("x-rpc-csm_source", "discussion");
-            put("DS", getDS(BBSconstants.K2));
-        }};
+        return createImageAndForumHeaders();
     }
 
     /**
      * 米游社栏目接口
      */
     public Map<String, String> get_forums_id() {
+        return createImageAndForumHeaders();
+    }
+
+    private Map<String, String> createImageAndForumHeaders() {
         return new HashMap<>() {{
             put("x-rpc-app_version", BBSconstants.bbs_version);
             put("x-rpc-client_type", "2");

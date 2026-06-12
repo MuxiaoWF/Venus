@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:checked="true"
-        android:text="启用功能"
+        android:text="@string/enable_feature"
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
 
@@ -30,7 +30,7 @@
             android:drawableEnd="@drawable/ic_link_url"
             android:drawablePadding="6dp"
             android:gravity="center_vertical"
-            android:text="前往登录森空岛"
+            android:text="@string/go_to_login_skland"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -43,7 +43,7 @@
             android:drawableEnd="@drawable/ic_link_url"
             android:drawablePadding="6dp"
             android:gravity="center_vertical"
-            android:text="前往获取 content"
+            android:text="@string/go_to_get_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -53,7 +53,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_md"
-        android:text="若签到中提示403说明有游戏已经签到过了，无法重复签到"
+        android:text="@string/skland_403_tip"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -61,7 +61,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_sm"
-        android:text="下面填的是上面content大括号里面的东西"
+        android:text="@string/skland_content_tip"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -72,7 +72,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_marginTop="@dimen/spacing_sm"
-        android:text="保存森空岛设置"
+        android:text="@string/save_skland_settings"
         android:textSize="12sp" />
 
 </LinearLayout>

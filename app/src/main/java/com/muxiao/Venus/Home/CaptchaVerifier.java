@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Home;
 
+import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
 
 import java.util.Map;
@@ -17,6 +18,7 @@ public class CaptchaVerifier {
     public static void performVerification(
             GeetestController controller,
             tools.StatusNotifier notifier,
+            Notification notification,
             String taskName,
             Map<String, String> headers,
             VerificationCallback callback) {
@@ -25,7 +27,7 @@ public class CaptchaVerifier {
         Geetest.geetest(headers, new GeetestVerificationCallback() {
             @Override
             public void onVerificationSuccess(Map<String, String> code) {
-                notifier.notifyListeners("人机验证成功，继续执行签到...");
+                notification.dismissErrorNotification();
                 controller.destroyButton();
                 controller.updateTaskStatusInProgress(taskName);
                 callback.onSuccess(code);

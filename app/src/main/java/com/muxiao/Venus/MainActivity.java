@@ -36,7 +36,6 @@ import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
-import com.muxiao.Venus.BuildConfig;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -44,7 +43,6 @@ import android.graphics.ImageDecoder;
 import android.os.Build;
 
 import java.io.InputStream;
-import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
@@ -135,7 +133,6 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 检查是否有待处理的后台人机验证，有则触发。
-     * 使用 commit() 同步写入 + postDelayed 轮询等待 Fragment 就绪。
      */
     private void triggerCaptchaIfPending() {
         SharedPreferences configPrefs = getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
@@ -143,8 +140,8 @@ public class MainActivity extends AppCompatActivity {
         android.util.Log.e("VenusCaptcha", "triggerCaptchaIfPending: pending=" + pending);
         if (!pending) return;
 
-        // 同步清除标记，防止重复触发
-        configPrefs.edit().putBoolean(PREF_CAPTCHA_PENDING, false).commit();
+        // 清除标记，防止重复触发（apply 内存写入即时生效，同实例读取无问题）
+        configPrefs.edit().putBoolean(PREF_CAPTCHA_PENDING, false).apply();
         viewPager.setCurrentItem(0, false);
 
         // 轮询等待 HomeFragment 就绪（ViewPager 创建 Fragment 需要时间）
@@ -174,9 +171,8 @@ public class MainActivity extends AppCompatActivity {
         android.util.Log.e("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
         if (intent != null && "ACTION_HANDLE_CAPTCHA".equals(intent.getAction())) {
             intent.setAction(null);
-            // 使用 commit() 同步写入，确保后续读取立即可见
             getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().putBoolean(PREF_CAPTCHA_PENDING, true).commit();
+                    .edit().putBoolean(PREF_CAPTCHA_PENDING, true).apply();
             viewPager.setCurrentItem(0, false);
         }
     }

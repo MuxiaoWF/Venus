@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -17,7 +16,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="自动检查更新"
+            android:text="@string/auto_check_update"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
 
@@ -33,7 +32,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_xs"
-        android:text="开启后将每隔三天自动检查是否有新版本"
+        android:text="@string/auto_check_update_desc"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -56,7 +55,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:layout_weight="1"
-            android:text="检查更新 - Github"
+            android:text="@string/check_update_github"
             android:textSize="12sp" />
 
         <com.google.android.material.button.MaterialButton
@@ -67,7 +66,7 @@
             android:layout_gravity="center_vertical"
             android:layout_marginStart="@dimen/spacing_sm"
             android:layout_weight="1"
-            android:text="网盘更新 密码mxwf"
+            android:text="@string/check_update_pan"
             android:textSize="12sp" />
 
     </LinearLayout>

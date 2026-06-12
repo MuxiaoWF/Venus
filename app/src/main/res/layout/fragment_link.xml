@@ -10,8 +10,8 @@
         style="@style/Widget.Venus.Toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:title="抽卡链接"
-        app:subtitle="快速获取抽卡记录" />
+        app:title="@string/gacha_link_title"
+        app:subtitle="@string/gacha_link_subtitle" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -39,14 +39,14 @@
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="选择用户">
+                    android:hint="@string/select_user">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/user_dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="none"
-                        android:text="选择用户"
+                        android:text="@string/select_user"
                         android:textColor="?attr/colorOnSurface" />
                 </com.google.android.material.textfield.TextInputLayout>
 
@@ -55,7 +55,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_md"
-                    android:text="获取抽卡链接" />
+                    android:text="@string/get_gacha_link" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -83,17 +83,17 @@
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="原神" />
+                    android:text="@string/genshin_impact" />
 
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="绝区零" />
+                    android:text="@string/zenless_zone_zero" />
 
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="云游戏获取" />
+                    android:text="@string/cloud_gaming" />
 
             </com.google.android.material.tabs.TabLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -123,14 +123,14 @@
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="4dp"
                     android:layout_weight="2"
-                    android:text="关闭网页" />
+                    android:text="@string/close_webpage" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_gravity="center_vertical"
-                    android:text="请在网页中登录并打开抽卡记录页面"
+                    android:text="@string/gacha_login_prompt"
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textStyle="bold" />
 
@@ -140,7 +140,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="提示：登录后请打开一次抽卡记录页面，将自动捕获链接。\n获取完记得退出游戏哦"
+                android:text="@string/gacha_login_tip"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:textAppearance="?attr/textAppearanceBodySmall" />
 

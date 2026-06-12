@@ -47,6 +47,7 @@ public class ForegroundTaskService extends Service {
 
     private void broadcastState(boolean running) {
         Intent intent = new Intent(ACTION_TASK_STATE_CHANGED);
+        intent.setPackage(getPackageName());
         intent.putExtra(EXTRA_IS_RUNNING, running);
         sendBroadcast(intent);
     }

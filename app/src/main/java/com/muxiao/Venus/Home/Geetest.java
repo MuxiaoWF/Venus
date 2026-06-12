@@ -26,6 +26,10 @@ public class Geetest {
         android.util.Log.e("VenusCaptcha", "Calling API1...");
         String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
         android.util.Log.e("VenusCaptcha", "API1 response: " + (response != null ? response.substring(0, Math.min(200, response.length())) : "null"));
+        if (response == null) {
+            callback.onVerificationFailed("获取验证码失败：网络请求无响应");
+            return;
+        }
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         if (data.get("retcode").getAsInt() != 0) {
             callback.onVerificationFailed("获取验证码失败misc/api/createVerification" + response);
@@ -97,6 +101,10 @@ public class Geetest {
                 //二次验证
                 new Thread(() -> {
                     String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, headers, body);
+                    if (checkResponse == null) {
+                        callback.onVerificationFailed("二次验证失败：网络请求无响应");
+                        return;
+                    }
                     JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
                     if (check.get("retcode").getAsInt() == 0 && check.getAsJsonObject("data").get("challenge").getAsString() != null) {
                         Map<String, String> geetCode = new HashMap<>();

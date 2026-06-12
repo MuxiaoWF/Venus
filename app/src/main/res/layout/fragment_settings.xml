@@ -9,7 +9,7 @@
         style="@style/Widget.Venus.Toolbar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:title="设置"
+        app:title="@string/settings_title"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -37,7 +37,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="签到设置"
+                android:text="@string/section_sign_in_settings"
                 android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -47,7 +47,7 @@
                 android:id="@+id/daily_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardTitle="米游币签到"
+                app:cardTitle="@string/miyoushe_coin_sign_in"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -55,7 +55,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="游戏签到"
+                app:cardTitle="@string/game_sign_in"
                 app:initialExpanded="false" />
 
             <!-- Section: Config -->
@@ -64,7 +64,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_xl"
                 android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="配置"
+                android:text="@string/section_config"
                 android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -74,7 +74,7 @@
                 android:id="@+id/config_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardTitle="配置信息"
+                app:cardTitle="@string/config_info"
                 app:initialExpanded="false" />
 
             <!-- Section: App -->
@@ -83,7 +83,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_xl"
                 android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="应用"
+                android:text="@string/section_app"
                 android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -93,7 +93,7 @@
                 android:id="@+id/update_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardTitle="更新"
+                app:cardTitle="@string/update"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -101,7 +101,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="缓存"
+                app:cardTitle="@string/cache"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -109,7 +109,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="主题"
+                app:cardTitle="@string/theme"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -117,7 +117,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="背景"
+                app:cardTitle="@string/background"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -125,7 +125,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="后台运行"
+                app:cardTitle="@string/background_running"
                 app:initialExpanded="false" />
 
             <!-- Section: Other -->
@@ -134,7 +134,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_xl"
                 android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="其他"
+                android:text="@string/section_other"
                 android:textAllCaps="true"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -144,7 +144,7 @@
                 android:id="@+id/skland_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardTitle="森空岛签到"
+                app:cardTitle="@string/skland_sign_in"
                 app:initialExpanded="false" />
 
             <com.google.android.material.button.MaterialButton
@@ -153,7 +153,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
-                android:text="查看米游社榜单图"
+                android:text="@string/view_miyoushe_ranking"
                 app:icon="@drawable/ic_link_url" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -162,7 +162,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
                 android:layout_marginBottom="@dimen/spacing_md"
-                app:cardTitle="关于"
+                app:cardTitle="@string/about"
                 app:initialExpanded="false" />
 
             <View

@@ -9,8 +9,8 @@
         style="@style/Widget.Venus.Toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:subtitle="管理登录账号"
-        app:title="用户管理" />
+        app:subtitle="@string/user_management_subtitle"
+        app:title="@string/user_management_title" />
 
     <ScrollView
         android:id="@+id/login_scroll_view"
@@ -18,7 +18,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:contentDescription="用户列表"
+        android:contentDescription="@string/user_list"
         android:paddingHorizontal="@dimen/spacing_lg"
         android:paddingTop="@dimen/spacing_sm"
         android:paddingBottom="@dimen/spacing_md">
@@ -35,7 +35,7 @@
                 android:layout_gravity="center"
                 android:layout_marginVertical="24dp"
                 android:gravity="center"
-                android:text="暂无用户\n点击右下角按钮添加新用户"
+                android:text="@string/no_user_prompt"
                 android:textAppearance="?attr/textAppearanceBodyLarge"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:visibility="gone" />
@@ -64,7 +64,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="@dimen/spacing_md"
-        android:text="添加/登录用户"
+        android:text="@string/add_or_login_user"
         app:backgroundTint="?attr/colorSecondaryContainer"
         app:iconTint="?attr/colorOnSecondaryContainer" />
 

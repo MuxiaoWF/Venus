@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/action_download"
-        android:title="下载"
+        android:title="@string/download"
         android:icon="@drawable/ic_download"
         app:showAsAction="always" />
 </menu>

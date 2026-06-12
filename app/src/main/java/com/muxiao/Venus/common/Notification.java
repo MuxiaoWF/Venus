@@ -101,6 +101,14 @@ public class Notification {
     }
 
     /**
+     * 取消错误通知
+     */
+    public void dismissErrorNotification() {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        nm.cancel(Constants.NOTIFICATION_ID_ERROR);
+    }
+
+    /**
      * 创建持久进度通知（用于前台 Service）
      */
     public NotificationCompat.Builder createProgressNotification(String title, String content) {

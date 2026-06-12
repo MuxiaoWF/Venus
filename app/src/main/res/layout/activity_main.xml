@@ -4,11 +4,12 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@null"
     tools:context=".MainActivity">
 
     <!-- 背景图片 -->
     <ImageView
-        android:contentDescription="背景图片"
+        android:contentDescription="@string/background_image"
         android:id="@+id/background_image"
         android:layout_width="0dp"
         android:layout_height="0dp"

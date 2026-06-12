@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/selectableItemBackground"
@@ -28,11 +28,12 @@
                 android:ellipsize="marquee"
                 android:gravity="start|center_vertical"
                 android:maxLines="1"
-                android:text="用户名"
+                android:text="@string/user_name"
                 android:textAlignment="viewStart"
                 android:textSize="@dimen/text_card_title"
                 android:textFontWeight="600"
-                android:textColor="?attr/colorOnSurface" />
+                android:textColor="?attr/colorOnSurface"
+                tools:targetApi="28" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/rename_user_button"
@@ -41,7 +42,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:paddingHorizontal="12dp"
-                android:text="重命名"
+                android:text="@string/rename"
                 android:textSize="14sp" />
 
         </LinearLayout>
@@ -59,7 +60,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:text="重新登录" />
+                android:text="@string/re_login" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/delete_user_button"
@@ -68,7 +69,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:text="删除" />
+                android:text="@string/delete_user" />
 
         </LinearLayout>
 

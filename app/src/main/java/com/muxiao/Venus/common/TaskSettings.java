@@ -73,8 +73,8 @@ public class TaskSettings {
         return gameDailyGames;
     }
 
-    public boolean hasAnyTaskEnabled() {
-        return dailyEnabled || gameDailyEnabled || sklandEnabled;
+    public boolean hasAnyTaskDisabled() {
+        return !dailyEnabled && !gameDailyEnabled && !sklandEnabled;
     }
 
     public List<String> getTaskNames() {

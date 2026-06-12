@@ -10,7 +10,7 @@
         android:id="@+id/cache_size_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="当前缓存大小: 计算中..."
+        android:text="@string/current_cache_size"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurface" />
 
@@ -20,6 +20,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_sm"
-        android:text="清理缓存" />
+        android:text="@string/clear_cache" />
 
 </LinearLayout>

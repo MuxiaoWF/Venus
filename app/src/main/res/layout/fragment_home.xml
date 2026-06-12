@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -12,8 +13,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:subtitle="执行每日签到任务"
-        app:title="日常任务" />
+        app:subtitle="@string/home_subtitle"
+        app:title="@string/daily_tasks_title" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="0dp"
@@ -40,7 +41,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="@dimen/spacing_sm"
-                app:cardTitle="日常"
+                app:cardTitle="@string/daily"
                 app:initialExpanded="false" />
 
             <!-- User selector grouped section -->
@@ -60,14 +61,14 @@
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="选择用户">
+                        android:hint="@string/select_user">
 
                         <com.google.android.material.textfield.MaterialAutoCompleteTextView
                             android:id="@+id/user_dropdown"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="none"
-                            android:text="选择用户"
+                            android:text="@string/select_user"
                             android:textColor="?attr/colorOnSurface" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -76,7 +77,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_md"
-                        android:text="运行签到" />
+                        android:text="@string/run_sign_in" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/cancel_daily"
@@ -84,7 +85,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_sm"
-                        android:text="取消任务"
+                        android:text="@string/cancel_task"
                         android:visibility="gone" />
 
                     <com.google.android.material.button.MaterialButton
@@ -93,7 +94,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_sm"
-                        android:text="后台运行" />
+                        android:text="@string/background_running" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -133,7 +134,7 @@
                         <ImageView
                             android:layout_width="16dp"
                             android:layout_height="16dp"
-                            android:contentDescription="任务列表"
+                            android:contentDescription="@string/task_list"
                             android:src="@drawable/ic_pending"
                             app:tint="?attr/colorPrimary" />
 
@@ -142,17 +143,18 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
                             android:layout_weight="1"
-                            android:text="任务列表"
+                            android:text="@string/task_list"
                             android:textSize="@dimen/text_card_title"
                             android:textFontWeight="600"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:textColor="?attr/colorOnSurface"
+                            tools:targetApi="28" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/view_log_btn"
                             style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="查看日志" />
+                            android:text="@string/view_log" />
 
                     </LinearLayout>
 

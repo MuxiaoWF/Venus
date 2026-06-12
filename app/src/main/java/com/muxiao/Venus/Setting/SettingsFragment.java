@@ -35,8 +35,6 @@ import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
@@ -50,9 +48,7 @@ import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 
@@ -64,12 +60,6 @@ public class SettingsFragment extends Fragment {
     private SharedPreferences sharedPreferences;
     private SharedPreferences configPreferences;
     private static final int THEME_DEFAULT = 0;
-    private static final int THEME_BLUE = 1;
-    private static final int THEME_GREEN = 2;
-    private static final int THEME_RED = 3;
-    private static final int THEME_YELLOW = 4;
-    private static final int THEME_LIGHT = 5;
-    private static final int THEME_DARK = 6;
 
     // 添加主题深浅色常量
     private static final int THEME_VARIANT_DEFAULT = 0;
@@ -218,21 +208,45 @@ public class SettingsFragment extends Fragment {
         gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
         backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
 
-        dailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(DAILY_GENSHIN, false));
-        dailyCheckboxZzz.setChecked(sharedPreferences.getBoolean(DAILY_ZZZ, false));
-        dailyCheckboxSrg.setChecked(sharedPreferences.getBoolean(DAILY_SRG, false));
-        dailyCheckboxHr3.setChecked(sharedPreferences.getBoolean(DAILY_HR3, false));
-        dailyCheckboxHr2.setChecked(sharedPreferences.getBoolean(DAILY_HR2, false));
-        dailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean(DAILY_WEIDING, false));
-        dailyCheckboxDabieye.setChecked(sharedPreferences.getBoolean(DAILY_DABIEYE, true));
-        dailyCheckboxHna.setChecked(sharedPreferences.getBoolean(DAILY_HNA, false));
-
-        gameDailyCheckboxGenshin.setChecked(sharedPreferences.getBoolean(GAME_DAILY_GENSHIN, false));
-        gameDailyCheckboxZzz.setChecked(sharedPreferences.getBoolean(GAME_DAILY_ZZZ, false));
-        gameDailyCheckboxSrg.setChecked(sharedPreferences.getBoolean(GAME_DAILY_SRG, false));
-        gameDailyCheckboxHr3.setChecked(sharedPreferences.getBoolean(GAME_DAILY_HR3, false));
-        gameDailyCheckboxHr2.setChecked(sharedPreferences.getBoolean(GAME_DAILY_HR2, false));
-        gameDailyCheckboxWeiding.setChecked(sharedPreferences.getBoolean(GAME_DAILY_WEIDING, false));
+        // checkbox-pref 映射，统一恢复状态和设置监听器
+        Object[][] dailyBindings = {
+                {dailyCheckboxGenshin, DAILY_GENSHIN, false},
+                {dailyCheckboxZzz, DAILY_ZZZ, false},
+                {dailyCheckboxSrg, DAILY_SRG, false},
+                {dailyCheckboxHr3, DAILY_HR3, false},
+                {dailyCheckboxHr2, DAILY_HR2, false},
+                {dailyCheckboxWeiding, DAILY_WEIDING, false},
+                {dailyCheckboxDabieye, DAILY_DABIEYE, true},
+                {dailyCheckboxHna, DAILY_HNA, false},
+        };
+        Object[][] gameDailyBindings = {
+                {gameDailyCheckboxGenshin, GAME_DAILY_GENSHIN, false},
+                {gameDailyCheckboxZzz, GAME_DAILY_ZZZ, false},
+                {gameDailyCheckboxSrg, GAME_DAILY_SRG, false},
+                {gameDailyCheckboxHr3, GAME_DAILY_HR3, false},
+                {gameDailyCheckboxHr2, GAME_DAILY_HR2, false},
+                {gameDailyCheckboxWeiding, GAME_DAILY_WEIDING, false},
+        };
+        for (Object[] b : dailyBindings) {
+            MaterialCheckBox cb = (MaterialCheckBox) b[0];
+            String key = (String) b[1];
+            boolean def = (boolean) b[2];
+            cb.setChecked(sharedPreferences.getBoolean(key, def));
+            cb.setOnCheckedChangeListener((btn, checked) -> {
+                if (blockIfTaskRunning(btn, checked)) return;
+                sharedPreferences.edit().putBoolean(key, checked).apply();
+            });
+        }
+        for (Object[] b : gameDailyBindings) {
+            MaterialCheckBox cb = (MaterialCheckBox) b[0];
+            String key = (String) b[1];
+            boolean def = (boolean) b[2];
+            cb.setChecked(sharedPreferences.getBoolean(key, def));
+            cb.setOnCheckedChangeListener((btn, checked) -> {
+                if (blockIfTaskRunning(btn, checked)) return;
+                sharedPreferences.edit().putBoolean(key, checked).apply();
+            });
+        }
 
         // 所有控件设置监听器以保存状态
         dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -262,64 +276,6 @@ public class SettingsFragment extends Fragment {
             sharedPreferences.edit().putBoolean(BACKGROUND_TASK_ENABLED, isChecked).apply();
             // 后台运行开启时同步开启通知，关闭时同步关闭
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
-        });
-
-        dailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_GENSHIN, isChecked).apply();
-        });
-        dailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_ZZZ, isChecked).apply();
-        });
-        dailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_SRG, isChecked).apply();
-        });
-        dailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_HR3, isChecked).apply();
-        });
-        dailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_HR2, isChecked).apply();
-        });
-        dailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_WEIDING, isChecked).apply();
-        });
-        dailyCheckboxDabieye.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_DABIEYE, isChecked).apply();
-        });
-        dailyCheckboxHna.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(DAILY_HNA, isChecked).apply();
-        });
-
-        gameDailyCheckboxGenshin.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_GENSHIN, isChecked).apply();
-        });
-        gameDailyCheckboxZzz.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_ZZZ, isChecked).apply();
-        });
-        gameDailyCheckboxSrg.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_SRG, isChecked).apply();
-        });
-        gameDailyCheckboxHr3.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_HR3, isChecked).apply();
-        });
-        gameDailyCheckboxHr2.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_HR2, isChecked).apply();
-        });
-        gameDailyCheckboxWeiding.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY_WEIDING, isChecked).apply();
         });
 
         // 关于
@@ -611,56 +567,11 @@ public class SettingsFragment extends Fragment {
                 android.R.layout.simple_dropdown_item_1line, themes);
         themeDropdown.setAdapter(adapter);
 
-        switch (selectedTheme) {
-            case THEME_DEFAULT:
-                themeDropdown.setText("系统", false);
-                break;
-            case THEME_BLUE:
-                themeDropdown.setText("蓝色", false);
-                break;
-            case THEME_GREEN:
-                themeDropdown.setText("绿色", false);
-                break;
-            case THEME_RED:
-                themeDropdown.setText("红色", false);
-                break;
-            case THEME_YELLOW:
-                themeDropdown.setText("黄色", false);
-                break;
-            case THEME_LIGHT:
-                themeDropdown.setText("浅色", false);
-                break;
-            case THEME_DARK:
-                themeDropdown.setText("深色", false);
-                break;
-        }
+        if (selectedTheme >= 0 && selectedTheme < themes.length)
+            themeDropdown.setText(themes[selectedTheme], false);
 
-        themeDropdown.setOnItemClickListener((parent, view1, position, id) -> {
-            String selectedThemeName = themes[position];
-            switch (selectedThemeName) {
-                case "系统":
-                    saveAndApplyTheme(THEME_DEFAULT);
-                    break;
-                case "蓝色":
-                    saveAndApplyTheme(THEME_BLUE);
-                    break;
-                case "绿色":
-                    saveAndApplyTheme(THEME_GREEN);
-                    break;
-                case "红色":
-                    saveAndApplyTheme(THEME_RED);
-                    break;
-                case "黄色":
-                    saveAndApplyTheme(THEME_YELLOW);
-                    break;
-                case "浅色":
-                    saveAndApplyTheme(THEME_LIGHT);
-                    break;
-                case "深色":
-                    saveAndApplyTheme(THEME_DARK);
-                    break;
-            }
-        });
+        themeDropdown.setOnItemClickListener((parent, view1, position, id) ->
+                saveAndApplyTheme(position));
 
         // 查找所有主题变体单选按钮
         MaterialRadioButton themeVariantDefault = view.findViewById(R.id.theme_variant_default);
@@ -668,17 +579,9 @@ public class SettingsFragment extends Fragment {
         MaterialRadioButton themeVariantDark = view.findViewById(R.id.theme_variant_dark);
 
         // 根据保存的设置选中对应的深浅色模式
-        switch (selectedThemeVariant) {
-            case THEME_VARIANT_DEFAULT:
-                themeVariantDefault.setChecked(true);
-                break;
-            case THEME_VARIANT_LIGHT:
-                themeVariantLight.setChecked(true);
-                break;
-            case THEME_VARIANT_DARK:
-                themeVariantDark.setChecked(true);
-                break;
-        }
+        MaterialRadioButton[] variantButtons = {themeVariantDefault, themeVariantLight, themeVariantDark};
+        if (selectedThemeVariant >= 0 && selectedThemeVariant < variantButtons.length)
+            variantButtons[selectedThemeVariant].setChecked(true);
 
         // 为每个主题变体单选按钮设置监听器
         themeVariantDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -718,34 +621,17 @@ public class SettingsFragment extends Fragment {
         themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
 
         // 立即应用深浅色模式
-        switch (themeVariantId) {
-            case THEME_VARIANT_DEFAULT:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-                break;
-            case THEME_VARIANT_LIGHT:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-                break;
-            case THEME_VARIANT_DARK:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-                break;
-        }
-
-        // 显示提示信息
-        View view = getView();
-        if (view != null) {
-            String message = "";
-            switch (themeVariantId) {
-                case THEME_VARIANT_DEFAULT:
-                    message = "已设置为跟随系统深浅色模式";
-                    break;
-                case THEME_VARIANT_LIGHT:
-                    message = "已设置为浅色模式";
-                    break;
-                case THEME_VARIANT_DARK:
-                    message = "已设置为深色模式";
-                    break;
-            }
-            showCustomSnackbar(view, requireContext(), message);
+        int[] nightModes = {
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
+                AppCompatDelegate.MODE_NIGHT_NO,
+                AppCompatDelegate.MODE_NIGHT_YES
+        };
+        String[] variantMessages = {"已设置为跟随系统深浅色模式", "已设置为浅色模式", "已设置为深色模式"};
+        if (themeVariantId >= 0 && themeVariantId < nightModes.length) {
+            AppCompatDelegate.setDefaultNightMode(nightModes[themeVariantId]);
+            View view = getView();
+            if (view != null)
+                showCustomSnackbar(view, requireContext(), variantMessages[themeVariantId]);
         }
     }
 
@@ -759,23 +645,18 @@ public class SettingsFragment extends Fragment {
         SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
 
-        switch (selectedTheme) {
-            case THEME_BLUE:
-                return R.style.Theme_Venus_Blue;
-            case THEME_GREEN:
-                return R.style.Theme_Venus_Green;
-            case THEME_RED:
-                return R.style.Theme_Venus_Red;
-            case THEME_YELLOW:
-                return R.style.Theme_Venus_Yellow;
-            case THEME_LIGHT:
-                return R.style.Theme_Venus_Light;
-            case THEME_DARK:
-                return R.style.Theme_Venus_Dark;
-            case THEME_DEFAULT:
-            default:
-                return R.style.Theme_Venus;
-        }
+        int[] themeStyles = {
+                R.style.Theme_Venus,        // DEFAULT
+                R.style.Theme_Venus_Blue,   // BLUE
+                R.style.Theme_Venus_Green,  // GREEN
+                R.style.Theme_Venus_Red,    // RED
+                R.style.Theme_Venus_Yellow, // YELLOW
+                R.style.Theme_Venus_Light,  // LIGHT
+                R.style.Theme_Venus_Dark,   // DARK
+        };
+        if (selectedTheme >= 0 && selectedTheme < themeStyles.length)
+            return themeStyles[selectedTheme];
+        return R.style.Theme_Venus;
     }
 
     /**
@@ -796,17 +677,13 @@ public class SettingsFragment extends Fragment {
      */
     public static void applyThemeVariant(Context context) {
         int themeVariant = getSelectedThemeVariant(context);
-        switch (themeVariant) {
-            case THEME_VARIANT_DEFAULT:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-                break;
-            case THEME_VARIANT_LIGHT:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-                break;
-            case THEME_VARIANT_DARK:
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-                break;
-        }
+        int[] nightModes = {
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
+                AppCompatDelegate.MODE_NIGHT_NO,
+                AppCompatDelegate.MODE_NIGHT_YES
+        };
+        if (themeVariant >= 0 && themeVariant < nightModes.length)
+            AppCompatDelegate.setDefaultNightMode(nightModes[themeVariant]);
     }
 
     /**
@@ -857,13 +734,13 @@ public class SettingsFragment extends Fragment {
         String update_time = configPreferences.getString(UPDATE_TIME_PREF, "未获取");
         String update_time_Local = configPreferences.getString(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
-        salt6xValue.setText(new StringBuilder("SALT_6X: " + salt6x));
-        salt4xValue.setText(new StringBuilder("SALT_4X: " + salt4x));
-        lk2Value.setText(new StringBuilder("LK2: " + lk2));
-        k2Value.setText(new StringBuilder("K2: " + k2));
-        bbsVersionValue.setText(new StringBuilder("BBS版本: " + bbsVersion));
-        updateTimeLocal.setText(new StringBuilder("本机参数更新时间: " + update_time_Local));
-        updateTime.setText(new StringBuilder("云端参数更新时间: " + update_time));
+        salt6xValue.setText(getString(R.string.salt_6x_value_fmt, salt6x));
+        salt4xValue.setText(getString(R.string.salt_4x_value_fmt, salt4x));
+        lk2Value.setText(getString(R.string.lk2_value_fmt, lk2));
+        k2Value.setText(getString(R.string.k2_value_fmt, k2));
+        bbsVersionValue.setText(getString(R.string.miyoushe_version_fmt, bbsVersion));
+        updateTimeLocal.setText(getString(R.string.local_config_update_time_fmt, update_time_Local));
+        updateTime.setText(getString(R.string.cloud_config_update_time_fmt, update_time));
     }
 
     /**
@@ -871,37 +748,15 @@ public class SettingsFragment extends Fragment {
      */
     private void updateConfig(View view) {
         new Thread(() -> {
-            try {
-                // 发送GET请求获取配置信息
-                Map<String, String> headers = new HashMap<>();
-                headers.put("User-Agent", "Venus/1.0");
-                String response = tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_SALT_URL, headers, null);
-                if (!response.isEmpty()) {
-                    // 解析响应数据
-                    JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-                    SharedPreferences configPrefs = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
-                    SharedPreferences.Editor editor = configPrefs.edit();
-                    // 使用解析的数据，如果不存在则使用默认值
-                    editor.putString(SALT_6X_PREF, getDataOrDefault(data, SALT_6X_PREF, MiHoYoBBSConstants.SALT_6X_final));
-                    editor.putString(SALT_4X_PREF, getDataOrDefault(data, SALT_4X_PREF, MiHoYoBBSConstants.SALT_4X_final));
-                    editor.putString(LK2_PREF, getDataOrDefault(data, LK2_PREF, MiHoYoBBSConstants.LK2_final));
-                    editor.putString(K2_PREF, getDataOrDefault(data, K2_PREF, MiHoYoBBSConstants.K2_final));
-                    editor.putString(BBS_VERSION_PREF, getDataOrDefault(data, BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final));
-                    editor.putString(UPDATE_TIME_PREF, getDataOrDefault(data, UPDATE_TIME_PREF, MiHoYoBBSConstants.update_time));
-                    editor.putString(UPDATE_TIME_LOCAL_PREF, getDataOrDefault(data, UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time));
-                    editor.apply();
-                    requireActivity().runOnUiThread(() -> {
-                        displayCurrentConfigValues();
-                        showCustomSnackbar(view, requireContext(), "配置更新成功");
-                    });
+            boolean success = MiHoYoBBSConstants.updateConfigFromWeb(requireContext());
+            requireActivity().runOnUiThread(() -> {
+                if (success) {
+                    displayCurrentConfigValues();
+                    showCustomSnackbar(view, requireContext(), "配置更新成功");
                 } else {
-                    requireActivity().runOnUiThread(() ->
-                            showCustomSnackbar(view, requireContext(), "配置更新失败：无响应数据"));
+                    showCustomSnackbar(view, requireContext(), "配置更新失败");
                 }
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() ->
-                        showCustomSnackbar(view, requireContext(), "配置更新失败：" + e.getMessage()));
-            }
+            });
         }).start();
     }
 
@@ -924,11 +779,11 @@ public class SettingsFragment extends Fragment {
                     String sizeText = formatFileSize(totalSize);
                     android.app.Activity activity = getActivity();
                     if (activity != null)
-                        activity.runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: " + sizeText));
+                        activity.runOnUiThread(() -> cacheSizeText.setText(getString(R.string.current_cache_size_fmt, sizeText)));
                 } catch (Exception e) {
                     android.app.Activity activity = getActivity();
                     if (activity != null)
-                        activity.runOnUiThread(() -> cacheSizeText.setText("当前缓存大小: 计算失败"));
+                        activity.runOnUiThread(() -> cacheSizeText.setText(getString(R.string.current_cache_size_error)));
                 }
             });
         }
@@ -956,7 +811,7 @@ public class SettingsFragment extends Fragment {
                 if (activity != null)
                     activity.runOnUiThread(() -> {
                         if (finalSuccess) {
-                            cacheSizeText.setText("当前缓存大小: 0 B");
+                            cacheSizeText.setText(getString(R.string.current_cache_size_zero));
                             showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
                         } else {
                             showCustomSnackbar(getView(), requireContext(), "部分缓存清理失败");
@@ -1030,12 +885,4 @@ public class SettingsFragment extends Fragment {
         return false;
     }
 
-    /**
-     * 获取更新salt返回的JSON对象中的数据，如果数据不存在则返回默认值
-     */
-    private String getDataOrDefault(JsonObject data, String key, String defaultValue) {
-        if (data != null && data.has(key) && !data.get(key).isJsonNull())
-            return data.get(key).getAsString();
-        return defaultValue;
-    }
 }

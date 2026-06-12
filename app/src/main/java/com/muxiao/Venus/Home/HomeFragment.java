@@ -111,7 +111,6 @@ public class HomeFragment extends Fragment {
                     gt3GeetestUtils.init(gt3ConfigBean);
                     geetestButton.setGeetestUtils(gt3GeetestUtils);
                 } catch (Exception e) {
-                    e.printStackTrace();
                     android.util.Log.e("Geetest", "Error creating GT3GeetestButton", e);
                 }
             });
@@ -272,7 +271,7 @@ public class HomeFragment extends Fragment {
             currentTaskFuture = executorService.submit(() -> {
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(requireContext());
-                    if (!settings.hasAnyTaskEnabled()) {
+                    if (settings.hasAnyTaskDisabled()) {
                         requireActivity().runOnUiThread(() -> show_error_dialog(requireContext(), "请先去设置里设置任务"));
                         return;
                     }
@@ -438,7 +437,7 @@ public class HomeFragment extends Fragment {
                         android.util.Log.e("VenusCaptcha", "Broadcast resultJson=" + resultJson);
                         BackgroundGeetestController.notifyVerificationSuccess(requireContext(), resultJson, geetestCode);
                         android.util.Log.e("VenusCaptcha", "Broadcast sent OK");
-                        new Notification(requireContext()).sendNormalNotification("人机验证成功", "验证通过，后台任务将继续执行", true);
+                        new Notification(requireContext()).dismissErrorNotification();
                     }
 
                     @Override
@@ -521,7 +520,7 @@ public class HomeFragment extends Fragment {
 
     private void checkAndStartTask(String userId) {
         TaskSettings settings = TaskSettings.fromPreferences(requireContext());
-        if (!settings.hasAnyTaskEnabled()) {
+        if (settings.hasAnyTaskDisabled()) {
             show_error_dialog(requireContext(), "请先去设置里设置任务");
             return;
         }

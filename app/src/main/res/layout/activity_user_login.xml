@@ -4,7 +4,6 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
     tools:context=".User.UserLoginActivity">
 
     <!-- Toolbar with back button -->
@@ -14,7 +13,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         app:navigationIcon="?attr/homeAsUpIndicator"
-        app:title="用户登录"
+        app:title="@string/user_login_title"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -49,11 +48,10 @@
                     android:padding="@dimen/spacing_md">
 
                     <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/username_layout"
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="用户名 (推荐UID)">
+                        android:hint="@string/username_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/username_input"
@@ -66,7 +64,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/spacing_md"
-                        android:text="登录" />
+                        android:text="@string/login" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -78,7 +76,7 @@
                 android:layout_height="200dp"
                 android:layout_gravity="center"
                 android:layout_marginTop="@dimen/spacing_lg"
-                android:contentDescription="登录二维码"
+                android:contentDescription="@string/login_qr_code"
                 android:visibility="gone"
                 tools:src="@mipmap/ic_launcher"
                 tools:visibility="gone" />
@@ -100,10 +98,11 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="@dimen/spacing_sm"
-                        android:text="登录日志"
+                        android:text="@string/login_log"
                         android:textSize="@dimen/text_card_title"
                         android:textFontWeight="600"
-                        android:textColor="?attr/colorOnSurface" />
+                        android:textColor="?attr/colorOnSurface"
+                        tools:targetApi="28" />
 
                     <ScrollView
                         android:id="@+id/login_scroll_view"
@@ -114,7 +113,7 @@
                             android:id="@+id/login_status_text"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="等待运行"
+                            android:text="@string/waiting"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 

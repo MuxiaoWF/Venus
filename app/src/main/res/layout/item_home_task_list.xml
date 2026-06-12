@@ -19,7 +19,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/ic_pending"
-            android:contentDescription="任务状态"
+            android:contentDescription="@string/task_status"
             app:tint="?attr/colorOnSurface" />
 
         <com.google.android.material.textview.MaterialTextView

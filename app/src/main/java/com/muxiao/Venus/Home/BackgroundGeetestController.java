@@ -139,16 +139,6 @@ public class BackgroundGeetestController implements GeetestController {
     }
 
     /**
-     * 获取后台任务保存的 configBean（含其 challenge）。
-     * 前台直接使用此 bean 初始化 Geetest SDK，避免重复 API1 调用。
-     */
-    public static GT3ConfigBean consumePendingConfigBean() {
-        GT3ConfigBean bean = pendingConfigBean;
-        pendingConfigBean = null;
-        return bean;
-    }
-
-    /**
      * 保存后台任务 API1 获取的 gt 和 challenge，供前台使用同一 challenge 进行验证。
      */
     public static void savePendingChallenge(String gt, String challenge) {

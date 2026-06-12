@@ -40,6 +40,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 public class SklandDaily {
     private static final String APP_CODE = "4ca99fa6b56cc2ba";
+    private static final String SKLAND_USER_AGENT = "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0";
     private static final String URL_GRANT = "https://as.hypergryph.com/user/oauth2/v2/grant";
     private static final String URL_CRED = "https://zonai.skland.com/web/v1/user/auth/generate_cred_by_code";
     private static final String URL_BIND = "https://zonai.skland.com/api/v1/game/player/binding";
@@ -62,18 +63,18 @@ public class SklandDaily {
     }
 
     public void run() throws Exception {
-        notifier.notifyListeners("开始执行森空岛签到");
+        notifier.notifyListeners("森空岛签到 开始执行");
         Cred cred = getCredByToken(token);
-        notifier.notifyListeners("获取认证信息成功");
+        notifier.notifyListeners("森空岛签到 获取认证信息成功");
         List<Role> roles = getRoles(cred);
-        notifier.notifyListeners("获取角色列表成功，共找到 " + roles.size() + " 个角色");
+        notifier.notifyListeners("森空岛签到 获取角色列表成功，共找到 " + roles.size() + " 个角色");
         int currentRoleIndex = 0;
         for (Role r : roles) {
             currentRoleIndex++;
-            notifier.notifyListeners("正在为角色 [" + r.name + "] (" + currentRoleIndex + "/" + roles.size() + ") 执行签到...");
+            notifier.notifyListeners("森空岛签到 正在为角色 [" + r.name + "] (" + currentRoleIndex + "/" + roles.size() + ") 执行签到...");
             doSign(cred, r);
         }
-        notifier.notifyListeners("全部角色签到完成");
+        notifier.notifyListeners("森空岛签到 全部角色签到完成");
     }
 
     /**
@@ -82,7 +83,7 @@ public class SklandDaily {
     private static Cred getCredByToken(String token) throws Exception {
         // 获取设备ID
         Map<String, String> headers = Map.of(
-                "User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0",
+                "User-Agent", SKLAND_USER_AGENT,
                 "Accept-Encoding", "gzip",
                 "Connection", "close",
                 "dId", getDid()
@@ -114,7 +115,7 @@ public class SklandDaily {
         signBase.put("vName", "");
         Map<String, String> sig = generateSignature(cred.token, "/api/v1/game/player/binding", "", signBase);
         Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("User-Agent", "'Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0'");
+        headers.put("User-Agent", SKLAND_USER_AGENT);
         headers.put("Accept-Encoding", "gzip");
         headers.put("Connection", "close");
         headers.put("cred", cred.cred);
@@ -154,23 +155,14 @@ public class SklandDaily {
         signBase.put("timestamp", "");
         signBase.put("dId", "");
         signBase.put("vName", "");
-        if (role.gameId != 1) {
-            Map<String, String> t = generateSignature(cred.token, "/web/v1/game/endfield/attendance", "{}", signBase);
-            Map<String, String> headers = new HashMap<>();
-            headers.put("Content-Type", "application/json");
-            headers.put("cred", cred.cred);
-            headers.put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-            headers.put("Accept-Encoding", "gzip");
-            headers.put("Connection", "close");
-            headers.put("sign", t.get("sign"));
-            headers.put("platform", signBase.get("platform"));
-            headers.put("timestamp", t.get("timestamp"));
-            headers.put("dId", signBase.get("dId"));
-            headers.put("vName", signBase.get("vName"));
-            headers.put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
-            headers.put("referer", "https://game.skland.com/");
-            headers.put("origin", "https://game.skland.com/");
-            try {
+        try {
+            if (role.gameId != 1) {
+                Map<String, String> t = generateSignature(cred.token, "/web/v1/game/endfield/attendance", "{}", signBase);
+                Map<String, String> headers = createSignHeaders(cred, signBase, t);
+                headers.put("Content-Type", "application/json");
+                headers.put("sk-game-role", "3_" + role.uid + "_" + role.serverId);
+                headers.put("referer", "https://game.skland.com/");
+                headers.put("origin", "https://game.skland.com/");
                 String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
@@ -178,34 +170,17 @@ public class SklandDaily {
                     for (JsonElement awardid : awardids) {
                         String id = awardid.getAsJsonObject().get("id").getAsString();
                         JsonObject r1 = j.getAsJsonObject("data").getAsJsonObject("resourceInfoMap").getAsJsonObject(id);
-                        notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
+                        notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
                     }
                 } else {
-                    notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
+                    notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到失败: " + j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")");
                 }
-            } catch (RuntimeException e) {
-                if (e.getMessage() != null && e.getMessage().contains("403")) {
-                    tools.writeLog(context, "[" + role.name + "] 今日已签到（重复签到）");
-                } else {
-                    throw e;
-                }
-            }
-        } else {
-            Map<String, Object> body = new HashMap<>();
-            body.put("gameId", role.gameId);
-            body.put("uid", role.uid);
-            Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
-            Map<String, String> headers = new HashMap<>();
-            headers.put("cred", cred.cred);
-            headers.put("User-Agent", "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0");
-            headers.put("Accept-Encoding", "gzip");
-            headers.put("Connection", "close");
-            headers.put("sign", t.get("sign"));
-            headers.put("platform", signBase.get("platform"));
-            headers.put("timestamp", t.get("timestamp"));
-            headers.put("dId", signBase.get("dId"));
-            headers.put("vName", signBase.get("vName"));
-            try {
+            } else {
+                Map<String, Object> body = new HashMap<>();
+                body.put("gameId", role.gameId);
+                body.put("uid", role.uid);
+                Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
+                Map<String, String> headers = createSignHeaders(cred, signBase, t);
                 String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
@@ -213,19 +188,33 @@ public class SklandDaily {
                     for (JsonElement award : awards) {
                         JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
                         int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
-                        notifier.notifyListeners("[" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+                        notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
                     }
                 } else {
-                    notifier.notifyListeners("[" + role.name + "] 签到失败: " + j.get("message").getAsString());
-                }
-            } catch (RuntimeException e) {
-                if (e.getMessage() != null && e.getMessage().contains("403")) {
-                    tools.writeLog(context, "[" + role.name + "] 今日已签到（重复签到）");
-                } else {
-                    throw e;
+                    notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到失败: " + j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")");
                 }
             }
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("403")) {
+                tools.writeLog(context, "森空岛签到 [" + role.name + "] 今日已签到（重复签到）");
+            } else {
+                throw e;
+            }
         }
+    }
+
+    private Map<String, String> createSignHeaders(Cred cred, Map<String, String> signBase, Map<String, String> sig) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("cred", cred.cred);
+        headers.put("User-Agent", SKLAND_USER_AGENT);
+        headers.put("Accept-Encoding", "gzip");
+        headers.put("Connection", "close");
+        headers.put("sign", sig.get("sign"));
+        headers.put("platform", signBase.get("platform"));
+        headers.put("timestamp", sig.get("timestamp"));
+        headers.put("dId", signBase.get("dId"));
+        headers.put("vName", signBase.get("vName"));
+        return headers;
     }
 
     /**

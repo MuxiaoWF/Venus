@@ -64,10 +64,18 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
      * 静默更新数据，不触发 item 动画（用于 tab 切换等需要避免交叉淡入的场景）
      */
     public void setLinksSilently(Map<Integer, String> newLinks) {
+        int oldSize = this.uid_link_map.size();
         this.uid_link_map.clear();
         if (newLinks != null)
             this.uid_link_map.putAll(newLinks);
-        notifyDataSetChanged();
+        int newSize = this.uid_link_map.size();
+        int minSize = Math.min(oldSize, newSize);
+        if (minSize > 0)
+            notifyItemRangeChanged(0, minSize);
+        if (newSize > oldSize)
+            notifyItemRangeInserted(minSize, newSize - oldSize);
+        else if (oldSize > newSize)
+            notifyItemRangeRemoved(minSize, oldSize - newSize);
     }
 
     /**

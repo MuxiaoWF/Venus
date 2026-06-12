@@ -44,38 +44,35 @@ public class BBSDaily {
             android.util.Log.e("VenusCaptcha", "BBSDaily: API retcode=" + retcode + ", response=" + data);
             if (retcode == 1034) {
                 android.util.Log.e("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
-                notifier.notifyListeners("需要进行人机验证...");
-                notification.sendErrorNotification("等待进行人机验证", "需要进行人机验证");
+                notifier.notifyListeners("米游币签到 需要进行人机验证...");
+                notification.sendErrorNotification("米游币签到 等待进行人机验证", "需要进行人机验证");
                 // 先触发验证
                 Map<String, String> headers = getBbsHeaders();
-                if (geetCode != null) headers.putAll(geetCode);
-                performVerificationWithCallback(headers);
+                if (captchaHelper.getGeetCode() != null) headers.putAll(captchaHelper.getGeetCode());
+                captchaHelper.performVerificationWithCallback(headers, "米游币签到");
                 android.util.Log.e("VenusCaptcha", "BBSDaily: waiting for verification...");
-                // 阻塞等待验证完成（轮询线程或回调会设置 verificationComplete）
-                synchronized (this) { while (!verificationComplete) this.wait(); }
-                android.util.Log.e("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + geetCode);
-                if (geetCode == null) {
+                captchaHelper.waitForCompletion();
+                android.util.Log.e("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + captchaHelper.getGeetCode());
+                if (captchaHelper.getGeetCode() == null) {
                     throw new RuntimeException("人机验证失败，未获取到验证结果");
                 }
-                // 验证成功，继续下一次循环重试 API 调用（此时 geetCode 已设置）
-                continue;
             } else if (retcode == -100) {
-                String errorMsg = "签到" + "失败，你的cookie可能已过期，请重新设置cookie。";
+                String errorMsg = "米游币签到 失败，cookie可能已过期，请重新设置cookie";
                 notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("签到" + "失败", errorMsg);
+                notification.sendErrorNotification("米游币签到 失败", errorMsg);
                 throw new RuntimeException(errorMsg);
             } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
                 return data;
             } else {
                 String message = data.has("message") ? data.get("message").getAsString() : "未知错误";
-                String errorMsg = "签到失败: " + message + " (retcode=" + retcode + ")";
+                String errorMsg = "米游币签到 签到失败: " + message + " (retcode=" + retcode + ")";
                 notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("签到失败", errorMsg);
+                notification.sendErrorNotification("米游币签到 失败", errorMsg);
                 if (retryCount < MAX_RETRIES - 1)
-                    notifier.notifyListeners("正在重试，第" + (retryCount + 2) + "次尝试");
+                    notifier.notifyListeners("米游币签到 正在重试，第" + (retryCount + 2) + "次尝试");
             }
         }
-        throw new RuntimeException("签到" + "重试次数已达上限");
+        throw new RuntimeException("米游币签到 重试次数已达上限");
     }
 
     private final Map<String, Boolean> completedTasks = new HashMap<>();
@@ -84,15 +81,15 @@ public class BBSDaily {
     private int todayEarnedCoins; // 当天已获取的米游币
     private int totalCoins; // 已获取的米游币
     private final tools.StatusNotifier notifier;
-    private final GeetestController gt3Controller;
     private final Notification notification;
     private final HeaderManager headerManager;
     private final String cookie;
+    private final CaptchaVerificationHelper captchaHelper;
 
     public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, GeetestController gt3Controller) {
         completedTasks.put("sign", false);
-        this.gt3Controller = gt3Controller;
         this.notification = new Notification(context);
+        this.captchaHelper = new CaptchaVerificationHelper(gt3Controller, notifier, this.notification);
         this.headerManager = new HeaderManager(context);
         this.notifier = notifier;
         String stoken = tools.read(context, userId, "stoken");
@@ -112,7 +109,7 @@ public class BBSDaily {
      * @param name  需要社区签到的板块名称（米游币的那个）可填：崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿(获取方式通过MiHoYoBBSConstants的forum_id)
      */
     public void runTask(String[] name) throws Exception {
-        notifier.notifyListeners("开始执行米游币任务");
+        notifier.notifyListeners("米游币签到 开始执行");
         // 添加需要签到的板块信息
         for (String key : name)
             bbsCheckInList.add(MiHoYoBBSConstants.name_to_forum_id(key));
@@ -125,9 +122,9 @@ public class BBSDaily {
             // 重新获取任务刷新签到信息
             checkTasksList();
         } else //任务已经完成
-            notifier.notifyListeners("今天已经完成了所有米游币任务，明天再来吧");
+            notifier.notifyListeners("米游币签到 今日任务已全部完成");
 
-        notifier.notifyListeners("米游币任务完成，已获得" + this.todayEarnedCoins + "个，还能获得" + this.todayEarnableCoins + "个，目前共有" + this.totalCoins + "个米游币");
+        notifier.notifyListeners("米游币签到 任务完成，已获得" + this.todayEarnedCoins + "个，还能获得" + this.todayEarnableCoins + "个，目前共有" + this.totalCoins + "个米游币");
     }
 
     private Map<String, String> getBbsHeaders() {
@@ -140,14 +137,14 @@ public class BBSDaily {
      * 获取任务列表，判断还有什么任务没有执行Part1
      */
     private JsonObject checkTasksList() {
-        notifier.notifyListeners("正在获取任务列表");
+        notifier.notifyListeners("米游币签到 正在获取任务列表");
         Map<String, String> bbsHeaders = getBbsHeaders();
         String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, bbsHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
         if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
-            String errorMsg = "获取任务列表失败，你的cookie可能已过期，请重新设置cookie。";
-            notification.sendErrorNotification("任务获取失败", errorMsg);
+            String errorMsg = "米游币签到 获取任务列表失败，cookie可能已过期，请重新设置cookie";
+            notification.sendErrorNotification("米游币签到 任务获取失败", errorMsg);
             throw new RuntimeException(errorMsg);
         }
         this.todayEarnableCoins = data.get("can_get_points").getAsInt();
@@ -173,7 +170,7 @@ public class BBSDaily {
                 break;
             }
         }
-        notifier.notifyListeners("今天还能获得" + this.todayEarnableCoins + "个米游币");
+        notifier.notifyListeners("米游币签到 今日还可获得" + this.todayEarnableCoins + "个米游币");
     }
 
     /**
@@ -181,10 +178,10 @@ public class BBSDaily {
      */
     private void signPosts() throws Exception {
         if (Boolean.TRUE.equals(this.completedTasks.get("sign"))) {
-            notifier.notifyListeners("讨论区任务(每日签到)已经完成过了~");
+            notifier.notifyListeners("米游币签到 讨论区每日签到已完成");
             return;
         }
-        notifier.notifyListeners("正在签到......");
+        notifier.notifyListeners("米游币签到 正在执行讨论区签到...");
         for (Map<String, String> forum : bbsCheckInList) {
             Map<String, Object> postDataMap = new HashMap<>();
             postDataMap.put("gids", Integer.parseInt(Objects.requireNonNull(forum.get("id"))));
@@ -193,58 +190,16 @@ public class BBSDaily {
             JsonObject result = executeWithRetry(() -> {
                 Map<String, String> header = getBbsHeaders();
                 header.put("DS", headerManager.getDS_signIn(postDataJson));
-                if (geetCode != null) header.putAll(geetCode);
-                android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: geetCode=" + geetCode);
+                if (captchaHelper.getGeetCode() != null) header.putAll(captchaHelper.getGeetCode());
+                android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: geetCode=" + captchaHelper.getGeetCode());
                 android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: all headers=" + header.keySet());
                 String response = sendPostRequest(Constants.Urls.BBS_SIGN_IN_URL, header, postDataMap);
                 return JsonParser.parseString(response).getAsJsonObject();
             });
 
-            notifier.notifyListeners(forum.get("name") + result.get("message").getAsString());
+            notifier.notifyListeners("米游币签到 " + forum.get("name") + result.get("message").getAsString());
             randomDelay();
         }
     }
 
-    private Map<String, String> geetCode = null;
-    private volatile boolean verificationComplete = false;
-
-    private void performVerificationWithCallback(Map<String, String> headers) {
-        verificationComplete = false;
-        android.util.Log.e("VenusCaptcha", "BBSDaily: performVerificationWithCallback called");
-        CaptchaVerifier.performVerification(gt3Controller, notifier, "米游币签到", headers,
-                new CaptchaVerifier.VerificationCallback() {
-                    @Override
-                    public void onSuccess(Map<String, String> code) {
-                        android.util.Log.e("VenusCaptcha", "BBSDaily: onSuccess callback, code=" + code);
-                        setGeetCodeAndComplete(code);
-                    }
-
-                    @Override
-                    public void onFailure() {
-                        android.util.Log.e("VenusCaptcha", "BBSDaily: onFailure callback");
-                        setGeetCodeAndComplete(null);
-                    }
-                });
-        // 后台控制器：前台验证是独立流程，回调不会触发。
-        // 轮询从控制器读取验证结果。
-        if (gt3Controller instanceof BackgroundGeetestController) {
-            new Thread(() -> {
-                for (int i = 0; i < 50; i++) {
-                    try { Thread.sleep(200); } catch (InterruptedException ignored) {}
-                    Map<String, String> result = BackgroundGeetestController.getGeetestResult();
-                    if (result != null) {
-                        android.util.Log.e("VenusCaptcha", "BBSDaily: got result from controller");
-                        setGeetCodeAndComplete(result);
-                        return;
-                    }
-                }
-            }).start();
-        }
-    }
-
-    private synchronized void setGeetCodeAndComplete(Map<String, String> code) {
-        geetCode = code;
-        verificationComplete = true;
-        notifyAll();
-    }
 }
