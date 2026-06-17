@@ -73,16 +73,8 @@ public class LinkFragment extends Fragment {
         webView = view.findViewById(R.id.webView);
 
         View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
-        // 设置底部空白高度
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
-            if (bottomNavHeight > 0 && bottomPaddingView != null) {
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
-                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
-                bottomPaddingView.setLayoutParams(params);
-            }
-        }
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         // 设置ProgressBar为indeterminate模式以显示旋转动画
         progressBar.setIndeterminate(true);

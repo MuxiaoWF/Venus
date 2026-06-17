@@ -335,10 +335,7 @@ public class tools {
      */
     public static void writeLog(Context context, String message) {
         try {
-            File logDir = new File(context.getExternalFilesDir(null), "logs");
-            if (!logDir.exists()) logDir.mkdirs();
-            String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-            File logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+            File logFile = getTodayLogFile(context);
             String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
             FileWriter writer = new FileWriter(logFile, true);
             writer.append("[").append(timestamp).append("] ").append(message).append("\n");
@@ -351,14 +348,18 @@ public class tools {
      */
     public static void writeLogSeparator(Context context) {
         try {
-            File logDir = new File(context.getExternalFilesDir(null), "logs");
-            if (!logDir.exists()) logDir.mkdirs();
-            String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-            File logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+            File logFile = getTodayLogFile(context);
             String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
             FileWriter writer = new FileWriter(logFile, true);
             writer.append("\n==================== ").append(timestamp).append(" ====================\n\n");
             writer.close();
         } catch (IOException ignored) {}
+    }
+
+    public static File getTodayLogFile(Context context) {
+        File logDir = new File(context.getExternalFilesDir(null), "logs");
+        if (!logDir.exists()) logDir.mkdirs();
+        String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        return new File(logDir, "daily_task_log_" + date + ".txt");
     }
 }

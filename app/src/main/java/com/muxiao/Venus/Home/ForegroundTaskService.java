@@ -15,13 +15,7 @@ import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.Date;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,6 +30,7 @@ public class ForegroundTaskService extends Service {
     private ExecutorService executorService;
     private Future<?> currentTaskFuture;
     private NotificationCompat.Builder notificationBuilder;
+    private com.muxiao.Venus.common.Notification notificationHelper;
     private tools.StatusNotifier notifier;
     private PowerManager.WakeLock wakeLock;
 
@@ -59,22 +54,11 @@ public class ForegroundTaskService extends Service {
         broadcastState(true);
         executorService = Executors.newSingleThreadExecutor();
         notifier = new tools.StatusNotifier();
+        notificationHelper = new com.muxiao.Venus.common.Notification(this);
         tools.cleanOldLogs(this);
 
         // 添加日志写入监听器
-        notifier.addListener(message -> {
-            try {
-                File logDir = new File(getExternalFilesDir(null), "logs");
-                if (!logDir.exists()) logDir.mkdirs();
-                String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-                File logFile = new File(logDir, "daily_task_log_" + date + ".txt");
-
-                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-                FileWriter writer = new FileWriter(logFile, true);
-                writer.append("[").append(timestamp).append("] ").append(message).append("\n");
-                writer.close();
-            } catch (IOException ignored) {}
-        });
+        notifier.addListener(message -> tools.writeLog(this, message));
     }
 
     @Override
@@ -86,8 +70,6 @@ public class ForegroundTaskService extends Service {
 
         if (intent != null && ACTION_START_TASK.equals(intent.getAction())) {
             String userId = intent.getStringExtra(EXTRA_USER_ID);
-            com.muxiao.Venus.common.Notification notificationHelper =
-                    new com.muxiao.Venus.common.Notification(this);
             notificationBuilder = notificationHelper.createProgressNotification("Venus", "正在执行任务...");
 
             // 添加取消按钮
@@ -97,7 +79,12 @@ public class ForegroundTaskService extends Service {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             notificationBuilder.addAction(R.drawable.ic_notification, "取消", stopPending);
 
-            startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build());
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build(),
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build());
+            }
             tools.writeLogSeparator(this);
             executeTasks(userId);
         }
@@ -114,9 +101,6 @@ public class ForegroundTaskService extends Service {
         currentTaskFuture = executorService.submit(() -> {
             try {
                 TaskSettings settings = TaskSettings.fromPreferences(this);
-                com.muxiao.Venus.common.Notification notificationHelper =
-                        new com.muxiao.Venus.common.Notification(this);
-
                 int totalTasks = settings.getTaskNames().size();
                 AtomicInteger completedTasks = new AtomicInteger(0);
 
@@ -165,8 +149,6 @@ public class ForegroundTaskService extends Service {
 
     private void updateServiceNotification(String taskName, TaskItem.TaskStatus status,
                                             int progress, int max) {
-        com.muxiao.Venus.common.Notification notificationHelper =
-                new com.muxiao.Venus.common.Notification(this);
         String statusText;
         switch (status) {
             case IN_PROGRESS:

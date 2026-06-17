@@ -128,7 +128,7 @@ public class DeviceUtils {
         jsonObject.addProperty("serialNumber", "UNKNOWN");
         jsonObject.addProperty("buildTime", String.valueOf(android.os.Build.TIME));
         jsonObject.addProperty("buildUser", android.os.Build.USER);
-        jsonObject.addProperty("ramCapacity", String.valueOf(getTotalRam()));
+        jsonObject.addProperty("ramCapacity", String.valueOf(getTotalMemory()));
         jsonObject.addProperty("magnetometer", getSensorInfo("magnetometer"));
         jsonObject.addProperty("display", android.os.Build.DISPLAY);
         jsonObject.addProperty("ramRemain", String.valueOf(getAvailableRam()));
@@ -173,14 +173,7 @@ public class DeviceUtils {
 
 
     /**
-     * 获取总RAM（使用总内存）
-     */
-    private long getTotalRam() {
-        return getTotalMemory();
-    }
-
-    /**
-     * 获取总RAM（使用可用内存）
+     * 获取可用内存
      */
     private long getAvailableRam() {
         android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -189,67 +182,15 @@ public class DeviceUtils {
         return memoryInfo.availMem / (1024 * 1024); // 返回MB
     }
 
-    /**
-     * 获取传感器信息
-     */
     private String getSensorInfo(String sensorType) {
-        try {
-            android.hardware.SensorManager sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-            android.hardware.Sensor sensor = null;
-            switch (sensorType) {
-                case "accelerometer":
-                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
-                    break;
-                case "gyroscope":
-                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
-                    break;
-                case "magnetometer":
-                    sensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_MAGNETIC_FIELD);
-                    break;
-            }
-            if (sensor != null) {
-                android.hardware.SensorEventListener sensorEventListener = new android.hardware.SensorEventListener() {
-                    @Override
-                    public void onSensorChanged(android.hardware.SensorEvent event) {
-                        // 我们不需要实际处理事件，只是获取一次数据
-                    }
-
-                    @Override
-                    public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {
-                        // 不需要处理
-                    }
-                };
-                // 注册传感器监听器
-                sensorManager.registerListener(sensorEventListener, sensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
-                // 等待一小段时间让传感器采集数据
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                // 注销传感器监听器
-                sensorManager.unregisterListener(sensorEventListener);
-                // 返回默认值作为示例（实际项目中应该从onSensorChanged获取真实数据）
-                switch (sensorType) {
-                    case "accelerometer":
-                        return "0.061016977x0.8362915x9.826724";
-                    case "gyroscope":
-                        return "0.0x0.0x0.0";
-                    case "magnetometer":
-                        return "80.64375x-14.1x77.90625";
-                }
-            }
-        } catch (Exception e) {
-            // 如果获取传感器信息失败，返回默认值
-            switch (sensorType) {
-                case "accelerometer":
-                    return "0.061016977x0.8362915x9.826724";
-                case "gyroscope":
-                    return "0.0x0.0x0.0";
-                case "magnetometer":
-                    return "80.64375x-14.1x77.90625";
-            }
+        switch (sensorType) {
+            case "accelerometer":
+                return "0.061016977x0.8362915x9.826724";
+            case "magnetometer":
+                return "80.64375x-14.1x77.90625";
+            case "gyroscope":
+            default:
+                return "0.0x0.0x0.0";
         }
-        return "0.0x0.0x0.0";
     }
 }

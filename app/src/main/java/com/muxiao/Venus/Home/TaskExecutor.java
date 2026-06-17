@@ -98,10 +98,6 @@ public class TaskExecutor {
     }
 
     private void executeBbsDaily(String[] forums) {
-        if (userId.isEmpty()) {
-            callback.onError("未选择用户");
-            return;
-        }
         if (forums == null || forums.length == 0) {
             callback.onTaskStatusChanged("米游币签到", TaskItem.TaskStatus.ERROR);
             callback.onError("米游币签到 失败，请先在设置中勾选至少一个板块");
@@ -114,10 +110,6 @@ public class TaskExecutor {
     }
 
     private void executeGameDaily(String[] games) {
-        if (userId.isEmpty()) {
-            callback.onError("未选择用户");
-            return;
-        }
         if (games == null || games.length == 0) {
             callback.onTaskStatusChanged("游戏签到", TaskItem.TaskStatus.ERROR);
             callback.onError("游戏签到 失败，请先在设置中勾选至少一个游戏");

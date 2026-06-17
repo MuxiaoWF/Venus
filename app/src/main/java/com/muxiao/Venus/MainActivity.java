@@ -191,6 +191,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 为 Fragment 中的底部空白 View 设置高度，避免被底部导航栏遮挡。
+     */
+    public void applyBottomPadding(View bottomPaddingView) {
+        if (bottomPaddingView == null) return;
+        int bottomNavHeight = bottomNavigationView.getHeight();
+        if (bottomNavHeight > 0) {
+            ViewGroup.LayoutParams params = bottomPaddingView.getLayoutParams();
+            params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
+            bottomPaddingView.setLayoutParams(params);
+        }
+    }
+
+    /**
      * 检查更新（如果需要）
      */
     private void checkForUpdatesIfNeeded() {

@@ -44,11 +44,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -169,16 +166,8 @@ public class HomeFragment extends Fragment {
         TextInputLayout user_dropdown_layout = view.findViewById(R.id.user_dropdown_layout);
 
         View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
-        // 设置底部空白高度
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
-            if (bottomNavHeight > 0 && bottomPaddingView != null) {
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
-                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
-                bottomPaddingView.setLayoutParams(params);
-            }
-        }
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         // 提示框
         CollapsibleCardView homeInfoCard = view.findViewById(R.id.home_info_card);
@@ -189,35 +178,13 @@ public class HomeFragment extends Fragment {
         executorService = Executors.newSingleThreadExecutor();
         controller.createUtils();
         tools.cleanOldLogs(requireContext());
-        File logDir = new File(requireContext().getExternalFilesDir(null), "logs");
-        if (!logDir.exists()) logDir.mkdirs();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        String date = dateFormat.format(new Date());
-        logFile = new File(logDir, "daily_task_log_" + date + ".txt");
+        logFile = tools.getTodayLogFile(requireContext());
         // 初始化任务列表
         initializeTaskList();
 
         // 输出文本监听器
         tools.StatusNotifier notifier = new tools.StatusNotifier();
-        notifier.addListener(message -> requireActivity().runOnUiThread(() -> {
-            // 写入日志文件
-            try {
-                // 确保日志文件存在
-                if(!logFile.exists()){
-                    if (!logDir.exists()) logDir.mkdirs();
-                    logFile = new File(logDir, "daily_task_log_" + date + ".txt");
-                }
-                SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-                String timestamp = timeFormat.format(new Date());
-                String logEntry = "[" + timestamp + "] " + message + "\n";
-
-                FileWriter writer = new FileWriter(logFile, true); // true 追加模式
-                writer.append(logEntry);
-                writer.close();
-            } catch (IOException e) {
-                show_error_dialog(requireContext(), "写入日志文件失败");
-            }
-        }));
+        notifier.addListener(message -> tools.writeLog(requireContext(), message));
 
         // 初始化下拉框
         List<String> usernames = userManager.getUsernames();
@@ -428,6 +395,7 @@ public class HomeFragment extends Fragment {
 
                 // 检查是否有后台任务保存的 challenge（避免重复 API1 导致 challenge 不匹配）
                 String[] savedChallenge = BackgroundGeetestController.consumePendingChallenge();
+                Notification notification = new Notification(requireContext());
                 GeetestVerificationCallback callback = new GeetestVerificationCallback() {
                     @Override
                     public void onVerificationSuccess(Map<String, String> geetestCode) {
@@ -437,7 +405,7 @@ public class HomeFragment extends Fragment {
                         android.util.Log.e("VenusCaptcha", "Broadcast resultJson=" + resultJson);
                         BackgroundGeetestController.notifyVerificationSuccess(requireContext(), resultJson, geetestCode);
                         android.util.Log.e("VenusCaptcha", "Broadcast sent OK");
-                        new Notification(requireContext()).dismissErrorNotification();
+                        notification.dismissErrorNotification();
                     }
 
                     @Override
@@ -445,7 +413,7 @@ public class HomeFragment extends Fragment {
                         android.util.Log.e("VenusCaptcha", "Verification FAILED: " + error);
                         controller.destroyButton();
                         BackgroundGeetestController.notifyVerificationFailure(requireContext(), error);
-                        new Notification(requireContext()).sendErrorNotification("人机验证失败", error, true);
+                        notification.sendErrorNotification("人机验证失败", error, true);
                     }
                 };
 
@@ -470,10 +438,7 @@ public class HomeFragment extends Fragment {
      * 初始化任务列表
      */
     private void initializeTaskList() {
-        taskList = new ArrayList<>();
-        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
-        for (String taskName : settings.getTaskNames())
-            taskList.add(new TaskItem(taskName));
+        taskList = new ArrayList<>(buildTaskItems());
     }
 
     /**
@@ -481,13 +446,17 @@ public class HomeFragment extends Fragment {
      */
     @SuppressLint("NotifyDataSetChanged")
     private void resetTaskList() {
-        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
-        List<TaskItem> newTaskList = new ArrayList<>();
-        for (String taskName : settings.getTaskNames())
-            newTaskList.add(new TaskItem(taskName));
         taskList.clear();
-        taskList.addAll(newTaskList);
+        taskList.addAll(buildTaskItems());
         if (taskAdapter != null) taskAdapter.notifyDataSetChanged();
+    }
+
+    private List<TaskItem> buildTaskItems() {
+        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+        List<TaskItem> items = new ArrayList<>();
+        for (String taskName : settings.getTaskNames())
+            items.add(new TaskItem(taskName));
+        return items;
     }
 
     /**

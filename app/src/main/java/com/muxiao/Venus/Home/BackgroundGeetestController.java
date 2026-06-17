@@ -34,8 +34,6 @@ public class BackgroundGeetestController implements GeetestController {
 
     // 静态存储前台验证结果，供后台任务在 latch 释放后读取
     private static volatile Map<String, String> lastGeetestResult;
-    // 保存后台任务的 configBean（含其 challenge），供前台直接使用
-    private static volatile GT3ConfigBean pendingConfigBean;
     // 保存后台任务 API1 获取的 gt 和 challenge
     private static volatile String pendingGt;
     private static volatile String pendingChallenge;
@@ -60,7 +58,6 @@ public class BackgroundGeetestController implements GeetestController {
     public void createButton(GT3ConfigBean gt3ConfigBean) {
         android.util.Log.e("VenusCaptcha", "BackgroundGeetestController.createButton called");
         notifier.notifyListeners("需要人机验证，正在打开应用...");
-        pendingConfigBean = gt3ConfigBean;
         resultLatch = new CountDownLatch(1);
 
         // 注册结果接收器（在启动 Activity 之前，避免竞态）

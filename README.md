@@ -1,3 +1,5 @@
+**提示：本软件有时候不知道为什么会被检测出中等危险，会被提示恶意应用。但是在[virustotal](www.virustotal.com)中是检测无病毒的**
+
 鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
@@ -33,6 +35,12 @@
 ---
 
 更新日志：
+
+2026.06.12
+
+并没有加任何实际上真正有用的东西，单纯是纯闲的
+
+---
 
 2026.05.28
 

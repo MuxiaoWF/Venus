@@ -278,17 +278,22 @@ public class HeaderManager {
      * @param salt 米游社salt
      **/
     private static String getDS(String salt) {
+        return generateDS("salt=" + salt);
+    }
+
+    /**
+     * 专供米游社api：signIn
+     */
+    public String getDS_signIn(String body) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
-        for (int i = 1; i <= 6; i++) {
-            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            Random rand = new Random();
-            char randomChar = chars.charAt(rand.nextInt(chars.length()));
-            r.append(randomChar);
-        }
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        Random rand = new Random();
+        for (int i = 0; i < 6; i++)
+            r.append(chars.charAt(rand.nextInt(chars.length())));
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            messageDigest.update(("salt=" + salt + "&t=" + currentTimeMillis + "&r=" + r).getBytes());
+            messageDigest.update(("salt=" + BBSconstants.SALT_6X + "&t=" + currentTimeMillis + "&r=" + r + "&b=" + body + "&q=").getBytes());
             byte[] digest = messageDigest.digest();
             StringBuilder d = new StringBuilder();
             for (byte b : digest)
@@ -299,22 +304,16 @@ public class HeaderManager {
         }
     }
 
-    /**
-     * 专供米游社api：signIn
-     */
-    public String getDS_signIn(String body) {
-        String params = "";
+    private static String generateDS(String saltPart) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
-        for (int i = 1; i <= 6; i++) {
-            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            Random rand = new Random();
-            char randomChar = chars.charAt(rand.nextInt(chars.length()));
-            r.append(randomChar);
-        }
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        Random rand = new Random();
+        for (int i = 0; i < 6; i++)
+            r.append(chars.charAt(rand.nextInt(chars.length())));
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            messageDigest.update(("salt=" + BBSconstants.SALT_6X + "&t=" + currentTimeMillis + "&r=" + r + "&b=" + body + "&q=" + params).getBytes());
+            messageDigest.update((saltPart + "&t=" + currentTimeMillis + "&r=" + r).getBytes());
             byte[] digest = messageDigest.digest();
             StringBuilder d = new StringBuilder();
             for (byte b : digest)

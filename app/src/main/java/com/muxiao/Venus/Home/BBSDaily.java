@@ -141,7 +141,7 @@ public class BBSDaily {
         Map<String, String> bbsHeaders = getBbsHeaders();
         String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, bbsHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-        JsonObject data = JsonParser.parseString(response).getAsJsonObject().get("data").getAsJsonObject();
+        JsonObject data = res.get("data").getAsJsonObject();
         if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
             String errorMsg = "米游币签到 获取任务列表失败，cookie可能已过期，请重新设置cookie";
             notification.sendErrorNotification("米游币签到 任务获取失败", errorMsg);

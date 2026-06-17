@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
 
 import androidx.fragment.app.Fragment;
 
@@ -39,16 +38,8 @@ public class UserManagementFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
 
         View bottomPaddingView = rootView.findViewById(R.id.bottom_padding_view);
-        // 设置底部空白高度
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
-            if (bottomNavHeight > 0 && bottomPaddingView != null) {
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
-                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
-                bottomPaddingView.setLayoutParams(params);
-            }
-        }
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
@@ -162,10 +153,6 @@ public class UserManagementFragment extends Fragment {
      * @param newUsername 新用户名
      */
     private void renameUser(String oldUsername, String newUsername) {
-        if (isTaskRunning()) {
-            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
-            return;
-        }
         // 添加新用户并删除旧用户的方式来实现重命名
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
@@ -189,14 +176,10 @@ public class UserManagementFragment extends Fragment {
                 .setTitle("删除用户")
                 .setMessage("确定要删除用户 \"" + username + "\" 吗？此操作无法撤销。")
                 .setPositiveButton("删除", (dialog, which) -> {
-            if (isTaskRunning()) {
-                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
-                return;
-            }
-            userManager.removeUser(username);
-            refreshUserList();
-            showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
-        }).setNegativeButton("取消", (dialog, which) -> dialog.cancel())
+                    userManager.removeUser(username);
+                    refreshUserList();
+                    showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
+                }).setNegativeButton("取消", (dialog, which) -> dialog.cancel())
                 .show();
     }
 

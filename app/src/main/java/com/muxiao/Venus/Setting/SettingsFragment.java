@@ -19,8 +19,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
-import android.widget.LinearLayout;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -123,16 +121,8 @@ public class SettingsFragment extends Fragment {
         View sklandView = sklandCard.getContentLayout();
 
         View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
-        // 设置底部空白高度
-        if (getActivity() instanceof MainActivity) {
-            MainActivity mainActivity = (MainActivity) getActivity();
-            int bottomNavHeight = mainActivity.bottomNavigationView.getHeight();
-            if (bottomNavHeight > 0 && bottomPaddingView != null) {
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) bottomPaddingView.getLayoutParams();
-                params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
-                bottomPaddingView.setLayoutParams(params);
-            }
-        }
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);

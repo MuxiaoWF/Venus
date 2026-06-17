@@ -29,18 +29,23 @@ public class CaptchaVerificationHelper {
 
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
-        CaptchaVerifier.performVerification(gt3Controller, notifier, notification, taskName, headers,
-                new CaptchaVerifier.VerificationCallback() {
-                    @Override
-                    public void onSuccess(Map<String, String> code) {
-                        setGeetCodeAndComplete(code);
-                    }
+        gt3Controller.updateTaskStatusWaring(taskName);
+        Geetest.geetest(headers, new GeetestVerificationCallback() {
+            @Override
+            public void onVerificationSuccess(Map<String, String> code) {
+                notification.dismissErrorNotification();
+                gt3Controller.destroyButton();
+                gt3Controller.updateTaskStatusInProgress(taskName);
+                setGeetCodeAndComplete(code);
+            }
 
-                    @Override
-                    public void onFailure() {
-                        setGeetCodeAndComplete(null);
-                    }
-                });
+            @Override
+            public void onVerificationFailed(String error) {
+                notifier.notifyListeners("人机验证失败: " + error);
+                gt3Controller.destroyButton();
+                setGeetCodeAndComplete(null);
+            }
+        }, gt3Controller);
         if (gt3Controller instanceof BackgroundGeetestController) {
             new Thread(() -> {
                 for (int i = 0; i < 50; i++) {

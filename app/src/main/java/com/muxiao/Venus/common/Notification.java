@@ -60,7 +60,7 @@ public class Notification {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    private void sendSystemNotification(String title, String content, boolean isError, boolean force) {
+    private void sendErrorSystemNotification(String title, String content, boolean force) {
         if (!force) {
             SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
             if (!prefs.getBoolean(NOTIFICATION, false)) return;
@@ -69,35 +69,23 @@ public class Notification {
         ensureChannels();
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, isError ? CHANNEL_ERROR : CHANNEL_WORK)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ERROR)
                 .setContentTitle(title)
                 .setContentText(content)
                 .setAutoCancel(true)
-                .setContentIntent(createHomePendingIntent());
-
-        if (isError) {
-            builder.setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setSmallIcon(R.drawable.ic_error)
-                    .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
-            nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
-        } else {
-            builder.setPriority(NotificationCompat.PRIORITY_LOW)
-                    .setSmallIcon(R.drawable.ic_notification)
-                    .setSound(null);
-            nm.notify(Constants.NOTIFICATION_ID_WORK, builder.build());
-        }
+                .setContentIntent(createHomePendingIntent())
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setSmallIcon(R.drawable.ic_error)
+                .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
+        nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
     }
 
     public void sendErrorNotification(String title, String content) {
-        sendSystemNotification(title, content, true, false);
-    }
-
-    public void sendNormalNotification(String title, String content, boolean force) {
-        sendSystemNotification(title, content, false, force);
+        sendErrorSystemNotification(title, content, false);
     }
 
     public void sendErrorNotification(String title, String content, boolean force) {
-        sendSystemNotification(title, content, true, force);
+        sendErrorSystemNotification(title, content, force);
     }
 
     /**
