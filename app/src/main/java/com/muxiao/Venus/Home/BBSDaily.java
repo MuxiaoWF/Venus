@@ -8,6 +8,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -19,18 +20,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 
+/**
+ * 米游币签到：获取任务列表 → 执行讨论区签到 → 领取奖励。
+ * 支持验证码重试（retcode=1034 时触发极验验证），最多重试3次。
+ * 仅国服可用（需要stoken），国际服在 TaskSettings 中已禁用。
+ */
 public class BBSDaily {
 
     private static final int MAX_RETRIES = 3;
     private static final int DELAY_MIN_MS = 500;
     private static final int DELAY_RANGE_MS = 1500;
-    private static final Random RANDOM = new Random();
-
-    private void randomDelay() throws InterruptedException {
-        Thread.sleep(DELAY_MIN_MS + RANDOM.nextInt(DELAY_RANGE_MS));
-    }
 
     @FunctionalInterface
     private interface ApiCall {
@@ -42,65 +42,64 @@ public class BBSDaily {
             JsonObject data = call.execute();
             int retcode = data.get("retcode").getAsInt();
             android.util.Log.e("VenusCaptcha", "BBSDaily: API retcode=" + retcode + ", response=" + data);
-            if (retcode == 1034) {
+            if (retcode == 1034) { // 1034 = 需要人机验证
                 android.util.Log.e("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
-                notifier.notifyListeners("米游币签到 需要进行人机验证...");
-                notification.sendErrorNotification("米游币签到 等待进行人机验证", "需要进行人机验证");
+                notifier.notifyListeners(context.getString(R.string.bbs_captcha_waiting));
+                notification.sendErrorNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
                 // 先触发验证
                 Map<String, String> headers = getBbsHeaders();
                 if (captchaHelper.getGeetCode() != null) headers.putAll(captchaHelper.getGeetCode());
-                captchaHelper.performVerificationWithCallback(headers, "米游币签到");
+                captchaHelper.performVerificationWithCallback(headers, context.getString(R.string.task_name_bbs_daily));
                 android.util.Log.e("VenusCaptcha", "BBSDaily: waiting for verification...");
                 captchaHelper.waitForCompletion();
                 android.util.Log.e("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + captchaHelper.getGeetCode());
                 if (captchaHelper.getGeetCode() == null) {
-                    throw new RuntimeException("人机验证失败，未获取到验证结果");
+                    throw new RuntimeException(context.getString(R.string.bbs_captcha_failed));
                 }
-            } else if (retcode == -100) {
-                String errorMsg = "米游币签到 失败，cookie可能已过期，请重新设置cookie";
+            } else if (retcode == -100) { // -100 = 登录态失效
+                String errorMsg = context.getString(R.string.bbs_cookie_expired);
                 notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("米游币签到 失败", errorMsg);
+                notification.sendErrorNotification(context.getString(R.string.bbs_signin_failed), errorMsg);
                 throw new RuntimeException(errorMsg);
             } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
                 return data;
             } else {
-                String message = data.has("message") ? data.get("message").getAsString() : "未知错误";
-                String errorMsg = "米游币签到 签到失败: " + message + " (retcode=" + retcode + ")";
+                String message = data.has("message") ? data.get("message").getAsString() : context.getString(R.string.bbs_unknown_error);
+                String errorMsg = context.getString(R.string.task_name_bbs_daily) + " " + context.getString(R.string.game_sign_failed, message + " (retcode=" + retcode + ")");
                 notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification("米游币签到 失败", errorMsg);
+                notification.sendErrorNotification(context.getString(R.string.bbs_signin_failed), errorMsg);
                 if (retryCount < MAX_RETRIES - 1)
-                    notifier.notifyListeners("米游币签到 正在重试，第" + (retryCount + 2) + "次尝试");
+                    notifier.notifyListeners(context.getString(R.string.bbs_signin_retrying, retryCount + 2));
             }
         }
-        throw new RuntimeException("米游币签到 重试次数已达上限");
+        throw new RuntimeException(context.getString(R.string.bbs_retry_limit_reached));
     }
 
-    private final Map<String, Boolean> completedTasks = new HashMap<>();
+    private boolean signCompleted = false;
     private final List<Map<String, String>> bbsCheckInList = new ArrayList<>();
-    private int todayEarnableCoins; // 当天可获取的米游币
-    private int todayEarnedCoins; // 当天已获取的米游币
-    private int totalCoins; // 已获取的米游币
+    private int todayEarnableCoins;
     private final tools.StatusNotifier notifier;
     private final Notification notification;
     private final HeaderManager headerManager;
     private final String cookie;
     private final CaptchaVerificationHelper captchaHelper;
+    private final boolean isOversea;
+    private final Context context;
 
     public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, GeetestController gt3Controller) {
-        completedTasks.put("sign", false);
+        this.context = context;
         this.notification = new Notification(context);
-        this.captchaHelper = new CaptchaVerificationHelper(gt3Controller, notifier, this.notification);
+        this.captchaHelper = new CaptchaVerificationHelper(context, gt3Controller, notifier, this.notification);
         this.headerManager = new HeaderManager(context);
         this.notifier = notifier;
-        String stoken = tools.read(context, userId, "stoken");
-        String mid = tools.read(context, userId, "mid");
-        String stuid = "ltuid=" + tools.read(context, userId, "stuid");
-        if (stoken == null || mid == null || tools.read(context, userId, "stuid") == null) {
-            String errorMsg = "stoken/mid/stuid为null,请尝试重新登陆";
-            notification.sendErrorNotification("登录错误", errorMsg);
+        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
+        String builtCookie = tools.buildUserCookie(context, userId);
+        if (builtCookie == null) {
+            String errorMsg = context.getString(R.string.bbs_stoken_null);
+            notification.sendErrorNotification(context.getString(R.string.bbs_login_error), errorMsg);
             throw new RuntimeException(errorMsg);
         }
-        cookie = "stoken=" + stoken + "; mid=" + mid + "; stuid=" + stuid + ";";
+        cookie = builtCookie;
     }
 
     /**
@@ -109,7 +108,7 @@ public class BBSDaily {
      * @param name  需要社区签到的板块名称（米游币的那个）可填：崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿(获取方式通过MiHoYoBBSConstants的forum_id)
      */
     public void runTask(String[] name) throws Exception {
-        notifier.notifyListeners("米游币签到 开始执行");
+        notifier.notifyListeners(context.getString(R.string.bbs_start));
         // 添加需要签到的板块信息
         for (String key : name)
             bbsCheckInList.add(MiHoYoBBSConstants.name_to_forum_id(key));
@@ -122,9 +121,9 @@ public class BBSDaily {
             // 重新获取任务刷新签到信息
             checkTasksList();
         } else //任务已经完成
-            notifier.notifyListeners("米游币签到 今日任务已全部完成");
+            notifier.notifyListeners(context.getString(R.string.bbs_all_done_today));
 
-        notifier.notifyListeners("米游币签到 任务完成，已获得" + this.todayEarnedCoins + "个，还能获得" + this.todayEarnableCoins + "个，目前共有" + this.totalCoins + "个米游币");
+        notifier.notifyListeners(context.getString(R.string.bbs_task_done));
     }
 
     private Map<String, String> getBbsHeaders() {
@@ -137,21 +136,20 @@ public class BBSDaily {
      * 获取任务列表，判断还有什么任务没有执行Part1
      */
     private JsonObject checkTasksList() {
-        notifier.notifyListeners("米游币签到 正在获取任务列表");
+        notifier.notifyListeners(context.getString(R.string.bbs_getting_task_list));
         Map<String, String> bbsHeaders = getBbsHeaders();
-        String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, bbsHeaders, null);
+        String taskUrl = isOversea ? Constants.Urls.OS_BBS_TASK_URL : Constants.Urls.BBS_TASK_URL;
+        String response = tools.sendGetRequest(taskUrl, bbsHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-        JsonObject data = res.get("data").getAsJsonObject();
-        if (res.get("message").getAsString().contains("err") || res.get("retcode").getAsInt() == -100) {
-            String errorMsg = "米游币签到 获取任务列表失败，cookie可能已过期，请重新设置cookie";
-            notification.sendErrorNotification("米游币签到 任务获取失败", errorMsg);
+        if (res.get("retcode").getAsInt() != 0) {
+            String errorMsg = context.getString(R.string.bbs_cookie_expired);
+            notification.sendErrorNotification(context.getString(R.string.bbs_task_list_failed), errorMsg);
             throw new RuntimeException(errorMsg);
         }
+        JsonObject data = res.get("data").getAsJsonObject();
         this.todayEarnableCoins = data.get("can_get_points").getAsInt();
-        this.todayEarnedCoins = data.get("already_received_points").getAsInt();
-        this.totalCoins = data.get("total_points").getAsInt();
-        if (this.todayEarnableCoins == 0) { // 完成所有任务
-            this.completedTasks.put("sign", true);
+        if (this.todayEarnableCoins == 0) {
+            this.signCompleted = true;
             return null;
         }
         return data;
@@ -161,27 +159,27 @@ public class BBSDaily {
      * 获取任务列表，判断还有什么任务没有执行Part2
      */
     private void getTasksList(JsonObject data) {
-        // 查找签到任务(mission_id=58)的完成状态
         for (JsonElement stateElement : data.get("states").getAsJsonArray()) {
             JsonObject state = stateElement.getAsJsonObject();
             if (state.get("mission_id").getAsInt() == 58) {
                 if (state.get("is_get_award").getAsBoolean())
-                    this.completedTasks.put("sign", true);
+                    this.signCompleted = true;
                 break;
             }
         }
-        notifier.notifyListeners("米游币签到 今日还可获得" + this.todayEarnableCoins + "个米游币");
+        notifier.notifyListeners(context.getString(R.string.bbs_earnable_today, this.todayEarnableCoins));
     }
 
     /**
      * 签到米游币
      */
     private void signPosts() throws Exception {
-        if (Boolean.TRUE.equals(this.completedTasks.get("sign"))) {
-            notifier.notifyListeners("米游币签到 讨论区每日签到已完成");
+        if (signCompleted) {
+            notifier.notifyListeners(context.getString(R.string.bbs_forum_sign_done));
             return;
         }
-        notifier.notifyListeners("米游币签到 正在执行讨论区签到...");
+        notifier.notifyListeners(context.getString(R.string.bbs_forum_signing));
+        String signInUrl = isOversea ? Constants.Urls.OS_BBS_SIGN_IN_URL : Constants.Urls.BBS_SIGN_IN_URL;
         for (Map<String, String> forum : bbsCheckInList) {
             Map<String, Object> postDataMap = new HashMap<>();
             postDataMap.put("gids", Integer.parseInt(Objects.requireNonNull(forum.get("id"))));
@@ -193,12 +191,12 @@ public class BBSDaily {
                 if (captchaHelper.getGeetCode() != null) header.putAll(captchaHelper.getGeetCode());
                 android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: geetCode=" + captchaHelper.getGeetCode());
                 android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: all headers=" + header.keySet());
-                String response = sendPostRequest(Constants.Urls.BBS_SIGN_IN_URL, header, postDataMap);
+                String response = sendPostRequest(signInUrl, header, postDataMap);
                 return JsonParser.parseString(response).getAsJsonObject();
             });
 
-            notifier.notifyListeners("米游币签到 " + forum.get("name") + result.get("message").getAsString());
-            randomDelay();
+            notifier.notifyListeners(context.getString(R.string.task_name_bbs_daily) + " " + forum.get("name") + result.get("message").getAsString());
+            tools.randomDelay(DELAY_MIN_MS, DELAY_RANGE_MS);
         }
     }
 

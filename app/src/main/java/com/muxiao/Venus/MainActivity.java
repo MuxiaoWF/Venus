@@ -1,11 +1,20 @@
 package com.muxiao.Venus;
 
-import static com.muxiao.Venus.common.Constants.Prefs.*;
+import static com.muxiao.Venus.common.Constants.Prefs.APP_INFO_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.CONFIG_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.LANGUAGE_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.LAST_VERSION;
+import static com.muxiao.Venus.common.Constants.Prefs.PREF_CAPTCHA_PENDING;
+import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_LANGUAGE;
+import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,6 +23,8 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import android.widget.ImageView;
+
+import java.util.Locale;
 
 import com.google.android.material.card.MaterialCardView;
 
@@ -35,6 +46,7 @@ import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
+import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 
 import android.graphics.Bitmap;
@@ -44,9 +56,18 @@ import android.os.Build;
 
 import java.io.InputStream;
 
+/**
+ * 主Activity：底部导航（主页/抽卡链接/用户管理/设置）、背景图片加载、
+ * 语言/主题切换、深色模式跟随系统、后台人机验证入口。
+ */
 public class MainActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
     public BottomNavigationView bottomNavigationView;
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(wrapLocale(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -169,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void handleCaptchaIntent(Intent intent) {
         android.util.Log.e("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
-        if (intent != null && "ACTION_HANDLE_CAPTCHA".equals(intent.getAction())) {
+        if (intent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(intent.getAction())) {
             intent.setAction(null);
             getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE)
                     .edit().putBoolean(PREF_CAPTCHA_PENDING, true).apply();
@@ -188,6 +209,13 @@ public class MainActivity extends AppCompatActivity {
         androidx.fragment.app.Fragment primary = getSupportFragmentManager().getPrimaryNavigationFragment();
         if (primary instanceof HomeFragment) return (HomeFragment) primary;
         return null;
+    }
+
+    /**
+     * 设置 ViewPager2 是否允许用户滑动切换
+     */
+    public void setViewPagerSwipeEnabled(boolean enabled) {
+        viewPager.setUserInputEnabled(enabled);
     }
 
     /**
@@ -301,7 +329,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
-                show_error_dialog(this, "没有权限访问背景图片，清除背景设置" + e);
+                show_error_dialog(this, getString(R.string.err_no_background_permission) + e.getMessage());
                 getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                         .edit()
                         .remove("background_image_uri")
@@ -310,7 +338,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 // 出现其他异常时隐藏背景图片
                 backgroundImage.setVisibility(android.view.View.GONE);
-                show_error_dialog(this, "设置背景图片出错，隐藏背景图片" + e);
+                show_error_dialog(this, getString(R.string.err_background_setup_error) + e.getMessage());
             }
         } else {
             backgroundImage.setVisibility(android.view.View.GONE);
@@ -363,13 +391,15 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 // Android 9.0以下版本使用BitmapFactory
                 InputStream inputStream = getContentResolver().openInputStream(uri);
-                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                if (inputStream != null)
-                    inputStream.close();
+                if (inputStream == null) return null;
+                Bitmap bitmap;
+                try (InputStream is = inputStream) {
+                    bitmap = BitmapFactory.decodeStream(is);
+                }
                 return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
             }
         } catch (Exception e) {
-            show_error_dialog(this, "从Uri获取Drawable出错" + e);
+            show_error_dialog(this, getString(R.string.err_get_drawable_error) + e.getMessage());
             return null;
         }
     }
@@ -384,11 +414,13 @@ public class MainActivity extends AppCompatActivity {
         if (currentVersion > lastVersion) {
             // 应用已更新，清除旧配置（回退到内置默认值）
             SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+            boolean captchaPending = prefs.getBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, false);
             prefs.edit().clear().apply();
+            if (captchaPending) prefs.edit().putBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, true).apply();
             // 更新最后运行的版本号
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
             // 后台自动从云端获取最新配置
-            new Thread(() -> MiHoYoBBSConstants.updateConfigFromWeb(context)).start();
+            new Thread(() -> MiHoYoBBSConstants.update_config_from_web(context)).start();
         }
     }
 
@@ -396,5 +428,32 @@ public class MainActivity extends AppCompatActivity {
     public boolean dispatchTouchEvent(MotionEvent event) {
         com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
         return super.dispatchTouchEvent(event);
+    }
+
+    /**
+     * 包装Context以应用语言设置（现代API，无deprecation）
+     */
+    public static Context wrapLocale(Context context) {
+        SharedPreferences languagePrefs = context.getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
+        int selectedLanguage = languagePrefs.getInt(SELECTED_LANGUAGE, 0);
+
+        Locale locale;
+        switch (selectedLanguage) {
+            case 1: // 简体中文
+                locale = Locale.SIMPLIFIED_CHINESE;
+                break;
+            case 2: // 繁體中文
+                locale = Locale.TRADITIONAL_CHINESE;
+                break;
+            case 3: // English
+                locale = Locale.ENGLISH;
+                break;
+            default: // 跟随系统
+                return context;
+        }
+
+        Configuration config = new Configuration(context.getResources().getConfiguration());
+        config.setLocale(locale);
+        return context.createConfigurationContext(config);
     }
 }

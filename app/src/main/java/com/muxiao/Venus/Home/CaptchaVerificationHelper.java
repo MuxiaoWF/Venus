@@ -1,5 +1,8 @@
 package com.muxiao.Venus.Home;
 
+import android.content.Context;
+
+import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
 
@@ -13,11 +16,13 @@ public class CaptchaVerificationHelper {
     private Map<String, String> geetCode = null;
     private volatile boolean verificationComplete = false;
 
+    private final Context context;
     private final GeetestController gt3Controller;
     private final tools.StatusNotifier notifier;
     private final Notification notification;
 
-    public CaptchaVerificationHelper(GeetestController gt3Controller, tools.StatusNotifier notifier, Notification notification) {
+    public CaptchaVerificationHelper(Context context, GeetestController gt3Controller, tools.StatusNotifier notifier, Notification notification) {
+        this.context = context;
         this.gt3Controller = gt3Controller;
         this.notifier = notifier;
         this.notification = notification;
@@ -30,7 +35,7 @@ public class CaptchaVerificationHelper {
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
         gt3Controller.updateTaskStatusWaring(taskName);
-        Geetest.geetest(headers, new GeetestVerificationCallback() {
+        Geetest.geetest(context, headers, new GeetestVerificationCallback() {
             @Override
             public void onVerificationSuccess(Map<String, String> code) {
                 notification.dismissErrorNotification();
@@ -41,23 +46,11 @@ public class CaptchaVerificationHelper {
 
             @Override
             public void onVerificationFailed(String error) {
-                notifier.notifyListeners("人机验证失败: " + error);
+                notifier.notifyListeners(context.getString(R.string.geetest_failed, error));
                 gt3Controller.destroyButton();
                 setGeetCodeAndComplete(null);
             }
         }, gt3Controller);
-        if (gt3Controller instanceof BackgroundGeetestController) {
-            new Thread(() -> {
-                for (int i = 0; i < 50; i++) {
-                    try { Thread.sleep(200); } catch (InterruptedException ignored) {}
-                    Map<String, String> result = BackgroundGeetestController.getGeetestResult();
-                    if (result != null) {
-                        setGeetCodeAndComplete(result);
-                        return;
-                    }
-                }
-            }).start();
-        }
     }
 
     /**
@@ -70,7 +63,9 @@ public class CaptchaVerificationHelper {
     }
 
     private synchronized void setGeetCodeAndComplete(Map<String, String> code) {
-        geetCode = code;
+        if (code != null || geetCode == null) {
+            geetCode = code;
+        }
         verificationComplete = true;
         notifyAll();
     }

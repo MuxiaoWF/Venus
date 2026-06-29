@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">啟明星</string>
+    <string name="about">關於</string>
+    <string name="add_or_login_user">新增/登入使用者</string>
+    <string name="author_name">作者名稱</string>
+    <string name="auto_check_update">自動檢查更新</string>
+    <string name="auto_check_update_desc">開啟後將每隔三天自動檢查是否有新版本</string>
+    <string name="background">背景</string>
+    <string name="background_image">背景圖片</string>
+    <string name="background_opacity">背景不透明度：</string>
+    <string name="background_running">背景執行</string>
+    <string name="background_running_desc">顯示背景執行按鈕，可在背景執行簽到任務並傳送通知（較為雞肋的功能）</string>
+    <string name="bbs_daily_tip">建議只勾選所有帳號均存在的一個（例如大別墅），或將每個帳號都先關注相同社群</string>
+    <string name="bengyuanling">崩壞：因緣精靈</string>
+    <string name="cache">快取</string>
+    <string name="cancel_task">取消任務</string>
+    <string name="check_update_github">檢查更新 - Github</string>
+    <string name="check_update_pan">網碟更新 密碼mxwf</string>
+    <string name="clear_background">清除背景</string>
+    <string name="clear_cache">清理快取</string>
+    <string name="close_webpage">關閉網頁</string>
+    <string name="cloud_config_update_time">雲端參數更新時間：載入中…</string>
+    <string name="cloud_config_update_time_fmt">雲端參數更新時間：%s</string>
+    <string name="cloud_gaming">雲端遊戲取得</string>
+    <string name="config_info">設定資訊</string>
+    <string name="copy_link">複製連結</string>
+    <string name="show_more">展開全部</string>
+    <string name="show_less">收起</string>
+    <string name="current_cache_size">當前快取大小：計算中…</string>
+    <string name="current_cache_size_error">當前快取大小：計算失敗</string>
+    <string name="current_cache_size_fmt">當前快取大小：%s</string>
+    <string name="current_cache_size_zero">當前快取大小：0 B</string>
+    <string name="current_config_value">當前設定值：</string>
+    <string name="dabieye">大別墅</string>
+    <string name="daily">日常</string>
+    <string name="daily_settings_info">有關的更詳細的設定可以到底部設定裡查看。</string>
+    <string name="daily_sign_in_info">米遊社有關的日常一鍵簽到，需要先到底部使用者管理新增使用者再使用該功能。</string>
+    <string name="daily_tasks_title">日常任務</string>
+    <string name="daily_update_hint">如果遇到一些問題，可以嘗試在設定裡更新設定。（不用經常更新）</string>
+    <string name="default_description">詳細介紹內容</string>
+    <string name="default_title">標題</string>
+
+    <string name="download">下載</string>
+    <string name="download_image">下載圖片</string>
+    <string name="enable_background_running">啟用背景執行</string>
+    <string name="enable_feature">啟用功能</string>
+    <string name="expand_collapse">展開/收合</string>
+    <string name="fullscreen_image">全螢幕圖片</string>
+    <string name="gacha_link_subtitle">快速取得抽卡紀錄</string>
+    <string name="gacha_link_title">抽卡連結</string>
+    <string name="gacha_login_prompt">請在網頁中登入並開啟抽卡紀錄頁面</string>
+    <string name="gacha_login_tip">提示：登入後請開啟一次抽卡紀錄頁面，將自動擷取連結。\n取得完記得退出遊戲喔</string>
+    <string name="miyoushe_coin_sign_in">米遊幣簽到</string>
+    <string name="game_sign_in">遊戲簽到</string>
+    <string name="genshin_impact">原神</string>
+    <string name="get_gacha_link">取得抽卡連結</string>
+    <string name="github_source">Github開源地址（可提bug）</string>
+    <string name="go_to_get_content">前往取得 content</string>
+    <string name="go_to_login_skland">前往登入森空島</string>
+    <string name="home_subtitle">執行每日簽到任務</string>
+    <string name="honkai_impact_2">崩壞學園2</string>
+    <string name="honkai_impact_3">崩壞3rd</string>
+    <string name="image">圖片</string>
+    <string name="image_title">圖片標題</string>
+    <string name="image_type">圖片類型</string>
+    <string name="k2_value">K2：載入中…</string>
+    <string name="k2_value_fmt">K2：%s</string>
+    <string name="lk2_value">LK2：載入中…</string>
+    <string name="lk2_value_fmt">LK2：%s</string>
+    <string name="local_config_update_time">本機參數更新時間：載入中…</string>
+    <string name="local_config_update_time_fmt">本機參數更新時間：%s</string>
+    <string name="login">登入</string>
+    <string name="login_log">登入日誌</string>
+    <string name="login_qr_code">登入二維碼</string>
+
+    <string name="miyoushe_version">米遊社版本：載入中…</string>
+    <string name="miyoushe_version_fmt">米遊社版本：%s</string>
+    <string name="my_blog">我的Blog（甚麼都沒有）</string>
+    <string name="nav_gacha_link">抽卡連結</string>
+    <string name="nav_home">主頁</string>
+    <string name="nav_settings">設定</string>
+    <string name="nav_user_management">使用者管理</string>
+    <string name="no_user_prompt">暫無使用者\n點選右下角按鈕新增新使用者</string>
+    <string name="re_login">重新登入</string>
+    <string name="refresh_tip">建議不要經常重新整理</string>
+    <string name="rename">重新命名</string>
+    <string name="run_sign_in">執行簽到</string>
+    <string name="salt_4x_value">SALT_4X：載入中…</string>
+    <string name="salt_4x_value_fmt">SALT_4X：%s</string>
+    <string name="salt_6x_value">SALT_6X：載入中…</string>
+    <string name="salt_6x_value_fmt">SALT_6X：%s</string>
+    <string name="save_skland_settings">儲存森空島設定</string>
+    <string name="section_app">應用</string>
+    <string name="section_config">設定</string>
+    <string name="section_other">其他</string>
+    <string name="section_sign_in_settings">簽到設定</string>
+    <string name="select_app_theme">選擇應用主題：</string>
+    <string name="select_background_image">選擇背景圖片：</string>
+    <string name="select_image">選擇圖片</string>
+    <string name="select_image_source">選擇圖片來源</string>
+    <string name="select_theme">選擇主題</string>
+    <string name="select_user">選擇使用者</string>
+    <string name="settings_title">設定</string>
+    <string name="skland_403_tip">若簽到中提示403說明有遊戲已經簽到過了，無法重複簽到</string>
+    <string name="skland_content_tip">下面填的是上面content大括號裡面的東西</string>
+    <string name="skland_sign_in">森空島簽到</string>
+    <string name="star_rail">星穹鐵道</string>
+    <string name="task_list">任務列表</string>
+    <string name="task_status">任務狀態</string>
+    <string name="tears_of_themis">未定事件簿</string>
+    <string name="theme">主題</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_follow">跟隨系統</string>
+    <string name="theme_light">淺色</string>
+    <string name="theme_variant_setting">主題深淺設定：</string>
+    <string name="type">類型</string>
+    <string name="update">更新</string>
+    <string name="update_config">更新設定</string>
+    <string name="user_list">使用者列表</string>
+    <string name="user_login_title">使用者登入</string>
+    <string name="user_management_subtitle">管理登入帳號</string>
+    <string name="user_management_title">使用者管理</string>
+    <string name="user_name">使用者名稱</string>
+    <string name="username_hint">使用者名稱（推薦UID）</string>
+    <string name="view_log">檢視日誌</string>
+    <string name="view_miyoushe_ranking">檢視米遊社排行榜圖</string>
+    <string name="waiting">等待執行</string>
+    <string name="zenless_zone_zero">絕區零</string>
+    <string name="language">語言</string>
+    <string name="select_language">選擇語言：</string>
+    <string name="language_system">跟隨系統</string>
+    <string name="language_zh">简体中文</string>
+    <string name="language_zh_tw">繁體中文</string>
+    <string name="language_en">English</string>
+    <string name="server_type">伺服器類型</string>
+    <string name="server_cn">國服</string>
+    <string name="server_os">國際服</string>
+    <string name="select_server">選擇伺服器：</string>
+    <string name="oauth_login_title">HoYoLAB登入</string>
+    <string name="oauth_set_username">請設定一個使用者名稱（推薦使用UID）</string>
+    <string name="cookie_login">Cookie 登入</string>
+    <string name="cookie_login_hint">透過瀏覽器登入 HoYoLAB 取得 Cookie</string>
+    <string name="cookie_login_start">取得 Cookie</string>
+    <string name="cookie_login_failed">Cookie 取得失敗</string>
+
+    <!-- 通用對話框按鈕 -->
+    <string name="btn_ok">確定</string>
+    <string name="btn_cancel">取消</string>
+    <string name="delete_user">刪除使用者</string>
+    <string name="btn_delete">刪除</string>
+    <string name="btn_save">儲存</string>
+    <string name="btn_close">關閉</string>
+    <string name="btn_go_to_settings">前往設定</string>
+    <string name="btn_later">稍後再說</string>
+    <string name="btn_go_to_download">前往下載</string>
+    <string name="btn_update_later">稍後更新</string>
+    <string name="btn_continue_task">繼續任務</string>
+    <string name="btn_clear_log">清除日誌</string>
+    <string name="btn_ignore">忽略</string>
+    <string name="btn_copy_error">複製錯誤訊息</string>
+
+    <!-- 對話框標題 -->
+    <string name="dialog_error">錯誤</string>
+    <string name="dialog_rename_user">重新命名使用者</string>
+    <string name="dialog_delete_user">刪除使用者</string>
+    <string name="dialog_need_notification_permission">需要通知權限</string>
+    <string name="dialog_task_running">任務正在執行</string>
+    <string name="dialog_pan_download">網碟下載</string>
+    <string name="dialog_skland_content_settings">森空島content設定</string>
+    <string name="dialog_new_version_found">發現新版本</string>
+    <string name="dialog_no_update">無更新</string>
+    <string name="dialog_no_update_question">無更新？</string>
+    <string name="dialog_confirm_cancel">確認取消</string>
+    <string name="dialog_log_title">日誌 (%s)</string>
+    <string name="dialog_need_battery_optimization">需要關閉電池最佳化</string>
+
+    <!-- 對話框訊息 -->
+    <string name="msg_delete_user_confirm">確定要刪除使用者 \"%s\" 嗎？此操作無法復原。</string>
+    <string name="msg_already_latest_version">當前已是最新版本</string>
+    <string name="msg_need_notification_for_background">背景執行需要系統通知權限。是否前往設定頁面開啟？</string>
+    <string name="msg_wait_task_finish_update">請等待當前任務執行完成後再更新設定。</string>
+    <string name="msg_pan_download_hint">即將跳轉到藍奏雲下載頁面\n提取碼：mxwf</string>
+    <string name="msg_skland_content_hint">請完成上方兩個步驟並複製第二個步驟裡content:\"xxxx\"中xxxx的值儲存於此</string>
+    <string name="msg_wait_task_finish_settings">請等待當前任務執行完成後再修改設定。</string>
+    <string name="msg_confirm_cancel_current_task">確定要取消當前任務嗎？</string>
+    <string name="msg_confirm_cancel_background_task">確定要取消背景任務嗎？</string>
+    <string name="msg_notification_required_for_background">系統通知權限尚未開啟，背景任務無法執行。是否前往系統設定開啟？</string>
+    <string name="msg_battery_optimization_hint">系統電池最佳化可能會中斷背景任務。請在電池設定中將本應用設為\"不受限制\"以確保任務正常執行。\n\n如看到廠商設定頁面，請將本應用加入不限制名單。\n\n關閉後此提示將不再出現。</string>
+    <string name="msg_no_game_role_or_error">沒有遊戲角色或取得連結出錯</string>
+    <string name="msg_select_user_first">請先選擇一個使用者</string>
+    <string name="msg_no_server_user">暫無%s使用者\n點選右下角按鈕新增新使用者</string>
+
+    <!-- Snackbar訊息 -->
+    <string name="snack_error_copied">錯誤資訊已複製到剪貼簿</string>
+    <string name="snack_link_copied">連結已複製到剪貼簿</string>
+    <string name="snack_log_cleared">日誌已清除</string>
+    <string name="snack_no_log">暫無日誌內容</string>
+    <string name="snack_bg_task_started">背景任務已啟動，如遇到驗證碼會自動彈出，請留意通知</string>
+    <string name="snack_task_running_cannot_add">任務執行中，無法新增使用者</string>
+    <string name="snack_task_running_cannot_relogin">任務執行中，無法重新登入</string>
+    <string name="snack_task_running_cannot_rename">任務執行中，無法重新命名使用者</string>
+    <string name="snack_task_running_cannot_delete">任務執行中，無法刪除使用者</string>
+    <string name="snack_username_exists">使用者名稱已存在</string>
+    <string name="snack_user_renamed">使用者已重新命名為：%s</string>
+    <string name="snack_user_deleted">使用者已刪除：%s</string>
+    <string name="snack_skland_content_saved">森空島content已儲存</string>
+    <string name="snack_background_set">背景圖片已設定，將在下次啟動時生效</string>
+    <string name="snack_background_cleared">背景圖片已清除，將在下次啟動時生效</string>
+    <string name="snack_opacity_set">不透明度已設為 %d%%，將在下次啟動時生效</string>
+    <string name="snack_switched_to_cn">已切換到國服，重新啟動後生效</string>
+    <string name="snack_switched_to_os">已切換到國際服，重新啟動後生效</string>
+    <string name="snack_theme_saved">主題已儲存，請重新啟動應用以套用新主題</string>
+    <string name="snack_config_updated">設定更新成功</string>
+    <string name="snack_config_update_failed">設定更新失敗</string>
+    <string name="snack_cache_cleared">快取清理完成</string>
+    <string name="snack_cache_clear_partial_failed">部分快取清理失敗</string>
+    <string name="snack_image_saved_to">圖片已儲存到：%s</string>
+    <string name="snack_grant_storage_permission">請授予儲存權限以儲存圖片</string>
+    <string name="snack_download_complete">下載完成</string>
+    <string name="snack_loading_types">載入類型資料中…</string>
+    <string name="snack_loading_ranking_categories">載入排行榜分類資料中…</string>
+    <string name="snack_loading">載入中…</string>
+    <string name="snack_set_follow_system">已設為跟隨系統深淺色模式</string>
+    <string name="snack_set_light_mode">已設為淺色模式</string>
+    <string name="snack_set_dark_mode">已設為深色模式</string>
+
+    <!-- 錯誤對話框訊息 -->
+    <string name="err_no_background_permission">沒有權限存取背景圖片，清除背景設定</string>
+    <string name="err_background_setup_error">設定背景圖片出錯，隱藏背景圖片</string>
+    <string name="err_get_drawable_error">從Uri取得Drawable出錯</string>
+    <string name="err_crop_failed">圖片裁剪失敗：%s</string>
+    <string name="err_save_background_failed">儲存背景圖片失敗：%s</string>
+    <string name="err_delete_background_error">刪除背景圖片出錯：%s</string>
+    <string name="err_get_type_failed">取得類型失敗</string>
+    <string name="err_load_failed">載入失敗：%s</string>
+    <string name="err_save_image_failed">儲存圖片失敗：%s</string>
+    <string name="err_image_load_failed_download">圖片載入失敗，無法下載</string>
+    <string name="err_clear_log_failed">清除日誌檔案失敗</string>
+    <string name="err_set_task_first">請先去設定裡設定任務</string>
+    <string name="err_read_log_failed">讀取日誌檔案失敗：%s</string>
+
+    <!-- 工具列標題 -->
+    <string name="toolbar_image_browse">圖片瀏覽</string>
+    <string name="toolbar_crop_image">裁剪圖片</string>
+    <string name="toolbar_items_selected">%d 項已選擇</string>
+
+    <!-- 設定頁主題 -->
+    <string name="theme_system">系統</string>
+    <string name="theme_blue">藍色</string>
+    <string name="theme_green">綠色</string>
+    <string name="theme_red">紅色</string>
+    <string name="theme_yellow">黃色</string>
+    <string name="theme_light_name">淺色</string>
+    <string name="theme_dark_name">深色</string>
+    <string name="config_not_fetched">未取得</string>
+
+    <!-- 更新檢查 -->
+    <string name="update_fetch_failed">未能成功取得GitHub更新，請手動前往下載頁面\n當前版本：%s</string>
+    <string name="update_rate_limited">GitHub API 請求被限流，請稍後再試</string>
+    <string name="update_fetch_release_failed">取得GitHub發布資訊失敗：%s</string>
+    <string name="update_new_version_msg">發現新版本 %1$s，請前往 GitHub 下載安裝</string>
+    <string name="update_release_notes">更新內容：</string>
+
+    <!-- 圖片瀏覽頁 -->
+    <string name="image_tab_daily">日榜</string>
+    <string name="image_tab_weekly">週榜</string>
+    <string name="image_tab_monthly">月榜</string>
+    <string name="image_tab_hot">熱門</string>
+    <string name="image_author_prefix">作者：</string>
+    <string name="image_time_prefix">時間：</string>
+    <string name="image_unknown_author">未知作者</string>
+    <string name="image_user_label">使用者：</string>
+
+    <!-- Widget -->
+    <string name="widget_description">顯示今日任務完成狀態</string>
+    <string name="widget_task_summary">%1$d/%2$d 已完成</string>
+    <string name="widget_run">執行</string>
+    <string name="widget_running">執行中…</string>
+    <string name="widget_no_user">請先在應用中登入帳號</string>
+    <string name="widget_refresh">重新整理</string>
+
+    <!-- Link頁 -->
+    <string name="link_authkey_error">authkey未知錯誤</string>
+
+    <!-- 通知渠道 -->
+    <string name="notification_channel_task">Venus 任務</string>
+    <string name="notification_channel_task_desc">Venus 應用通知任務</string>
+    <string name="notification_channel_error">Venus 錯誤</string>
+    <string name="notification_channel_error_desc">Venus 應用通知錯誤</string>
+    <string name="notification_channel_progress">Venus 任務進度</string>
+    <string name="notification_channel_progress_desc">Venus 背景任務進度</string>
+
+    <!-- 前景服務通知 -->
+    <string name="notif_executing_task">正在執行任務…</string>
+    <string name="notif_cancel">取消</string>
+    <string name="notif_all_tasks_done">所有任務已完成</string>
+    <string name="notif_executing">正在執行：%1$s (%2$d/%3$d)</string>
+    <string name="notif_completed">已完成：%1$s (%2$d/%3$d)</string>
+    <string name="notif_error">失敗：%s</string>
+    <string name="notif_waiting_verification">等待驗證：%s</string>
+    <string name="notif_cancelled">已取消</string>
+    <string name="notif_preparing">準備中…</string>
+    <string name="notif_task_failed">任務失敗</string>
+    <string name="notif_captcha_failed">人機驗證失敗</string>
+
+    <!-- 任務執行器 -->
+    <string name="task_mgr_start">任務管理器 開始執行，使用者：%s</string>
+    <string name="task_mgr_error">任務管理器 執行異常：%s</string>
+    <string name="task_bbs_daily_no_forum">米遊幣簽到 失敗，請先在設定中勾選至少一個板塊</string>
+    <string name="task_game_sign_in">遊戲簽到</string>
+    <string name="task_game_sign_in_no_game">遊戲簽到 失敗，請先在設定中勾選至少一個遊戲</string>
+    <string name="task_sign_preparing">%s簽到 正在準備…</string>
+    <string name="task_game_sign_in_done">遊戲簽到 全部完成</string>
+    <string name="task_completed">任務完成</string>
+    <string name="task_cancelled">任務已取消</string>
+
+    <!-- 登入頁 -->
+    <string name="login_input_username">請輸入使用者名稱</string>
+    <string name="login_username_exists_in_server">使用者名稱已存在於%s，請使用不同的使用者名稱</string>
+    <string name="login_relogin_button">重新登入%s</string>
+    <string name="login_start_task">開始執行登入任務…\n開始取得二維碼…</string>
+    <string name="login_qr_generated">二維碼已產生，等待掃描…\n請自行截圖並使用米遊社APP-我-左上角掃描二維碼…\n</string>
+    <string name="login_failed">登入失敗</string>
+    <string name="login_waiting_scan">等待掃碼</string>
+    <string name="login_waiting_confirm">等待確認</string>
+    <string name="login_success">登入成功！\n使用者 %s 新增成功</string>
+    <string name="login_unknown_status">未知的狀態</string>
+    <string name="login_stoken_create_failed">掃碼取得stoken失敗-create(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+    <string name="login_stoken_query_failed">掃碼取得stoken失敗-query(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+    <string name="login_payload_missing">回應中缺少 payload 欄位</string>
+    <string name="login_raw_missing">回應中缺少 raw 欄位</string>
+    <string name="login_stoken_token_failed">掃碼取得stoken失敗-getTokenByGameToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+    <string name="login_ltoken_failed">取得ltoken失敗-getLTokenBySToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+
+    <!-- BBSDaily -->
+    <string name="bbs_captcha_waiting">米遊幣簽到 需要進行人機驗證…</string>
+    <string name="bbs_captcha_notification">米遊幣簽到 等待進行人機驗證</string>
+    <string name="bbs_captcha_needed">需要進行人機驗證</string>
+    <string name="bbs_captcha_failed">人機驗證失敗，未取得驗證結果</string>
+    <string name="bbs_cookie_expired">米遊幣簽到 失敗，cookie可能已過期，請重新設定cookie</string>
+    <string name="bbs_signin_failed">米遊幣簽到 失敗</string>
+    <string name="bbs_unknown_error">未知錯誤</string>
+    <string name="bbs_signin_retrying">米遊幣簽到 正在重試，第%d次嘗試</string>
+    <string name="bbs_retry_limit_reached">米遊幣簽到 重試次數已達上限</string>
+    <string name="bbs_start">米遊幣簽到 開始執行</string>
+    <string name="bbs_all_done_today">米遊幣簽到 今日任務已全部完成</string>
+    <string name="bbs_task_done">米遊幣簽到 任務完成…</string>
+    <string name="bbs_getting_task_list">米遊幣簽到 正在取得任務列表</string>
+    <string name="bbs_task_list_failed">米遊幣簽到 任務取得失敗</string>
+    <string name="bbs_stoken_null">stoken/mid/stuid為null，請嘗試重新登入</string>
+    <string name="bbs_login_error">登入錯誤</string>
+    <string name="bbs_earnable_today">米遊幣簽到 今日還可獲得%d個米遊幣</string>
+    <string name="bbs_forum_sign_done">米遊幣簽到 討論區每日簽到已完成</string>
+    <string name="bbs_forum_signing">米遊幣簽到 正在執行討論區簽到…</string>
+
+    <!-- BBSGameDaily -->
+    <string name="game_cookie_token_expired">CookieToken失效，嘗試重新整理</string>
+    <string name="game_stoken_suid_empty">Stoken和Suid為空，無法自動更新CookieToken</string>
+    <string name="game_cookie_token_failed">取得CookieToken失敗，stoken已失效請重新登入</string>
+    <string name="game_get_accounts_failed">取得帳號列表失敗</string>
+    <string name="game_sign_info_failed">取得帳號簽到資訊失敗</string>
+    <string name="game_rate_limited">請求過於頻繁(429)，即將重試</string>
+    <string name="game_captcha_needed">需要進行人機驗證</string>
+    <string name="game_no_accounts">沒有綁定任何帳號</string>
+    <string name="game_first_bind">是第一次綁定，請先手動簽到一次</string>
+
+    <!-- SklandDaily -->
+    <string name="skland_content_not_set">森空島content未設定</string>
+    <string name="skland_start">森空島簽到 開始執行</string>
+    <string name="skland_cred_success">森空島簽到 取得認證資訊成功</string>
+    <string name="skland_roles_found">森空島簽到 取得角色列表成功，共找到 %d 個角色</string>
+    <string name="skland_no_roles">森空島簽到 未找到可簽到的角色</string>
+    <string name="skland_signing_role">森空島簽到 正在為角色 [%1$s] (%2$d/%3$d) 執行簽到…</string>
+    <string name="skland_all_done">森空島簽到 全部角色簽到完成</string>
+    <string name="skland_grant_failed">grant 失敗：%s</string>
+
+    <!-- Geetest -->
+    <string name="geetest_need_verification">需要人機驗證，正在開啟應用…</string>
+    <string name="geetest_waiting">：等待人機驗證</string>
+    <string name="geetest_done">：驗證完成，繼續執行</string>
+    <string name="geetest_failed">人機驗證失敗：%s</string>
+
+    <!-- tools.java -->
+    <string name="error_cannot_open_source">無法開啟來源檔案</string>
+    <string name="error_label">錯誤資訊</string>
+
+
+    <!-- GachaLink -->
+    <string name="gacha_cookie_null">cookie有參數(stoken/mid)為null，請嘗試重新取得</string>
+    <string name="gacha_get_roles_failed">未成功取得遊戲內角色資訊</string>
+
+    <!-- UserLoginActivity -->
+
+
+    <!-- Geetest 補充 -->
+    <string name="geetest_captcha_failed_network">取得驗證碼失敗：網路請求無回應</string>
+    <string name="geetest_captcha_failed_api">取得驗證碼失敗</string>
+    <string name="geetest_second_verify_failed_network">二次驗證失敗：網路請求無回應</string>
+    <string name="geetest_second_verify_failed">二次驗證失敗: %s</string>
+    <string name="geetest_captcha_closed">驗證碼已關閉</string>
+    <string name="geetest_captcha_error">驗證碼錯誤：%s</string>
+
+    <!-- BBSGameDaily 補充 -->
+    <string name="game_cookie_token_refreshed">簽到 CookieToken重新整理成功</string>
+    <string name="game_accounts_found">簽到 已取得%d個帳號</string>
+    <string name="game_getting_rewards">簽到 正在取得簽到獎勵清單…</string>
+    <string name="game_rewards_retry">簽到 取得簽到獎勵清單失敗，第%d次重試</string>
+    <string name="game_rewards_max_retry">簽到 取得簽到獎勵清單失敗，重試次數已達上限</string>
+    <string name="game_start_with_accounts">簽到 開始執行，共%d個帳號</string>
+    <string name="game_already_signed">今日已簽到</string>
+    <string name="game_sign_success">簽到成功</string>
+    <string name="game_sign_captcha_triggered">觸發驗證碼</string>
+    <string name="game_sign_failed">簽到失敗: %s</string>
+    <string name="game_sign_failed_rate_limit">簽到失敗: 請求過於頻繁(429)</string>
+    <string name="game_consecutive_days">已連續簽到%d天</string>
+    <string name="game_today_reward">簽到 今日獎勵: %1$s×%2$s</string>
+
+    <!-- SklandDaily 補充 -->
+    <string name="skland_sign_success">簽到成功，獲得了%s</string>
+    <string name="skland_sign_failed">簽到失敗: %s</string>
+    <string name="skland_already_signed">今日已簽到（重複簽到）</string>
+
+    <!-- TaskExecutor 補充 -->
+    <string name="task_failed_format">%1$s失敗：%2$s</string>
+
+    <!-- 遊戲名稱 -->
+    <string name="arknights">明日方舟</string>
+    <string name="endfield">終末地</string>
+
+    <!-- 任務名稱（用於任務列表顯示） -->
+    <string name="task_name_game_sign_in">%s簽到</string>
+    <string name="task_name_bbs_daily">米遊幣簽到</string>
+    <string name="task_name_skland_arknights">森空島·明日方舟簽到</string>
+    <string name="task_name_skland_endfield">森空島·終末地簽到</string>
+
+    <!-- 通知標題格式 -->
+    <string name="notif_title_game_sign">%s 遊戲簽到</string>
+
+    <!-- BBSGameDaily 補充 -->
+    <string name="game_thread_error">執行緒異常: %s</string>
+</resources>
+

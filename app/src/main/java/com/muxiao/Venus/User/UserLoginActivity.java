@@ -31,6 +31,7 @@ import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.DeviceUtils;
 import com.muxiao.Venus.common.HeaderManager;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
 import java.io.ByteArrayOutputStream;
@@ -41,6 +42,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 国服用户登录：扫码获取 gameToken → 换取 stoken → 获取 ltoken，保存用户凭证。
+ * 支持重新登录模式（清除旧数据后重新扫码）。
+ */
 public class UserLoginActivity extends AppCompatActivity {
     private TextInputEditText username_input;
     private MaterialButton login_btn;
@@ -94,7 +99,7 @@ public class UserLoginActivity extends AppCompatActivity {
             username_input.setText(relogin_username);
             username_input.setEnabled(false);
             username_input.setVisibility(View.GONE);
-            login_btn.setText(String.format("重新登录%s", relogin_username));
+            login_btn.setText(getString(R.string.login_relogin_button, relogin_username));
         }
 
         // Notifier更新信息
@@ -121,11 +126,19 @@ public class UserLoginActivity extends AppCompatActivity {
      */
     private void handleLogin() {
         username = Objects.requireNonNull(username_input.getText()).toString().trim();
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(this);
+
         if (username.isEmpty()) {
-            status_notifier.notifyListeners("请输入用户名");
+            status_notifier.notifyListeners(getString(R.string.login_input_username));
             return;
-        } else if (!relogin_mode && user_manager.getUsers().containsKey(username)) {// 确保用户名唯一性，仅在非重新登录模式下检查
-            status_notifier.notifyListeners("用户名已存在");
+        } else if (!relogin_mode && user_manager.getUsers().containsKey(username)) {
+            // 检查用户是否属于当前服务器类型
+            if (!user_manager.isUserMatchingServerType(username, isOversea)) {
+                String userServer = isOversea ? getString(R.string.server_cn) : getString(R.string.server_os);
+                status_notifier.notifyListeners(getString(R.string.login_username_exists_in_server, userServer));
+                return;
+            }
+            status_notifier.notifyListeners(getString(R.string.snack_username_exists));
             return;
         }
 
@@ -180,10 +193,12 @@ public class UserLoginActivity extends AppCompatActivity {
         private final String app_id = "2";
         private String ticket;
         private String device_id;
+        private final boolean isOversea;
 
         public LoginTask(Context context) {
             this.context = context;
             this.header_manager = new HeaderManager(context);
+            this.isOversea = MiHoYoBBSConstants.is_oversea(context);
         }
 
         @Override
@@ -193,8 +208,8 @@ public class UserLoginActivity extends AppCompatActivity {
                 DeviceUtils device_utils = new DeviceUtils(context);
                 // 等待设备ID获取完成
                 this.device_id = device_utils.waitForDeviceId();
-                
-                status_notifier.notifyListeners("\n开始执行登录任务...\n开始获取二维码...\n");
+
+                status_notifier.notifyListeners("\n" + getString(R.string.login_start_task) + "\n");
                 byte[] qr_code_data = get_qr_code_data();
                 runOnUiThread(() -> {
                     // 显示二维码
@@ -202,12 +217,12 @@ public class UserLoginActivity extends AppCompatActivity {
                     login_qr_code_image.setImageBitmap(qr_code_bitmap);
                     login_qr_code_image.setVisibility(View.VISIBLE);
                 });
-                status_notifier.notifyListeners("二维码已生成，等待扫描...\n请自行截图并使用米游社APP-我-左上角扫描二维码...\n");
+                status_notifier.notifyListeners(getString(R.string.login_qr_generated));
                 // 循环检查登录状态
                 check_login();
             } catch (Exception e) {
                 String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
-                status_notifier.notifyListeners("\n错误: " + error_message + "\n\n登录失败\n");
+                status_notifier.notifyListeners("\n" + getString(R.string.dialog_error) + ": " + error_message + "\n\n" + getString(R.string.login_failed) + "\n");
                 runOnUiThread(() -> {
                     change_component_status(true);
                     login_qr_code_image.setVisibility(View.GONE);
@@ -221,17 +236,20 @@ public class UserLoginActivity extends AppCompatActivity {
          * @return 二维码的byte[]
          */
         public byte[] get_qr_code_data() throws Exception {
-            Map<String, Object> body = new HashMap<>() {{
-                put("app_id", app_id);
-                put("device", device_id); // 现在 device_id 已经确保不为null
-            }};
-            String response = tools.sendPostRequest(Constants.Urls.LOGIN_QR_URL, new HashMap<>(), body);
+            Map<String, Object> body = new HashMap<>();
+            body.put("app_id", app_id);
+            body.put("device", device_id);
+            String qrUrl = isOversea ? Constants.Urls.OS_LOGIN_QR_URL : Constants.Urls.LOGIN_QR_URL;
+            String response = tools.sendPostRequest(qrUrl, new HashMap<>(), body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
             int retcode = result.get("retcode").getAsInt();
             if (retcode != 0)
-                throw new RuntimeException("扫码获取stoken失败-create(RETCODE = " + retcode + "),返回信息为：" + response);
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
             String qr_url = result.getAsJsonObject("data").get("url").getAsString();
-            this.ticket = qr_url.split("ticket=")[1];
+            String[] ticketParts = qr_url.split("ticket=");
+            if (ticketParts.length < 2)
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, "URL does not contain ticket parameter"));
+            this.ticket = ticketParts[1];
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
             Map<EncodeHintType, Object> hints = new HashMap<>();
             hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
@@ -256,46 +274,48 @@ public class UserLoginActivity extends AppCompatActivity {
             int times = 0;
             // 用于跟踪上一个状态，避免重复显示相同状态
             String last_status = "";
+            String checkUrl = isOversea ? Constants.Urls.OS_LOGIN_CHECK_URL : Constants.Urls.LOGIN_CHECK_URL;
             while (true) {
                 times++;
-                Map<String, Object> body = new HashMap<>() {{
-                    put("app_id", app_id);
-                    put("ticket", ticket);
-                    put("device", device_id); // 现在 device_id 已经确保不为null
-                }};
-                String response = tools.sendPostRequest(Constants.Urls.LOGIN_CHECK_URL, null, body);
+                Map<String, Object> body = new HashMap<>();
+                body.put("app_id", app_id);
+                body.put("ticket", ticket);
+                body.put("device", device_id);
+                String response = tools.sendPostRequest(checkUrl, null, body);
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();
                 int retcode = result.get("retcode").getAsInt();
                 if (retcode != 0)
-                    throw new RuntimeException("扫码获取stoken失败-query(RETCODE = " + retcode + "),返回信息为：" + response);
+                    throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
                 JsonObject data = result.getAsJsonObject("data");
                 String stat = data.get("stat").getAsString();
                 switch (stat) {
                     case "Init":
                         // 只有状态变化时才通知
                         if (!"Init".equals(last_status)) {
-                            status_notifier.notifyListeners("等待扫码" + times);
+                            status_notifier.notifyListeners(getString(R.string.login_waiting_scan) + times);
                             last_status = "Init";
                         }
                         break;
                     case "Scanned":
                         if (!"Scanned".equals(last_status)) {
-                            status_notifier.notifyListeners("等待确认" + times);
+                            status_notifier.notifyListeners(getString(R.string.login_waiting_confirm) + times);
                             last_status = "Scanned";
                         }
                         break;
                     case "Confirmed":
                         // 检查 payload 和 raw 是否存在且不为 null
                         if (!data.has("payload") || data.get("payload").isJsonNull())
-                            throw new RuntimeException("响应中缺少 payload 字段");
+                            throw new RuntimeException(getString(R.string.login_payload_missing));
                         JsonObject payload = data.getAsJsonObject("payload");
                         if (!payload.has("raw") || payload.get("raw").isJsonNull())
-                            throw new RuntimeException("响应中缺少 raw 字段");
+                            throw new RuntimeException(getString(R.string.login_raw_missing));
                         String raw_string = payload.get("raw").getAsString();
                         JsonObject raw = JsonParser.parseString(raw_string).getAsJsonObject();
                         String game_token = raw.get("token").getAsString();
                         String uid = raw.get("uid").getAsString();
                         get_stoken_by_game_token(uid, game_token);
+                        // 存储服务器类型
+                        tools.write(context, username, "server_type", isOversea ? "1" : "0");
                         // 登录流程完成，在主线程更新UI
                         runOnUiThread(() -> {
                             login_qr_code_image.setVisibility(View.GONE);
@@ -310,11 +330,11 @@ public class UserLoginActivity extends AppCompatActivity {
                             }
                             change_component_status(true);
                         });
-                        status_notifier.notifyListeners("\n登录成功！\n用户 " + username + " 添加成功\n");
+                        status_notifier.notifyListeners("\n" + getString(R.string.login_success, username) + "\n");
                         return;
                     default:
-                        status_notifier.notifyListeners("未知的状态" + stat + times);
-                        throw new RuntimeException("未知的状态" + stat + times);
+                        status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
+                        throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
                 }
                 TimeUnit.MILLISECONDS.sleep((int) (Math.random() * 500 + 1500));
             }
@@ -324,18 +344,15 @@ public class UserLoginActivity extends AppCompatActivity {
          * 通过game_token获取stoken，通过check_login()方法登录成功获取game_token后调用
          */
         private void get_stoken_by_game_token(String stuid, String game_token) {
-            JsonObject json = new JsonObject();
-            json.addProperty("account_id", Integer.parseInt(stuid));
-            json.addProperty("game_token", game_token);
-            Map<String, Object> body = new HashMap<>() {{
-                put("account_id", Integer.parseInt(stuid));
-                put("game_token", game_token);
-            }};
+            Map<String, Object> body = new HashMap<>();
+            body.put("account_id", Long.parseLong(stuid));
+            body.put("game_token", game_token);
             Map<String, String> game_token_headers = header_manager.get_game_token_headers();
-            String response = tools.sendPostRequest(Constants.Urls.STOKEN_URL, game_token_headers, body);
+            String stokenUrl = isOversea ? Constants.Urls.OS_STOKEN_URL : Constants.Urls.STOKEN_URL;
+            String response = tools.sendPostRequest(stokenUrl, game_token_headers, body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
             if (result.get("retcode").getAsInt() != 0)
-                throw new RuntimeException("扫码获取stoken失败-getTokenByGameToken(RETCODE = " + result.get("retcode").getAsInt() + "),返回信息为：" + response);
+                throw new RuntimeException(getString(R.string.login_stoken_token_failed, result.get("retcode").getAsInt(), response));
             JsonObject data = result.getAsJsonObject("data");
             String mid = data.getAsJsonObject("user_info").get("mid").getAsString();
             String stoken = data.getAsJsonObject("token").get("token").getAsString();
@@ -352,10 +369,11 @@ public class UserLoginActivity extends AppCompatActivity {
         private void get_ltoken_by_stoken() {
             Map<String, String> bbs_headers = header_manager.get_bbs_headers();
             bbs_headers.put("Cookie", "stoken=" + tools.read(context, username, "stoken") + ";mid=" + tools.read(context, username, "mid"));
-            String response = tools.sendGetRequest(Constants.Urls.LTOKEN_URL, bbs_headers, null);
+            String ltokenUrl = isOversea ? Constants.Urls.OS_LTOKEN_URL : Constants.Urls.LTOKEN_URL;
+            String response = tools.sendGetRequest(ltokenUrl, bbs_headers, null);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
             if (result.get("retcode").getAsInt() != 0)
-                throw new RuntimeException("获取ltoken失败-getLTokenBySToken(RETCODE = " + result.get("retcode").getAsInt() + "),返回信息为：" + response);
+                throw new RuntimeException(getString(R.string.login_ltoken_failed, result.get("retcode").getAsInt(), response));
             String ltoken = result.getAsJsonObject("data").get("ltoken").getAsString();
             tools.write(context, username, "ltoken", ltoken);
         }

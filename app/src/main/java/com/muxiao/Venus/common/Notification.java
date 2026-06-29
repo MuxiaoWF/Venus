@@ -16,9 +16,13 @@ import androidx.core.app.NotificationCompat;
 
 import com.muxiao.Venus.R;
 
+/**
+ * 通知管理：三个渠道（任务/错误/进度），支持前台Service进度通知和错误通知。
+ * 错误通知受用户设置中的通知开关控制，进度通知始终显示。
+ */
 public class Notification {
     private final Context context;
-    private static boolean channelsCreated = false;
+    private static volatile boolean channelsCreated = false;
 
     private static final String CHANNEL_WORK = "venus_work_channel";
     private static final String CHANNEL_ERROR = "venus_error_channel";
@@ -33,15 +37,15 @@ public class Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-            NotificationChannel workChannel = new NotificationChannel(CHANNEL_WORK, "Venus 任务", NotificationManager.IMPORTANCE_LOW);
-            workChannel.setDescription("Venus 应用通知任务");
+            NotificationChannel workChannel = new NotificationChannel(CHANNEL_WORK, context.getString(R.string.notification_channel_task), NotificationManager.IMPORTANCE_LOW);
+            workChannel.setDescription(context.getString(R.string.notification_channel_task_desc));
             workChannel.setSound(null, null);
 
-            NotificationChannel errorChannel = new NotificationChannel(CHANNEL_ERROR, "Venus 错误", NotificationManager.IMPORTANCE_DEFAULT);
-            errorChannel.setDescription("Venus 应用通知错误");
+            NotificationChannel errorChannel = new NotificationChannel(CHANNEL_ERROR, context.getString(R.string.notification_channel_error), NotificationManager.IMPORTANCE_DEFAULT);
+            errorChannel.setDescription(context.getString(R.string.notification_channel_error_desc));
 
-            NotificationChannel progressChannel = new NotificationChannel(CHANNEL_PROGRESS, "Venus 任务进度", NotificationManager.IMPORTANCE_LOW);
-            progressChannel.setDescription("Venus 后台任务进度");
+            NotificationChannel progressChannel = new NotificationChannel(CHANNEL_PROGRESS, context.getString(R.string.notification_channel_progress), NotificationManager.IMPORTANCE_LOW);
+            progressChannel.setDescription(context.getString(R.string.notification_channel_progress_desc));
             progressChannel.setSound(null, null);
 
             nm.createNotificationChannel(workChannel);

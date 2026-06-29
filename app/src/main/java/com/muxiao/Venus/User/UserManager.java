@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 用户账号管理：添加/删除用户、设置当前用户、按服务器类型（国服/国际服）过滤用户列表。
+ * 用户数据存储在 SharedPreferences "user_accounts" 中，每个用户的详细数据存储在 "user_{username}" 中。
+ */
 public class UserManager {
     private static final String PREF_NAME = "user_accounts";
     private static final String KEY_USERS = "users";
@@ -19,9 +23,11 @@ public class UserManager {
 
     private final SharedPreferences sharedPreferences;
     private final Gson gson;
+    private final Context context;
 
     public UserManager(Context context) {
-        sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        sharedPreferences = this.context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
     }
 
@@ -45,12 +51,11 @@ public class UserManager {
         Map<String, String> users = getUsers();
         if (users.containsKey(username)) {
             users.remove(username);
-            String usersJson = gson.toJson(users);
-            sharedPreferences.edit().putString(KEY_USERS, usersJson).apply();
-            
-            // 如果删除的是当前用户，则清除当前用户设置
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString(KEY_USERS, gson.toJson(users));
             if (username.equals(getCurrentUser()))
-                sharedPreferences.edit().remove(KEY_CURRENT_USER).apply();
+                editor.remove(KEY_CURRENT_USER);
+            editor.apply();
         }
     }
 
@@ -64,13 +69,6 @@ public class UserManager {
 
         Type type = new TypeToken<Map<String, String>>(){}.getType();
         return gson.fromJson(usersJson, type);
-    }
-
-    /**
-     * 获取所有用户名列表
-     */
-    public List<String> getUsernames() {
-        return new ArrayList<>(getUsers().keySet());
     }
 
     /**
@@ -93,5 +91,52 @@ public class UserManager {
      */
     public String getCurrentUser() {
         return sharedPreferences.getString(KEY_CURRENT_USER, "");
+    }
+
+    /**
+     * 获取特定服务器类型的用户列表
+     *
+     * @param isOversea 是否为国际服
+     * @return 该服务器类型的用户名列表
+     */
+    public List<String> getUsernamesByServerType(boolean isOversea) {
+        List<String> result = new ArrayList<>();
+        Map<String, String> allUsers = getUsers();
+        for (String username : allUsers.keySet()) {
+            SharedPreferences userPrefs = context.getSharedPreferences("user_" + username, Context.MODE_PRIVATE);
+            String serverType = userPrefs.getString("server_type", "");
+            // 如果用户没有服务器类型信息，根据当前选择的服务器类型决定是否显示
+            if (serverType.isEmpty()) {
+                // 对于没有服务器类型信息的旧用户，只在国服下显示
+                if (!isOversea) {
+                    result.add(username);
+                }
+            } else {
+                // 根据存储的服务器类型过滤
+                boolean userIsOversea = "1".equals(serverType);
+                if (userIsOversea == isOversea) {
+                    result.add(username);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 检查用户是否属于指定服务器类型
+     *
+     * @param username  用户名
+     * @param isOversea 是否为国际服
+     * @return true 如果用户属于指定服务器类型
+     */
+    public boolean isUserMatchingServerType(String username, boolean isOversea) {
+        SharedPreferences userPrefs = context.getSharedPreferences("user_" + username, Context.MODE_PRIVATE);
+        String serverType = userPrefs.getString("server_type", "");
+        if (serverType.isEmpty()) {
+            // 对于没有服务器类型信息的旧用户，只在国服下显示
+            return !isOversea;
+        }
+        boolean userIsOversea = "1".equals(serverType);
+        return userIsOversea == isOversea;
     }
 }

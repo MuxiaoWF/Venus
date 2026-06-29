@@ -71,9 +71,18 @@
                 android:letterSpacing="0.05" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/server_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm"
+                app:cardTitle="@string/server_type"
+                app:initialExpanded="false" />
+
+            <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/config_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm"
                 app:cardTitle="@string/config_info"
                 app:initialExpanded="false" />
 
@@ -102,6 +111,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_sm"
                 app:cardTitle="@string/cache"
+                app:initialExpanded="false" />
+
+            <com.muxiao.Venus.common.CollapsibleCardView
+                android:id="@+id/language_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm"
+                app:cardTitle="@string/language"
                 app:initialExpanded="false" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
@@ -168,7 +185,7 @@
             <View
                 android:id="@+id/bottom_padding_view"
                 android:layout_width="match_parent"
-                android:layout_height="96dp" />
+                android:layout_height="@dimen/spacing_bottom_fab" />
 
         </LinearLayout>
     </ScrollView>

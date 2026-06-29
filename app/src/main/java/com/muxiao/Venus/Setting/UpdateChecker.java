@@ -14,11 +14,15 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.BuildConfig;
+import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 版本更新检查：查询 GitHub Releases API，比较版本号，弹窗提示用户更新。
+ */
 public class UpdateChecker {
     private static final String LAST_CHECK_TIME = "last_check_time";
     private final Context context;
@@ -63,7 +67,7 @@ public class UpdateChecker {
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
                     if (isManual)
-                        showNoUpdateDialog("\n没能成功获取GitHub更新，请手动前往下载页面\n当前版本：" + currentVersion);
+                        showNoUpdateDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
                     return;
                 }
 
@@ -102,12 +106,12 @@ public class UpdateChecker {
         } catch (RuntimeException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.contains("403")) {
-                postErrorToMainThread("GitHub API 请求被限流，请稍后再试");
+                postErrorToMainThread(context.getString(R.string.update_rate_limited));
             } else {
-                postErrorToMainThread("获取GitHub发布信息失败：" + msg);
+                postErrorToMainThread(context.getString(R.string.update_fetch_release_failed, msg));
             }
         } catch (Exception e) {
-            postErrorToMainThread("获取GitHub发布信息失败：" + e);
+            postErrorToMainThread(context.getString(R.string.update_fetch_release_failed, e.toString()));
         }
         return null;
     }
@@ -151,17 +155,17 @@ public class UpdateChecker {
             String tagName = releaseInfo.has("tag_name") ? releaseInfo.get("tag_name").getAsString() : latestVersion;
             String releasesPageUrl = Constants.Urls.MUXIAO_MINE_GITHUB_URL + "/releases/tag/" + tagName;
 
-            String message = String.format("发现新版本 %1$s，请前往 GitHub 下载安装", latestVersion);
+            String message = context.getString(R.string.update_new_version_msg, latestVersion);
             if (releaseNotes != null && !releaseNotes.isEmpty())
-                message += "\n\n更新内容：\n" + releaseNotes;
+                message += "\n\n" + context.getString(R.string.update_release_notes) + "\n" + releaseNotes;
             new MaterialAlertDialogBuilder(context)
-                    .setTitle("发现新版本")
+                    .setTitle(context.getString(R.string.dialog_new_version_found))
                     .setMessage(message)
-                    .setPositiveButton("前往下载", (dialog, which) -> {
+                    .setPositiveButton(context.getString(R.string.btn_go_to_download), (dialog, which) -> {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(releasesPageUrl));
                         context.startActivity(intent);
                     })
-                    .setNegativeButton("稍后更新", null)
+                    .setNegativeButton(context.getString(R.string.btn_update_later), null)
                     .show();
         });
     }
@@ -170,13 +174,13 @@ public class UpdateChecker {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (message == null || message.isEmpty())
                 new MaterialAlertDialogBuilder(context)
-                        .setTitle("无更新")
-                        .setMessage("当前已是最新版本")
+                        .setTitle(context.getString(R.string.dialog_no_update))
+                        .setMessage(context.getString(R.string.msg_already_latest_version))
                         .setPositiveButton(android.R.string.ok, null)
                         .show();
             else
                 new MaterialAlertDialogBuilder(context)
-                        .setTitle("无更新？")
+                        .setTitle(context.getString(R.string.dialog_no_update_question))
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null)
                         .show();

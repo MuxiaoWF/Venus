@@ -1,33 +1,49 @@
 package com.muxiao.Venus.common;
 
+/**
+ * 全局常量：通知ID、广播Action、米游社/森空岛/抽卡相关URL、SharedPreferences键名。
+ * Urls 内部类按国服/国际服分区，Prefs 内部类按功能模块分区。
+ */
 public class Constants {
     public static final int WRITE_PERMISSION_REQUEST_CODE = 10001;
-    public static final int NOTIFICATION_ID_WORK = 50628;
     public static final int NOTIFICATION_ID_ERROR = 50629;
     public static final int NOTIFICATION_ID_PROGRESS = 50630;
 
     // 后台人机验证广播 Action
-    public static final String ACTION_CAPTCHA_RESULT = "com.muxiao.Venus.CAPTCHA_RESULT";
-    public static final String EXTRA_CAPTCHA_SUCCESS = "captcha_success";
-    public static final String EXTRA_CAPTCHA_CODE_JSON = "captcha_code_json";
-    public static final String EXTRA_CAPTCHA_ERROR = "captcha_error";
+    public static final String ACTION_HANDLE_CAPTCHA = "ACTION_HANDLE_CAPTCHA";
 
     public static class Urls {
+        // 国服 URL
         private static final String BASE_URL = "https://api-takumi.mihoyo.com";
         private static final String BBS_BASE_URL = "https://bbs-api.miyoushe.com";
         public static final String WEB_BASE_URL = "https://webstatic.mihoyo.com";
         public static final String ORIGIN_REFERER_URL = "https://act.mihoyo.com";
         public static final String APP_BASE_URL = "https://app.mihoyo.com";
 
+        // 国际服 URL
+        private static final String OS_BASE_URL = "https://api-os-takumi.hoyoverse.com";
+        private static final String OS_BBS_BASE_URL = "https://bbs-api-os.hoyolab.com";
+        public static final String OS_WEB_BASE_URL = "https://webstatic.hoyoverse.com";
+        public static final String OS_ORIGIN_REFERER_URL = "https://act.hoyoverse.com";
+        public static final String OS_APP_BASE_URL = "https://app.hoyolab.com";
+
         public static final String COOKIE_TOKEN_STOKEN_URL = BASE_URL + "/auth/api/getCookieAccountInfoBySToken";
         public static final String ACCOUNT_LIST_URL = BASE_URL + "/binding/api/getUserGameRolesByCookie";
         public static final String GAME_ROLES_URL = "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken";
         public static final String GEN_AUTH_KEY_URL = BASE_URL + "/binding/api/genAuthKey";
+        // 极验验证码：API1获取gt/challenge，API2二次验证
         public static final String GEETEST_API1_URL = BBS_BASE_URL + "/misc/api/createVerification?is_high=true";
         public static final String GEETEST_API2_URL = BBS_BASE_URL + "/misc/api/verifyVerification";
+        // 扫码登录：fetch生成二维码，query轮询扫码状态
         public static final String LOGIN_QR_URL = "https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/fetch";
         public static final String LOGIN_CHECK_URL = "https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/query";
         public static final String STOKEN_URL = BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
+
+        // 国际服登录
+        public static final String OS_LOGIN_QR_URL = "https://hk4e-sdk.hoyoverse.com/hk4e_global/combo/panda/qrcode/fetch";
+        public static final String OS_LOGIN_CHECK_URL = "https://hk4e-sdk.hoyoverse.com/hk4e_global/combo/panda/qrcode/query";
+        public static final String OS_STOKEN_URL = OS_BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
+        public static final String OS_LTOKEN_URL = "https://passport-api.hoyoverse.com/account/auth/api/getLTokenBySToken";
         public static final String LTOKEN_URL = "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken";
         public static final String FP_URL = "https://public-data-api.mihoyo.com/device-fp/api/getFp";
 
@@ -47,8 +63,21 @@ public class Constants {
         public static final String BBS_GAME_FORUM_POST_LIST_TYPE_URL = BBS_BASE_URL + "/forum/api/getImagePostListType";
         public static final String BBS_GAME_HOT_POST_LIST_URL = BBS_BASE_URL + "/painter/api/getHotForumPostList";
 
+        // 国际服 API
+        public static final String OS_COOKIE_TOKEN_STOKEN_URL = OS_BASE_URL + "/auth/api/getCookieAccountInfoBySToken";
+        public static final String OS_ACCOUNT_LIST_URL = OS_BASE_URL + "/binding/api/getUserGameRolesByCookie";
+        public static final String OS_GAME_ROLES_URL = "https://api-os-takumi.hoyoverse.com/binding/api/getUserGameRolesByStoken";
+        public static final String OS_GEN_AUTH_KEY_URL = OS_BASE_URL + "/binding/api/genAuthKey";
+        public static final String OS_FP_URL = "https://public-data-api.hoyoverse.com/device-fp/api/getFp";
+
+        public static final String OS_BBS_TASK_URL = OS_BBS_BASE_URL + "/apihub/sapi/getUserMissionsState";
+        public static final String OS_BBS_SIGN_IN_URL = OS_BBS_BASE_URL + "/apihub/app/api/signIn";
         public static final String YSH_GACHA_URL = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?win_mode=fullscreen&authkey_ver=1&sign_type=2&auth_appid=webview_gacha&init_type=301&lang=zh-cn&region=cn_gf01&authkey=";
         public static final String ZZZ_GACHA_URL = "https://public-operation-nap.mihoyo.com/common/gacha_record/api/getGachaLog?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&win_mode=fullscreen&init_log_gacha_type=2001&init_log_gacha_base_type=2&ui_layout=&button_mode=default&plat_type=3&authkey=";
+
+        // 国际服抽卡链接
+        public static final String OS_YSH_GACHA_URL = "https://public-operation-hk4e.hoyoverse.com/gacha_info/api/getGachaLog?win_mode=fullscreen&authkey_ver=1&sign_type=2&auth_appid=webview_gacha&init_type=301&lang=en-us&region=os_usa&authkey=";
+        public static final String OS_ZZZ_GACHA_URL = "https://public-operation-nap.hoyoverse.com/common/gacha_record/api/getGachaLog?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&win_mode=fullscreen&init_log_gacha_type=2001&init_log_gacha_base_type=2&ui_layout=&button_mode=default&plat_type=3&authkey=";
 
         public static final String MUXIAO_MINE_UPDATE_SALT_URL = "https://muxiaowf.dpdns.org/api/salt";
         public static final String MUXIAO_MINE_UPDATE_LANZOU_URL = "https://wwzq.lanzouq.com/b00wn0dtfe";
@@ -83,12 +112,18 @@ public class Constants {
         public static final String BACKGROUND_TASK_ENABLED = "background_task_enabled"; // 后台运行
         public static final String AUTO_UPDATE_ENABLED = "auto_update_enabled"; // 自动更新
         public static final String SKLAND_ENABLED = "skland_enabled";
+        public static final String SKLAND_ARKNIGHTS_ENABLED = "skland_arknights_enabled";
+        public static final String SKLAND_ENDFIELD_ENABLED = "skland_endfield_enabled";
         public static final String SKLAND_COOKIE = "skland_cookie";
 
         // 主题
         public static final String THEME_PREFS_NAME = "theme_prefs";
         public static final String SELECTED_THEME_VARIANT = "selected_theme_variant";
         public static final String SELECTED_THEME = "selected_theme";
+
+        // 语言
+        public static final String LANGUAGE_PREFS_NAME = "language_prefs";
+        public static final String SELECTED_LANGUAGE = "selected_language";
 
         // 米游社配置
         public static final String CONFIG_PREFS_NAME = "config_prefs";
@@ -111,5 +146,8 @@ public class Constants {
 
         // 后台人机验证标记
         public static final String PREF_CAPTCHA_PENDING = "captcha_pending";
+
+        // 服务器类型
+        public static final String SERVER_TYPE = "server_type"; // 0=国服, 1=国际服
     }
 }

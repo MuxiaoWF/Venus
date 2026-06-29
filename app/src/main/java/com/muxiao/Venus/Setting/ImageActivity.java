@@ -11,7 +11,6 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.view.MotionEvent;
 import android.os.Handler;
 import android.os.Looper;
@@ -52,10 +51,7 @@ import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,6 +61,10 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 图片浏览页：从米游社API加载图片列表（日榜/周榜/月榜/热门/同人/COS），
+ * 支持下载保存到相册和全屏查看。
+ */
 public class ImageActivity extends AppCompatActivity {
     private RecyclerView recyclerView; // 图片列表视图
     private List<Map<String, Object>> imageDataList; // 图片数据列表
@@ -87,7 +87,8 @@ public class ImageActivity extends AppCompatActivity {
     private HeaderManager headerManager;
 
     // UI数据缓存
-    private String[] forumNames; // 游戏名称数组
+    private String[] forumNames; // 游戏内部标识（用于API调用）
+    private String[] forumDisplayNames; // 游戏显示名称（已翻译）
     private Map<String, String> currentForumMap = new HashMap<>(); // 当前游戏的分类映射
     private String currentCategoryId = ""; // 当前分类ID
     private boolean isUpdatingInternal = false; // 是否正在内部更新
@@ -117,13 +118,22 @@ public class ImageActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new GridLayoutManager(this, 2)); // 2列网格布局
         executorService = Executors.newFixedThreadPool(4); // 4个线程的线程池
 
-        // 初始化 HeaderManager
-        headerManager = new HeaderManager(this);
+        // 初始化 HeaderManager（榜单图始终使用国服API）
+        headerManager = new HeaderManager(this, false);
 
         // 设置UI组件
         forumNames = new String[]{"原神", "星铁", "崩坏3", "绝区零", "未定事件簿", "崩坏2", "大别野"};
+        forumDisplayNames = new String[]{
+                getString(R.string.genshin_impact),
+                getString(R.string.star_rail),
+                getString(R.string.honkai_impact_3),
+                getString(R.string.zenless_zone_zero),
+                getString(R.string.tears_of_themis),
+                getString(R.string.honkai_impact_2),
+                getString(R.string.dabieye)
+        };
         MaterialAutoCompleteTextView forumSelector = findViewById(R.id.forumSelector);
-        forumSelector.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, forumNames));
+        forumSelector.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, forumDisplayNames));
 
         // 设置监听器和默认数据
         setupListenersAndLoadData(forumSelector);
@@ -133,7 +143,7 @@ public class ImageActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle("图片浏览");
+            getSupportActionBar().setTitle(getString(R.string.toolbar_image_browse));
         }
 
         // 处理状态栏内边距
@@ -166,7 +176,7 @@ public class ImageActivity extends AppCompatActivity {
             if (isUpdatingInternal) return;
             isUpdatingInternal = true;
             String selectedForum = forumNames[position];
-            forumSelector.setText(selectedForum, false);
+            forumSelector.setText(forumDisplayNames[position], false);
             handleForumSelection(selectedForum, cateSelector, tabLayout);
         });
 
@@ -192,10 +202,9 @@ public class ImageActivity extends AppCompatActivity {
                     pendingTabPosition = tab.getPosition();
                     return;
                 }
-                Map<String, String> params = new HashMap<>() {{
-                    put("forum_id", currentCategoryId);
-                    put("type", String.valueOf(currentListTypes[tab.getPosition()]));
-                }};
+                Map<String, String> params = new HashMap<>();
+                params.put("forum_id", currentCategoryId);
+                params.put("type", String.valueOf(currentListTypes[tab.getPosition()]));
                 loadImages(params);
             }
 
@@ -210,7 +219,7 @@ public class ImageActivity extends AppCompatActivity {
 
         // 加载默认数据
         isUpdatingInternal = true;
-        forumSelector.setText(forumNames[0], false);
+        forumSelector.setText(forumDisplayNames[0], false);
         handleForumSelection(forumNames[0], cateSelector, tabLayout);
     }
 
@@ -218,7 +227,7 @@ public class ImageActivity extends AppCompatActivity {
      * 处理游戏选择
      */
     private void handleForumSelection(String forumName, MaterialAutoCompleteTextView cateSelector, TabLayout tabLayout) {
-        showCustomSnackbar(rootView, this, "加载类型数据中...");
+        showCustomSnackbar(rootView, this, getString(R.string.snack_loading_types));
         
         // 检查游戏分类缓存
         String forumCacheKey = "forum_" + forumName;
@@ -236,7 +245,7 @@ public class ImageActivity extends AppCompatActivity {
             Map<String, String> forumMap = getForum(forumName);
             if (forumMap.isEmpty()) {
                 mainHandler.post(() -> {
-                    show_error_dialog(ImageActivity.this, "获取类型失败");
+                    show_error_dialog(ImageActivity.this, getString(R.string.err_get_type_failed));
                     isUpdatingInternal = false;
                 });
                 return;
@@ -270,7 +279,7 @@ public class ImageActivity extends AppCompatActivity {
      * 处理分类选择
      */
     private void handleCategorySelection(String categoryId, TabLayout tabLayout) {
-        showCustomSnackbar(rootView, this, "加载榜单分类数据中...");
+        showCustomSnackbar(rootView, this, getString(R.string.snack_loading_ranking_categories));
         
         // 检查榜单类型缓存
         String listTypeCacheKey = "listType_" + categoryId;
@@ -305,28 +314,27 @@ public class ImageActivity extends AppCompatActivity {
         for (int serverType : listTypes) {
             switch (serverType) {
                 case 1:
-                    tabLayout.addTab(tabLayout.newTab().setText("日榜"));
+                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_daily)));
                     break;
                 case 2:
-                    tabLayout.addTab(tabLayout.newTab().setText("周榜"));
+                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_weekly)));
                     break;
                 case 3:
-                    tabLayout.addTab(tabLayout.newTab().setText("月榜"));
+                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_monthly)));
                     break;
                 default:
-                    tabLayout.addTab(tabLayout.newTab().setText("热门"));
+                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_hot)));
                     break;
             }
         }
         if (tabLayout.getTabCount() > 0) {
-            int targetPosition = Math.max(pendingTabPosition, 0);
+            int targetPosition = Math.min(Math.max(pendingTabPosition, 0), listTypes.length - 1);
             pendingTabPosition = -1;
             TabLayout.Tab targetTab = tabLayout.getTabAt(targetPosition);
             Objects.requireNonNull(targetTab).select();
-            Map<String, String> params = new HashMap<>() {{
-                put("forum_id", categoryId);
-                put("type", String.valueOf(listTypes[targetPosition]));
-            }};
+            Map<String, String> params = new HashMap<>();
+            params.put("forum_id", categoryId);
+            params.put("type", String.valueOf(listTypes[targetPosition]));
             loadImages(params);
         }
     }
@@ -338,7 +346,7 @@ public class ImageActivity extends AppCompatActivity {
         if (params.equals(lastLoadedParams) || isLoading) return;
 
         isLoading = true;
-        lastLoadedParams = params;
+        lastLoadedParams = new HashMap<>(params);
         
         // 生成缓存键并检查缓存
         String cacheKey = generateCacheKey(params);
@@ -351,26 +359,28 @@ public class ImageActivity extends AppCompatActivity {
             return;
         }
 
-        showCustomSnackbar(rootView, this, "加载中...");
+        showCustomSnackbar(rootView, this, getString(R.string.snack_loading));
 
         executorService.execute(() -> {
             try {
-                if (Objects.equals(params.get("type"), "4")) {
+                // 防御性拷贝，避免修改调用方的 Map
+                Map<String, String> taskParams = new HashMap<>(params);
+                if (Objects.equals(taskParams.get("type"), "4")) {
                     // 热门图片加载
                     Map<String, String> headers = headerManager.get_images_headers();
-                    params.remove("type");
-                    params.put("page", "1");
-                    params.put("last_id", "");
-                    params.put("page_size", "60");
-                    String jsonResponse = tools.sendGetRequest(Constants.Urls.BBS_GAME_HOT_POST_LIST_URL, headers, params);
+                    taskParams.remove("type");
+                    taskParams.put("page", "1");
+                    taskParams.put("last_id", "");
+                    taskParams.put("page_size", "60");
+                    String jsonResponse = tools.sendGetRequest(Constants.Urls.BBS_GAME_HOT_POST_LIST_URL, headers, taskParams);
                     imageDataList = parseImageData(jsonResponse);
                 } else {
                     // 普通图片加载
                     Map<String, String> headers = headerManager.get_images_headers();
-                    params.put("cate_id", "0");
-                    params.put("last_id", "");
-                    params.put("page_size", "60");
-                    String jsonResponse = tools.sendGetRequest(Constants.Urls.BBS_IMAGE_URL, headers, params);
+                    taskParams.put("cate_id", "0");
+                    taskParams.put("last_id", "");
+                    taskParams.put("page_size", "60");
+                    String jsonResponse = tools.sendGetRequest(Constants.Urls.BBS_IMAGE_URL, headers, taskParams);
                     imageDataList = parseImageData(jsonResponse);
                 }
                 
@@ -384,7 +394,7 @@ public class ImageActivity extends AppCompatActivity {
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
-                    show_error_dialog(ImageActivity.this, "加载失败: " + e.getMessage());
+                    show_error_dialog(ImageActivity.this, getString(R.string.err_load_failed, e.getMessage()));
                     isLoading = false;
                 });
             }
@@ -415,7 +425,7 @@ public class ImageActivity extends AppCompatActivity {
                     if (postObject.has("subject") && !postObject.get("subject").isJsonNull())
                         title = postObject.get("subject").getAsString();
                     // 提取作者信息
-                    String author = "未知作者";
+                    String author = getString(R.string.image_unknown_author);
                     if (userObject.has("nickname") && !userObject.get("nickname").isJsonNull())
                         author = userObject.get("nickname").getAsString();
                     // 提取基础信息
@@ -494,7 +504,7 @@ public class ImageActivity extends AppCompatActivity {
      */
     private void downloadImage() {
         if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
-            showCustomSnackbar(rootView, this, "下载完成");
+            showCustomSnackbar(rootView, this, getString(R.string.snack_download_complete));
             exitSelectionMode();
             return;
         }
@@ -508,6 +518,7 @@ public class ImageActivity extends AppCompatActivity {
             List<String> t = (List<String>) currentPostData.get("images");
             currentPostImages = t;
             currentImageIndexInPost = 0;
+            currentPostIndex++;
         }
 
         String imageUrl = Objects.requireNonNull(currentPostImages).get(currentImageIndexInPost);
@@ -539,18 +550,11 @@ public class ImageActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * 保存图片到相册
-     */
     private void saveImageToGallery(Bitmap bitmap, String fileName) {
         try {
-            File venusDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Venus");
-            if (!venusDir.exists()) venusDir.mkdirs();
-            try (OutputStream fos = new FileOutputStream(new File(venusDir, fileName))) {
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-            }
+            tools.saveBitmapToGallery(this, bitmap, fileName);
         } catch (IOException e) {
-            show_error_dialog(this, "保存图片失败：" + e.getMessage());
+            show_error_dialog(this, getString(R.string.err_save_image_failed, e.getMessage()));
         }
     }
 
@@ -592,7 +596,7 @@ public class ImageActivity extends AppCompatActivity {
             if (result.length == 0) result = new int[]{4};
             return result;
         } catch (Exception e) {
-            return new int[0];
+            return new int[]{4};
         }
     }
 
@@ -606,7 +610,7 @@ public class ImageActivity extends AppCompatActivity {
         if (recyclerView.getAdapter() != null)
             recyclerView.getAdapter().notifyItemRangeChanged(0, recyclerView.getAdapter().getItemCount());
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("图片浏览");
+            getSupportActionBar().setTitle(getString(R.string.toolbar_image_browse));
             getSupportActionBar().setHomeAsUpIndicator(null);
         }
     }
@@ -857,7 +861,7 @@ public class ImageActivity extends AppCompatActivity {
             if (selectedItems.isEmpty())
                 exitSelectionMode();
             else if (getSupportActionBar() != null)
-                getSupportActionBar().setTitle(selectedItems.size() + " 项已选择");
+                getSupportActionBar().setTitle(getString(R.string.toolbar_items_selected, selectedItems.size()));
         }
     }
 }

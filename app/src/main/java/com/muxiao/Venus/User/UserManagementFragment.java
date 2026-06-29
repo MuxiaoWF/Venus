@@ -2,6 +2,7 @@ package com.muxiao.Venus.User;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -19,10 +20,15 @@ import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 用户管理页：按服务器类型分组展示用户列表，支持添加/删除/重命名用户、重新登录。
+ * 任务运行时禁止修改用户（防止数据不一致）。
+ */
 public class UserManagementFragment extends Fragment {
 
     {
@@ -48,9 +54,11 @@ public class UserManagementFragment extends Fragment {
         ExtendedFloatingActionButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
         userLoginBtn.setOnClickListener(v -> {
             if (isTaskRunning()) {
-                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法添加用户");
+                showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_add));
             } else {
-                Intent intent = new Intent(getActivity(), UserLoginActivity.class);
+                boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+                Intent intent = new Intent(getActivity(),
+                        isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
                 startActivity(intent);
             }
         });
@@ -72,10 +80,14 @@ public class UserManagementFragment extends Fragment {
      */
     private void refreshUserList() {
         userListContainer.removeAllViews();
-        List<String> users = userManager.getUsernames();
+        // 根据当前服务器类型过滤用户
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+        List<String> users = userManager.getUsernamesByServerType(isOversea);
         // 如果没有用户，显示提示信息
         if (users.isEmpty()) {
             noUserPrompt.setVisibility(View.VISIBLE);
+            String serverName = isOversea ? getString(R.string.server_os) : getString(R.string.server_cn);
+            noUserPrompt.setText(getString(R.string.msg_no_server_user, serverName));
             return;
         }
         // 为每个用户创建新的视图实例
@@ -89,25 +101,27 @@ public class UserManagementFragment extends Fragment {
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
             MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
 
-            userName.setText(username);
+            // 显示用户名和服务器类型
+            String serverType = isOversea ? " [" + getString(R.string.server_os) + "]" : " [" + getString(R.string.server_cn) + "]";
+            userName.setText(username + serverType);
 
             reloginButton.setOnClickListener(v -> {
                 if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重新登录");
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_relogin));
                 else
                     performRelogin(username);
             });
 
             renameButton.setOnClickListener(v -> {
                 if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
                 else
                     showRenameUserDialog(username);
             });
 
             deleteButton.setOnClickListener(v -> {
                 if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_delete));
                 else
                     showDeleteUserDialog(username);
             });
@@ -122,7 +136,7 @@ public class UserManagementFragment extends Fragment {
      * @param oldUsername 旧用户名
      */
     private void showRenameUserDialog(String oldUsername) {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext()).setTitle("重命名用户");
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext()).setTitle(getString(R.string.dialog_rename_user));
 
         final TextInputLayout inputLayout = new TextInputLayout(requireContext());
         final TextInputEditText input = new TextInputEditText(requireContext());
@@ -130,19 +144,19 @@ public class UserManagementFragment extends Fragment {
         inputLayout.addView(input);
         builder.setView(inputLayout);
 
-        builder.setPositiveButton("确定", (dialog, which) -> {
+        builder.setPositiveButton(getString(R.string.btn_ok), (dialog, which) -> {
             if (isTaskRunning()) {
-                showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重命名用户");
+                showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
                 return;
             }
             String newUsername = Objects.requireNonNull(input.getText()).toString().trim();
             if (!newUsername.isEmpty() && !newUsername.equals(oldUsername)) {
                 if (userManager.isUserExists(newUsername))
-                    showCustomSnackbar(requireView(), requireContext(), "用户名已存在");
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_username_exists));
                 else
                     renameUser(oldUsername, newUsername);
             }
-        }).setNegativeButton("取消", (dialog, which) -> dialog.cancel());
+        }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> dialog.cancel());
         builder.show();
     }
 
@@ -153,13 +167,30 @@ public class UserManagementFragment extends Fragment {
      * @param newUsername 新用户名
      */
     private void renameUser(String oldUsername, String newUsername) {
-        // 添加新用户并删除旧用户的方式来实现重命名
+        // 迁移用户数据（SharedPreferences）
+        android.content.SharedPreferences oldPrefs = requireContext()
+                .getSharedPreferences("user_" + oldUsername, Context.MODE_PRIVATE);
+        java.util.Map<String, ?> allData = oldPrefs.getAll();
+        android.content.SharedPreferences.Editor newEditor = requireContext()
+                .getSharedPreferences("user_" + newUsername, Context.MODE_PRIVATE).edit();
+        for (java.util.Map.Entry<String, ?> entry : allData.entrySet()) {
+            Object v = entry.getValue();
+            if (v instanceof String) newEditor.putString(entry.getKey(), (String) v);
+            else if (v instanceof Boolean) newEditor.putBoolean(entry.getKey(), (Boolean) v);
+            else if (v instanceof Integer) newEditor.putInt(entry.getKey(), (Integer) v);
+            else if (v instanceof Long) newEditor.putLong(entry.getKey(), (Long) v);
+            else if (v instanceof Float) newEditor.putFloat(entry.getKey(), (Float) v);
+        }
+        newEditor.apply();
+        oldPrefs.edit().clear().apply();
+
+        // 添加新用户并删除旧用户
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
             userManager.setCurrentUser(newUsername);
         userManager.removeUser(oldUsername);
         refreshUserList();
-        showCustomSnackbar(requireView(), requireContext(), "用户已重命名为: " + newUsername);
+        showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_renamed, newUsername));
     }
 
     /**
@@ -169,17 +200,17 @@ public class UserManagementFragment extends Fragment {
      */
     private void showDeleteUserDialog(String username) {
         if (isTaskRunning()) {
-            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法删除用户");
+            showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_delete));
             return;
         }
         new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("删除用户")
-                .setMessage("确定要删除用户 \"" + username + "\" 吗？此操作无法撤销。")
-                .setPositiveButton("删除", (dialog, which) -> {
+                .setTitle(getString(R.string.dialog_delete_user))
+                .setMessage(getString(R.string.msg_delete_user_confirm, username))
+                .setPositiveButton(getString(R.string.btn_delete), (dialog, which) -> {
                     userManager.removeUser(username);
                     refreshUserList();
-                    showCustomSnackbar(requireView(), requireContext(), "用户已删除: " + username);
-                }).setNegativeButton("取消", (dialog, which) -> dialog.cancel())
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_deleted, username));
+                }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> dialog.cancel())
                 .show();
     }
 
@@ -197,12 +228,14 @@ public class UserManagementFragment extends Fragment {
      */
     private void performRelogin(String username) {
         if (isTaskRunning()) {
-            showCustomSnackbar(requireView(), requireContext(), "任务运行中，无法重新登录");
+            showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_relogin));
             return;
         }
         // 切换到该用户并启动登录活动以刷新cookie
         userManager.setCurrentUser(username);
-        Intent intent = new Intent(getActivity(), UserLoginActivity.class);
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+        Intent intent = new Intent(getActivity(),
+                isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
         intent.putExtra("RELOGIN_MODE", true);
         intent.putExtra("USERNAME", username); // 传递用户名
         startActivity(intent);

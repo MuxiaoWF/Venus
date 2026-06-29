@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
+        android:paddingHorizontal="@dimen/spacing_md"
         android:paddingVertical="@dimen/item_padding_vertical">
 
         <ImageView
@@ -26,7 +26,7 @@
             android:id="@+id/task_name"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="@dimen/spacing_md"
             android:layout_weight="1"
             android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textColor="?attr/colorOnSurface" />
@@ -35,7 +35,7 @@
             android:id="@+id/task_progress"
             android:layout_width="100dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="@dimen/spacing_12"
             android:indeterminate="false"
             android:visibility="gone"
             app:trackThickness="6dp" />

@@ -16,7 +16,7 @@ import java.util.UUID;
 
 public class DeviceUtils {
     private final Context context;
-    public String oaid;
+    public volatile String oaid;
 
     public DeviceUtils(Context context) {
         this.context = context;
@@ -49,7 +49,8 @@ public class DeviceUtils {
             try {
                 Thread.sleep(waitInterval);
             } catch (InterruptedException e) {
-                tools.show_error_dialog(context,e.toString());
+                Thread.currentThread().interrupt();
+                return generateDeviceId();
             }
             waitedTime += waitInterval;
         }
@@ -59,7 +60,8 @@ public class DeviceUtils {
      * 生成设备ID
      */
     private String generateDeviceId() {
-        @SuppressLint("HardwareIds") String namespace = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+        @SuppressLint("HardwareIds") String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+        String namespace = androidId != null ? androidId : "unknown";
         String name = Build.MANUFACTURER + " " + Build.MODEL;
         // Convert namespace to UUID
         UUID namespaceUUID = UUID.nameUUIDFromBytes(namespace.getBytes());
@@ -98,12 +100,8 @@ public class DeviceUtils {
         return new UUID(mostSignificantBits, leastSignificantBits).toString();
     }
 
-    /**
-     * 获取device_fp中的ext_fields参数
-     *
-     * @return ext_fields -String
-     */
     public String getExtFields() {
+        String deviceId = waitForDeviceId();
         Gson gson = new Gson();
         JsonObject jsonObject = new JsonObject();
         jsonObject.addProperty("cpuType", android.os.Build.SUPPORTED_ABIS[0]);
@@ -115,13 +113,13 @@ public class DeviceUtils {
         jsonObject.addProperty("hostname", android.os.Build.HOST);
         jsonObject.addProperty("screenSize", context.getResources().getDisplayMetrics().widthPixels + "x" + context.getResources().getDisplayMetrics().heightPixels);
         jsonObject.addProperty("osVersion", String.valueOf(android.os.Build.VERSION.SDK_INT));
-        jsonObject.addProperty("aaid", waitForDeviceId());
+        jsonObject.addProperty("aaid", deviceId);
         jsonObject.addProperty("vendor", android.os.Build.BRAND);
         jsonObject.addProperty("accelerometer", getSensorInfo("accelerometer"));
         jsonObject.addProperty("buildTags", android.os.Build.TAGS);
         jsonObject.addProperty("model", android.os.Build.MODEL);
         jsonObject.addProperty("brand", android.os.Build.BRAND);
-        jsonObject.addProperty("oaid", waitForDeviceId());
+        jsonObject.addProperty("oaid", deviceId);
         jsonObject.addProperty("hardware", android.os.Build.HARDWARE);
         jsonObject.addProperty("deviceType", android.os.Build.DEVICE);
         jsonObject.addProperty("devId", android.os.Build.VERSION.RELEASE);
@@ -134,7 +132,7 @@ public class DeviceUtils {
         jsonObject.addProperty("ramRemain", String.valueOf(getAvailableRam()));
         jsonObject.addProperty("deviceInfo", android.os.Build.MANUFACTURER + "/" + android.os.Build.DEVICE + "/" + android.os.Build.BOARD + ":" + android.os.Build.VERSION.RELEASE + "/" + android.os.Build.ID + "/" + android.os.Build.VERSION.INCREMENTAL + ":" + android.os.Build.TYPE + "/" + android.os.Build.TAGS);
         jsonObject.addProperty("gyroscope", getSensorInfo("gyroscope"));
-        jsonObject.addProperty("vaid", waitForDeviceId()); // 虚拟广告标识符
+        jsonObject.addProperty("vaid", deviceId);
         jsonObject.addProperty("buildType", android.os.Build.TYPE);
         jsonObject.addProperty("sdkVersion", android.os.Build.VERSION.SDK_INT);
         jsonObject.addProperty("board", android.os.Build.BOARD);

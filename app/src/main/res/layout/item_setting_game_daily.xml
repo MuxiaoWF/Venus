@@ -22,18 +22,17 @@
         android:layout_marginTop="@dimen/spacing_sm"
         android:alpha="0.15"/>
 
-    <com.google.android.flexbox.FlexboxLayout
+    <com.google.android.material.chip.ChipGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_sm"
-        app:alignItems="stretch"
-        app:flexWrap="wrap">
+        app:singleSelection="false">
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/game_daily_checkbox_genshin"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/genshin_impact"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -42,7 +41,7 @@
             android:id="@+id/game_daily_checkbox_zzz"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/zenless_zone_zero"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -51,7 +50,7 @@
             android:id="@+id/game_daily_checkbox_srg"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/star_rail"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -60,7 +59,7 @@
             android:id="@+id/game_daily_checkbox_hr3"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/honkai_impact_3"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -69,7 +68,7 @@
             android:id="@+id/game_daily_checkbox_hr2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/honkai_impact_2"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -78,11 +77,11 @@
             android:id="@+id/game_daily_checkbox_weiding"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="12dp"
+            android:padding="@dimen/spacing_12"
             android:text="@string/tears_of_themis"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
 
-    </com.google.android.flexbox.FlexboxLayout>
+    </com.google.android.material.chip.ChipGroup>
 
 </LinearLayout>

@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -21,23 +22,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 
+/**
+ * 游戏每日签到（原神/星铁/绝区零/崩坏3等）。
+ * 国服：刷新CookieToken → 获取账号列表 → 遍历签到（支持验证码）。
+ * 国际服：直接调用海外签到API（无需验证码，流程更简单）。
+ */
 public class BBSGameDaily {
 
     private static final int MAX_RETRIES = 3;
-    private static final int SIGN_DELAY_MIN_SEC = 2;
-    private static final int SIGN_DELAY_RANGE_SEC = 7;
+    private static final int SIGN_DELAY_MIN_MS = 2000;
+    private static final int SIGN_DELAY_RANGE_MS = 7000;
     private static final int RATE_LIMIT_COOLDOWN_MS = 10_000;
-    private static final Random RANDOM = new Random();
-
-    private void signDelay() throws InterruptedException {
-        Thread.sleep((RANDOM.nextInt(SIGN_DELAY_RANGE_SEC) + SIGN_DELAY_MIN_SEC) * 1000L);
-    }
 
     private final tools.StatusNotifier statusNotifier;
     private final Map<String, String> cookies = new HashMap<>();
     private final String gameName;
+    private final String displayName;
     private final String actId;
     private final List<Map<String, String>> accountList;
     private List<Map<String, Object>> checkinRewards = new ArrayList<>();
@@ -46,54 +47,75 @@ public class BBSGameDaily {
     private final Notification notification;
     private final HeaderManager headerManager;
     private final CaptchaVerificationHelper captchaHelper;
+    private final boolean isOversea;
 
     /**
      * @param gameName 游戏名
      */
     public BBSGameDaily(Context context, String userId, String gameName, tools.StatusNotifier statusNotifier, GeetestController gt3Controller) {
         this.gameName = gameName;
+        this.displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
         this.context = context;
         this.userId = userId;
         this.statusNotifier = statusNotifier;
         this.notification = new Notification(context);
-        this.captchaHelper = new CaptchaVerificationHelper(gt3Controller, statusNotifier, this.notification);
+        this.captchaHelper = new CaptchaVerificationHelper(context, gt3Controller, statusNotifier, this.notification);
         this.headerManager = new HeaderManager(context);
-        this.actId = MiHoYoBBSConstants.name_to_act_id(gameName);
-        String gameId = MiHoYoBBSConstants.name_to_game_id(gameName);
-        switch (gameName) {
-            case "崩坏2":
-                cookies.put("Referer", Constants.Urls.BBS_GAME_BH2_REFERER_URL);
-                break;
-            case "崩坏3":
-                cookies.put("Referer", Constants.Urls.BBS_GAME_BH3_REFERER_URL);
-                break;
-            case "星铁":
-                cookies.put("Origin", Constants.Urls.ORIGIN_REFERER_URL);
-                break;
-            case "原神":
-                cookies.put("Origin", Constants.Urls.ORIGIN_REFERER_URL);
-                cookies.put("x-rpc-signgame", "hk4e");
-                break;
-            case "绝区零":
-                cookies.put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
-                cookies.put("X-Rpc-Signgame", "zzz");
-                break;
-            case "未定事件簿":
-                cookies.put("Referer", Constants.Urls.BBS_GAME_WD_REFERER_URL);
-                break;
-        }
-        String cookieToken = tools.read(context, userId, "cookie_token");
-        if (cookieToken == null)
-            getCookieTokenByStoken();
-        cookies.put("Cookie", cookies.get("Cookie") + ";" + buildGameCookie(tools.read(context, userId, "cookie_token")));
-        this.accountList = getAccountList(gameId);
-        if (!accountList.isEmpty())
+        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
+        this.actId = MiHoYoBBSConstants.name_to_act_id(gameName, isOversea);
+        String gameId = MiHoYoBBSConstants.name_to_game_id(gameName, isOversea);
+        if (isOversea) {
+            // 国际服直接使用保存的cookie，服务器通过cookie识别账号
+            String savedCookie = tools.read(context, userId, "cookie");
+            if (savedCookie != null && !savedCookie.isEmpty()) {
+                cookies.put("Cookie", savedCookie);
+            } else {
+                String cookieToken = tools.read(context, userId, "cookie_token");
+                if (cookieToken == null) getCookieTokenByStoken();
+                cookies.put("Cookie", buildGameCookie(tools.read(context, userId, "cookie_token")));
+            }
+            // 国际服无需获取账号列表，直接签到
+            this.accountList = new ArrayList<>();
             this.checkinRewards = getCheckinRewards();
+        } else {
+            // 国服设置游戏特定头部
+            switch (gameName) {
+                case "崩坏2":
+                    cookies.put("Referer", Constants.Urls.BBS_GAME_BH2_REFERER_URL);
+                    break;
+                case "崩坏3":
+                    cookies.put("Referer", Constants.Urls.BBS_GAME_BH3_REFERER_URL);
+                    break;
+                case "星铁":
+                    cookies.put("Origin", Constants.Urls.ORIGIN_REFERER_URL);
+                    break;
+                case "原神":
+                    cookies.put("Origin", Constants.Urls.ORIGIN_REFERER_URL);
+                    cookies.put("x-rpc-signgame", "hk4e");
+                    break;
+                case "绝区零":
+                    cookies.put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
+                    cookies.put("X-Rpc-Signgame", "zzz");
+                    break;
+                case "未定事件簿":
+                    cookies.put("Referer", Constants.Urls.BBS_GAME_WD_REFERER_URL);
+                    break;
+            }
+            String cookieToken = tools.read(context, userId, "cookie_token");
+            if (cookieToken == null) getCookieTokenByStoken();
+            cookies.put("Cookie", buildGameCookie(tools.read(context, userId, "cookie_token")));
+            this.accountList = getAccountList(gameId);
+            if (!accountList.isEmpty())
+                this.checkinRewards = getCheckinRewards();
+        }
     }
 
     private Map<String, String> getGameLoginHeaders() {
         Map<String, String> gameLoginHeaders = headerManager.get_game_login_headers();
         gameLoginHeaders.putAll(cookies);
+        // 原神和绝区零需要 x-rpc-signgame 头
+        if (gameName.equals("原神")) gameLoginHeaders.put("x-rpc-signgame", "hk4e");
+        if (gameName.equals("绝区零")) gameLoginHeaders.put("x-rpc-signgame", "zzz");
         return gameLoginHeaders;
     }
 
@@ -101,10 +123,20 @@ public class BBSGameDaily {
      * 更新cookieToken
      */
     private String updateCookieToken() {
-        statusNotifier.notifyListeners(gameName + "签到 CookieToken失效，尝试刷新");
-        notification.sendErrorNotification(gameName + "签到", "CookieToken失效，尝试刷新");
+        if (isOversea) {
+            // 国际服cookie无法自动刷新，需重新登录
+            String msg = context.getString(R.string.game_cookie_token_failed);
+            String notifTitle = context.getString(R.string.notif_title_game_sign, displayName);
+            statusNotifier.notifyListeners(notifTitle + " " + msg);
+            notification.sendErrorNotification(notifTitle, msg);
+            throw new RuntimeException(msg);
+        }
+        String notifTitle = context.getString(R.string.notif_title_game_sign, displayName);
+        String taskName = context.getString(R.string.task_name_game_sign_in, displayName);
+        statusNotifier.notifyListeners(notifTitle + " " + context.getString(R.string.game_cookie_token_expired));
+        notification.sendErrorNotification(notifTitle, context.getString(R.string.game_cookie_token_expired));
         String newToken = getCookieTokenByStoken();
-        statusNotifier.notifyListeners(gameName + "签到 CookieToken刷新成功");
+        statusNotifier.notifyListeners(taskName + " " + context.getString(R.string.game_cookie_token_refreshed));
         tools.write(context, userId, "cookie_token", newToken);
         return newToken;
     }
@@ -114,18 +146,23 @@ public class BBSGameDaily {
      */
     public String getCookieTokenByStoken() {
         String stoken = tools.read(context, userId, "stoken");
+        String ltoken = tools.read(context, userId, "ltoken");
         String stuid = tools.read(context, userId, "stuid");
-        if ((stoken == null || stoken.isEmpty()) && (stuid == null || stuid.isEmpty())) {
-            notification.sendErrorNotification(gameName + "签到 出错", "Stoken和Suid为空，无法自动更新CookieToken");
-            throw new RuntimeException("Stoken和Suid为空，无法自动更新CookieToken");
+        String token = stoken != null ? stoken : ltoken;
+        if ((token == null || token.isEmpty()) && (stuid == null || stuid.isEmpty())) {
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_stoken_suid_empty));
+            throw new RuntimeException(context.getString(R.string.game_stoken_suid_empty));
         }
         Map<String, String> gameLoginHeaders = getGameLoginHeaders();
-        gameLoginHeaders.put("Cookie", "stuid=" + stuid + ";stoken=" + stoken + ";mid=" + tools.read(context, userId, "mid"));
-        String response = sendGetRequest(Constants.Urls.COOKIE_TOKEN_STOKEN_URL, gameLoginHeaders, null);
+        String tokenKey = stoken != null ? "stoken" : "ltoken";
+        String mid = tools.read(context, userId, "mid");
+        gameLoginHeaders.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token + (mid != null ? ";mid=" + mid : ""));
+        String cookieTokenUrl = isOversea ? Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL : Constants.Urls.COOKIE_TOKEN_STOKEN_URL;
+        String response = sendGetRequest(cookieTokenUrl, gameLoginHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
         if (res.get("retcode").getAsInt() != 0) {
-            notification.sendErrorNotification(gameName + "签到 出错", "获取CookieToken失败，stoken已失效请重新登录");
-            throw new RuntimeException("获取CookieToken失败,stoken已失效请重新登录以抓取");
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_cookie_token_failed));
+            throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
         }
         tools.write(context, userId, "cookie_token", res.get("data").getAsJsonObject().get("cookie_token").getAsString());
         return res.get("data").getAsJsonObject().get("cookie_token").getAsString();
@@ -138,23 +175,31 @@ public class BBSGameDaily {
      * @return 账号列表List<Map < String, String>>, key为region, uid, nickname.
      */
     protected List<Map<String, String>> getAccountList(String gameId) {
-        String gameName = MiHoYoBBSConstants.game_id_to_name(gameId);
-        statusNotifier.notifyListeners(gameName + "签到 正在获取绑定的账号列表...");
+        return getAccountList(gameId, false);
+    }
+
+    protected List<Map<String, String>> getAccountList(String gameId, boolean retried) {
+        statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.snack_loading));
         Map<String, String> headers = getGameLoginHeaders();
-        String response = sendGetRequest(Constants.Urls.ACCOUNT_LIST_URL, headers, Map.of("game_biz", gameId));
+        String accountListUrl = isOversea ? Constants.Urls.OS_ACCOUNT_LIST_URL : Constants.Urls.ACCOUNT_LIST_URL;
+        String response = sendGetRequest(accountListUrl, headers, Map.of("game_biz", gameId));
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         // CookieToken失效，刷新CookieToken
         if (data.get("retcode").getAsInt() == -100) {
+            if (retried) {
+                statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_cookie_token_failed));
+                throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
+            }
             String newCookie = updateCookieToken();
             if (newCookie == null) {
-                statusNotifier.notifyListeners(gameName + "签到 CookieToken刷新失败，请重新运行");
-                throw new RuntimeException("CookieToken刷新失败，可以重新运行一下每日签到（再次点击运行按钮）");
+                statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_cookie_token_failed));
+                throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
             }
             cookies.put("Cookie", buildGameCookie(newCookie));
-            return getAccountList(gameId);
+            return getAccountList(gameId, true);
         } else if (data.get("retcode").getAsInt() != 0) { //获取账号列表失败
-            statusNotifier.notifyListeners(gameName + "签到 获取账号列表失败");
-            notification.sendErrorNotification(gameName + "签到", "获取账号列表失败");
+            statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_get_accounts_failed));
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_get_accounts_failed));
             return new ArrayList<>();
         } else {   // 获取结果中的账号列表
             List<Map<String, String>> accountList = new ArrayList<>();
@@ -168,7 +213,7 @@ public class BBSGameDaily {
                 accountList.add(accountInfo);
             }
             tools.write(context, userId, gameId + "_user", new Gson().toJson(accountList));
-            statusNotifier.notifyListeners(gameName + "签到 已获取到" + accountList.size() + "个账号");
+            statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_accounts_found, accountList.size()));
             return accountList;
         }
     }
@@ -179,10 +224,18 @@ public class BBSGameDaily {
      * @return 签到奖励列表List<Map < String, Object>>, key为name名称, cnt数量.
      */
     private List<Map<String, Object>> getCheckinRewards() {
-        statusNotifier.notifyListeners(gameName + "签到 正在获取签到奖励列表...");
+        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_getting_rewards));
         for (int i = 0; i < MAX_RETRIES; i++) {
-            String rewards_api = gameName.equals("绝区零") ? Constants.Urls.BBS_GAME_REWARDS_ZZZ_URL : Constants.Urls.BBS_GAME_REWARDS_URL;
-            String response = sendGetRequest(rewards_api, getGameLoginHeaders(), Map.of("lang", "zh-cn", "act_id", actId));
+            String rewards_api;
+            if (isOversea) {
+                rewards_api = MiHoYoBBSConstants.get_event_base_url(gameName) + "/home";
+            } else if (gameName.equals("绝区零")) {
+                rewards_api = Constants.Urls.BBS_GAME_REWARDS_ZZZ_URL;
+            } else {
+                rewards_api = Constants.Urls.BBS_GAME_REWARDS_URL;
+            }
+            String lang = isOversea ? "en-us" : "zh-cn";
+            String response = sendGetRequest(rewards_api, getGameLoginHeaders(), Map.of("lang", lang, "act_id", actId));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (data.get("retcode").getAsInt() == 0) {
                 JsonArray awardsArray = data.getAsJsonObject("data").getAsJsonArray("awards");
@@ -196,14 +249,14 @@ public class BBSGameDaily {
                 }
                 return rewards;
             } else  // 没能成功获取
-                statusNotifier.notifyListeners(gameName + "签到 获取签到奖励列表失败，第" + (i + 1) + "次重试");
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_rewards_retry, i + 1));
             try {
-                signDelay();
+                tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
             } catch (InterruptedException e) {
-                throw new RuntimeException("thread异常" + e);
+                throw new RuntimeException(context.getString(R.string.game_thread_error, e.toString()));
             }
         }
-        statusNotifier.notifyListeners(gameName + "签到 获取签到奖励列表失败，重试次数已达上限");
+        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_rewards_max_retry));
         return new ArrayList<>();
     }
 
@@ -215,39 +268,50 @@ public class BBSGameDaily {
      * @return 签到信息Map<String, Object>, key为is_sign是否已签到, remain_days剩余天数, sign_cnt已签到天数, first_bind是否首次绑定.
      */
     private Map<String, Object> isSign(String region, String uid) {
+        return isSign(region, uid, false);
+    }
+
+    private Map<String, Object> isSign(String region, String uid, boolean retried) {
         Map<String, String> gameLoginHeaders = getGameLoginHeaders();
-        String isSignApi = gameName.equals("绝区零") ? Constants.Urls.BBS_GAME_REWARDS_ZZZ_INFO_URL : Constants.Urls.BBS_GAME_REWARDS_INFO_URL;
-        String response = sendGetRequest(isSignApi, gameLoginHeaders, Map.of("lang", "zh-cn", "act_id", actId, "region", region, "uid", uid));
+        String isSignApi;
+        if (isOversea) {
+            isSignApi = MiHoYoBBSConstants.get_event_base_url(gameName) + "/info";
+        } else if (gameName.equals("绝区零")) {
+            isSignApi = Constants.Urls.BBS_GAME_REWARDS_ZZZ_INFO_URL;
+        } else {
+            isSignApi = Constants.Urls.BBS_GAME_REWARDS_INFO_URL;
+        }
+        String lang = isOversea ? "en-us" : "zh-cn";
+        Map<String, String> params = new java.util.HashMap<>();
+        params.put("lang", lang);
+        params.put("act_id", actId);
+        if (!isOversea) {
+            params.put("region", region);
+            params.put("uid", uid);
+        }
+        String response = sendGetRequest(isSignApi, gameLoginHeaders, params);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        // CookieToken需要刷新
+        // CookieToken需要刷新（仅国服）
         if (data.get("retcode").getAsInt() == -100) {
+            if (isOversea || retried) {
+                notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_cookie_token_failed));
+                throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
+            }
             String newCookie = updateCookieToken();
-            cookies.put("Referer", Constants.Urls.ORIGIN_REFERER_URL);
             cookies.put("Cookie", buildGameCookie(newCookie));
-            return isSign(region, uid);
+            return isSign(region, uid, true);
         } else if (data.get("retcode").getAsInt() != 0) { // 其他错误
-            notification.sendErrorNotification(gameName + "签到 出错", "获取账号签到信息失败");
-            throw new RuntimeException("BBS Cookie Errror" + "获取账号签到信息失败！" + response);
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_sign_info_failed));
+            throw new RuntimeException(context.getString(R.string.game_sign_info_failed) + response);
         }
         Map<String, Object> resultMap = new HashMap<>();
         JsonObject dataObject = data.getAsJsonObject("data");
-        // 解析结果
-        for (Map.Entry<String, JsonElement> entry : dataObject.entrySet()) {
-            JsonElement value = entry.getValue();
-            if (value.isJsonPrimitive()) {
-                if (value.getAsJsonPrimitive().isNumber())
-                    resultMap.put(entry.getKey(), value.getAsNumber());
-                else if (value.getAsJsonPrimitive().isBoolean())
-                    resultMap.put(entry.getKey(), value.getAsBoolean());
-                else
-                    resultMap.put(entry.getKey(), value.getAsString());
-            } else if (value.isJsonObject())
-                resultMap.put(entry.getKey(), value.getAsJsonObject().toString());
-            else if (value.isJsonArray())
-                resultMap.put(entry.getKey(), value.getAsJsonArray().toString());
-            else
-                resultMap.put(entry.getKey(), value.toString());
-        }
+        if (dataObject.has("is_sign") && !dataObject.get("is_sign").isJsonNull())
+            resultMap.put("is_sign", dataObject.get("is_sign").getAsBoolean());
+        if (dataObject.has("total_sign_day") && !dataObject.get("total_sign_day").isJsonNull())
+            resultMap.put("total_sign_day", dataObject.get("total_sign_day").getAsInt());
+        if (dataObject.has("first_bind") && !dataObject.get("first_bind").isJsonNull())
+            resultMap.put("first_bind", dataObject.get("first_bind").getAsBoolean());
         return resultMap;
     }
 
@@ -258,7 +322,19 @@ public class BBSGameDaily {
      * @return 签到结果String
      */
     private String checkIn(Map<String, String> account) throws Exception {
-        String signApi = gameName.equals("绝区零") ? Constants.Urls.BBS_GAME_REWARDS_ZZZ_SIGN_URL : Constants.Urls.BBS_GAME_REWARDS_SIGN_URL;
+        String signApi;
+        if (isOversea) {
+            signApi = MiHoYoBBSConstants.get_event_base_url(gameName) + "/sign";
+        } else if (gameName.equals("绝区零")) {
+            signApi = Constants.Urls.BBS_GAME_REWARDS_ZZZ_SIGN_URL;
+        } else {
+            signApi = Constants.Urls.BBS_GAME_REWARDS_SIGN_URL;
+        }
+        if (isOversea) {
+            // 国际服：简单签到，无验证码，无重试
+            return sendPostRequest(signApi, getGameLoginHeaders(), Map.of("act_id", actId));
+        }
+        // 国服：带验证码和重试的签到流程
         String response = "";
         for (int i = 1; i <= MAX_RETRIES; i++) {
             Map<String, String> gameLoginHeader = getGameLoginHeaders();
@@ -267,26 +343,34 @@ public class BBSGameDaily {
                 gameLoginHeader.putAll(captchaHelper.getGeetCode());
             response = sendPostRequest(signApi, gameLoginHeader, Map.of("act_id", actId, "region", Objects.requireNonNull(account.get("region")), "uid", Objects.requireNonNull(account.get("game_uid"))));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-            if (data.get("retcode").getAsInt() == 429) {
+            if (data.get("retcode").getAsInt() == 429) { // 429 = 请求频率限制
                 Thread.sleep(RATE_LIMIT_COOLDOWN_MS);
-                notification.sendErrorNotification(gameName + "签到 出错", "请求过于频繁(429)，即将重试");
-                statusNotifier.notifyListeners(gameName + "签到 请求过于频繁(429)，即将重试");
+                notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_rate_limited));
+                statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_rate_limited));
                 continue;
             }
             // 触发验证码
             if (data.get("retcode").getAsInt() == 0 && data.getAsJsonObject("data").get("success").getAsInt() == 1) {
                 Map<String, String> recordHeaders = headerManager.get_record_headers();
-                recordHeaders.put("Cookie", "ltuid=" + tools.read(context, userId, "stuid") + ";ltoken=" + tools.read(context, userId, "stoken")
-                        + ";ltoken_v2=" + tools.read(context, userId, "stoken") + ";ltuid_v2=" + tools.read(context, userId, "stuid")
-                        + ";account_id=" + tools.read(context, userId, "stuid")
-                        + ";account_id_v2=" + tools.read(context, userId, "stuid") + ";ltuid=" + tools.read(context, userId, "stuid")
-                        + ";account_mid_v2=" + tools.read(context, userId, "mid") + ";cookie_token=" + tools.read(context, userId, "cookie_token")
-                        + ";cookie_token_v2=" + tools.read(context, userId, "cookie_token") + ";mi18nLang=zh-cn;login_ticket=" + tools.read(context, userId, "login_ticket"));
+                String stuid = tools.read(context, userId, "stuid");
+                String stoken = tools.read(context, userId, "stoken");
+                String mid = tools.read(context, userId, "mid");
+                String cookieToken = tools.read(context, userId, "cookie_token");
+                String loginTicket = tools.read(context, userId, "login_ticket");
+                recordHeaders.put("Cookie", "ltuid=" + stuid + ";ltoken=" + stoken
+                        + ";ltoken_v2=" + stoken + ";ltuid_v2=" + stuid
+                        + ";account_id=" + stuid
+                        + ";account_id_v2=" + stuid
+                        + ";account_mid_v2=" + mid + ";cookie_token=" + cookieToken
+                        + ";cookie_token_v2=" + cookieToken + ";mi18nLang=zh-cn;login_ticket=" + loginTicket);
                 // 触发验证码验证
-                notification.sendErrorNotification(gameName + "签到 出错", "需要进行人机验证");
-                statusNotifier.notifyListeners(gameName + "签到 需要进行人机验证...");
-                captchaHelper.performVerificationWithCallback(recordHeaders, gameName + "签到");
+                notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_captcha_needed));
+                statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_captcha_needed));
+                captchaHelper.performVerificationWithCallback(recordHeaders, context.getString(R.string.task_name_game_sign_in, displayName));
                 captchaHelper.waitForCompletion();
+                if (captchaHelper.getGeetCode() == null) {
+                    throw new RuntimeException(context.getString(R.string.geetest_captcha_failed_network));
+                }
             } else
                 break;
         }
@@ -296,67 +380,118 @@ public class BBSGameDaily {
     /**
      * 签到(最开始的)
      */
-    public void run() {
+    public void run() throws Exception {
+        if (isOversea) {
+            runOversea();
+        } else {
+            runChina();
+        }
+    }
+
+    /**
+     * 国际服签到流程：无需账号列表，直接签到
+     */
+    private void runOversea() throws Exception {
+        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.snack_loading));
+        tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
+        Map<String, Object> isData = isSign("", "");
+        if (isData.get("first_bind") != null && (Boolean) Objects.requireNonNull(isData.get("first_bind"))) {
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_first_bind));
+            statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_first_bind));
+            return;
+        }
+        int signDays = isData.get("total_sign_day") != null ? ((Number) Objects.requireNonNull(isData.get("total_sign_day"))).intValue() - 1 : 0;
+        if (isData.get("is_sign") != null && (Boolean) isData.get("is_sign")) {
+            statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_already_signed));
+            signDays += 1;
+        } else {
+            tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
+            String req = checkIn(null);
+            JsonObject data = JsonParser.parseString(req).getAsJsonObject();
+            if (data.get("retcode").getAsInt() == 0) {
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_sign_success));
+                signDays += 2;
+            } else if (data.get("retcode").getAsInt() == -5003) {
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_already_signed));
+                signDays += 1;
+            } else {
+                String message = data.has("message") ? data.get("message").getAsString() : context.getString(R.string.bbs_unknown_error);
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_sign_failed, message + " (retcode=" + data.get("retcode").getAsInt() + ")"));
+                notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_sign_failed, message));
+                return;
+            }
+        }
+        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_consecutive_days, signDays));
+        if (signDays > 0 && signDays <= checkinRewards.size()) {
+            statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_today_reward, checkinRewards.get(signDays - 1).get("name"), checkinRewards.get(signDays - 1).get("cnt")));
+        }
+    }
+
+    /**
+     * 国服签到流程：需要账号列表，支持验证码
+     */
+    private void runChina() throws Exception {
         if (accountList.isEmpty()) {
-            notification.sendErrorNotification(gameName + "签到 出错", "没有绑定任何账号");
-            statusNotifier.notifyListeners(gameName + "签到 失败，没有绑定任何账号，请先绑定");
+            notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), context.getString(R.string.game_no_accounts));
+            statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.game_no_accounts));
             return;
         }
         String playerName = MiHoYoBBSConstants.game_to_role(gameName);
-        statusNotifier.notifyListeners(gameName + "签到 开始执行，共" + accountList.size() + "个账号");
-        try {
-            for (Map<String, String> account : accountList) {
-                signDelay();
-                Map<String, Object> isData = isSign(account.get("region"), account.get("game_uid"));
-                if (isData.get("first_bind") != null && (Boolean) Objects.requireNonNull(isData.get("first_bind"))) {
-                    notification.sendErrorNotification(gameName + "签到 出错", account.get("nickname") + "是第一次绑定，请先手动签到一次");
-                    statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "是第一次绑定，请先手动签到一次");
-                    continue;
-                }
-                int signDays = ((Number) Objects.requireNonNull(isData.get("total_sign_day"))).intValue() - 1;
-                if ((Boolean) Objects.requireNonNull(isData.get("is_sign"))) {
-                    statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "今日已签到");
-                    signDays += 1;
-                } else {
-                    signDelay();
-                    String req = checkIn(account);
-                    JsonObject data = JsonParser.parseString(req).getAsJsonObject();
-                    if (data.get("retcode").getAsInt() != 429) {
-                        if (data.get("retcode").getAsInt() == 0 && data.getAsJsonObject("data").get("success").getAsInt() == 0) {
-                            statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "签到成功");
-                            signDays += 2;
-                        } else if (data.get("retcode").getAsInt() == -5003) {
-                            statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "今日已签到");
-                        } else {
-                            String message = data.has("message") ? data.get("message").getAsString() : "未知错误";
-                            int retcode = data.get("retcode").getAsInt();
-                            boolean needCaptcha = !data.get("data").isJsonNull()
-                                    && data.getAsJsonObject("data").has("success")
-                                    && data.getAsJsonObject("data").get("success").getAsInt() != 0;
-                            String reason = needCaptcha ? "触发验证码" : message + " (retcode=" + retcode + ")";
-                            statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "签到失败: " + reason);
-                            notification.sendErrorNotification(gameName + "签到 出错", playerName + account.get("nickname") + "签到失败: " + reason);
-                            continue;
-                        }
+        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_start_with_accounts, accountList.size()));
+        for (Map<String, String> account : accountList) {
+            tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
+            Map<String, Object> isData = isSign(account.get("region"), account.get("game_uid"));
+            if (isData.get("first_bind") != null && (Boolean) Objects.requireNonNull(isData.get("first_bind"))) {
+                notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), account.get("nickname") + context.getString(R.string.game_first_bind));
+                statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_first_bind));
+                continue;
+            }
+            int signDays = isData.get("total_sign_day") != null ? ((Number) Objects.requireNonNull(isData.get("total_sign_day"))).intValue() - 1 : 0;
+            if (isData.get("is_sign") != null && (Boolean) isData.get("is_sign")) {
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_already_signed));
+                signDays += 1;
+            } else {
+                tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
+                String req = checkIn(account);
+                JsonObject data = JsonParser.parseString(req).getAsJsonObject();
+                if (data.get("retcode").getAsInt() != 429) {
+                    if (data.get("retcode").getAsInt() == 0 && data.getAsJsonObject("data").get("success").getAsInt() == 0) {
+                        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_sign_success));
+                        signDays += 2;
+                    } else if (data.get("retcode").getAsInt() == -5003) {
+                        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_already_signed));
+                        signDays += 1;
                     } else {
-                        statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "签到失败: 请求过于频繁(429)");
+                        String message = data.has("message") ? data.get("message").getAsString() : context.getString(R.string.bbs_unknown_error);
+                        int retcode = data.get("retcode").getAsInt();
+                        boolean needCaptcha = !data.get("data").isJsonNull()
+                                && data.getAsJsonObject("data").has("success")
+                                && data.getAsJsonObject("data").get("success").getAsInt() != 0;
+                        String reason = needCaptcha ? context.getString(R.string.game_sign_captcha_triggered) : message + " (retcode=" + retcode + ")";
+                        statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_sign_failed, reason));
+                        notification.sendErrorNotification(context.getString(R.string.notif_title_game_sign, displayName), playerName + account.get("nickname") + context.getString(R.string.game_sign_failed, reason));
                         continue;
                     }
-                }
-                statusNotifier.notifyListeners(gameName + "签到 " + playerName + account.get("nickname") + "已连续签到" + signDays + "天");
-                if (signDays > 0 && signDays <= checkinRewards.size()) {
-                    statusNotifier.notifyListeners(gameName + "签到 今日奖励: " + checkinRewards.get(signDays - 1).get("name") + "×" + checkinRewards.get(signDays - 1).get("cnt"));
+                } else {
+                    statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_sign_failed_rate_limit));
+                    continue;
                 }
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e.toString());
+            statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + playerName + account.get("nickname") + context.getString(R.string.game_consecutive_days, signDays));
+            if (signDays > 0 && signDays <= checkinRewards.size()) {
+                statusNotifier.notifyListeners(context.getString(R.string.task_name_game_sign_in, displayName) + " " + context.getString(R.string.game_today_reward, checkinRewards.get(signDays - 1).get("name"), checkinRewards.get(signDays - 1).get("cnt")));
+            }
         }
     }
 
     private String buildGameCookie(String cookieToken) {
-        return "cookie_token=" + cookieToken
-                + ";ltoken=" + tools.read(context, userId, "ltoken")
-                + ";ltuid=" + tools.read(context, userId, "stuid")
-                + ";account_id=" + tools.read(context, userId, "stuid");
+        String ltoken = tools.read(context, userId, "ltoken");
+        String stuid = tools.read(context, userId, "stuid");
+        StringBuilder sb = new StringBuilder();
+        sb.append("cookie_token=").append(cookieToken);
+        if (ltoken != null) sb.append(";ltoken=").append(ltoken);
+        sb.append(";ltuid=").append(stuid);
+        sb.append(";account_id=").append(stuid);
+        return sb.toString();
     }
 }

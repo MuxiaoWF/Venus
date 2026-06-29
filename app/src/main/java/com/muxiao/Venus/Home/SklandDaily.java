@@ -13,6 +13,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.DeviceUtils;
 import com.muxiao.Venus.common.tools;
 
@@ -23,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -38,7 +40,15 @@ import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+/**
+ * 森空岛签到（明日方舟/终末地）。
+ * 流程：grant获取code → 生成cred → 获取绑定角色 → 遍历签到。
+ * 使用 HMAC-SHA256 + MD5 签名，设备指纹通过 DES/AES/RSA 加密生成。
+ */
 public class SklandDaily {
+    public static final int GAME_ARKNIGHTS = 1;
+    public static final int GAME_ENDFIELD = 3;
+    // 森空岛应用标识
     private static final String APP_CODE = "4ca99fa6b56cc2ba";
     private static final String SKLAND_USER_AGENT = "Skland/1.9.0 (com.hypergryph.skland; build:100001014; Android 35; ) Okhttp/4.11.0";
     private static final String URL_GRANT = "https://as.hypergryph.com/user/oauth2/v2/grant";
@@ -46,41 +56,58 @@ public class SklandDaily {
     private static final String URL_BIND = "https://zonai.skland.com/api/v1/game/player/binding";
     private static final String URL_SIGN_ARKNIGHTS = "https://zonai.skland.com/api/v1/game/attendance";
     private static final String URL_SIGN_ENDFIELD = "https://zonai.skland.com/web/v1/game/endfield/attendance";
+    // 设备指纹加密用的 RSA 公钥
     private static final String SM_PUBKEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCmxMNr7n8ZeT0tE1R9j/mPixoinPkeM+k4VGIn/s0k7N5rJAfnZ0eMER+QhwFvshzo0LNmeUkpR8uIlU/GEVr8mN28sKmwd2gpygqj0ePnBmOW4v0ZVwbSYK+izkhVFk2V/doLoMbWy6b+UnA8mkjvg0iYWRByfRsK2gdl7llqCwIDAQAB";
     private final tools.StatusNotifier notifier;
     private final Context context;
     private final String token;
-    private static String deviceID;
+    private final int gameId;
+    private final String deviceID;
 
-    public SklandDaily(Context context, tools.StatusNotifier notifier) {
+    public SklandDaily(Context context, tools.StatusNotifier notifier, int gameId) {
         this.context = context;
         this.token = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE).getString(SKLAND_COOKIE, "");
         if (token.isEmpty())
-            throw new RuntimeException("森空岛content未设置");
+            throw new RuntimeException(context.getString(R.string.skland_content_not_set));
         this.notifier = notifier;
+        this.gameId = gameId;
         DeviceUtils deviceUtils = new DeviceUtils(context);
         deviceID = deviceUtils.waitForDeviceId();
+        if (deviceID == null || deviceID.isEmpty()) {
+            throw new RuntimeException("获取设备ID失败(deviceID is null)，请检查权限或重启应用");
+        }
     }
 
     public void run() throws Exception {
-        notifier.notifyListeners("森空岛签到 开始执行");
+        notifier.notifyListeners(context.getString(R.string.skland_start));
         Cred cred = getCredByToken(token);
-        notifier.notifyListeners("森空岛签到 获取认证信息成功");
+        notifier.notifyListeners(context.getString(R.string.skland_cred_success));
         List<Role> roles = getRoles(cred);
-        notifier.notifyListeners("森空岛签到 获取角色列表成功，共找到 " + roles.size() + " 个角色");
+        android.util.Log.d("SklandDaily", "all roles: " + roles.size() + ", target gameId=" + gameId);
+        for (Role r : roles) android.util.Log.d("SklandDaily", "  role: " + r.name + " gameId=" + r.gameId + " uid=" + r.uid + " serverId=" + r.serverId);
+        // 按 gameId 过滤角色
+        Iterator<Role> it = roles.iterator();
+        while (it.hasNext()) {
+            if (it.next().gameId != gameId) it.remove();
+        }
+        if (roles.isEmpty()) {
+            notifier.notifyListeners(context.getString(R.string.skland_no_roles));
+            return;
+        }
+        notifier.notifyListeners(context.getString(R.string.skland_roles_found, roles.size()));
         int currentRoleIndex = 0;
         for (Role r : roles) {
             currentRoleIndex++;
-            notifier.notifyListeners("森空岛签到 正在为角色 [" + r.name + "] (" + currentRoleIndex + "/" + roles.size() + ") 执行签到...");
+            notifier.notifyListeners(context.getString(R.string.skland_signing_role, r.name, currentRoleIndex, roles.size()));
             doSign(cred, r);
         }
-        notifier.notifyListeners("森空岛签到 全部角色签到完成");
+        notifier.notifyListeners(context.getString(R.string.skland_all_done));
     }
 
     /**
      * 获取特殊的设备ID
      */
-    private static Cred getCredByToken(String token) throws Exception {
+    private Cred getCredByToken(String token) throws Exception {
         // 获取设备ID
         Map<String, String> headers = Map.of(
                 "User-Agent", SKLAND_USER_AGENT,
@@ -96,7 +123,7 @@ public class SklandDaily {
         String grant = sendPostRequest(URL_GRANT, headers, signBase);
         JsonObject g = JsonParser.parseString(grant).getAsJsonObject();
         if (g.get("status").getAsInt() != 0)
-            throw new RuntimeException("grant 失败：" + g.get("msg").getAsString());
+            throw new RuntimeException(context.getString(R.string.skland_grant_failed, g.get("msg").getAsString()));
         String code = g.getAsJsonObject("data").get("code").getAsString();
         Map<String, Object> cred = Map.of("code", code, "kind", 1);
         String credResp = sendPostRequest(URL_CRED, headers, cred);
@@ -125,25 +152,40 @@ public class SklandDaily {
         headers.put("vName", signBase.get("vName"));
         headers.put("sign", sig.get("sign"));
         String resp = sendGetRequest(URL_BIND, headers, null);
+        android.util.Log.d("SklandDaily", "binding response: " + resp);
         JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
         if (j.get("code").getAsInt() != 0)
             throw new RuntimeException(j.get("message").getAsString());
         List<Role> list = new ArrayList<>();
-        for (JsonElement e : j.getAsJsonObject("data").getAsJsonArray("list")) {
+        JsonArray bindList = j.getAsJsonObject("data").getAsJsonArray("list");
+        if (bindList == null) return list;
+        for (JsonElement e : bindList) {
             JsonObject o = e.getAsJsonObject();
-            for (JsonElement b : o.getAsJsonArray("bindingList")) {
+            String appCode = o.has("appCode") && !o.get("appCode").isJsonNull() ? o.get("appCode").getAsString() : "";
+            JsonArray bindingArr = o.getAsJsonArray("bindingList");
+            if (bindingArr == null) continue;
+            for (JsonElement b : bindingArr) {
                 JsonObject r = b.getAsJsonObject();
-                if ("arknights".equals(o.get("appCode").getAsString())) {
-                    list.add(new Role(r.get("uid").getAsString(), r.get("nickName").getAsString(), r.get("gameId").getAsInt()));
-                } else {
+                if ("arknights".equals(appCode)) {
+                    if (r.has("uid") && r.has("nickName") && r.has("gameId"))
+                        list.add(new Role(r.get("uid").getAsString(), r.get("nickName").getAsString(), r.get("gameId").getAsInt()));
+                } else if (r.has("roles") && !r.get("roles").isJsonNull()) {
+                    int gid = r.has("gameId") ? r.get("gameId").getAsInt() : 0;
                     for (JsonElement r1 : r.getAsJsonArray("roles")) {
                         JsonObject r2o = r1.getAsJsonObject();
-                        list.add(new Role(r2o.get("roleId").getAsString(), r2o.get("nickname").getAsString(), r.get("gameId").getAsInt(), r2o.get("serverId").getAsString()));
+                        if (r2o.has("roleId") && r2o.has("nickname"))
+                            list.add(new Role(r2o.get("roleId").getAsString(), r2o.get("nickname").getAsString(), gid, r2o.has("serverId") ? r2o.get("serverId").getAsString() : ""));
                     }
                 }
             }
         }
         return list;
+    }
+
+    private String getTaskName() {
+        return gameId == GAME_ARKNIGHTS
+                ? context.getString(R.string.task_name_skland_arknights)
+                : context.getString(R.string.task_name_skland_endfield);
     }
 
     /**
@@ -155,8 +197,9 @@ public class SklandDaily {
         signBase.put("timestamp", "");
         signBase.put("dId", "");
         signBase.put("vName", "");
+        String taskName = getTaskName();
         try {
-            if (role.gameId != 1) {
+            if (role.gameId == GAME_ENDFIELD) {
                 Map<String, String> t = generateSignature(cred.token, "/web/v1/game/endfield/attendance", "{}", signBase);
                 Map<String, String> headers = createSignHeaders(cred, signBase, t);
                 headers.put("Content-Type", "application/json");
@@ -164,16 +207,22 @@ public class SklandDaily {
                 headers.put("referer", "https://game.skland.com/");
                 headers.put("origin", "https://game.skland.com/");
                 String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
+                android.util.Log.d("SklandDaily", "endfield sign response: " + resp);
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
-                    JsonArray awardids = j.getAsJsonObject("data").getAsJsonArray("awardIds");
-                    for (JsonElement awardid : awardids) {
-                        String id = awardid.getAsJsonObject().get("id").getAsString();
-                        JsonObject r1 = j.getAsJsonObject("data").getAsJsonObject("resourceInfoMap").getAsJsonObject(id);
-                        notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到成功，获得了" + r1.get("name").getAsString() + "×" + r1.get("count").getAsInt());
+                    JsonObject data = j.getAsJsonObject("data");
+                    JsonArray awardids = data.getAsJsonArray("awardIds");
+                    JsonObject resMap = data.getAsJsonObject("resourceInfoMap");
+                    if (awardids != null && resMap != null) {
+                        for (JsonElement awardid : awardids) {
+                            String id = awardid.getAsJsonObject().get("id").getAsString();
+                            JsonObject r1 = resMap.getAsJsonObject(id);
+                            if (r1 != null)
+                                notifier.notifyListeners(taskName + " [" + role.name + "] " + context.getString(R.string.skland_sign_success, r1.get("name").getAsString() + "×" + r1.get("count").getAsInt()));
+                        }
                     }
                 } else {
-                    notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到失败: " + j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")");
+                    notifier.notifyListeners(taskName + " [" + role.name + "] " + context.getString(R.string.skland_sign_failed, j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")"));
                 }
             } else {
                 Map<String, Object> body = new HashMap<>();
@@ -182,21 +231,26 @@ public class SklandDaily {
                 Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
                 Map<String, String> headers = createSignHeaders(cred, signBase, t);
                 String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
+                android.util.Log.d("SklandDaily", "arknights sign response: " + resp);
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
-                    JsonArray awards = j.getAsJsonObject("data").getAsJsonArray("awards");
-                    for (JsonElement award : awards) {
-                        JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
-                        int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
-                        notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到成功，获得了" + resource.get("name").getAsString() + "×" + count);
+                    JsonObject data = j.getAsJsonObject("data");
+                    JsonArray awards = data != null ? data.getAsJsonArray("awards") : null;
+                    if (awards != null) {
+                        for (JsonElement award : awards) {
+                            JsonObject resource = award.getAsJsonObject().getAsJsonObject("resource");
+                            int count = award.getAsJsonObject().has("count") ? award.getAsJsonObject().get("count").getAsInt() : 1;
+                            if (resource != null)
+                                notifier.notifyListeners(taskName + " [" + role.name + "] " + context.getString(R.string.skland_sign_success, resource.get("name").getAsString() + "×" + count));
+                        }
                     }
                 } else {
-                    notifier.notifyListeners("森空岛签到 [" + role.name + "] 签到失败: " + j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")");
+                    notifier.notifyListeners(taskName + " [" + role.name + "] " + context.getString(R.string.skland_sign_failed, j.get("message").getAsString() + " (retcode=" + j.get("code").getAsInt() + ")"));
                 }
             }
         } catch (RuntimeException e) {
             if (e.getMessage() != null && e.getMessage().contains("403")) {
-                tools.writeLog(context, "森空岛签到 [" + role.name + "] 今日已签到（重复签到）");
+                tools.writeLog(context, taskName + " [" + role.name + "] " + context.getString(R.string.skland_already_signed));
             } else {
                 throw e;
             }
@@ -233,11 +287,11 @@ public class SklandDaily {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(token.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         byte[] hmacBytes = mac.doFinal(signatureBase.getBytes(StandardCharsets.UTF_8));
-        String hexS = bytesToHex(hmacBytes);   // 64 字符 ASCII
+        String hexS = tools.bytesToHex(hmacBytes);
         MessageDigest md5 = MessageDigest.getInstance("MD5");
         byte[] md5Bytes = md5.digest(hexS.getBytes(StandardCharsets.UTF_8));
         Map<String, String> result = new HashMap<>();
-        result.put("sign", bytesToHex(md5Bytes));
+        result.put("sign", tools.bytesToHex(md5Bytes));
         result.put("timestamp", String.valueOf(timestamp));
         return result;
     }
@@ -245,7 +299,7 @@ public class SklandDaily {
     /**
      * 获取 did
      */
-    private static String getDid() throws Exception {
+    private String getDid() throws Exception {
         byte[] uid = deviceID.getBytes();
         String pri = md5(uid).substring(0, 16);
         String ep = rsa(uid);
@@ -285,12 +339,11 @@ public class SklandDaily {
         String tnValue = tn(desTarget);
         desTarget.put("tn", md5(tnValue.getBytes()));
 
-        // 应用DES加密
         Map<String, Object> encryptedData = _DES(desTarget);
         ByteArrayOutputStream b = new ByteArrayOutputStream();
-        GZIPOutputStream g = new GZIPOutputStream(b);
-        g.write(new Gson().toJson(encryptedData).getBytes(StandardCharsets.UTF_8));
-        g.close();
+        try (GZIPOutputStream g = new GZIPOutputStream(b)) {
+            g.write(new Gson().toJson(encryptedData).getBytes(StandardCharsets.UTF_8));
+        }
         byte[] gz = android.util.Base64.encode(b.toByteArray(), android.util.Base64.NO_WRAP);
         String aes = aes(gz, pri);
 
@@ -313,7 +366,7 @@ public class SklandDaily {
     private static Map<String, Object> _DES(Map<String, Object> obj) throws Exception {
         Map<String, Object> result = new HashMap<>();
 
-        Map<String, DesRule> desRules = getDesRules();
+        Map<String, DesRule> desRules = DES_RULES;
 
         for (String key : obj.keySet()) {
             if (desRules.containsKey(key)) {
@@ -377,7 +430,7 @@ public class SklandDaily {
         return sb.toString();
     }
 
-    private static String smid() throws Exception {
+    private String smid() throws Exception {
         Calendar cal = Calendar.getInstance();
         String t = String.format(java.util.Locale.getDefault(), "%d%02d%02d%02d%02d%02d",
                 cal.get(Calendar.YEAR),
@@ -407,50 +460,40 @@ public class SklandDaily {
         c.init(Cipher.ENCRYPT_MODE,
                 new SecretKeySpec(k.getBytes(), "AES"),
                 new IvParameterSpec("0102030405060708".getBytes()));
-        return bytesToHex(c.doFinal(d));
+        return tools.bytesToHex(c.doFinal(d));
     }
 
     private static String md5(byte[] d) throws Exception {
-        return bytesToHex(MessageDigest.getInstance("MD5").digest(d));
+        return tools.bytesToHex(MessageDigest.getInstance("MD5").digest(d));
     }
 
-    private static String bytesToHex(byte[] b) {
-        StringBuilder sb = new StringBuilder(b.length * 2);
-        for (byte v : b) {
-            sb.append(String.format("%02x", v & 0xff));
-        }
-        return sb.toString();
-    }
-
-    // 获取DES规则
-    private static Map<String, DesRule> getDesRules() {
-        Map<String, DesRule> rules = new HashMap<>();
-        rules.put("appId", new DesRule(1, "uy7mzc4h", "xx"));
-        rules.put("box", new DesRule(0, "", "jf"));
-        rules.put("canvas", new DesRule(1, "snrn887t", "yk"));
-        rules.put("clientSize", new DesRule(1, "cpmjjgsu", "zx"));
-        rules.put("organization", new DesRule(1, "78moqjfc", "dp"));
-        rules.put("os", new DesRule(1, "je6vk6t4", "pj"));
-        rules.put("platform", new DesRule(1, "pakxhcd2", "gm"));
-        rules.put("plugins", new DesRule(1, "v51m3pzl", "kq"));
-        rules.put("pmf", new DesRule(1, "2mdeslu3", "vw"));
-        rules.put("protocol", new DesRule(0, "", "protocol"));
-        rules.put("referer", new DesRule(1, "y7bmrjlc", "ab"));
-        rules.put("res", new DesRule(1, "whxqm2a7", "hf"));
-        rules.put("rtype", new DesRule(1, "x8o2h2bl", "lo"));
-        rules.put("sdkver", new DesRule(1, "9q3dcxp2", "sc"));
-        rules.put("status", new DesRule(1, "2jbrxxw4", "an"));
-        rules.put("subVersion", new DesRule(1, "eo3i2puh", "ns"));
-        rules.put("svm", new DesRule(1, "fzj3kaeh", "qr"));
-        rules.put("time", new DesRule(1, "q2t3odsk", "nb"));
-        rules.put("timezone", new DesRule(1, "1uv05lj5", "as"));
-        rules.put("tn", new DesRule(1, "x9nzj1bp", "py"));
-        rules.put("trees", new DesRule(1, "acfs0xo4", "pi"));
-        rules.put("ua", new DesRule(1, "k92crp1t", "bj"));
-        rules.put("url", new DesRule(1, "y95hjkoo", "cf"));
-        rules.put("version", new DesRule(0, "", "version"));
-        rules.put("vpw", new DesRule(1, "r9924ab5", "ca"));
-        return rules;
+    private static final Map<String, DesRule> DES_RULES = new HashMap<>();
+    static {
+        DES_RULES.put("appId", new DesRule(1, "uy7mzc4h", "xx"));
+        DES_RULES.put("box", new DesRule(0, "", "jf"));
+        DES_RULES.put("canvas", new DesRule(1, "snrn887t", "yk"));
+        DES_RULES.put("clientSize", new DesRule(1, "cpmjjgsu", "zx"));
+        DES_RULES.put("organization", new DesRule(1, "78moqjfc", "dp"));
+        DES_RULES.put("os", new DesRule(1, "je6vk6t4", "pj"));
+        DES_RULES.put("platform", new DesRule(1, "pakxhcd2", "gm"));
+        DES_RULES.put("plugins", new DesRule(1, "v51m3pzl", "kq"));
+        DES_RULES.put("pmf", new DesRule(1, "2mdeslu3", "vw"));
+        DES_RULES.put("protocol", new DesRule(0, "", "protocol"));
+        DES_RULES.put("referer", new DesRule(1, "y7bmrjlc", "ab"));
+        DES_RULES.put("res", new DesRule(1, "whxqm2a7", "hf"));
+        DES_RULES.put("rtype", new DesRule(1, "x8o2h2bl", "lo"));
+        DES_RULES.put("sdkver", new DesRule(1, "9q3dcxp2", "sc"));
+        DES_RULES.put("status", new DesRule(1, "2jbrxxw4", "an"));
+        DES_RULES.put("subVersion", new DesRule(1, "eo3i2puh", "ns"));
+        DES_RULES.put("svm", new DesRule(1, "fzj3kaeh", "qr"));
+        DES_RULES.put("time", new DesRule(1, "q2t3odsk", "nb"));
+        DES_RULES.put("timezone", new DesRule(1, "1uv05lj5", "as"));
+        DES_RULES.put("tn", new DesRule(1, "x9nzj1bp", "py"));
+        DES_RULES.put("trees", new DesRule(1, "acfs0xo4", "pi"));
+        DES_RULES.put("ua", new DesRule(1, "k92crp1t", "bj"));
+        DES_RULES.put("url", new DesRule(1, "y95hjkoo", "cf"));
+        DES_RULES.put("version", new DesRule(0, "", "version"));
+        DES_RULES.put("vpw", new DesRule(1, "r9924ab5", "ca"));
     }
 
     private static class DesRule {

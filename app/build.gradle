@@ -21,6 +21,8 @@ android {
         buildConfigField "String", "VERSION_NAME", "\"$versionName\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        resConfigs "zh-rCN", "zh-rTW", "en"
     }
     signingConfigs {
         release {
@@ -57,10 +59,9 @@ android {
 dependencies {
     implementation libs.core.splashscreen
     implementation libs.gzu.liyujiang.android.cn.oaid
-    implementation libs.google.flexbox
     implementation libs.sensebot
     implementation libs.okhttp
-    implementation libs.javase
+    implementation libs.com.google.zxing.core
     implementation libs.material.v1140alpha04
     implementation libs.appcompat
     implementation libs.activity

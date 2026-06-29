@@ -25,9 +25,11 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.ScaleInItemAnimator;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +39,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.LinearLayout;
 
+/**
+ * 抽卡链接页：内置WebView访问米游社抽卡记录页面，自动拦截含authkey的URL，
+ * 提取抽卡链接并展示在列表中，支持复制和多用户切换。
+ */
 public class LinkFragment extends Fragment {
 
     {
@@ -110,7 +116,7 @@ public class LinkFragment extends Fragment {
                 } else if (perUser.containsKey(selectedUser)) {
                     // 已加载但为空
                     adapter.setLinks(new HashMap<>());
-                    errorTextView.setText("没有游戏角色或获取链接出错");
+                    errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
                     setErrorTextVisible(true);
                     setRecyclerVisible(false);
                     return;
@@ -135,11 +141,17 @@ public class LinkFragment extends Fragment {
                     setTopCardVisible(false);
                     setWebViewContainerVisible(true);
                     setupWebViewForCloudGame();
+                    // 云游戏 WebView 需要横向滑动，禁用 ViewPager2 滑动切换
+                    if (getActivity() instanceof MainActivity)
+                        ((MainActivity) getActivity()).setViewPagerSwipeEnabled(false);
                 } else {
                     // 原神 / 绝区零 — 先设置数据，再设置可见性
                     destroyWebView();
                     setWebViewContainerVisible(false);
                     setTopCardVisible(true);
+                    // 恢复 ViewPager2 滑动切换
+                    if (getActivity() instanceof MainActivity)
+                        ((MainActivity) getActivity()).setViewPagerSwipeEnabled(true);
 
                     Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
                     if (perUser != null) {
@@ -151,7 +163,7 @@ public class LinkFragment extends Fragment {
                         } else if (perUser.containsKey(currentUserId)) {
                             // 已加载过但为空
                             adapter.setLinksSilently(new HashMap<>());
-                            errorTextView.setText("没有游戏角色或获取链接出错");
+                            errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
                             setRecyclerVisible(false);
                             setErrorTextVisible(true);
                         } else {
@@ -185,12 +197,14 @@ public class LinkFragment extends Fragment {
             setErrorTextVisible(false);
             setWebViewContainerVisible(true);
             setupWebViewForCloudGame();
+            if (getActivity() instanceof MainActivity)
+                ((MainActivity) getActivity()).setViewPagerSwipeEnabled(false);
         }
 
         // 获取链接按钮点击事件
         getLinkButton.setOnClickListener(v -> {
             if (currentUserId == null || currentUserId.isEmpty()) {
-                errorTextView.setText("请先选择一个用户");
+                errorTextView.setText(getString(R.string.msg_select_user_first));
                 setErrorTextVisible(true);
                 return;
             }
@@ -236,7 +250,7 @@ public class LinkFragment extends Fragment {
                     } else {
                         // 空结果，显示错误信息
                         if (currentTabPosition == gameType) {
-                            errorTextView.setText("没有游戏角色或获取链接出错");
+                            errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
                             setErrorTextVisible(true);
                             setRecyclerVisible(false);
                         }
@@ -271,6 +285,7 @@ public class LinkFragment extends Fragment {
         setRecyclerVisible(false);
         setWebViewContainerVisible(true);
 
+        webViewContainer.removeAllViews();
         webView = new WebView(requireContext());
         webView.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -302,30 +317,28 @@ public class LinkFragment extends Fragment {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                // 检查是否包含各类抽卡链接并复制到剪贴板
-                if (url.contains("public-operation-hk4e.mihoyo.com") && url.contains("authkey=")) {
-                    requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view, requireContext(), url);
-                        showCustomSnackbar(view, requireContext(), "原神抽卡链接已复制到剪贴板");
-                    });
-                } else if (url.contains("public-operation-hkrpg.mihoyo.com") && url.contains("authkey=")) {
-                    requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view, requireContext(), url);
-                        showCustomSnackbar(view, requireContext(), "星穹铁道抽卡链接已复制到剪贴板");
-                    });
-                } else if (url.contains("public-operation-nap.mihoyo.com") && url.contains("authkey=")) {
-                    requireActivity().runOnUiThread(() -> {
-                        copyToClipboard(view, requireContext(), url);
-                        showCustomSnackbar(view, requireContext(), "绝区零抽卡链接已复制到剪贴板");
-                    });
+                if (url.contains("authkey=")) {
+                    String[] gameHosts = {
+                            "public-operation-hk4e.",
+                            "public-operation-hkrpg.",
+                            "public-operation-nap.",
+                    };
+                    for (String host : gameHosts) {
+                        if (url.contains(host)) {
+                            requireActivity().runOnUiThread(() -> {
+                                copyToClipboard(view, requireContext(), url);
+                                showCustomSnackbar(view, requireContext(), getString(R.string.snack_link_copied));
+                            });
+                            break;
+                        }
+                    }
                 }
                 return super.shouldInterceptRequest(view, request);
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                view.loadUrl(request.getUrl().toString());
-                return true;
+                return false;
             }
         });
 
@@ -353,26 +366,42 @@ public class LinkFragment extends Fragment {
      * 更新用户下拉框
      */
     private void updateDropdown() {
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+        List<String> usernames = userManager.getUsernamesByServerType(isOversea);
         android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
-                userManager.getUsernames()
+                usernames
         );
         userDropdown.setAdapter(dropdownAdapter);
         // 设置当前用户为默认选中项
         String currentUser = userManager.getCurrentUser();
-        if (currentUser != null && !currentUser.isEmpty() && userManager.getUsernames().contains(currentUser)) {
+        if (currentUser != null && !currentUser.isEmpty() && usernames.contains(currentUser)) {
             userDropdown.setText(currentUser, false);
             currentUserId = currentUser;
             this.adapter.setCurrentUser(currentUser);
-        } else if (!userManager.getUsernames().isEmpty()) {
+        } else if (!usernames.isEmpty()) {
             // 如果没有设置当前用户但有用户存在，默认选择第一个
-            String firstUser = userManager.getUsernames().get(0);
+            String firstUser = usernames.get(0);
             userDropdown.setText(firstUser, false);
             userManager.setCurrentUser(firstUser);
             currentUserId = firstUser;
             this.adapter.setCurrentUser(firstUser);
-        } // 否则什么都不干
+        } else {
+            // 当前服务器没有用户，清空选择
+            userDropdown.setText("", false);
+            currentUserId = null;
+            this.adapter.setCurrentUser(null);
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // 恢复 ViewPager2 滑动切换
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).setViewPagerSwipeEnabled(true);
+        destroyWebView();
     }
 
     @Override
@@ -380,7 +409,6 @@ public class LinkFragment extends Fragment {
         super.onDestroy();
         if (executor != null && !executor.isShutdown())
             executor.shutdown();
-        destroyWebView();
     }
 
     @Override

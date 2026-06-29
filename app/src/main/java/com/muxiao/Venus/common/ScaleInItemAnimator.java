@@ -22,6 +22,12 @@ public class ScaleInItemAnimator extends DefaultItemAnimator {
     public boolean animateChange(@NonNull RecyclerView.ViewHolder holder,
                                  @NonNull RecyclerView.ViewHolder newHolder,
                                  int fromLeft, int fromTop, int toLeft, int toTop) {
+        // 重置新视图的属性，防止从回收池复用时残留 alpha=0 等动画中间状态
+        newHolder.itemView.setAlpha(1f);
+        newHolder.itemView.setScaleX(1f);
+        newHolder.itemView.setScaleY(1f);
+        newHolder.itemView.setTranslationX(0f);
+        newHolder.itemView.setTranslationY(0f);
         // 禁用 change 动画，防止数据更新时的交叉淡入
         dispatchChangeFinished(holder, true);
         dispatchChangeFinished(newHolder, false);

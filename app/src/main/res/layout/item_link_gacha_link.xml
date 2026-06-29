@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="16dp"
+        android:paddingHorizontal="@dimen/spacing_md"
         android:paddingVertical="@dimen/item_padding_vertical">
 
         <com.google.android.material.textview.MaterialTextView
@@ -25,7 +25,7 @@
             android:id="@+id/uidTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="@dimen/spacing_xs"
             android:textAppearance="?attr/textAppearanceTitleSmall"
             android:textColor="?attr/colorPrimary"
             android:textStyle="bold" />
@@ -34,7 +34,7 @@
             android:id="@+id/linkTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="@dimen/spacing_sm"
             android:ellipsize="end"
             android:fontFamily="monospace"
             android:maxLines="3"
@@ -42,14 +42,31 @@
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textIsSelectable="true" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/copyButton"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:text="@string/copy_link"
-            android:textSize="12sp" />
+            android:layout_marginTop="@dimen/spacing_xs"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/expandButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/show_more"
+                android:textSize="@dimen/text_caption"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/copyButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/copy_link"
+                android:textSize="@dimen/text_caption" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

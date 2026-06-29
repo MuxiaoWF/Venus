@@ -1,6 +1,46 @@
 package com.muxiao.Venus.Setting;
 
-import static com.muxiao.Venus.common.Constants.Prefs.*;
+import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_ALPHA;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.CONFIG_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HNA;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR2;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR3;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_SRG;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_WEIDING;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_ZZZ;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_GENSHIN;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR2;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR3;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_SRG;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_WEIDING;
+import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_ZZZ;
+import static com.muxiao.Venus.common.Constants.Prefs.K2_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.LANGUAGE_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.LK2_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.NOTIFICATION;
+import static com.muxiao.Venus.common.Constants.Prefs.SALT_4X_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.SALT_6X_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_LANGUAGE;
+import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME;
+import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME_VARIANT;
+import static com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE;
+import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ARKNIGHTS_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENDFIELD_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.THEME_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_LOCAL_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_PREF;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -50,6 +90,10 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 
+/**
+ * 设置页Fragment：签到任务开关、森空岛content配置、背景图片/主题/语言切换、
+ * 服务器类型切换（国服/国际服）、缓存清理、版本更新检查。
+ */
 public class SettingsFragment extends Fragment {
 
     {
@@ -89,9 +133,11 @@ public class SettingsFragment extends Fragment {
         // 设置折叠按钮
         CollapsibleCardView bbsCard = view.findViewById(R.id.daily_card);
         CollapsibleCardView bbsGameCard = view.findViewById(R.id.game_daily_card);
+        CollapsibleCardView serverCard = view.findViewById(R.id.server_card);
         CollapsibleCardView bbsUtilsCard = view.findViewById(R.id.config_card);
         CollapsibleCardView updateCard = view.findViewById(R.id.update_card);
         CollapsibleCardView cacheCard = view.findViewById(R.id.cache_card);
+        CollapsibleCardView languageCard = view.findViewById(R.id.language_card);
         CollapsibleCardView themeCard = view.findViewById(R.id.theme_card);
         CollapsibleCardView backgroundCard = view.findViewById(R.id.background_card);
         CollapsibleCardView notificationCard = view.findViewById(R.id.notification_card);
@@ -100,9 +146,11 @@ public class SettingsFragment extends Fragment {
 
         bbsCard.setContent(R.layout.item_setting_bbs_daily);
         bbsGameCard.setContent(R.layout.item_setting_game_daily);
+        serverCard.setContent(R.layout.item_setting_server);
         bbsUtilsCard.setContent(R.layout.item_setting_bbs_utils);
         updateCard.setContent(R.layout.item_setting_update);
         cacheCard.setContent(R.layout.item_setting_cache);
+        languageCard.setContent(R.layout.item_setting_language);
         themeCard.setContent(R.layout.item_setting_theme);
         backgroundCard.setContent(R.layout.item_setting_background_picture);
         notificationCard.setContent(R.layout.item_setting_notification);
@@ -111,9 +159,11 @@ public class SettingsFragment extends Fragment {
 
         View dailyView = bbsCard.getContentLayout();
         View bbsGameView = bbsGameCard.getContentLayout();
+        View serverView = serverCard.getContentLayout();
         View utilsView = bbsUtilsCard.getContentLayout();
         View updateView = updateCard.getContentLayout();
         View cacheView = cacheCard.getContentLayout();
+        View languageView = languageCard.getContentLayout();
         View themeView = themeCard.getContentLayout();
         View backgroundView = backgroundCard.getContentLayout();
         View notificationView = notificationCard.getContentLayout();
@@ -157,7 +207,7 @@ public class SettingsFragment extends Fragment {
                         // 处理裁剪错误
                         if (result.getData() != null) {
                             final Throwable cropError = UCrop.getError(result.getData());
-                            show_error_dialog(requireContext(), "图片裁剪失败: " + Objects.requireNonNull(cropError).getMessage());
+                            show_error_dialog(requireContext(), getString(R.string.err_crop_failed, Objects.requireNonNull(cropError).getMessage()));
                         }
                     }
                 }
@@ -255,10 +305,10 @@ public class SettingsFragment extends Fragment {
                 Notification notificationUtil = new Notification(requireContext());
                 if (notificationUtil.areNotificationsDisabled()) {
                     new MaterialAlertDialogBuilder(requireContext())
-                            .setTitle("需要通知权限")
-                            .setMessage("后台运行需要系统通知权限。是否前往设置页面开启？")
-                            .setPositiveButton("去设置", (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
-                            .setNegativeButton("稍后再说", (dialog, which) -> backgroundTaskSwitch.setChecked(false))
+                            .setTitle(getString(R.string.dialog_need_notification_permission))
+                            .setMessage(getString(R.string.msg_need_notification_for_background))
+                            .setPositiveButton(getString(R.string.btn_go_to_settings), (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
+                            .setNegativeButton(getString(R.string.btn_later), (dialog, which) -> backgroundTaskSwitch.setChecked(false))
                             .setOnCancelListener(dialog -> backgroundTaskSwitch.setChecked(false)).show();
                     return;
                 }
@@ -287,9 +337,9 @@ public class SettingsFragment extends Fragment {
         updateConfigButton.setOnClickListener(v -> {
             if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
                 new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle("任务正在运行")
-                        .setMessage("请等待当前任务执行完成后再更新配置。")
-                        .setPositiveButton("确定", null)
+                        .setTitle(getString(R.string.dialog_task_running))
+                        .setMessage(getString(R.string.msg_wait_task_finish_update))
+                        .setPositiveButton(getString(R.string.btn_ok), null)
                         .show();
                 return;
             }
@@ -298,6 +348,10 @@ public class SettingsFragment extends Fragment {
         // 显示当前配置值
         displayCurrentConfigValues();
 
+        // 服务器选择
+        setupServerSelection(serverView, bbsCard, gameDailyCheckboxHr2, gameDailyCheckboxWeiding);
+        // 语言选择
+        setupLanguageSelection(languageView);
         // 主题选择
         setupThemeSelection(themeView);
         // 背景选择
@@ -316,13 +370,13 @@ public class SettingsFragment extends Fragment {
         });
         MaterialButton checkUpdateButton2 = updateView.findViewById(R.id.check_update_button_pan);
         checkUpdateButton2.setOnClickListener(v -> new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("网盘下载")
-                .setMessage("即将跳转到蓝奏云下载页面\n提取码：mxwf")
-                .setPositiveButton("前往下载", (dialog, which) -> {
+                .setTitle(getString(R.string.dialog_pan_download))
+                .setMessage(getString(R.string.msg_pan_download_hint))
+                .setPositiveButton(getString(R.string.btn_go_to_download), (dialog, which) -> {
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
                     startActivity(intent);
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(getString(R.string.btn_cancel), null)
                 .show());
 
         // 看图按钮
@@ -342,10 +396,27 @@ public class SettingsFragment extends Fragment {
 
         //森空岛设置
         SwitchMaterial sklandSwitch = sklandView.findViewById(R.id.skland_switch);
-        sklandSwitch.setChecked(sharedPreferences.getBoolean(SKLAND_ENABLED, false));
+        MaterialCheckBox sklandCheckboxArknights = sklandView.findViewById(R.id.skland_checkbox_arknights);
+        MaterialCheckBox sklandCheckboxEndfield = sklandView.findViewById(R.id.skland_checkbox_endfield);
+        boolean sklandEnabled = sharedPreferences.getBoolean(SKLAND_ENABLED, false);
+        sklandSwitch.setChecked(sklandEnabled);
+        sklandCheckboxArknights.setChecked(sharedPreferences.getBoolean(SKLAND_ARKNIGHTS_ENABLED, false));
+        sklandCheckboxEndfield.setChecked(sharedPreferences.getBoolean(SKLAND_ENDFIELD_ENABLED, false));
+        sklandCheckboxArknights.setEnabled(sklandEnabled);
+        sklandCheckboxEndfield.setEnabled(sklandEnabled);
         sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (blockIfTaskRunning(buttonView, isChecked)) return;
             sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply();
+            sklandCheckboxArknights.setEnabled(isChecked);
+            sklandCheckboxEndfield.setEnabled(isChecked);
+        });
+        sklandCheckboxArknights.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(SKLAND_ARKNIGHTS_ENABLED, isChecked).apply();
+        });
+        sklandCheckboxEndfield.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(SKLAND_ENDFIELD_ENABLED, isChecked).apply();
         });
         MaterialTextView skland_link = sklandView.findViewById(R.id.skland_link);
         skland_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
@@ -366,20 +437,20 @@ public class SettingsFragment extends Fragment {
             // 创建一个EditText用于输入token
             TextInputEditText editText = new TextInputEditText(requireContext());
             editText.setText(currentToken);
-            editText.setHint("请输入森空岛content");
+            editText.setHint(getString(R.string.skland_content_tip));
             // 创建对话框
             new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("森空岛content设置")
-                    .setMessage("请完成上方两个步骤并复制第二个步骤里content:\"xxxx\"中xxxx的值保存在此")
+                    .setTitle(getString(R.string.dialog_skland_content_settings))
+                    .setMessage(getString(R.string.msg_skland_content_hint))
                     .setView(editText)
-                    .setPositiveButton("保存", (dialog, which) -> {
+                    .setPositiveButton(getString(R.string.btn_save), (dialog, which) -> {
                         String newToken = Objects.requireNonNull(editText.getText()).toString().trim();
                         // 保存到SharedPreferences
                         SharedPreferences.Editor editor = sharedPreferences.edit();
                         editor.putString(SKLAND_COOKIE, newToken);
                         editor.apply();
-                        showCustomSnackbar(view, requireContext(), "森空岛content已保存");
-                    }).setNegativeButton("取消", (dialog, which) -> {
+                        showCustomSnackbar(view, requireContext(), getString(R.string.snack_skland_content_saved));
+                    }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> {
                         // 用户选择取消，不做任何操作
                     }).show();
         });
@@ -418,7 +489,7 @@ public class SettingsFragment extends Fragment {
         UCrop.Options options = new UCrop.Options();
         // 修改状态栏
         options.setStatusBarLight(true);
-        options.setToolbarTitle("裁剪图片");
+        options.setToolbarTitle(getString(R.string.toolbar_crop_image));
         // 隐藏底部工具
         options.setHideBottomControls(true);
         // 图片格式
@@ -464,9 +535,9 @@ public class SettingsFragment extends Fragment {
             // 显示提示信息
             View view = getView();
             if (view != null)
-                showCustomSnackbar(view, requireContext(), "背景图片已设置，将在下次启动时生效");
+                showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_set));
         } catch (Exception e) {
-            show_error_dialog(requireContext(), "保存背景图片失败: " + e.getMessage());
+            show_error_dialog(requireContext(), getString(R.string.err_save_background_failed, e.getMessage()));
         }
     }
 
@@ -511,11 +582,11 @@ public class SettingsFragment extends Fragment {
                         requireContext().getContentResolver().delete(backgroundUri, null, null);
                     }
                 } catch (Exception e) {
-                    show_error_dialog(requireContext(), "删除背景图片出错：" + e);
+                    show_error_dialog(requireContext(), getString(R.string.err_delete_background_error, e.toString()));
                 }
             }
             backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
-            showCustomSnackbar(view, requireContext(), "背景图片已清除，将在下次启动时生效");
+            showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_cleared));
         });
 
         // 设置不透明度滑块
@@ -537,9 +608,93 @@ public class SettingsFragment extends Fragment {
             @Override
             public void onStopTrackingTouch(@NonNull Slider slider) {
                 // 滑动结束时
-                showCustomSnackbar(view, requireContext(), "不透明度已设置为 " + (int) slider.getValue() + "%，将在下次启动时生效");
+                showCustomSnackbar(view, requireContext(), getString(R.string.snack_opacity_set, (int) slider.getValue()));
             }
         });
+    }
+
+    /**
+     * 设置服务器选择功能
+     */
+    private void setupServerSelection(View view, CollapsibleCardView bbsCard, View... overseaHiddenViews) {
+        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        int serverType = prefs.getInt(SERVER_TYPE, 0);
+
+        MaterialRadioButton serverCn = view.findViewById(R.id.server_cn);
+        MaterialRadioButton serverOs = view.findViewById(R.id.server_os);
+
+        // 国际服隐藏米游币签到（需要stoken，Cookie登录不提供）
+        bbsCard.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
+        // 国际服隐藏不支持的游戏签到
+        for (View v : overseaHiddenViews)
+            v.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
+
+        if (serverType == 0) {
+            serverCn.setChecked(true);
+        } else {
+            serverOs.setChecked(true);
+        }
+
+        serverCn.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                prefs.edit().putInt(SERVER_TYPE, 0).apply();
+                MiHoYoBBSConstants.clearOverseaCache();
+                bbsCard.setVisibility(View.VISIBLE);
+                for (View v : overseaHiddenViews)
+                    v.setVisibility(View.VISIBLE);
+                showCustomSnackbar(view, requireContext(), getString(R.string.snack_switched_to_cn));
+            }
+        });
+
+        serverOs.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                prefs.edit().putInt(SERVER_TYPE, 1).apply();
+                MiHoYoBBSConstants.clearOverseaCache();
+                bbsCard.setVisibility(View.GONE);
+                for (View v : overseaHiddenViews)
+                    v.setVisibility(View.GONE);
+                showCustomSnackbar(view, requireContext(), getString(R.string.snack_switched_to_os));
+            }
+        });
+    }
+
+    /**
+     * 设置语言选择功能
+     */
+    private void setupLanguageSelection(View view) {
+        SharedPreferences languagePreferences = requireActivity().getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
+        int selectedLanguage = languagePreferences.getInt(SELECTED_LANGUAGE, 0);
+
+        AutoCompleteTextView languageDropdown = view.findViewById(R.id.language_dropdown);
+
+        String[] languages = {
+                getString(R.string.language_system),
+                getString(R.string.language_zh),
+                getString(R.string.language_zh_tw),
+                getString(R.string.language_en)
+        };
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_dropdown_item_1line, languages);
+        languageDropdown.setAdapter(adapter);
+
+        if (selectedLanguage >= 0 && selectedLanguage < languages.length)
+            languageDropdown.setText(languages[selectedLanguage], false);
+
+        languageDropdown.setOnItemClickListener((parent, view1, position, id) -> saveAndApplyLanguage(position));
+    }
+
+    /**
+     * 保存并应用语言
+     *
+     * @param languageId 语言ID
+     */
+    private void saveAndApplyLanguage(int languageId) {
+        SharedPreferences languagePreferences = requireActivity().getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
+        languagePreferences.edit().putInt(SELECTED_LANGUAGE, languageId).apply();
+        // 重启Activity以应用语言
+        Intent intent = requireActivity().getIntent();
+        requireActivity().finish();
+        startActivity(intent);
     }
 
     /**
@@ -552,7 +707,15 @@ public class SettingsFragment extends Fragment {
 
         AutoCompleteTextView themeDropdown = view.findViewById(R.id.theme_dropdown);
 
-        String[] themes = {"系统", "蓝色", "绿色", "红色", "黄色", "浅色", "深色"};
+        String[] themes = {
+                getString(R.string.theme_system),
+                getString(R.string.theme_blue),
+                getString(R.string.theme_green),
+                getString(R.string.theme_red),
+                getString(R.string.theme_yellow),
+                getString(R.string.theme_light_name),
+                getString(R.string.theme_dark_name)
+        };
         ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_dropdown_item_1line, themes);
         themeDropdown.setAdapter(adapter);
@@ -597,7 +760,7 @@ public class SettingsFragment extends Fragment {
         // 显示提示信息，告知用户需要重启应用以应用主题
         View view = getView();
         if (view != null)
-            showCustomSnackbar(view, requireContext(), "主题已保存，请重启应用以应用新主题");
+            showCustomSnackbar(view, requireContext(), getString(R.string.snack_theme_saved));
     }
 
     /**
@@ -616,7 +779,11 @@ public class SettingsFragment extends Fragment {
                 AppCompatDelegate.MODE_NIGHT_NO,
                 AppCompatDelegate.MODE_NIGHT_YES
         };
-        String[] variantMessages = {"已设置为跟随系统深浅色模式", "已设置为浅色模式", "已设置为深色模式"};
+        String[] variantMessages = {
+                getString(R.string.snack_set_follow_system),
+                getString(R.string.snack_set_light_mode),
+                getString(R.string.snack_set_dark_mode)
+        };
         if (themeVariantId >= 0 && themeVariantId < nightModes.length) {
             AppCompatDelegate.setDefaultNightMode(nightModes[themeVariantId]);
             View view = getView();
@@ -721,7 +888,7 @@ public class SettingsFragment extends Fragment {
         String lk2 = configPreferences.getString(LK2_PREF, MiHoYoBBSConstants.LK2_final);
         String k2 = configPreferences.getString(K2_PREF, MiHoYoBBSConstants.K2_final);
         String bbsVersion = configPreferences.getString(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
-        String update_time = configPreferences.getString(UPDATE_TIME_PREF, "未获取");
+        String update_time = configPreferences.getString(UPDATE_TIME_PREF, getString(R.string.config_not_fetched));
         String update_time_Local = configPreferences.getString(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
         salt6xValue.setText(getString(R.string.salt_6x_value_fmt, salt6x));
@@ -738,13 +905,13 @@ public class SettingsFragment extends Fragment {
      */
     private void updateConfig(View view) {
         new Thread(() -> {
-            boolean success = MiHoYoBBSConstants.updateConfigFromWeb(requireContext());
+            boolean success = MiHoYoBBSConstants.update_config_from_web(requireContext());
             requireActivity().runOnUiThread(() -> {
                 if (success) {
                     displayCurrentConfigValues();
-                    showCustomSnackbar(view, requireContext(), "配置更新成功");
+                    showCustomSnackbar(view, requireContext(), getString(R.string.snack_config_updated));
                 } else {
-                    showCustomSnackbar(view, requireContext(), "配置更新失败");
+                    showCustomSnackbar(view, requireContext(), getString(R.string.snack_config_update_failed));
                 }
             });
         }).start();
@@ -802,9 +969,9 @@ public class SettingsFragment extends Fragment {
                     activity.runOnUiThread(() -> {
                         if (finalSuccess) {
                             cacheSizeText.setText(getString(R.string.current_cache_size_zero));
-                            showCustomSnackbar(getView(), requireContext(), "缓存清理完成");
+                            showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_cleared));
                         } else {
-                            showCustomSnackbar(getView(), requireContext(), "部分缓存清理失败");
+                            showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_clear_partial_failed));
                         }
                     });
             });
@@ -865,9 +1032,9 @@ public class SettingsFragment extends Fragment {
     private boolean blockIfTaskRunning(android.widget.CompoundButton buttonView, boolean isChecked) {
         if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
             new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("任务正在运行")
-                    .setMessage("请等待当前任务执行完成后再修改设置。")
-                    .setPositiveButton("确定", null)
+                    .setTitle(getString(R.string.dialog_task_running))
+                    .setMessage(getString(R.string.msg_wait_task_finish_settings))
+                    .setPositiveButton(getString(R.string.btn_ok), null)
                     .setOnDismissListener(dialog -> buttonView.setChecked(!isChecked))
                     .show();
             return true;

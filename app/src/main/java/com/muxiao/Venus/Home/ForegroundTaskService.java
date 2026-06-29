@@ -14,12 +14,18 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.widget.TaskStatusManager;
+import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/**
+ * 前台Service：在后台执行签到任务，显示持久进度通知，持有WakeLock防止CPU休眠。
+ * 通过广播与 HomeFragment 通信任务状态，支持用户通过通知栏取消任务。
+ */
 public class ForegroundTaskService extends Service {
     public static final String ACTION_START_TASK = "com.muxiao.Venus.START_TASK";
     public static final String ACTION_STOP_TASK = "com.muxiao.Venus.STOP_TASK";
@@ -34,7 +40,7 @@ public class ForegroundTaskService extends Service {
     private tools.StatusNotifier notifier;
     private PowerManager.WakeLock wakeLock;
 
-    private static ForegroundTaskService instance;
+    private static volatile ForegroundTaskService instance;
 
     public static boolean isRunning() {
         return instance != null;
@@ -70,14 +76,14 @@ public class ForegroundTaskService extends Service {
 
         if (intent != null && ACTION_START_TASK.equals(intent.getAction())) {
             String userId = intent.getStringExtra(EXTRA_USER_ID);
-            notificationBuilder = notificationHelper.createProgressNotification("Venus", "正在执行任务...");
+            notificationBuilder = notificationHelper.createProgressNotification("Venus", getString(R.string.notif_executing_task));
 
             // 添加取消按钮
             Intent stopIntent = new Intent(this, ForegroundTaskService.class);
             stopIntent.setAction(ACTION_STOP_TASK);
             PendingIntent stopPending = PendingIntent.getService(this, 0, stopIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            notificationBuilder.addAction(R.drawable.ic_notification, "取消", stopPending);
+            notificationBuilder.addAction(R.drawable.ic_notification, getString(R.string.notif_cancel), stopPending);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build(),
@@ -96,12 +102,17 @@ public class ForegroundTaskService extends Service {
         // 获取 WakeLock，防止 CPU 休眠导致任务中断
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Venus:TaskWakeLock");
-        wakeLock.acquire(10 * 60 * 1000L); // 最长10分钟，防止意外泄漏
+        // 最长10分钟，超时自动释放防止泄漏
+        wakeLock.acquire(10 * 60 * 1000L);
 
+        // 记录当前用户供 Widget 显示
+        new TaskStatusManager(this).setCurrentUser(userId != null ? userId : "");
+
+        try {
         currentTaskFuture = executorService.submit(() -> {
             try {
                 TaskSettings settings = TaskSettings.fromPreferences(this);
-                int totalTasks = settings.getTaskNames().size();
+                int totalTasks = settings.getTaskNames(ForegroundTaskService.this).size();
                 AtomicInteger completedTasks = new AtomicInteger(0);
 
                 GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
@@ -111,6 +122,8 @@ public class ForegroundTaskService extends Service {
                         new TaskExecutor.Callback() {
                             @Override
                             public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
+                                // 持久化任务状态供 Widget 读取
+                                saveTaskStatus(taskName, status);
                                 if (status == TaskItem.TaskStatus.COMPLETED) {
                                     completedTasks.incrementAndGet();
                                 }
@@ -121,12 +134,12 @@ public class ForegroundTaskService extends Service {
                             @Override
                             public void onAllTasksCompleted() {
                                 notificationHelper.completeProgressNotification(
-                                        "Venus", "所有任务已完成");
+                                        "Venus", getString(R.string.notif_all_tasks_done));
                             }
 
                             @Override
                             public void onError(String message) {
-                                notificationHelper.sendErrorNotification("任务失败", message, true);
+                                notificationHelper.sendErrorNotification(getString(R.string.notif_task_failed), message, true);
                             }
 
                             @Override
@@ -145,6 +158,38 @@ public class ForegroundTaskService extends Service {
                 stopSelf();
             }
         });
+        } catch (Exception e) {
+            broadcastState(false);
+            releaseWakeLock();
+            dismissForegroundNotification();
+            instance = null;
+            stopSelf();
+        }
+    }
+
+    private void saveTaskStatus(String taskName, TaskItem.TaskStatus status) {
+        TaskStatusManager manager = new TaskStatusManager(this);
+        switch (status) {
+            case COMPLETED:
+                manager.markCompleted(taskName);
+                break;
+            case ERROR:
+                manager.markError(taskName);
+                break;
+            case IN_PROGRESS:
+                manager.markStatus(taskName, TaskStatusManager.STATUS_IN_PROGRESS);
+                break;
+            case WARNING:
+                manager.markStatus(taskName, TaskStatusManager.STATUS_WARNING);
+                break;
+            case CANCELLED:
+                manager.markStatus(taskName, TaskStatusManager.STATUS_CANCELLED);
+                break;
+            default:
+                break;
+        }
+        // 通知 Widget 刷新
+        TaskWidgetProvider.refreshAllWidgets(this);
     }
 
     private void updateServiceNotification(String taskName, TaskItem.TaskStatus status,
@@ -152,22 +197,22 @@ public class ForegroundTaskService extends Service {
         String statusText;
         switch (status) {
             case IN_PROGRESS:
-                statusText = "正在执行: " + taskName + " (" + progress + "/" + max + ")";
+                statusText = getString(R.string.notif_executing, taskName, progress, max);
                 break;
             case COMPLETED:
-                statusText = "已完成: " + taskName + " (" + progress + "/" + max + ")";
+                statusText = getString(R.string.notif_completed, taskName, progress, max);
                 break;
             case ERROR:
-                statusText = "失败: " + taskName;
+                statusText = getString(R.string.notif_error, taskName);
                 break;
             case WARNING:
-                statusText = "等待验证: " + taskName;
+                statusText = getString(R.string.notif_waiting_verification, taskName);
                 break;
             case CANCELLED:
-                statusText = "已取消";
+                statusText = getString(R.string.notif_cancelled);
                 break;
             default:
-                statusText = "准备中...";
+                statusText = getString(R.string.notif_preparing);
                 break;
         }
         notificationHelper.updateProgressNotification(
@@ -185,6 +230,8 @@ public class ForegroundTaskService extends Service {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
         instance = null;
+        // 刷新小组件，恢复运行按钮状态
+        TaskWidgetProvider.refreshAllWidgets(this);
         stopSelf();
     }
 
@@ -217,5 +264,7 @@ public class ForegroundTaskService extends Service {
         if (executorService != null && !executorService.isShutdown())
             executorService.shutdown();
         instance = null;
+        // 刷新小组件，恢复运行按钮状态
+        TaskWidgetProvider.refreshAllWidgets(this);
     }
 }

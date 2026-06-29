@@ -2,6 +2,11 @@
 <resources>
     <color name="transparent">#00000000</color>
 
+    <!-- Widget -->
+    <color name="widget_text_primary">#DE1A1B20</color>
+    <color name="widget_text_secondary">#991A1B20</color>
+    <color name="widget_divider">#1A74777F</color>
+
     <color name="icon_background">#E3FDFD</color>
     <color name="icon_foreground">#71C9C1</color>
     <color name="splash_background">#E3FDFD</color>

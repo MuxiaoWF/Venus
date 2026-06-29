@@ -33,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:layout_marginVertical="24dp"
+                android:layout_marginVertical="@dimen/spacing_xl"
                 android:gravity="center"
                 android:text="@string/no_user_prompt"
                 android:textAppearance="?attr/textAppearanceBodyLarge"
@@ -71,6 +71,6 @@
     <View
         android:id="@+id/bottom_padding_view"
         android:layout_width="match_parent"
-        android:layout_height="96dp" />
+        android:layout_height="@dimen/spacing_bottom_fab" />
 
 </LinearLayout>

@@ -22,8 +22,8 @@
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="16dp">
+            android:paddingHorizontal="@dimen/spacing_md"
+            android:paddingVertical="@dimen/spacing_md">
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/title_text"
@@ -44,7 +44,7 @@
                 android:clickable="true"
                 android:contentDescription="@string/expand_collapse"
                 android:focusable="true"
-                android:padding="2dp"
+                android:padding="@dimen/spacing_tiny"
                 android:src="@drawable/ic_0collapse_180expand" />
         </LinearLayout>
 

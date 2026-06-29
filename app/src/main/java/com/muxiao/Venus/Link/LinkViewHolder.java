@@ -15,6 +15,7 @@ public class LinkViewHolder extends RecyclerView.ViewHolder {
     final MaterialTextView linkTextView;
     final MaterialTextView currentUserTextView;
     final com.google.android.material.button.MaterialButton copyButton;
+    final com.google.android.material.button.MaterialButton expandButton;
 
     public LinkViewHolder(View itemView) {
         super(itemView);
@@ -22,5 +23,6 @@ public class LinkViewHolder extends RecyclerView.ViewHolder {
         uidTextView = itemView.findViewById(R.id.uidTextView);
         linkTextView = itemView.findViewById(R.id.linkTextView);
         copyButton = itemView.findViewById(R.id.copyButton);
+        expandButton = itemView.findViewById(R.id.expandButton);
     }
 }

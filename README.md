@@ -1,14 +1,18 @@
-**提示：本软件有时候不知道为什么会被检测出中等危险，会被提示恶意应用。但是在[virustotal](www.virustotal.com)中是检测无病毒的**
+**提示：本软件有时候不知道为什么会被检测出中等危险，会被提示恶意应用。但是在[virustotal](https://www.virustotal.com)中是检测无病毒的**
 
 鸣谢：[UIGF-org/mihoyo-api-collect 提供mihoyo的api参考](https://github.com/UIGF-org/mihoyo-api-collect)，
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
+[YueHen14/skyland-auto-sign 森空岛签到转写](https://github.com/YueHen14/skyland-auto-sign)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
-[gzu-liyujiang/Android_CN_OAID 部分Android信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)，
-[com.geetest.sensebot » sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.3.3)，
+[google/gson JSON解析](https://github.com/google/gson)，
+[square/okhttp HTTP请求](https://github.com/square/okhttp)，
+[google/zxing 二维码生成](https://github.com/zxing/zxing)，
+[bumptech/glide 图片加载](https://github.com/bumptech/glide)，
+[gzu-liyujiang/Android_CN_OAID 设备信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)，
+[com.geetest.sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.4.4)，
 [MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)，
 [yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)，
-[YueHen14/skyland-auto-sign 森空岛签到转写](https://github.com/YueHen14/skyland-auto-sign)，
-还有Google Android组件支持，以及AI的~~薛定谔的~~大力辅助。
+以及AI的~~薛定谔的~~大力辅助。
 
 非常非常简陋的APP，运行速度也非常缓慢。应该没人用（，写来玩的
 
@@ -19,6 +23,7 @@
 1. 米游社一键每日签到任务（包含米游币和游戏的签到）
 2. 抽卡链接获取功能（登录后直接获取原神和绝区零的，可通过云游戏获取原神和星铁的）
     * 应该不会加分析了，直接导入到微信小程序吧
+3. 国际版米游社游戏签到，没法测也不知道能不能运行
 
 <mark>可以提功能，但是大概率不会加（</mark>
 
@@ -35,6 +40,18 @@
 ---
 
 更新日志：
+
+2026.06.29
+
+添加没什么用的桌面小组件
+
+---
+
+2026.06.17
+
+添加国际版米游社游戏签到，没法测也不知道能不能运行。同时添加更多语言，也没细看是否有问题。估计也没啥人用。
+
+---
 
 2026.06.12
 

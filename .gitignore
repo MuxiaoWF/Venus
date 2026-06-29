@@ -1,18 +1,51 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Android Studio
 *.iml
-.gradle
-/local.properties
-/.idea
+.idea/
 .DS_Store
-/build
+.navigation/editor
 /captures
 .externalNativeBuild
 .cxx
-local.properties
 
-# Claude Code 本地配置
+# Keystore files (do not include signing keys)
+*.jks
+*.keystore
+
+# External native build folder
+.externalNativeBuild/
+
+# Log files
+*.log
+
+# OS-specific
+Thumbs.db
+
+# Claude Code local config
 .claude/
+CLAUDE.md
 
-# 构建产物
-*.apk
-*.aab
+# Release build output
 /app/release

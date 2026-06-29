@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.muxiao.Venus.R;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -32,14 +32,19 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
         this.currentUser = currentUser;
     }
 
-    private final Map<Integer, String> uid_link_map = new HashMap<>();
+    private final Map<Integer, String> uid_link_map = new LinkedHashMap<>();
+    private Integer[] cachedKeys = new Integer[0];
+
+    private void rebuildKeyCache() {
+        cachedKeys = uid_link_map.keySet().toArray(new Integer[0]);
+    }
 
     public void setLinks(Map<Integer, String> uid_link_map) {
-        // 保存链接大小
         int oldSize = this.uid_link_map.size();
         this.uid_link_map.clear();
         if (uid_link_map != null)
             this.uid_link_map.putAll(uid_link_map);
+        rebuildKeyCache();
         int newSize = this.uid_link_map.size();
         if (oldSize == 0 && newSize > 0) {
             // 从空到有数据，插入所有项
@@ -68,6 +73,7 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
         this.uid_link_map.clear();
         if (newLinks != null)
             this.uid_link_map.putAll(newLinks);
+        rebuildKeyCache();
         int newSize = this.uid_link_map.size();
         int minSize = Math.min(oldSize, newSize);
         if (minSize > 0)
@@ -94,19 +100,54 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
      */
     @Override
     public void onBindViewHolder(LinkViewHolder holder, int position) {
-        Integer[] uids = uid_link_map.keySet().toArray(new Integer[0]);
-        Integer uid = uids[position];
+        Integer uid = cachedKeys[position];
         String link = uid_link_map.get(uid);
-        holder.uidTextView.setText(new StringBuilder("UID: " + uid));
+        holder.uidTextView.setText("UID: " + uid);
         holder.linkTextView.setText(link);
         holder.copyButton.setOnClickListener(v -> copyToClipboard(view, context, link));
-        // 设置当前用户
-        if (!currentUser.isEmpty()) {
-            holder.currentUserTextView.setText(new StringBuilder("用户: " + currentUser));
+        if (currentUser != null && !currentUser.isEmpty()) {
+            holder.currentUserTextView.setText(context.getString(R.string.image_user_label) + currentUser);
             holder.currentUserTextView.setVisibility(View.VISIBLE);
         } else {
             holder.currentUserTextView.setVisibility(View.GONE);
         }
+
+        // 重置展开状态
+        holder.linkTextView.setMaxLines(3);
+        holder.expandButton.setText(context.getString(R.string.show_more));
+        holder.expandButton.setVisibility(View.GONE);
+
+        // 延迟检测文本是否被截断，布局完成后判断
+        holder.linkTextView.post(() -> {
+            android.text.Layout layout = holder.linkTextView.getLayout();
+            if (layout != null) {
+                int lastLine = holder.linkTextView.getMaxLines() - 1;
+                if (lastLine >= 0 && lastLine < layout.getLineCount()) {
+                    int end = layout.getLineEnd(lastLine);
+                    if (end < holder.linkTextView.getText().length()) {
+                        holder.expandButton.setVisibility(View.VISIBLE);
+                    }
+                }
+            }
+        });
+
+        holder.expandButton.setOnClickListener(v -> {
+            boolean expanded = holder.linkTextView.getMaxLines() == Integer.MAX_VALUE;
+            if (expanded) {
+                holder.linkTextView.setMaxLines(3);
+                holder.expandButton.setText(context.getString(R.string.show_more));
+            } else {
+                holder.linkTextView.setMaxLines(Integer.MAX_VALUE);
+                holder.expandButton.setText(context.getString(R.string.show_less));
+            }
+        });
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull LinkViewHolder holder) {
+        super.onViewRecycled(holder);
+        holder.expandButton.setOnClickListener(null);
+        holder.expandButton.setVisibility(View.GONE);
     }
 
     @Override

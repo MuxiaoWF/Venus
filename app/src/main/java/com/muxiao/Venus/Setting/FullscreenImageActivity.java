@@ -5,12 +5,9 @@ import static com.muxiao.Venus.common.tools.show_error_dialog;
 import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
 
 import android.Manifest;
-import android.content.ContentValues;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.provider.MediaStore;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.graphics.Bitmap;
@@ -37,14 +34,14 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.muxiao.Venus.R;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 全屏图片查看：支持双指缩放、左右滑动切换、下载保存到相册。
+ */
 public class FullscreenImageActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
     private MaterialTextView titleTextView;
@@ -113,54 +110,33 @@ public class FullscreenImageActivity extends AppCompatActivity {
             page.setScaleX(1f - absPos * 0.04f);
             page.setScaleY(1f - absPos * 0.04f);
         });
-        // 设置页面变化监听器
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
                 updateInfoText(position);
             }
+
+            @Override
+            public void onPageScrollStateChanged(int state) {
+                if (state == ViewPager2.SCROLL_STATE_IDLE && !isBottomInfoVisible) {
+                    showBottomInfo();
+                }
+            }
         });
 
-        // 更新简介文本
         updateInfoText(initialPosition);
 
-        // 设置按钮点击事件
         downloadButton.setOnClickListener(v -> checkPermissionAndDownload());
 
-        // 返回按钮点击事件
         MaterialButton backButton = findViewById(R.id.backButton);
         backButton.setOnClickListener(v -> finish());
 
-        // 处理状态栏内边距，避免返回按钮被状态栏遮挡
         ViewCompat.setOnApplyWindowInsetsListener(backButton, (v, insets) -> {
             int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
             ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
             params.topMargin = statusBarHeight + (int) (8 * getResources().getDisplayMetrics().density);
             v.setLayoutParams(params);
             return insets;
-        });
-
-        // 设置页面滑动监听，用于处理缩放时的底部信息栏显示
-        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override
-            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-                super.onPageScrolled(position, positionOffset, positionOffsetPixels);
-            }
-
-            @Override
-            public void onPageSelected(int position) {
-                super.onPageSelected(position);
-                updateInfoText(position);
-            }
-
-            @Override
-            public void onPageScrollStateChanged(int state) {
-                super.onPageScrollStateChanged(state);
-                // 当页面停止滑动时，确保底部信息栏显示
-                if (state == ViewPager2.SCROLL_STATE_IDLE && !isBottomInfoVisible) {
-                    showBottomInfo();
-                }
-            }
         });
     }
 
@@ -191,8 +167,8 @@ public class FullscreenImageActivity extends AppCompatActivity {
                 timeStr = sdf.format(new java.util.Date(timestamp * 1000));
             }
             titleTextView.setText(title != null ? title : "");
-            authorTextView.setText(author != null ? "作者: " + author : "");
-            timeTextView.setText(!timeStr.isEmpty() ? "时间: " + timeStr : "");
+            authorTextView.setText(author != null ? getString(R.string.image_author_prefix) + author : "");
+            timeTextView.setText(!timeStr.isEmpty() ? getString(R.string.image_time_prefix) + timeStr : "");
             if (description != null && !description.trim().isEmpty()) {
                 String trimmedDescription = description.replaceAll("\\s+", " ").trim();
                 if (!trimmedDescription.isEmpty()) {
@@ -277,62 +253,20 @@ public class FullscreenImageActivity extends AppCompatActivity {
 
                             @Override
                             public void onLoadFailed(Drawable errorDrawable) {
-                                show_error_dialog(FullscreenImageActivity.this, "图片加载失败，无法下载");
+                                show_error_dialog(FullscreenImageActivity.this, getString(R.string.err_image_load_failed_download));
                             }
                         });
             }
         }
     }
 
-    /**
-     * 保存图片到相册
-     */
     private void saveImageToGallery(Bitmap bitmap, int position) {
         try {
             String fileName = "venus_image_" + System.currentTimeMillis() + "_" + position + ".jpg";
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10及以上版本使用MediaStore API
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Venus");
-
-                // 获取内容解析器并插入图片
-                OutputStream fos = getContentResolver().openOutputStream(
-                        Objects.requireNonNull(getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)));
-                if (fos != null) {
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-                    fos.flush();
-                    fos.close();
-                    showCustomSnackbar(rootview, this, "图片已保存到: Pictures/Venus/" + fileName);
-                }
-            } else {
-                // Android 10以下版本使用传统方法
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this,
-                            new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                            WRITE_PERMISSION_REQUEST_CODE);
-                    return;
-                }
-
-                // 获取公共图片目录
-                File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-                File venusDir = new File(picturesDir, "Venus");
-                if (!venusDir.exists())
-                    venusDir.mkdirs();
-                File imageFile = new File(venusDir, fileName);
-                
-                // 保存图片
-                OutputStream fos = new FileOutputStream(imageFile);
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-                fos.flush();
-                fos.close();
-                showCustomSnackbar(rootview, this, "图片已保存到: " + imageFile.getAbsolutePath());
-            }
+            com.muxiao.Venus.common.tools.saveBitmapToGallery(this, bitmap, fileName);
+            showCustomSnackbar(rootview, this, getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName));
         } catch (IOException e) {
-            show_error_dialog(this, "保存图片失败: " + e.getMessage());
+            show_error_dialog(this, getString(R.string.err_save_image_failed, e.getMessage()));
         }
     }
 
@@ -346,7 +280,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
                 downloadCurrentImage();
             else
-                showCustomSnackbar(rootview, this, "请授予存储权限以保存图片");
+                showCustomSnackbar(rootview, this, getString(R.string.snack_grant_storage_permission));
         }
     }
 

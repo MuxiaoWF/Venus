@@ -106,7 +106,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_xs"
                 android:orientation="horizontal"
-                android:paddingHorizontal="12dp"
+                android:paddingHorizontal="@dimen/spacing_12"
                 android:paddingVertical="@dimen/spacing_sm"
                 android:visibility="gone" />
 
@@ -141,7 +141,7 @@
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
+                            android:layout_marginStart="@dimen/spacing_12"
                             android:layout_weight="1"
                             android:text="@string/task_list"
                             android:textSize="@dimen/text_card_title"
@@ -173,7 +173,7 @@
             <View
                 android:id="@+id/bottom_padding_view"
                 android:layout_width="match_parent"
-                android:layout_height="96dp" />
+                android:layout_height="@dimen/spacing_bottom_fab" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

@@ -51,6 +51,17 @@
             android:name=".User.UserLoginActivity"
             android:exported="false" />
         <activity
+            android:name=".User.OAuthLoginActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="venus" android:host="oauth" android:path="/callback" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Venus.SplashScreen"
@@ -68,6 +79,30 @@
             android:name=".Home.ForegroundTaskService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 任务状态小组件 -->
+        <receiver
+            android:name=".widget.TaskWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.muxiao.Venus.widget.REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/task_widget_info" />
+        </receiver>
+        <service
+            android:name=".widget.TaskWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <receiver
+            android:name=".widget.TaskWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.muxiao.Venus.widget.RUN_TASKS" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
