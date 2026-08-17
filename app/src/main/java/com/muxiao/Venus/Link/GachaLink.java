@@ -35,7 +35,8 @@ public class GachaLink {
     }
 
     /**
-     * 获取原神抽卡记录url
+     * 从本地读取 stoken/ltoken/mid，拼接为请求 Cookie（stoken 优先，缺失时回退 ltoken）。
+     * 任一 token 均缺失则抛异常，中断抽卡链接获取流程。
      **/
     private void initToken() {
         String stoken = tools.read(context, userId, "stoken");
@@ -48,6 +49,9 @@ public class GachaLink {
         stoken_and_mid = tokenKey + "=" + token + (mid != null ? ";mid=" + mid : "") + ";";
     }
 
+    /**
+     * 获取原神抽卡记录链接：返回 uid -> 抽卡记录 URL 的映射（支持多角色）。
+     */
     public Map<Integer, String> genshin() {
         initToken();
         String game_biz = MiHoYoBBSConstants.name_to_game_id("原神", isOversea);
@@ -60,7 +64,8 @@ public class GachaLink {
     }
 
     /**
-     * 获取uid
+     * 调用游戏角色接口，按 game_biz 过滤出当前账号下所有角色，返回其 game_uid 数组。
+     * 接口无 list 数据或解析失败时抛异常。
      **/
     private int[] getUID(String game_biz) {
         Map<String, String> user_game_roles_stoken_headers = header_manager.get_user_game_roles_stoken_headers();
@@ -90,7 +95,8 @@ public class GachaLink {
     }
 
     /**
-     * 获取authkey
+     * 为指定角色申请抽卡记录 authkey：国服/国际服分别设置 region，原神与绝区零参数不同。
+     * 返回已做 URL 编码（%2F、%2B）的 authkey；接口返回错误时抛出含 message 的异常。
      */
     private String getAuthKey(String game_biz, int uid) {
         Map<String, String> authkey_headers = header_manager.get_authkey_headers();

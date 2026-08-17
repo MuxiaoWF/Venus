@@ -1,10 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.hiltAndroid)
 }
 
 android {
     namespace = 'com.muxiao.Venus'
-    compileSdkVersion = 36
+    compileSdk = 37
 
     buildFeatures {
         buildConfig = true
@@ -12,13 +13,13 @@ android {
 
     defaultConfig {
         applicationId "com.muxiao.Venus"
-        minSdkVersion 23
-        targetSdkVersion 36
-        versionCode 6
-        versionName "0.0.6"
+        minSdk = 23
+        targetSdk = 37
+        versionCode 7
+        versionName "0.0.7"
 
-        buildConfigField "int", "VERSION_CODE", "$versionCode"
-        buildConfigField "String", "VERSION_NAME", "\"$versionName\""
+        buildConfigField "int", "VERSION_CODE", "${defaultConfig.versionCode}"
+        buildConfigField "String", "VERSION_NAME", "\"${defaultConfig.versionName}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,6 +27,13 @@ android {
     }
     signingConfigs {
         release {
+            def storeFileProp = project.findProperty('VENUS_STORE_FILE')
+            if (storeFileProp != null) {
+                storeFile file(storeFileProp)
+                storePassword project.findProperty('VENUS_STORE_PASSWORD')
+                keyAlias project.findProperty('VENUS_KEY_ALIAS')
+                keyPassword project.findProperty('VENUS_KEY_PASSWORD')
+            }
             enableV1Signing = true
             enableV2Signing = true
             enableV3Signing = true
@@ -50,10 +58,35 @@ android {
     }
     packagingOptions {
         resources {
-            excludes += ['META-INF/NOTICE.txt', 'META-INF/LICENSE.txt', 'META-INF/DEPENDENCIES', 'META-INF/NOTICE', 'META-INF/LICENSE', 'META-INF/services/javax.imageio.spi.ImageInputStreamSpi', 'META-INF/services/javax.imageio.spi.ImageOutputStreamSpi', 'META-INF/services/javax.imageio.spi.ImageReaderSpi', 'META-INF/services/javax.imageio.spi.ImageWriterSpi']
+            excludes += [
+                'META-INF/NOTICE.txt',
+                'META-INF/LICENSE.txt',
+                'META-INF/DEPENDENCIES',
+                'META-INF/NOTICE',
+                'META-INF/LICENSE',
+                'META-INF/services/javax.imageio.spi.ImageInputStreamSpi',
+                'META-INF/services/javax.imageio.spi.ImageOutputStreamSpi',
+                'META-INF/services/javax.imageio.spi.ImageReaderSpi',
+                'META-INF/services/javax.imageio.spi.ImageWriterSpi',
+                'META-INF/**/LICENSE*',
+                'META-INF/**/NOTICE*',
+                'META-INF/*.kotlin_module',
+                'META-INF/proguard/*',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1'
+            ]
+        }
+        jniLibs {
+            // 与 extractNativeLibs=false 配合：.so 以未压缩/页对齐方式存储，Android 12+ 不再解压到私有存储
+            useLegacyPackaging = false
         }
     }
 
+}
+
+// 单 module（仅 :app）项目无需跨 module 依赖聚合任务，关闭以减少不必要的构建步骤。
+hilt {
+    enableAggregatingTask = false
 }
 
 dependencies {
@@ -62,14 +95,21 @@ dependencies {
     implementation libs.sensebot
     implementation libs.okhttp
     implementation libs.com.google.zxing.core
-    implementation libs.material.v1140alpha04
+    implementation libs.material
     implementation libs.appcompat
     implementation libs.activity
+    implementation libs.lifecycle.viewmodel
+    implementation libs.lifecycle.livedata
     implementation libs.constraintlayout
     implementation libs.com.google.code.gson.gson3
     implementation libs.ucrop
     implementation libs.glide
     implementation libs.touchimageview
+    implementation libs.kotlin.stdlib
+    implementation libs.hilt.android
+    annotationProcessor libs.hilt.compiler
+    implementation libs.datastore.preferences.rxjava3
+    implementation libs.rxjava3
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

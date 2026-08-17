@@ -52,6 +52,9 @@ public class TaskSettings {
         this.gameDailyGames = gameDailyGames;
     }
 
+    /**
+     * 从 SharedPreferences 组装不可变任务配置；国际服自动禁用米游币签到与部分国服专属游戏签到。
+     */
     public static TaskSettings fromPreferences(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
 
@@ -110,10 +113,16 @@ public class TaskSettings {
         return gameDailyGames;
     }
 
+    /**
+     * 是否所有任务大类（米游币/游戏签到/森空岛）均被关闭，用于提示用户未选择任何任务。
+     */
     public boolean hasAnyTaskDisabled() {
         return !dailyEnabled && !gameDailyEnabled && !sklandArknightsEnabled && !sklandEndfieldEnabled;
     }
 
+    /**
+     * 返回已启用任务的本地化名称列表，用于通知与日志展示。
+     */
     public List<String> getTaskNames(Context context) {
         List<String> names = new ArrayList<>();
         if (dailyEnabled) names.add(context.getString(R.string.task_name_bbs_daily));

@@ -2,6 +2,7 @@
     <!-- Base application theme. -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
+        <item name="bottomNavigationStyle">@style/Widget.Venus.BottomNavigationView</item>
     </style>
     <!-- 深色模式下的Splash启动页Style -->
     <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">

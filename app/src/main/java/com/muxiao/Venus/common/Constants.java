@@ -45,6 +45,8 @@ public class Constants {
         public static final String OS_STOKEN_URL = OS_BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
         public static final String OS_LTOKEN_URL = "https://passport-api.hoyoverse.com/account/auth/api/getLTokenBySToken";
         public static final String LTOKEN_URL = "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken";
+        // 账号密码登录（国服 passport，返回的 token 即 stoken，user_info 中含 mid）
+        public static final String PASSWORD_LOGIN_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByPassword";
         public static final String FP_URL = "https://public-data-api.mihoyo.com/device-fp/api/getFp";
 
         public static final String BBS_TASK_URL = BBS_BASE_URL + "/apihub/sapi/getUserMissionsState";
@@ -131,6 +133,7 @@ public class Constants {
         public static final String SALT_4X_PREF = "SALT_4X";
         public static final String LK2_PREF = "LK2";
         public static final String K2_PREF = "K2";
+        public static final String SALT_PASSPORT_PREF = "SALT_PASSPORT";
         public static final String BBS_VERSION_PREF = "bbs_version";
         public static final String UPDATE_TIME_PREF = "update_time";
         public static final String UPDATE_TIME_LOCAL_PREF = "update_time_local";

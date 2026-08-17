@@ -20,6 +20,16 @@
 -keepattributes Signature
 -keepattributes InnerClasses,EnclosingMethod
 
+# ---------- RxJava3（DataStore RxJava3 绑定，R8 fullMode 需保留） ----------
+-keep class io.reactivex.rxjava3.** { *; }
+-keep interface io.reactivex.rxjava3.** { *; }
+-dontwarn io.reactivex.rxjava3.**
+
+# ---------- DataStore（Preferences + 内部 protobuf 序列化，R8 fullMode 需保留） ----------
+-keep class androidx.datastore.** { *; }
+-keep class androidx.datastore.preferences.protobuf.** { *; }
+-dontwarn androidx.datastore.**
+
 # ---------- GeeTest 极验验证码（混淆会导致无法正常显示） ----------
 -keep class com.geetest.sdk.** {*;}
 -keep class com.geetest.captcha.** {*;}
@@ -91,3 +101,8 @@
     public static int d(...);
     public static int i(...);
 }
+
+# ---------- Hilt 依赖注入（阶段 1，无 DataStore） ----------
+# Hilt 自带 consumer-rules 已保留大部分生成类；R8 fullMode 下补充 Fragment 上下文包装类，
+# 避免 Hilt 注入的 Fragment 在 release 构建里被误删导致运行时崩溃。
+-keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper

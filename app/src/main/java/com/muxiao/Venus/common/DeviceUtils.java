@@ -35,7 +35,7 @@ public class DeviceUtils {
 
 
     /**
-     * 等待设备ID获取完成
+     * 阻塞等待 OAID 就绪（最长 5 秒，每 100ms 轮询）；超时、中断或失败时回退到基于 Android ID 生成的 UUID。
      */
     public String waitForDeviceId() {
         // 最多等待5秒
@@ -57,7 +57,7 @@ public class DeviceUtils {
         return generateDeviceId();
     }
     /**
-     * 生成设备ID
+     * OAID 获取失败时生成稳定设备指纹：以 Android ID + 厂商/型号为命名空间，按 NameUUID（MD5，v3 UUID）算法生成。
      */
     private String generateDeviceId() {
         @SuppressLint("HardwareIds") String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
@@ -100,6 +100,9 @@ public class DeviceUtils {
         return new UUID(mostSignificantBits, leastSignificantBits).toString();
     }
 
+    /**
+     * 构建 device_fp 接口所需的 ext_fields 设备信息 JSON（含 CPU、存储、内存、传感器等）。
+     */
     public String getExtFields() {
         String deviceId = waitForDeviceId();
         Gson gson = new Gson();
@@ -140,7 +143,7 @@ public class DeviceUtils {
     }
 
     /**
-     * 获取手机存储空间
+     * 返回设备根分区总存储（MB），用于 ext_fields 上报。
      */
     private long getTotalStorageSpace() {
         android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
@@ -150,7 +153,7 @@ public class DeviceUtils {
     }
 
     /**
-     * 获取手机可用存储空间
+     * 返回设备根分区可用存储（MB），用于 ext_fields 上报。
      */
     private long getAvailableStorageSpace() {
         android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
@@ -160,7 +163,7 @@ public class DeviceUtils {
     }
 
     /**
-     * 获取总内存
+     * 返回设备总内存（MB），用于 ext_fields 上报。
      */
     private long getTotalMemory() {
         android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -171,7 +174,7 @@ public class DeviceUtils {
 
 
     /**
-     * 获取可用内存
+     * 返回设备可用内存（MB），用于 ext_fields 上报。
      */
     private long getAvailableRam() {
         android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -180,6 +183,9 @@ public class DeviceUtils {
         return memoryInfo.availMem / (1024 * 1024); // 返回MB
     }
 
+    /**
+     * 返回三轴传感器的经验标定数据（固定字符串），用于 ext_fields 伪装设备特征。
+     */
     private String getSensorInfo(String sensorType) {
         switch (sensorType) {
             case "accelerometer":

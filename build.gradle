@@ -1,5 +1,21 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
-alias(libs.plugins.android.application) apply false
-id 'com.github.ben-manes.versions' version '0.54.0'
+    alias(libs.plugins.android.application) apply false
+}
+
+tasks.named("dependencyUpdates").configure {
+    revision = 'release'
+    outputFormatter = 'json'
+    // 过滤预发布版本：alpha / beta / rc / cr / milestone 不列为可升级项
+    resolutionStrategy {
+        componentSelection {
+            all {
+                if (['alpha', 'beta', 'rc', 'cr', 'm'].any { q ->
+                    candidate.version ==~ /(?i).*[.-]${q}[.\d-]*/
+                }) {
+                    reject('Release candidate')
+                }
+            }
+        }
+    }
 }

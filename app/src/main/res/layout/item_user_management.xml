@@ -1,24 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.Card"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
-    android:orientation="vertical">
+    android:layout_height="wrap_content">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="@dimen/spacing_md"
-        android:paddingVertical="@dimen/item_padding_vertical">
+        android:paddingHorizontal="@dimen/space_4"
+        android:paddingVertical="@dimen/gap_row">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="@dimen/spacing_12">
+            android:layout_marginBottom="@dimen/space_3">
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/user_name_text"
@@ -30,10 +28,8 @@
                 android:maxLines="1"
                 android:text="@string/user_name"
                 android:textAlignment="viewStart"
-                android:textSize="@dimen/text_card_title"
-                android:textFontWeight="600"
-                android:textColor="?attr/colorOnSurface"
-                tools:targetApi="28" />
+                android:textAppearance="@style/TextAppearance.Venus.Title"
+                android:textColor="?attr/colorOnSurface" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/rename_user_button"
@@ -41,9 +37,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
-                android:paddingHorizontal="@dimen/spacing_12"
+                android:paddingHorizontal="@dimen/space_3"
                 android:text="@string/rename"
-                android:textSize="14sp" />
+                android:textAppearance="?attr/textAppearanceLabelLarge" />
 
         </LinearLayout>
 
@@ -58,7 +54,7 @@
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="@dimen/spacing_sm"
+                android:layout_marginEnd="@dimen/space_2"
                 android:layout_weight="1"
                 android:text="@string/re_login" />
 
@@ -67,7 +63,7 @@
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/spacing_sm"
+                android:layout_marginStart="@dimen/space_2"
                 android:layout_weight="1"
                 android:text="@string/delete_user" />
 
@@ -75,10 +71,4 @@
 
     </LinearLayout>
 
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginStart="@dimen/spacing_md"
-        android:alpha="0.15" />
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

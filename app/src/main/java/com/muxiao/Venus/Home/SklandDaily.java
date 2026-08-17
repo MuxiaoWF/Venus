@@ -78,6 +78,7 @@ public class SklandDaily {
         }
     }
 
+    /** 森空岛签到主流程：换取 cred → 拉取绑定角色 → 按 gameId 过滤 → 逐个签到。 */
     public void run() throws Exception {
         notifier.notifyListeners(context.getString(R.string.skland_start));
         Cred cred = getCredByToken(token);
@@ -105,7 +106,8 @@ public class SklandDaily {
     }
 
     /**
-     * 获取特殊的设备ID
+     * 用 token 换取 grant code 并生成登录票据 cred（cred + token）。
+     * grant 接口 status≠0 时抛错提示原因。
      */
     private Cred getCredByToken(String token) throws Exception {
         // 获取设备ID
@@ -182,6 +184,7 @@ public class SklandDaily {
         return list;
     }
 
+    /** 按 gameId 返回本地化的任务名称（明日方舟 / 终末地）。 */
     private String getTaskName() {
         return gameId == GAME_ARKNIGHTS
                 ? context.getString(R.string.task_name_skland_arknights)
@@ -189,7 +192,8 @@ public class SklandDaily {
     }
 
     /**
-     * 执行签到
+     * 对单个角色执行签到：终末地走 web 接口、明日方舟走 api 接口，均带签名头；
+     * 捕获 403 视为今日已签到（记日志不抛错）。
      */
     private void doSign(Cred cred, Role role) throws Exception {
         Map<String, String> signBase = new LinkedHashMap<>();
@@ -257,6 +261,7 @@ public class SklandDaily {
         }
     }
 
+    /** 组装森空岛请求头：cred + 签名(sign/timestamp) + 设备指纹相关字段。 */
     private Map<String, String> createSignHeaders(Cred cred, Map<String, String> signBase, Map<String, String> sig) {
         Map<String, String> headers = new HashMap<>();
         headers.put("cred", cred.cred);
@@ -272,7 +277,13 @@ public class SklandDaily {
     }
 
     /**
-     * 构建签名
+     * 按森空岛规范生成请求签名：以 path + body/query + 时间戳 + 关键请求头 JSON 拼接，
+     * 先 HMAC-SHA256 再对结果 MD5，返回 sign 与 timestamp。
+     *
+     * @param token        cred.token，用作 HMAC 密钥
+     * @param path         接口路径（用于签名串）
+     * @param bodyOrQuery  请求体或查询串
+     * @param headerForSign 参与签名的请求头（platform/timestamp/dId/vName）
      */
     private static Map<String, String> generateSignature(String token, String path, String bodyOrQuery, Map<String, String> headerForSign) throws Exception {
         // 生成时间戳
@@ -297,7 +308,9 @@ public class SklandDaily {
     }
 
     /**
-     * 获取 did
+     * 生成设备指纹并调用指纹服务获取 deviceId（返回 "B" + deviceId）。
+     * 过程含构造浏览器环境副本、DES 混淆字段、GZIP 压缩、AES 加密，
+     * 再用 RSA 加密设备 ID 作为 ep 一并上报。
      */
     private String getDid() throws Exception {
         byte[] uid = deviceID.getBytes();
@@ -363,6 +376,7 @@ public class SklandDaily {
                 .get("deviceId").getAsString();
     }
 
+    /** 按 DES_RULES 对指定字段做 DES/ECB 加密并重命名为混淆名，其余字段透传。 */
     private static Map<String, Object> _DES(Map<String, Object> obj) throws Exception {
         Map<String, Object> result = new HashMap<>();
 
@@ -417,6 +431,7 @@ public class SklandDaily {
         return result;
     }
 
+    /** 将 map 按键排序拼接为规范串（数值放大 10000 倍），用于设备指纹 tn 计算。 */
     private static String tn(Map<String, Object> m) {
         List<String> k = new ArrayList<>(m.keySet());
         Collections.sort(k);
@@ -430,6 +445,7 @@ public class SklandDaily {
         return sb.toString();
     }
 
+    /** 基于时间 + 设备ID 生成森空岛 smid 指纹串。 */
     private String smid() throws Exception {
         Calendar cal = Calendar.getInstance();
         String t = String.format(java.util.Locale.getDefault(), "%d%02d%02d%02d%02d%02d",
@@ -445,6 +461,7 @@ public class SklandDaily {
         return v + smskWeb + "0";
     }
 
+    /** 用内置 RSA 公钥加密设备 ID，返回 Base64 密文（上报为 ep）。 */
     private static String rsa(byte[] d) throws Exception {
         PublicKey k = KeyFactory.getInstance("RSA")
                 .generatePublic(new X509EncodedKeySpec(android.util.Base64.decode(SM_PUBKEY, android.util.Base64.NO_WRAP)));
@@ -453,6 +470,7 @@ public class SklandDaily {
         return android.util.Base64.encodeToString(c.doFinal(d), android.util.Base64.NO_WRAP);
     }
 
+    /** AES/CBC/NoPadding 加密（密钥 k，固定 IV），返回十六进制密文。 */
     private static String aes(byte[] d, String k) throws Exception {
         Cipher c = Cipher.getInstance("AES/CBC/NoPadding");
         int len = ((d.length + 16 - 1) / 16) * 16;
@@ -463,6 +481,7 @@ public class SklandDaily {
         return tools.bytesToHex(c.doFinal(d));
     }
 
+    /** 计算字节数组的 MD5 十六进制串。 */
     private static String md5(byte[] d) throws Exception {
         return tools.bytesToHex(MessageDigest.getInstance("MD5").digest(d));
     }

@@ -1,20 +1,18 @@
 package com.muxiao.Venus;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
 import static com.muxiao.Venus.common.Constants.Prefs.APP_INFO_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
-import static com.muxiao.Venus.common.Constants.Prefs.CONFIG_PREFS_NAME;
-import static com.muxiao.Venus.common.Constants.Prefs.LANGUAGE_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.LAST_VERSION;
 import static com.muxiao.Venus.common.Constants.Prefs.PREF_CAPTCHA_PENDING;
-import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_LANGUAGE;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -24,19 +22,19 @@ import android.view.ViewGroup;
 
 import android.widget.ImageView;
 
-import java.util.Locale;
-
 import com.google.android.material.card.MaterialCardView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.navigationrail.NavigationRailView;
+
+import com.muxiao.Venus.common.Logger;
 
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
@@ -48,6 +46,7 @@ import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.data.ConfigRepository;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -60,22 +59,18 @@ import java.io.InputStream;
  * 主Activity：底部导航（主页/抽卡链接/用户管理/设置）、背景图片加载、
  * 语言/主题切换、深色模式跟随系统、后台人机验证入口。
  */
-public class MainActivity extends AppCompatActivity {
+@AndroidEntryPoint
+public class MainActivity extends BaseActivity {
     private ViewPager2 viewPager;
     public BottomNavigationView bottomNavigationView;
-
-    @Override
-    protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(wrapLocale(newBase));
-    }
+    private NavigationRailView navigationRailView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // 启动闪屏
         SplashScreen.installSplashScreen(this);
-        // 应用选定的主题
-        int selectedTheme = SettingsFragment.getSelectedTheme(this);
-        setTheme(selectedTheme);
+        // 应用选定的主题（含换肤 overlay）
+        SettingsFragment.applyAppTheme(this);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -93,12 +88,16 @@ public class MainActivity extends AppCompatActivity {
         // 初始化ViewPager2和底部导航
         viewPager = findViewById(R.id.viewPager);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        navigationRailView = findViewById(R.id.navigation_rail);
         // 设置ViewPager2适配器
         ViewPagerAdapter adapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(adapter);
 
         // 设置预加载相邻页面数量
         viewPager.setOffscreenPageLimit(3);
+
+        // 页面切换动效：轻微淡入 + 缩放，增强高级感；尊重系统「减少动态效果」
+        viewPager.setPageTransformer(this::applyPageTransform);
 
         // 设置背景图片时降低卡片不透明度
         adjustCardsForBackground();
@@ -116,12 +115,16 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
-                bottomNavigationView.setSelectedItemId(getMenuIdByPosition(position));
+                int menuId = getMenuIdByPosition(position);
+                if (navigationRailView != null)
+                    navigationRailView.setSelectedItemId(menuId);
+                else if (bottomNavigationView != null)
+                    bottomNavigationView.setSelectedItemId(menuId);
             }
         });
 
-        // 设置底部导航选择监听器，与ViewPager2联动
-        bottomNavigationView.setOnItemSelectedListener(item -> {
+        // 导航选择监听器（BottomNav / NavigationRail 共用逻辑），与ViewPager2联动
+        com.google.android.material.navigation.NavigationBarView.OnItemSelectedListener navListener = item -> {
             int itemId = item.getItemId();
             int position = getPositionByMenuId(itemId);
             if (position != -1) {
@@ -129,11 +132,21 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
             return false;
-        });
+        };
+        if (navigationRailView != null)
+            navigationRailView.setOnItemSelectedListener(navListener);
+        else if (bottomNavigationView != null)
+            bottomNavigationView.setOnItemSelectedListener(navListener);
 
         // 默认加载首页Fragment
         if (savedInstanceState == null)
             viewPager.setCurrentItem(0);
+
+        // 注册 HomeFragment 就绪监听：替代原先 postDelayed 轮询等待 Fragment 创建，
+        // 用于在其就绪后触发后台人机验证（见 tryTriggerCaptchaIfReady）。
+        getSupportFragmentManager().setFragmentResultListener(
+                HomeFragment.RESULT_HOME_READY, this,
+                (requestKey, result) -> tryTriggerCaptchaIfReady());
 
         // 处理后台人机验证通知跳转
         handleCaptchaIntent(getIntent());
@@ -152,52 +165,53 @@ public class MainActivity extends AppCompatActivity {
         triggerCaptchaIfPending();
     }
 
+    /** 待触发的后台人机验证标记（替代原先 postDelayed 轮询的状态机）。 */
+    private boolean captchaPending = false;
+
     /**
      * 检查是否有待处理的后台人机验证，有则触发。
+     * 不再轮询：HomeFragment 通过 FragmentResult({@link HomeFragment#RESULT_HOME_READY}) 通知就绪，
+     * 由 {@link #tryTriggerCaptchaIfReady()} 触发。
      */
     private void triggerCaptchaIfPending() {
-        SharedPreferences configPrefs = getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
-        boolean pending = configPrefs.getBoolean(PREF_CAPTCHA_PENDING, false);
-        android.util.Log.e("VenusCaptcha", "triggerCaptchaIfPending: pending=" + pending);
+        ConfigRepository configRepo = new ConfigRepository(this);
+        boolean pending = configRepo.getBoolean(PREF_CAPTCHA_PENDING, false);
+        Logger.debug("VenusCaptcha", "triggerCaptchaIfPending: pending=" + pending);
         if (!pending) return;
 
-        // 清除标记，防止重复触发（apply 内存写入即时生效，同实例读取无问题）
-        configPrefs.edit().putBoolean(PREF_CAPTCHA_PENDING, false).apply();
+        // 清除标记，防止重复触发（仓储写入为 Write-Through：缓存即时生效，后续读取无问题）
+        configRepo.putBoolean(PREF_CAPTCHA_PENDING, false);
+        captchaPending = true;
         viewPager.setCurrentItem(0, false);
 
-        // 轮询等待 HomeFragment 就绪（ViewPager 创建 Fragment 需要时间）
-        waitForHomeFragment(0);
+        // HomeFragment 可能尚未就绪：先直接尝试一次；未就绪则等待其 RESULT_HOME_READY 回调。
+        tryTriggerCaptchaIfReady();
     }
 
-    private void waitForHomeFragment(int attempt) {
-        // 打印所有 Fragment 用于调试
-        if (attempt == 0) {
-            java.util.List<androidx.fragment.app.Fragment> allFragments = getSupportFragmentManager().getFragments();
-            android.util.Log.e("VenusCaptcha", "FragmentManager fragments count=" + allFragments.size());
-            for (int i = 0; i < allFragments.size(); i++) {
-                androidx.fragment.app.Fragment f = allFragments.get(i);
-                android.util.Log.e("VenusCaptcha", "  fragment[" + i + "]=" + f.getClass().getSimpleName() + " tag=" + f.getTag() + " added=" + f.isAdded());
-            }
-        }
+    /**
+     * HomeFragment 已就绪（或刚就绪）时尝试触发后台人机验证。
+     * 仅当 captchaPending 为真且能立即取到 HomeFragment 实例时触发，避免轮询。
+     */
+    private void tryTriggerCaptchaIfReady() {
+        if (!captchaPending) return;
         HomeFragment homeFragment = getHomeFragment();
-        android.util.Log.e("VenusCaptcha", "waitForHomeFragment attempt=" + attempt + ", fragment=" + homeFragment);
         if (homeFragment != null) {
+            captchaPending = false;
             homeFragment.performBackgroundCaptchaVerification();
-        } else if (attempt < 50) {
-            viewPager.postDelayed(() -> waitForHomeFragment(attempt + 1), 100);
         }
     }
 
+    // 解析来自后台人机验证通知的 Intent：置位 captchaPending 并切到首页等待触发
     private void handleCaptchaIntent(Intent intent) {
-        android.util.Log.e("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
+        Logger.debug("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
         if (intent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(intent.getAction())) {
             intent.setAction(null);
-            getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().putBoolean(PREF_CAPTCHA_PENDING, true).apply();
+            new ConfigRepository(this).putBoolean(PREF_CAPTCHA_PENDING, true);
             viewPager.setCurrentItem(0, false);
         }
     }
 
+    // 从 FragmentManager 中查找当前已挂载的 HomeFragment 实例（不依赖 tag）
     private HomeFragment getHomeFragment() {
         // 遍历所有已添加的 Fragment 查找 HomeFragment（不依赖 tag 格式）
         for (androidx.fragment.app.Fragment f : getSupportFragmentManager().getFragments()) {
@@ -219,20 +233,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 为 Fragment 中的底部空白 View 设置高度，避免被底部导航栏遮挡。
+     * ViewPager2 页面变换：当前页 100% 不透明/满尺寸，两侧页轻微淡出并缩小，
+     * 形成柔和的纵深感。系统关闭动画时直接复位属性。
      */
-    public void applyBottomPadding(View bottomPaddingView) {
-        if (bottomPaddingView == null) return;
-        int bottomNavHeight = bottomNavigationView.getHeight();
-        if (bottomNavHeight > 0) {
-            ViewGroup.LayoutParams params = bottomPaddingView.getLayoutParams();
-            params.height = bottomNavHeight + (int) (32 * getResources().getDisplayMetrics().density);
-            bottomPaddingView.setLayoutParams(params);
+    private void applyPageTransform(View page, float position) {
+        if (com.muxiao.Venus.common.tools.isReducedMotionEnabled(this)) {
+            page.setAlpha(1f);
+            page.setScaleX(1f);
+            page.setScaleY(1f);
+            return;
         }
+        float abs = Math.abs(position);
+        page.setAlpha(1f - 0.12f * abs);
+        page.setScaleX(1f - 0.03f * abs);
+        page.setScaleY(1f - 0.03f * abs);
     }
 
     /**
-     * 检查更新（如果需要）
+     * 读取设置中的自动更新开关，开启时启动 UpdateChecker 检查新版本。
      */
     private void checkForUpdatesIfNeeded() {
         // 检查是否启用了自动更新
@@ -280,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * ViewPager2适配器
+     * ViewPager2 适配器：按位置创建 Home / 用户管理 / 抽卡链接 / 设置 四个 Fragment。
      */
     private static class ViewPagerAdapter extends FragmentStateAdapter {
         public ViewPagerAdapter(MainActivity activity) {
@@ -310,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 设置背景图片
+     * 加载用户设定的背景图并按设置不透明度显示；权限不足或解码失败时回退隐藏并提示。
      */
     private void setupBackground() {
         ImageView backgroundImage = findViewById(R.id.background_image);
@@ -350,34 +368,50 @@ public class MainActivity extends AppCompatActivity {
      */
     private void adjustCardsForBackground() {
         Uri bgUri = SettingsFragment.getBackgroundImageUri(this);
-        if (bgUri == null) return;
         viewPager.post(() -> {
+            // 底部导航栏：始终为半透明毛玻璃（colorSurfaceContainer 的半透明，比 window 背景深一档），
+            // 圆角由 bg_bottom_nav_rounded 提供。无背景图时也能浮在浅色背景上；
+            // 有背景图时则透出图片形成真正的毛玻璃悬浮。不再依赖 backgroundTint，
+            // 因为样式里已将其置 @null，此处直接给 drawable 上色。
+            if (bottomNavigationView != null) {
+                int navColor = (0x99 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
+                        bottomNavigationView, com.google.android.material.R.attr.colorSurfaceContainer, 0));
+                android.graphics.drawable.Drawable bg = bottomNavigationView.getBackground().mutate();
+                bg.setTint(navColor);
+                bottomNavigationView.setBackground(bg);
+            }
+            if (bgUri == null) return;
             int semiTransparentColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
                     viewPager, com.google.android.material.R.attr.colorSurfaceContainerLow, 0));
-            applyCardAlpha(viewPager, semiTransparentColor);
-            // 底部导航栏也适当降低不透明度，保留圆角
-            int navColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
-                    bottomNavigationView, com.google.android.material.R.attr.colorSurfaceContainer, 0));
-            android.graphics.drawable.Drawable bg = bottomNavigationView.getBackground().mutate();
-            bg.setTint(navColor);
-            bottomNavigationView.setBackground(bg);
+            applyTopLevelCardAlpha(viewPager, semiTransparentColor);
         });
     }
 
-    private void applyCardAlpha(View view, int color) {
+    // 只为 ViewPager 内最外层分组卡片设置半透明背景色，以露出背景图；
+    // 内层列表项/状态卡不再重复着色，避免多层半透明叠加显脏。
+    // maxDepth=4 覆盖：ViewPager(0) → fragment root(1) → NestedScrollView(2)
+    // → 内容容器(3) → 分组卡片(4)；再深的任务项/空态卡不再处理。
+    private static final int CARD_ALPHA_MAX_DEPTH = 4;
+
+    private void applyTopLevelCardAlpha(View view, int color) {
+        applyTopLevelCardAlpha(view, color, 0);
+    }
+
+    private void applyTopLevelCardAlpha(View view, int color, int depth) {
+        if (depth > CARD_ALPHA_MAX_DEPTH) return;
         if (view instanceof MaterialCardView) {
             ((MaterialCardView) view).setCardBackgroundColor(color);
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {
-                applyCardAlpha(group.getChildAt(i), color);
+                applyTopLevelCardAlpha(group.getChildAt(i), color, depth + 1);
             }
         }
     }
 
     /**
-     * 从Uri获取Drawable
+     * 按系统版本从 Uri 解码背景 Drawable（Android P+ 用 ImageDecoder，否则 BitmapFactory）。
      */
     private Drawable getDrawableFromUri(Uri uri) {
         try {
@@ -413,10 +447,10 @@ public class MainActivity extends AppCompatActivity {
         int currentVersion = BuildConfig.VERSION_CODE;
         if (currentVersion > lastVersion) {
             // 应用已更新，清除旧配置（回退到内置默认值）
-            SharedPreferences prefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
-            boolean captchaPending = prefs.getBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, false);
-            prefs.edit().clear().apply();
-            if (captchaPending) prefs.edit().putBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, true).apply();
+            ConfigRepository configRepo = new ConfigRepository(context);
+            boolean captchaPending = configRepo.getBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, false);
+            configRepo.clear();
+            if (captchaPending) configRepo.putBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, true);
             // 更新最后运行的版本号
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
             // 后台自动从云端获取最新配置
@@ -430,30 +464,4 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchTouchEvent(event);
     }
 
-    /**
-     * 包装Context以应用语言设置（现代API，无deprecation）
-     */
-    public static Context wrapLocale(Context context) {
-        SharedPreferences languagePrefs = context.getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
-        int selectedLanguage = languagePrefs.getInt(SELECTED_LANGUAGE, 0);
-
-        Locale locale;
-        switch (selectedLanguage) {
-            case 1: // 简体中文
-                locale = Locale.SIMPLIFIED_CHINESE;
-                break;
-            case 2: // 繁體中文
-                locale = Locale.TRADITIONAL_CHINESE;
-                break;
-            case 3: // English
-                locale = Locale.ENGLISH;
-                break;
-            default: // 跟随系统
-                return context;
-        }
-
-        Configuration config = new Configuration(context.getResources().getConfiguration());
-        config.setLocale(locale);
-        return context.createConfigurationContext(config);
-    }
 }

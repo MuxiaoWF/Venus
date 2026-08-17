@@ -2,50 +2,48 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/colorSurface"
-    android:foreground="?attr/selectableItemBackground"
     android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="@dimen/spacing_md"
-        android:paddingVertical="@dimen/item_padding_vertical">
+        android:background="?attr/colorSurface"
+        android:foreground="?attr/selectableItemBackground"
+        android:paddingHorizontal="@dimen/space_4"
+        android:paddingVertical="@dimen/gap_row">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/currentUserTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
-            android:textColor="?attr/colorOnSurface"
-            android:textStyle="bold" />
+            android:textAppearance="@style/TextAppearance.Venus.Title.Small"
+            android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/uidTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xs"
-            android:textAppearance="?attr/textAppearanceTitleSmall"
-            android:textColor="?attr/colorPrimary"
-            android:textStyle="bold" />
+            android:layout_marginTop="@dimen/space_1"
+            android:textAppearance="@style/TextAppearance.Venus.Label.Large"
+            android:textColor="?attr/colorPrimary" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/linkTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_sm"
+            android:layout_marginTop="@dimen/space_2"
             android:ellipsize="end"
             android:fontFamily="monospace"
             android:maxLines="3"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textAppearance="@style/TextAppearance.Venus.Body.Small"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textIsSelectable="true" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xs"
+            android:layout_marginTop="@dimen/space_1"
             android:gravity="end"
             android:orientation="horizontal">
 
@@ -55,7 +53,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/show_more"
-                android:textSize="@dimen/text_caption"
+                android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
@@ -64,16 +62,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/copy_link"
-                android:textSize="@dimen/text_caption" />
+                android:textAppearance="?attr/textAppearanceLabelMedium" />
 
         </LinearLayout>
 
     </LinearLayout>
 
     <com.google.android.material.divider.MaterialDivider
+        style="@style/Widget.Venus.Divider"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginStart="@dimen/divider_indent_icon"
-        android:alpha="0.15"/>
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_4" />
 
 </LinearLayout>

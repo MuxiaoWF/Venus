@@ -6,9 +6,14 @@
     android:layout_height="match_parent"
     tools:context=".Setting.ImageActivity">
 
+    <!-- 顶部应用栏（毛玻璃：半透明 surface + 底部柔影 + 大圆角筛选区） -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceContainer"
+        android:outlineSpotShadowColor="?attr/colorOutline"
+        app:elevation="4dp"
+        tools:ignore="NewApi">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
@@ -20,8 +25,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="@dimen/spacing_md"
-            android:paddingBottom="@dimen/spacing_sm">
+            android:paddingHorizontal="@dimen/space_4"
+            android:paddingBottom="@dimen/space_3">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -31,16 +36,15 @@
                 android:weightSum="6">
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    style="@style/Widget.Venus.Dropdown"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_xs"
-                    android:layout_marginEnd="@dimen/spacing_xs"
-                    android:layout_marginBottom="@dimen/spacing_xs"
+                    android:layout_marginEnd="@dimen/space_2"
+                    android:layout_marginBottom="@dimen/space_2"
                     android:layout_weight="3"
                     android:hint="@string/select_image_source"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent">
+                    app:boxStrokeWidth="1dp"
+                    app:boxStrokeWidthFocused="1.5dp">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/forumSelector"
@@ -52,16 +56,15 @@
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    style="@style/Widget.Venus.Dropdown"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_xs"
-                    android:layout_marginTop="@dimen/spacing_xs"
-                    android:layout_marginBottom="@dimen/spacing_xs"
+                    android:layout_marginStart="@dimen/space_2"
+                    android:layout_marginBottom="@dimen/space_2"
                     android:layout_weight="3"
                     android:hint="@string/type"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent">
+                    app:boxStrokeWidth="1dp"
+                    app:boxStrokeWidthFocused="1.5dp">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/cateIdSelector"
@@ -69,9 +72,7 @@
                         android:layout_height="wrap_content"
                         android:inputType="none"
                         android:text="@string/image_type"
-                        android:textColor="?attr/colorOnSurface"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintStart_toStartOf="parent" />
+                        android:textColor="?attr/colorOnSurface" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
 
@@ -79,9 +80,17 @@
                 android:id="@+id/tabLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12"
+                android:layout_margin="@dimen/space_2"
+                android:background="@android:color/transparent"
+                app:tabBackground="@drawable/bg_tab_pill"
                 app:tabGravity="fill"
-                app:tabMode="fixed" />
+                app:tabMode="fixed"
+                app:tabIndicatorColor="?attr/colorPrimary"
+                app:tabIndicatorFullWidth="false"
+                app:tabIndicatorHeight="0dp"
+                app:tabRippleColor="@android:color/transparent"
+                app:tabSelectedTextColor="?attr/colorOnPrimaryContainer"
+                app:tabTextColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -89,8 +98,10 @@
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingHorizontal="@dimen/spacing_sm"
-        android:paddingTop="@dimen/spacing_sm"
+        android:clipToPadding="false"
+        android:paddingHorizontal="@dimen/space_3"
+        android:paddingTop="@dimen/space_3"
+        android:paddingBottom="@dimen/space_9"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

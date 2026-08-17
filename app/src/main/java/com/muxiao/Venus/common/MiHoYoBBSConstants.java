@@ -1,11 +1,11 @@
 package com.muxiao.Venus.common;
 
 import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
-import static com.muxiao.Venus.common.Constants.Prefs.CONFIG_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.K2_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.LK2_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.SALT_4X_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.SALT_6X_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.SALT_PASSPORT_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_LOCAL_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_PREF;
 
@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.data.ConfigRepository;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,24 +29,35 @@ import java.util.Map;
 public class MiHoYoBBSConstants {
     /** 不可变快照，volatile 保证跨线程可见性，整体替换保证一致性 */
     public static class ConfigSnapshot {
-        public final String SALT_6X, SALT_4X, LK2, K2, bbs_version;
-        ConfigSnapshot(String s6x, String s4x, String lk2, String k2, String ver) {
-            this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2; this.bbs_version = ver;
+        public final String SALT_6X, SALT_4X, LK2, K2, SALT_PASSPORT, bbs_version;
+        ConfigSnapshot(String s6x, String s4x, String lk2, String k2, String passport, String ver) {
+            this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2;
+            this.SALT_PASSPORT = passport; this.bbs_version = ver;
         }
     }
     private static volatile ConfigSnapshot snapshot = new ConfigSnapshot(
             "t0qEgfub6cvueAPgR5m9aQWWVciEer7v", "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs",
-            "7cb250ce0015057d33ef639b0e30e432", "15f1f47145cb28fe26b18a6789080fe2", "2.108.0");
+            "dd6d1560beaf2ed93d84ded0a5aabe70", "897878226392bd988a289cb7a589ee52",
+            "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS", "2.113.1");
 
     // 实例字段：从 snapshot 读取，保持向后兼容
-    public String SALT_6X, SALT_4X, LK2, K2, bbs_version;
+    public String SALT_6X, SALT_4X, LK2, K2, SALT_PASSPORT, bbs_version;
 
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2_final = "7cb250ce0015057d33ef639b0e30e432";
-    public static final String K2_final = "15f1f47145cb28fe26b18a6789080fe2";
-    public static final String bbs_version_final = "2.108.0";
-    public static final String update_time = "2026.06.09";
+    public static final String LK2_final = "dd6d1560beaf2ed93d84ded0a5aabe70";
+    public static final String K2_final = "897878226392bd988a289cb7a589ee52";
+    /**
+     * 账号 SDK（passport / ma-cn-passport）专用 salt，与 K2 / LK2 / SALT_6X 均不同。
+     * 用于 loginByPassword 等 passport-api 接口，签名走「带 body 的 DS2」算法：
+     * MD5("salt=" + SALT_PASSPORT + "&t=" + t + "&r=" + r + "&b=" + body + "&q=")
+     * 该值已由真实抓包 DS 反算验证（MD5 完全命中）。
+     */
+    public static final String SALT_PASSPORT_final = "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS";
+    public static final String bbs_version_final = "2.113.1";
+    /** 账号 SDK 版本，对应 x-rpc-sdk_version / x-rpc-account_version */
+    public static final String ACCOUNT_SDK_VERSION = "2.42.0";
+    public static final String update_time = "2026.08.18";
     public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     public static final String OS_PACKAGE_NAME = "com.mihoyo.hoyolab";
     private final Context context;
@@ -54,7 +66,8 @@ public class MiHoYoBBSConstants {
         this.context = context;
         ConfigSnapshot s = snapshot;
         this.SALT_6X = s.SALT_6X; this.SALT_4X = s.SALT_4X;
-        this.LK2 = s.LK2; this.K2 = s.K2; this.bbs_version = s.bbs_version;
+        this.LK2 = s.LK2; this.K2 = s.K2;
+        this.SALT_PASSPORT = s.SALT_PASSPORT; this.bbs_version = s.bbs_version;
         updateSalt();
     }
 
@@ -96,39 +109,46 @@ public class MiHoYoBBSConstants {
             com.google.gson.JsonObject data = com.google.gson.JsonParser.parseString(response).getAsJsonObject();
             if (data == null) return false;
 
-            SharedPreferences configPrefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
-            SharedPreferences.Editor editor = configPrefs.edit();
-            editor.putString(SALT_6X_PREF, getDataOrDefault(data, SALT_6X_PREF, SALT_6X_final));
-            editor.putString(SALT_4X_PREF, getDataOrDefault(data, SALT_4X_PREF, SALT_4X_final));
-            editor.putString(LK2_PREF, getDataOrDefault(data, LK2_PREF, LK2_final));
-            editor.putString(K2_PREF, getDataOrDefault(data, K2_PREF, K2_final));
-            editor.putString(BBS_VERSION_PREF, getDataOrDefault(data, BBS_VERSION_PREF, bbs_version_final));
-            editor.putString(UPDATE_TIME_PREF, getDataOrDefault(data, UPDATE_TIME_PREF, update_time));
-            editor.putString(UPDATE_TIME_LOCAL_PREF, getDataOrDefault(data, UPDATE_TIME_LOCAL_PREF, update_time));
-            editor.apply();
+            ConfigRepository configRepo = new ConfigRepository(context);
+            configRepo.putString(SALT_6X_PREF, getDataOrDefault(data, SALT_6X_PREF, SALT_6X_final));
+            configRepo.putString(SALT_4X_PREF, getDataOrDefault(data, SALT_4X_PREF, SALT_4X_final));
+            configRepo.putString(LK2_PREF, getDataOrDefault(data, LK2_PREF, LK2_final));
+            configRepo.putString(K2_PREF, getDataOrDefault(data, K2_PREF, K2_final));
+            configRepo.putString(SALT_PASSPORT_PREF, getDataOrDefault(data, SALT_PASSPORT_PREF, SALT_PASSPORT_final));
+            configRepo.putString(BBS_VERSION_PREF, getDataOrDefault(data, BBS_VERSION_PREF, bbs_version_final));
+            configRepo.putString(UPDATE_TIME_PREF, getDataOrDefault(data, UPDATE_TIME_PREF, update_time));
+            configRepo.putString(UPDATE_TIME_LOCAL_PREF, getDataOrDefault(data, UPDATE_TIME_LOCAL_PREF, update_time));
             return true;
         } catch (Exception e) {
             return false;
         }
     }
 
+    /**
+     * 从 JSON 中按 key 取字符串，缺失、null 或非字符串时返回 defaultValue。
+     */
     private static String getDataOrDefault(com.google.gson.JsonObject data, String key, String defaultValue) {
         if (data != null && data.has(key) && !data.get(key).isJsonNull())
             return data.get(key).getAsString();
         return defaultValue;
     }
 
+    /**
+     * 从本地 SharedPreferences 读取各 salt 与版本，原子替换快照并同步实例字段（兼容直接字段访问）。
+     */
     private void updateSalt() {
-        SharedPreferences configPrefs = context.getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
-        String s6x = configPrefs.getString(SALT_6X_PREF, SALT_6X_final);
-        String s4x = configPrefs.getString(SALT_4X_PREF, SALT_4X_final);
-        String lk2 = configPrefs.getString(LK2_PREF, LK2_final);
-        String k2 = configPrefs.getString(K2_PREF, K2_final);
-        String ver = configPrefs.getString(BBS_VERSION_PREF, bbs_version_final);
+        ConfigRepository configRepo = new ConfigRepository(context);
+        String s6x = configRepo.get(SALT_6X_PREF, SALT_6X_final);
+        String s4x = configRepo.get(SALT_4X_PREF, SALT_4X_final);
+        String lk2 = configRepo.get(LK2_PREF, LK2_final);
+        String k2 = configRepo.get(K2_PREF, K2_final);
+        String passport = configRepo.get(SALT_PASSPORT_PREF, SALT_PASSPORT_final);
+        String ver = configRepo.get(BBS_VERSION_PREF, bbs_version_final);
         // 原子替换快照，保证所有字段一致性
-        snapshot = new ConfigSnapshot(s6x, s4x, lk2, k2, ver);
+        snapshot = new ConfigSnapshot(s6x, s4x, lk2, k2, passport, ver);
         // 同步实例字段（兼容直接字段访问）
-        this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2; this.bbs_version = ver;
+        this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2;
+        this.SALT_PASSPORT = passport; this.bbs_version = ver;
     }
 
     private static final String Honkai2_act_id = "e202203291431091";
@@ -147,21 +167,21 @@ public class MiHoYoBBSConstants {
     private static final String OS_ZZZ_act_id = "e202406031448091";
 
     /**
-     * 获取游戏签到id
+     * 按国服返回游戏签到 act_id（isOversea 默认 false）。
      *
      * @param name 游戏名称，可输入崩坏2、原神、崩坏3、绝区零、星铁、未定事件簿
-     * @return 游戏id, 如无对应id则返回null
+     * @return 游戏 act_id，无对应时返回 null
      */
     public static String name_to_act_id(String name) {
         return name_to_act_id(name, false);
     }
 
     /**
-     * 获取游戏签到id
+     * 返回游戏签到 act_id，isOversea 决定国服/国际服映射；无对应时返回 null。
      *
      * @param name 游戏名称，可输入崩坏2、原神、崩坏3、绝区零、星铁、未定事件簿
      * @param isOversea 是否为国际服
-     * @return 游戏id, 如无对应id则返回null
+     * @return 游戏 act_id，无对应时返回 null
      */
     public static String name_to_act_id(String name, boolean isOversea) {
         if (isOversea) {
@@ -285,6 +305,9 @@ public class MiHoYoBBSConstants {
         return null;
     }
 
+    /**
+     * 返回游戏对应的玩家称呼（如原神→旅行者、星铁→开拓者），缺省为「绳匠」。
+     */
     public static String game_to_role(String game) {
         switch (game) {
             case "原神":
@@ -305,6 +328,9 @@ public class MiHoYoBBSConstants {
     // 缓存 is_oversea 结果，避免每次调用都读 SharedPreferences
     private static volatile Boolean cachedIsOversea = null;
 
+    /**
+     * 读取 SERVER_TYPE 判断国际服（1=国际服），首次读取后带进程级缓存。
+     */
     public static boolean is_oversea(Context context) {
         if (cachedIsOversea != null) return cachedIsOversea;
         SharedPreferences prefs = context.getSharedPreferences(Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);

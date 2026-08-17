@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -16,7 +16,7 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/spacing_xs"
+        android:layout_marginStart="@dimen/space_1"
         android:text="@string/current_config_value"
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
@@ -24,24 +24,25 @@
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:layout_marginBottom="@dimen/spacing_sm"
-        android:layout_marginStart="@dimen/spacing_xs"
-        android:layout_marginEnd="@dimen/spacing_xs"
+        android:layout_marginTop="@dimen/space_2"
+        android:layout_marginBottom="@dimen/space_2"
+        android:layout_marginStart="@dimen/space_1"
+        android:layout_marginEnd="@dimen/space_1"
         style="@style/Widget.Venus.Card">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="@dimen/spacing_12"
-            android:paddingEnd="@dimen/spacing_12"
-            android:paddingBottom="@dimen/spacing_12">
+            android:paddingStart="@dimen/space_3"
+            android:paddingEnd="@dimen/space_3"
+            android:paddingBottom="@dimen/space_3">
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/update_time_local"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/local_config_update_time"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -50,7 +51,7 @@
                 android:id="@+id/update_time"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/cloud_config_update_time"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -59,7 +60,7 @@
                 android:id="@+id/bbs_version_value"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/miyoushe_version"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -68,7 +69,7 @@
                 android:id="@+id/salt_6x_value"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/salt_6x_value"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -77,7 +78,7 @@
                 android:id="@+id/salt_4x_value"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/salt_4x_value"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -86,7 +87,7 @@
                 android:id="@+id/lk2_value"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/lk2_value"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -95,7 +96,7 @@
                 android:id="@+id/k2_value"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:text="@string/k2_value"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -106,7 +107,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
-                android:layout_marginTop="@dimen/spacing_sm"
+                android:layout_marginTop="@dimen/space_2"
                 android:text="@string/update_config" />
 
         </LinearLayout>

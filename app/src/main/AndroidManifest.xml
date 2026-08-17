@@ -39,7 +39,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Venus.SplashScreen"
-        tools:targetApi="36">
+        tools:targetApi="37">
 
         <activity
             android:name=".Setting.FullscreenImageActivity"
@@ -64,6 +64,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:resizeableActivity="true"
             android:theme="@style/Theme.Venus.SplashScreen"
             android:windowSoftInputMode="adjustNothing">
             <intent-filter>

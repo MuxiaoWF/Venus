@@ -116,6 +116,7 @@ public class UpdateChecker {
         return null;
     }
 
+    /** 在主线程弹出错误对话框。 */
     private void postErrorToMainThread(String message) {
         new Handler(Looper.getMainLooper()).post(() -> show_error_dialog(context, message));
     }
@@ -131,6 +132,7 @@ public class UpdateChecker {
         return compareVersions(latestVersion, currentVersion) > 0;
     }
 
+    /** 按“.”分段比较版本号，返回 version1 减 version2 的差值（>0 表示 v1 更新）。 */
     private int compareVersions(String version1, String version2) {
         String[] parts1 = version1.split("\\.");
         String[] parts2 = version2.split("\\.");
@@ -170,6 +172,7 @@ public class UpdateChecker {
         });
     }
 
+    /** 弹“已是最新”对话框；message 非空时改作展示错误详情。 */
     private void showNoUpdateDialog(String message) {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (message == null || message.isEmpty())

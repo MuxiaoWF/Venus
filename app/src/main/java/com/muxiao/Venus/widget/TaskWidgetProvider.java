@@ -12,6 +12,7 @@ import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.common.LocaleHelper;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -26,21 +27,25 @@ public class TaskWidgetProvider extends AppWidgetProvider {
     public static final String ACTION_REFRESH = "com.muxiao.Venus.widget.REFRESH";
 
     @Override
+    // 收到系统更新广播时，按本地化上下文逐个刷新小组件
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
+        Context localized = LocaleHelper.wrap(context);
         for (int appWidgetId : appWidgetIds) {
-            updateWidget(context, appWidgetManager, appWidgetId);
+            updateWidget(localized, appWidgetManager, appWidgetId);
         }
     }
 
     @Override
+    // 拦截 Refresh 广播并刷新全部小组件（其余动作交给父类）
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
         if (ACTION_REFRESH.equals(intent.getAction())) {
-            refreshAllWidgets(context);
+            refreshAllWidgets(LocaleHelper.wrap(context));
         }
     }
 
     @SuppressWarnings("deprecation")
+    // 构建 RemoteViews：绑定标题/运行/刷新点击、任务列表适配器与完成统计，并触发刷新
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_task_status);
 
@@ -99,6 +104,7 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         manager.notifyAppWidgetViewDataChanged(new int[]{widgetId}, R.id.widget_task_list);
     }
 
+    // 遍历本应用所有小组件实例并逐个刷新（供 Refresh 广播调用）
     public static void refreshAllWidgets(Context context) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         ComponentName widget = new ComponentName(context, TaskWidgetProvider.class);

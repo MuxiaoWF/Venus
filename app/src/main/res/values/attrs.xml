@@ -3,5 +3,11 @@
     <declare-styleable name="CollapsibleCardView">
         <attr name="cardTitle" format="string" />
         <attr name="initialExpanded" format="boolean" />
+        <!-- true 时内部 MaterialCardView 背景与描边均置透明，仅保留折叠交互；
+             用于 Material Settings List 组内可展开行，使分组外壳统一承载描边/阴影。 -->
+        <attr name="transparent" format="boolean" />
+        <!-- 左右缩进（px/dp），用于在分组外壳内表达二级关系（子项相对组缩进）。
+             作用在 CollapsibleCardView 自身 margin 上。默认 0（不缩进）。 -->
+        <attr name="insetHorizontal" format="dimension" />
     </declare-styleable>
 </resources>

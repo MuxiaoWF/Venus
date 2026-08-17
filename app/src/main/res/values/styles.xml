@@ -1,31 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Corner Shapes -->
+    <!-- ===================== 形状 ===================== -->
     <style name="ShapeAppearance.Venus.Card" parent="ShapeAppearance.Material3.MediumComponent">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">@dimen/radius_grouped_section</item>
+        <item name="cornerSize">@dimen/shape_corner_md</item>
     </style>
 
-    <!-- Card: Grouped section container -->
+    <style name="ShapeAppearance.Venus.Card.Small" parent="ShapeAppearance.Venus.Card">
+        <item name="cornerSize">@dimen/shape_corner_sm</item>
+    </style>
+
+    <style name="ShapeAppearance.Venus.Pill" parent="ShapeAppearance.Material3.Corner.Full" />
+
+    <!-- ===================== 排版 =====================
+         加粗一律使用 Emphasized 刻度（android:textStyle=bold，兼容 minSdk 23），
+         不再使用 textFontWeight(API 28+)。 -->
+    <style name="TextAppearance.Venus.Title" parent="TextAppearance.Material3.TitleMedium.Emphasized" />
+    <style name="TextAppearance.Venus.Title.Large" parent="TextAppearance.Material3.TitleLarge.Emphasized" />
+    <style name="TextAppearance.Venus.Body" parent="TextAppearance.Material3.BodyMedium" />
+    <style name="TextAppearance.Venus.Label" parent="TextAppearance.Material3.LabelLarge" />
+    <style name="TextAppearance.Venus.Caption" parent="TextAppearance.Material3.BodySmall" />
+
+    <!-- ===================== 卡片 ===================== -->
+    <!-- 所有 Widget.Venus.* 的公共基样式（避免 aapt2 隐式父样式解析） -->
+    <!-- 根节点 Widget 用于承接 Widget.Venus 的隐式父样式解析 -->
+    <style name="Widget" />
+    <style name="Widget.Venus" parent="Widget" />
+
+    <!-- Elevated 主卡：仅靠抬升阴影区分（M3 Elevated 规范），去除描边，
+         避免与 Filled/Outlined 卡的"阴影+描边"双重边界风格混用，统一视觉重量。 -->
     <style name="Widget.Venus.Card" parent="Widget.Material3.CardView.Elevated">
-        <item name="cardElevation">0dp</item>
-        <item name="strokeWidth">0.5dp</item>
-        <item name="strokeColor">@color/divider_color</item>
+        <item name="cardElevation">@dimen/card_elevation_rest</item>
+        <item name="strokeWidth">@dimen/stroke_width_none</item>
+        <item name="strokeColor">@null</item>
         <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
         <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card</item>
+        <item name="contentPadding">@dimen/space_0</item>
     </style>
 
-    <!-- Card.ListItem: Kept for compatibility, no longer primary style -->
-
-    <!-- Toolbar: Apple large title style -->
-    <style name="Widget.Venus.Toolbar" parent="Widget.MaterialComponents.Toolbar">
+    <!-- ===================== 工具栏 ===================== -->
+    <!-- 标题/副标题层级强化：标题用 Headline 刻度（明显大于副标题），
+         副标题保持 BodyMedium 并弱化为 OnSurfaceVariant，拉开对比。 -->
+    <style name="Widget.Venus.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="titleTextAppearance">@style/TextAppearance.Venus.ToolbarTitle</item>
+        <item name="subtitleTextAppearance">@style/TextAppearance.Venus.ToolbarSubtitle</item>
         <item name="titleTextColor">?attr/colorOnSurface</item>
         <item name="subtitleTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="android:background">@color/transparent</item>
         <item name="android:layout_marginTop">0dp</item>
     </style>
 
-    <!-- Section Header: Uppercase muted label -->
+    <!-- ===================== 区块标题 ===================== -->
+    <style name="Widget.Venus.SectionHeader" parent="Widget.Venus">
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.05</item>
+        <item name="android:textAppearance">?attr/textAppearanceLabelLarge</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+        <item name="android:layout_marginTop">@dimen/space_5</item>
+        <item name="android:layout_marginBottom">@dimen/space_1</item>
+    </style>
 
-    <!-- Grouped Section Background -->
+    <!-- ===================== 分隔线 ===================== -->
+    <!-- 修复原 android:alpha=0.18 叠加在 15% 透明度 divider_color 上，
+         导致分割线有效不透明度仅 ~2.7%、几乎不可见的问题。
+         现直接走 ?attr/colorOutline（M3 已含合适低透明），全程主题一致且清晰可见。 -->
+    <style name="Widget.Venus.Divider" parent="Widget.Material3.MaterialDivider">
+        <item name="dividerColor">?attr/colorOutline</item>
+        <item name="dividerThickness">@dimen/divider_height</item>
+    </style>
+
+    <!-- ===================== 底部导航 ===================== -->
+    <style name="Widget.Venus.BottomNavigationView" parent="Widget.Material3Expressive.BottomNavigationView">
+        <item name="itemActiveIndicatorStyle">@style/Widget.Venus.BottomNavigationView.ActiveIndicator</item>
+        <item name="itemIconTint">@color/selector</item>
+        <item name="itemTextColor">@color/selector</item>
+        <!-- 选中项显示文字、未选中项隐藏文字（M3 NavigationBar 规范） -->
+        <item name="labelVisibilityMode">selected</item>
+        <!-- 关键：M3 默认 backgroundTint 会覆盖 shape 颜色，必须把 tint 置空，
+             让 bg_bottom_nav_rounded 自身的半透明玻璃色生效。 -->
+        <item name="android:backgroundTint">@null</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:background">@drawable/bg_bottom_nav_rounded</item>
+    </style>
+
+    <style name="Widget.Venus.BottomNavigationView.ActiveIndicator" parent="Widget.Material3Expressive.BottomNavigationView.ActiveIndicator">
+        <item name="android:width">@dimen/bottom_nav_indicator_width</item>
+        <item name="android:height">@dimen/bottom_nav_indicator_height</item>
+        <item name="marginHorizontal">@dimen/bottom_nav_indicator_margin_horizontal</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Pill</item>
+        <item name="android:color">?attr/colorSecondaryContainer</item>
+        <item name="expandedHeight">@dimen/bottom_nav_indicator_expanded_height</item>
+    </style>
+
+    <!-- ===================== 主操作按钮（Apple 风：主色柔和渐变 + 圆角 + 柔光） ===================== -->
+    <!-- 关键：backgroundTint 只能接 ColorStateList，不能接 <shape> drawable。
+         渐变背景改用 android:background 承载 bg_gradient_primary（135° 主色容器→主色），
+         并把 backgroundTint 置 @null，避免 M3 用默认主题色覆盖渐变。圆角由 drawable 的 corners 提供。
+         文字/图标色走 colorOnPrimary，按下态由 M3 默认 ripple 承接。 -->
+    <style name="Widget.Venus.Button.Primary" parent="Widget.Material3.Button">
+        <!-- 主操作按钮：实心主色背景 + 反白文字/图标，视觉权重最高，与卡片容器明确区分 -->
+        <item name="backgroundTint">?attr/colorPrimary</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+        <item name="iconTint">?attr/colorOnPrimary</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card.Small</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <!-- ===================== 文本输入 / 下拉（统一圆角，承接 widget_venus 的 Dropdown 语义） ===================== -->
+    <style name="Widget.Venus.TextInput" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.TextInput</item>
+        <item name="boxCornerRadiusTopStart">@dimen/shape_corner_sm</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/shape_corner_sm</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/shape_corner_sm</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/shape_corner_sm</item>
+    </style>
 </resources>

@@ -13,6 +13,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.Logger;
 
 import org.json.JSONObject;
 
@@ -27,14 +28,19 @@ public class Geetest {
     private static final Gson GSON = new Gson();
 
     /**
-     * 带回调的验证方法
+     * 完整验证流程：先 API1 取 gt/challenge，再配置极验 SDK 弹窗并注册结果回调。
+     * 若控制器为后台类型，则把 challenge/headers 暂存供前台复用同一 challenge 验证。
+     *
+     * @param headers  含 Cookie 的请求头（API1 与 API2 共用）
+     * @param callback 验证成功/失败的回调
+     * @param gt3Controller 前台或后台的极验控制器
      */
     public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback, GeetestController gt3Controller) {
-        android.util.Log.e("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
+        Logger.debug("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
         gt3Controller.createUtils(); // 防止未创建
-        android.util.Log.e("VenusCaptcha", "Calling API1...");
+        Logger.debug("VenusCaptcha", "Calling API1...");
         String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
-        android.util.Log.e("VenusCaptcha", "API1 response: " + (response != null ? response.substring(0, Math.min(200, response.length())) : "null"));
+        Logger.debug("VenusCaptcha", "API1 response: " + (response != null ? response.substring(0, Math.min(200, response.length())) : "null"));
         if (response == null) {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_network));
             return;
@@ -50,7 +56,7 @@ public class Geetest {
         if (gt3Controller instanceof BackgroundGeetestController) {
             BackgroundGeetestController.savePendingChallenge(gt, challenge);
             BackgroundGeetestController.savePendingHeaders(headers);
-            android.util.Log.e("VenusCaptcha", "Saved pending challenge and headers for background task");
+            Logger.debug("VenusCaptcha", "Saved pending challenge and headers for background task");
         }
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
     }
@@ -61,11 +67,16 @@ public class Geetest {
      */
     public static void geetestWithChallenge(Context context, String gt, String challenge, Map<String, String> headers,
                                             GeetestVerificationCallback callback, GeetestController gt3Controller) {
-        android.util.Log.e("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
+        Logger.debug("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
         gt3Controller.createUtils();
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
     }
 
+    /**
+     * 配置 GT3ConfigBean 与监听并创建验证按钮。
+     * onDialogResult 内做 API2 二次验证并回传 geetCode；onClosed 仅在未成功时视为失败。
+     * 后台控制器在 createButton 返回后直接从静态字段读取结果并触发回调。
+     */
     private static void setupAndCreateButton(Context context, String gt, String challenge, Map<String, String> headers,
                                              GeetestVerificationCallback callback, GeetestController gt3Controller) {
         // 配置bean文件，也可在oncreate初始化
@@ -79,7 +90,7 @@ public class Geetest {
         gt3ConfigBean.setListener(new GT3Listener() {
             @Override
             public void onButtonClick() {
-                android.util.Log.e("VenusCaptcha", "onButtonClick fired, calling getGeetest()");
+                Logger.debug("VenusCaptcha", "onButtonClick fired, calling getGeetest()");
                 // 将参数传递给Geetest SDK
                 Map<String, Object> mapData = new HashMap<>();
                 mapData.put("gt", gt);
@@ -151,7 +162,7 @@ public class Geetest {
                 callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, errorBean));
             }
         });
-        android.util.Log.e("VenusCaptcha", "Calling gt3Controller.createButton()");
+        Logger.debug("VenusCaptcha", "Calling gt3Controller.createButton()");
         gt3Controller.createButton(gt3ConfigBean); // 配置完毕，创建按钮
 
         // 后台控制器：前台验证完成后，回调链被 HomeFragment 的回调覆盖，

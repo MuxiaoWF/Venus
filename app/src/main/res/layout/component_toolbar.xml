@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 统一顶部栏：当前仅 activity_image / activity_user_login / activity_oauth_login 通过 <include> 引入。
+     Fragment 已改为直接内联 MaterialToolbar，因为 <include> 对 app:title / app:subtitle 透传不可靠。 -->
+<com.google.android.material.appbar.MaterialToolbar xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.Toolbar"
+    android:id="@+id/toolbar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" />

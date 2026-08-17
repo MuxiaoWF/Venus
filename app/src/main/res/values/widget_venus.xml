@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================================
+  Venus 统一布局组件库（Widget.Venus.* 扩展）
+  所有名称均为新增，不与 styles.xml 中既有 Widget.Venus.* 冲突。
+  既有：Card / Toolbar / SectionHeader / Divider / BottomNavigationView 保持不变，
+  本文件在其之上补齐缺失的组件（导航栏、图片卡、填充/描边卡、区块标题行、
+  设置行、状态卡、栅格、页脚、Snackbar），并把字体层级补全为完整刻度。
+  设计目标：间距/圆角/层级/配色/排版五维一致，靠 Token 与 ?attr 主题属性驱动。
+  ============================================================================
+-->
+<resources>
+
+    <!-- ===================== 形状角色 ===================== -->
+    <style name="ShapeAppearance.Venus.Card.Image" parent="ShapeAppearance.Venus.Card">
+        <item name="cornerSize">@dimen/shape_corner_sm</item>
+    </style>
+    <style name="ShapeAppearance.Venus.Card.Hero" parent="ShapeAppearance.Venus.Card">
+        <item name="cornerSize">@dimen/shape_corner_xl</item>
+    </style>
+
+    <!-- ===================== 卡片容器变体 ===================== -->
+    <!-- 图片卡：较小圆角 + 抬升阴影，用于画廊/缩略图卡 -->
+    <style name="Widget.Venus.Card.Image" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">@dimen/elevation_level2</item>
+        <item name="strokeWidth">@dimen/stroke_width_hairline</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card.Image</item>
+    </style>
+
+    <!-- 填充卡：无阴影、colorSurfaceContainerLow 表面（与原始 Widget.Venus.Card 一致），用于“嵌入”分组（如用户选择区） -->
+    <style name="Widget.Venus.Card.Filled" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">@dimen/elevation_level0</item>
+        <item name="strokeWidth">@dimen/stroke_width_hairline</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card</item>
+    </style>
+
+    <!-- 描边卡：透明表面 + 发丝描边，用于轻量分组 -->
+    <style name="Widget.Venus.Card.Outlined" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">@dimen/elevation_level0</item>
+        <item name="strokeWidth">@dimen/stroke_width_hairline</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="cardBackgroundColor">@android:color/transparent</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card</item>
+    </style>
+
+    <!-- 透明卡：无背景无描边，用于 Settings List 组内可展开行（嵌套在分组外壳内），
+         仅保留折叠交互，视觉由分组外壳与行间 hairline 分隔承担。 -->
+    <style name="Widget.Venus.Card.Transparent" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">@dimen/elevation_level0</item>
+        <item name="strokeWidth">@dimen/stroke_width_none</item>
+        <item name="strokeColor">@null</item>
+        <item name="cardBackgroundColor">@android:color/transparent</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card</item>
+    </style>
+
+    <!-- 设置分组外壳：承载「分组标题 + 多个可展开行」，统一圆角与阴影，
+         内部 padding 归零，由行自身 padding 控制节奏。 -->
+    <style name="Widget.Venus.SettingsGroup" parent="Widget.Venus.Card">
+        <item name="android:layout_marginTop">@dimen/gap_card</item>
+    </style>
+
+    <!-- 组内行分隔线（hairline，仅顶边），用于两个可展开行之间 -->
+    <style name="Widget.Venus.SettingsRowDivider" parent="Widget.Venus">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/divider_height</item>
+        <item name="android:background">?attr/colorOutlineVariant</item>
+    </style>
+
+    <!-- ===================== 屏幕脚手架（滚动内容容器） ===================== -->
+    <!-- 应用于 NestedScrollView / LinearLayout 滚动容器：统一裁剪、留白节奏 -->
+    <style name="Widget.Venus.ScreenScaffold" parent="Widget.Venus">
+        <item name="android:clipToPadding">false</item>
+        <item name="android:paddingStart">@dimen/gutter_screen</item>
+        <item name="android:paddingEnd">@dimen/gutter_screen</item>
+        <item name="android:paddingTop">@dimen/space_2</item>
+        <item name="android:paddingBottom">@dimen/space_4</item>
+    </style>
+
+    <!-- ===================== 区块标题（统一口径） ===================== -->
+    <!-- 与既有 SectionHeader 完全一致；Home 的“任务列表”等手写标题应改为此样式 -->
+    <style name="Widget.Venus.SectionHeaderRow" parent="Widget.Venus.SectionHeader">
+        <item name="android:minHeight">@dimen/section_header_height</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- ===================== 列表 / 设置行 ===================== -->
+    <style name="Widget.Venus.ListRow" parent="Widget.Venus">
+        <item name="android:minHeight">@dimen/row_min_height</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:paddingStart">@dimen/gutter_card</item>
+        <item name="android:paddingEnd">@dimen/gutter_card</item>
+        <item name="android:paddingTop">@dimen/gap_row</item>
+        <item name="android:paddingBottom">@dimen/gap_row</item>
+    </style>
+
+    <!-- 设置行：与 ListRow 同构，语义别名 -->
+    <style name="Widget.Venus.SettingRow" parent="Widget.Venus.ListRow" />
+
+    <!-- ===================== M3 List-Item（Material 1.14.0 新 API） ===================== -->
+    <!-- 基于官方 Widget.Material3.ListItemCardView（MaterialCardView 子类）。
+         duplicateParentState 继承外层 ListItemLayout 的位置状态以呈现 M3 圆角；
+         常态背景透明、按下有涟漪；关闭滑动手势避免误触。纵向内边距压平，
+         由内容行 minHeight=row_min_height 控制行高，保持 56dp 统一韵律。 -->
+    <style name="Widget.Venus.ListItemCard" parent="Widget.Material3.ListItemCardView">
+        <item name="swipeEnabled">false</item>
+        <item name="contentPaddingTop">0dp</item>
+        <item name="contentPaddingBottom">0dp</item>
+    </style>
+
+    <!-- 行内文案层级 -->
+    <!-- RowTitle 用 BodyLarge（与既有任务行名沿用 textAppearanceBodyLarge 一致），靠 colorOnSurface 与主色区分层级，
+         避免依赖 BodyLarge.Emphasized 父类名差异 -->
+    <style name="TextAppearance.Venus.RowTitle" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="TextAppearance.Venus.RowSubtitle" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="TextAppearance.Venus.RowValue" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- ===================== 状态卡（空态 / 错误 / 提示） ===================== -->
+    <style name="Widget.Venus.StateCard" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardElevation">@dimen/elevation_level0</item>
+        <item name="strokeWidth">@dimen/stroke_width_hairline</item>
+        <item name="strokeColor">?attr/colorOutlineVariant</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">@dimen/space_6</item>
+    </style>
+
+    <!-- ===================== 底部导航 / 导航栏（大屏） ===================== -->
+    <!-- 大屏 NavigationRail 与底部导航共用同一套视觉语言 -->
+    <style name="Widget.Venus.NavigationRail" parent="Widget.Material3.NavigationRailView">
+        <item name="itemActiveIndicatorStyle">@style/Widget.Venus.BottomNavigationView.ActiveIndicator</item>
+        <item name="itemIconTint">@color/selector</item>
+        <item name="itemTextColor">@color/selector</item>
+        <item name="labelVisibilityMode">labeled</item>
+        <item name="android:background">?attr/colorSurfaceContainerLow</item>
+    </style>
+
+    <!-- ===================== 栅格卡片（2 列画廊） ===================== -->
+    <style name="Widget.Venus.GridCard" parent="Widget.Venus.Card.Image">
+        <item name="cardElevation">@dimen/elevation_level2</item>
+    </style>
+
+    <!-- ===================== 页脚 ===================== -->
+    <style name="Widget.Venus.Footer" parent="Widget.Venus">
+        <item name="android:minHeight">@dimen/footer_min_height</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textAlignment">center</item>
+        <item name="android:paddingStart">@dimen/gutter_card</item>
+        <item name="android:paddingEnd">@dimen/gutter_card</item>
+        <item name="android:paddingTop">@dimen/space_3</item>
+        <item name="android:paddingBottom">@dimen/space_3</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodySmall</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- ===================== Snackbar（主题感知） ===================== -->
+    <style name="Widget.Venus.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="android:background">?attr/colorSurfaceContainerHigh</item>
+        <item name="backgroundTint">?attr/colorSurfaceContainerHigh</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Card.Small</item>
+    </style>
+
+    <!-- ===================== M3 字体排版刻度（完整层级，消除扁平化） ===================== -->
+    <!-- 层级：Display / Headline / Title(L/M/S) / Body(L/M/S) / Label(L/M/S) / Caption。
+         强调级用 .Emphasized（minSdk 23 下以 textStyle=bold 表达字重，兼容全机型）。
+         布局一律引用 TextAppearance.Venus.*，禁止裸 ?attr/textAppearance* 或裸 sp。 -->
+    <style name="TextAppearance.Venus.Display" parent="TextAppearance.Material3.DisplaySmall.Emphasized" />
+    <style name="TextAppearance.Venus.Headline" parent="TextAppearance.Material3.HeadlineSmall.Emphasized" />
+
+    <style name="TextAppearance.Venus.Title.Small" parent="TextAppearance.Material3.TitleSmall.Emphasized" />
+
+    <!-- 工具栏标题：HeadlineSmall（≈24sp）强于副标题，拉开层级 -->
+    <style name="TextAppearance.Venus.ToolbarTitle" parent="TextAppearance.Material3.HeadlineSmall.Emphasized">
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+    <!-- 工具栏副标题：BodyMedium（≈14sp）弱化为 Variant，与标题形成明显字号差 -->
+    <style name="TextAppearance.Venus.ToolbarSubtitle" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <style name="TextAppearance.Venus.Body.Large" parent="TextAppearance.Material3.BodyLarge" />
+    <style name="TextAppearance.Venus.Body.Large.Emphasized" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="TextAppearance.Venus.Body.Small" parent="TextAppearance.Material3.BodySmall" />
+
+    <style name="TextAppearance.Venus.Label.Large" parent="TextAppearance.Material3.LabelLarge" />
+    <style name="TextAppearance.Venus.Label.Medium" parent="TextAppearance.Material3.LabelMedium" />
+    <style name="TextAppearance.Venus.Label.Small" parent="TextAppearance.Material3.LabelSmall" />
+
+    <!-- ===================== 文本输入 / 下拉（统一圆角与描边） ===================== -->
+    <style name="ShapeAppearance.Venus.TextInput" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/shape_corner_sm</item>
+    </style>
+
+    <style name="Widget.Venus.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <!-- 仅统一圆角为 Venus sm 档，焦点变色等沿用 M3 默认语义行为 -->
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.TextInput</item>
+    </style>
+
+    <!-- ===================== 按钮语义样式（同类型控件以样式/状态区分，避免扁平化） ===================== -->
+    <!-- 主操作=Filled(Widget.Venus.Button) / 次操作=Tonal / 弱化=Outlined / 文字=Text。
+         同一屏内主/次/弱/文字四类并存即构成合理区分，而非全部同款扁平按钮。 -->
+    <style name="Widget.Venus.Button" parent="Widget.Material3.Button" />
+    <style name="Widget.Venus.Button.Tonal" parent="Widget.Material3.Button.TonalButton" />
+    <style name="Widget.Venus.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton" />
+    <style name="Widget.Venus.Button.Text" parent="Widget.Material3.Button.TextButton" />
+
+</resources>

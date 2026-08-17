@@ -1,12 +1,13 @@
 package com.muxiao.Venus.Setting;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
 import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_ALPHA;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
-import static com.muxiao.Venus.common.Constants.Prefs.CONFIG_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
@@ -57,6 +58,8 @@ import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.transition.Fade;
+import android.transition.TransitionManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import androidx.activity.result.ActivityResultLauncher;
@@ -68,20 +71,23 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.slider.Slider;
 import com.muxiao.Venus.Home.ForegroundTaskService;
+import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.HomeFragment;
-import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
+import com.muxiao.Venus.common.data.ConfigRepository;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 
@@ -94,13 +100,19 @@ import java.util.concurrent.Executors;
  * 设置页Fragment：签到任务开关、森空岛content配置、背景图片/主题/语言切换、
  * 服务器类型切换（国服/国际服）、缓存清理、版本更新检查。
  */
+@AndroidEntryPoint
 public class SettingsFragment extends Fragment {
 
-    {
-        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        tools.setupFragmentTransitions(this);
     }
+
     private SharedPreferences sharedPreferences;
-    private SharedPreferences configPreferences;
+    // P0-1 收口：config_prefs 不再直接访问 SharedPreferences，统一走仓储（底层为 DataStore）。
+    // 否则 MiHoYoBBSConstants 写入 DataStore 后，本页仍读旧 xml，会显示过期配置值。
+    private ConfigRepository configRepository;
     private static final int THEME_DEFAULT = 0;
 
     // 添加主题深浅色常量
@@ -146,7 +158,7 @@ public class SettingsFragment extends Fragment {
 
         bbsCard.setContent(R.layout.item_setting_bbs_daily);
         bbsGameCard.setContent(R.layout.item_setting_game_daily);
-        serverCard.setContent(R.layout.item_setting_server);
+        serverCard.setContent(R.layout.item_setting_server_segmented);
         bbsUtilsCard.setContent(R.layout.item_setting_bbs_utils);
         updateCard.setContent(R.layout.item_setting_update);
         cacheCard.setContent(R.layout.item_setting_cache);
@@ -170,13 +182,9 @@ public class SettingsFragment extends Fragment {
         View aboutView = aboutCard.getContentLayout();
         View sklandView = sklandCard.getContentLayout();
 
-        View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
-        if (getActivity() instanceof MainActivity)
-            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
-
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        configPreferences = requireActivity().getSharedPreferences(CONFIG_PREFS_NAME, Context.MODE_PRIVATE);
+        configRepository = new ConfigRepository(requireContext());
         backgroundPreferences = requireActivity().getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
 
         // 初始化图片选择启动器
@@ -218,21 +226,21 @@ public class SettingsFragment extends Fragment {
         SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
         SwitchMaterial backgroundTaskSwitch = notificationView.findViewById(R.id.background_task_switch);
 
-        MaterialCheckBox dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
-        MaterialCheckBox dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
-        MaterialCheckBox dailyCheckboxSrg = dailyView.findViewById(R.id.daily_checkbox_srg);
-        MaterialCheckBox dailyCheckboxHr3 = dailyView.findViewById(R.id.daily_checkbox_hr3);
-        MaterialCheckBox dailyCheckboxHr2 = dailyView.findViewById(R.id.daily_checkbox_hr2);
-        MaterialCheckBox dailyCheckboxWeiding = dailyView.findViewById(R.id.daily_checkbox_weiding);
-        MaterialCheckBox dailyCheckboxDabieye = dailyView.findViewById(R.id.daily_checkbox_dabieye);
-        MaterialCheckBox dailyCheckboxHna = dailyView.findViewById(R.id.daily_checkbox_hna);
+        Chip dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
+        Chip dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
+        Chip dailyCheckboxSrg = dailyView.findViewById(R.id.daily_checkbox_srg);
+        Chip dailyCheckboxHr3 = dailyView.findViewById(R.id.daily_checkbox_hr3);
+        Chip dailyCheckboxHr2 = dailyView.findViewById(R.id.daily_checkbox_hr2);
+        Chip dailyCheckboxWeiding = dailyView.findViewById(R.id.daily_checkbox_weiding);
+        Chip dailyCheckboxDabieye = dailyView.findViewById(R.id.daily_checkbox_dabieye);
+        Chip dailyCheckboxHna = dailyView.findViewById(R.id.daily_checkbox_hna);
 
-        MaterialCheckBox gameDailyCheckboxGenshin = bbsGameView.findViewById(R.id.game_daily_checkbox_genshin);
-        MaterialCheckBox gameDailyCheckboxZzz = bbsGameView.findViewById(R.id.game_daily_checkbox_zzz);
-        MaterialCheckBox gameDailyCheckboxSrg = bbsGameView.findViewById(R.id.game_daily_checkbox_srg);
-        MaterialCheckBox gameDailyCheckboxHr3 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr3);
-        MaterialCheckBox gameDailyCheckboxHr2 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr2);
-        MaterialCheckBox gameDailyCheckboxWeiding = bbsGameView.findViewById(R.id.game_daily_checkbox_weiding);
+        Chip gameDailyCheckboxGenshin = bbsGameView.findViewById(R.id.game_daily_checkbox_genshin);
+        Chip gameDailyCheckboxZzz = bbsGameView.findViewById(R.id.game_daily_checkbox_zzz);
+        Chip gameDailyCheckboxSrg = bbsGameView.findViewById(R.id.game_daily_checkbox_srg);
+        Chip gameDailyCheckboxHr3 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr3);
+        Chip gameDailyCheckboxHr2 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr2);
+        Chip gameDailyCheckboxWeiding = bbsGameView.findViewById(R.id.game_daily_checkbox_weiding);
 
         // 查找配置显示文本视图
         salt6xValue = utilsView.findViewById(R.id.salt_6x_value);
@@ -268,7 +276,7 @@ public class SettingsFragment extends Fragment {
                 {gameDailyCheckboxWeiding, GAME_DAILY_WEIDING, false},
         };
         for (Object[] b : dailyBindings) {
-            MaterialCheckBox cb = (MaterialCheckBox) b[0];
+            Chip cb = (Chip) b[0];
             String key = (String) b[1];
             boolean def = (boolean) b[2];
             cb.setChecked(sharedPreferences.getBoolean(key, def));
@@ -278,7 +286,7 @@ public class SettingsFragment extends Fragment {
             });
         }
         for (Object[] b : gameDailyBindings) {
-            MaterialCheckBox cb = (MaterialCheckBox) b[0];
+            Chip cb = (Chip) b[0];
             String key = (String) b[1];
             boolean def = (boolean) b[2];
             cb.setChecked(sharedPreferences.getBoolean(key, def));
@@ -331,6 +339,8 @@ public class SettingsFragment extends Fragment {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_BLOG_URL));
             startActivity(intent);
         });
+        MaterialTextView appVersionText = aboutView.findViewById(R.id.app_version_text);
+        appVersionText.setText(getString(R.string.about_version, BuildConfig.VERSION_NAME));
 
         // 配置更新
         MaterialButton updateConfigButton = utilsView.findViewById(R.id.update_config_button);
@@ -379,8 +389,8 @@ public class SettingsFragment extends Fragment {
                 .setNegativeButton(getString(R.string.btn_cancel), null)
                 .show());
 
-        // 看图按钮
-        MaterialButton imageButton = view.findViewById(R.id.image_button);
+        // 看图按钮（设置行形式，点击跳转）
+        View imageButton = view.findViewById(R.id.image_button);
         imageButton.setOnClickListener(v -> {
             Intent intent = new Intent(requireActivity(), ImageActivity.class);
             startActivity(intent);
@@ -614,47 +624,41 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 设置服务器选择功能
+     * 设置服务器选择功能：使用 Material 3 分段按钮（SingleChoiceSegmentedButton），
+     * 国服/国际服即时切换，无需展开卡片。
      */
-    private void setupServerSelection(View view, CollapsibleCardView bbsCard, View... overseaHiddenViews) {
+    private void setupServerSelection(View view, View bbsCard, View... overseaHiddenViews) {
+        ViewGroup settingsContainer = view.getRootView().findViewById(R.id.settings_content_container);
         SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
         int serverType = prefs.getInt(SERVER_TYPE, 0);
 
-        MaterialRadioButton serverCn = view.findViewById(R.id.server_cn);
-        MaterialRadioButton serverOs = view.findViewById(R.id.server_os);
+        MaterialButtonToggleGroup segmented = view.findViewById(R.id.server_segmented);
 
         // 国际服隐藏米游币签到（需要stoken，Cookie登录不提供）
+        if (!tools.isReducedMotionEnabled(requireContext()) && settingsContainer != null)
+            TransitionManager.beginDelayedTransition(settingsContainer, new Fade());
         bbsCard.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
         // 国际服隐藏不支持的游戏签到
         for (View v : overseaHiddenViews)
             v.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
 
-        if (serverType == 0) {
-            serverCn.setChecked(true);
-        } else {
-            serverOs.setChecked(true);
-        }
+        // 先设初始选中（此时监听器尚未注册，不会触发回调/弹 Snackbar），
+        // 再由下面的 addOnButtonCheckedListener 接管后续交互。
+        segmented.setSelectionRequired(true);
+        segmented.check(serverType == 0 ? R.id.server_cn : R.id.server_os);
 
-        serverCn.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                prefs.edit().putInt(SERVER_TYPE, 0).apply();
-                MiHoYoBBSConstants.clearOverseaCache();
-                bbsCard.setVisibility(View.VISIBLE);
-                for (View v : overseaHiddenViews)
-                    v.setVisibility(View.VISIBLE);
-                showCustomSnackbar(view, requireContext(), getString(R.string.snack_switched_to_cn));
-            }
-        });
-
-        serverOs.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                prefs.edit().putInt(SERVER_TYPE, 1).apply();
-                MiHoYoBBSConstants.clearOverseaCache();
-                bbsCard.setVisibility(View.GONE);
-                for (View v : overseaHiddenViews)
-                    v.setVisibility(View.GONE);
-                showCustomSnackbar(view, requireContext(), getString(R.string.snack_switched_to_os));
-            }
+        segmented.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return; // 仅处理被选中的一个
+            int newType = (checkedId == R.id.server_cn) ? 0 : 1;
+            prefs.edit().putInt(SERVER_TYPE, newType).apply();
+            MiHoYoBBSConstants.clearOverseaCache();
+            if (!tools.isReducedMotionEnabled(requireContext()) && settingsContainer != null)
+                TransitionManager.beginDelayedTransition(settingsContainer, new Fade());
+            bbsCard.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
+            for (View v : overseaHiddenViews)
+                v.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
+            showCustomSnackbar(view, requireContext(),
+                    getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
         });
     }
 
@@ -691,10 +695,9 @@ public class SettingsFragment extends Fragment {
     private void saveAndApplyLanguage(int languageId) {
         SharedPreferences languagePreferences = requireActivity().getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
         languagePreferences.edit().putInt(SELECTED_LANGUAGE, languageId).apply();
-        // 重启Activity以应用语言
-        Intent intent = requireActivity().getIntent();
-        requireActivity().finish();
-        startActivity(intent);
+        // 重建 Activity 以应用语言：BaseActivity.attachBaseContext 已通过 LocaleHelper 读取最新语言，
+        // recreate() 会重新走 attachBaseContext，等价于原 finish()+startActivity，但无需销毁整个任务栈。
+        requireActivity().recreate();
     }
 
     /**
@@ -793,26 +796,39 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 获取应该应用的主题
-     *
-     * @param context 上下文
-     * @return 主题资源ID
+     * 应用主题：基础主题 + 运行时节色叠加（ThemeOverlay.applyStyle）。
+     * 必须在 setContentView 之前调用。
      */
-    public static int getSelectedTheme(Context context) {
-        SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
-        int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+    public static void applyAppTheme(Activity activity) {
+        activity.setTheme(R.style.Theme_Venus);
+        int index = getSelectedThemeIndex(activity);
+        if (index >= 0 && index < COLOR_OVERLAYS.length) {
+            int overlay = COLOR_OVERLAYS[index];
+            if (overlay != 0) activity.getTheme().applyStyle(overlay, true);
+        }
+    }
 
-        int[] themeStyles = {
-                R.style.Theme_Venus,        // DEFAULT
-                R.style.Theme_Venus_Blue,   // BLUE
-                R.style.Theme_Venus_Green,  // GREEN
-                R.style.Theme_Venus_Red,    // RED
-                R.style.Theme_Venus_Yellow, // YELLOW
-                R.style.Theme_Venus_Light,  // LIGHT
-                R.style.Theme_Venus_Dark,   // DARK
-        };
-        if (selectedTheme >= 0 && selectedTheme < themeStyles.length)
-            return themeStyles[selectedTheme];
+    private static final int[] COLOR_OVERLAYS = {
+            0,                                  // DEFAULT（动态取色）
+            R.style.ThemeOverlay_Venus_Blue,   // BLUE
+            R.style.ThemeOverlay_Venus_Green,  // GREEN
+            R.style.ThemeOverlay_Venus_Red,    // RED
+            R.style.ThemeOverlay_Venus_Yellow, // YELLOW
+            0,                                  // LIGHT（浅/深由 AppCompatDelegate 变体控制）
+            0,                                  // DARK
+    };
+
+    /** 从主题偏好读取当前选中的主题资源下标（默认 THEME_DEFAULT）。 */
+    private static int getSelectedThemeIndex(Context context) {
+        SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        return themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+    }
+
+    /**
+     * @deprecated 替换为 {@link #applyAppTheme(Activity)}。保留以兼容旧调用，仅返回基础主题。
+     */
+    @Deprecated
+    public static int getSelectedTheme() {
         return R.style.Theme_Venus;
     }
 
@@ -883,13 +899,13 @@ public class SettingsFragment extends Fragment {
      * 显示当前配置值
      */
     private void displayCurrentConfigValues() {
-        String salt6x = configPreferences.getString(SALT_6X_PREF, MiHoYoBBSConstants.SALT_6X_final);
-        String salt4x = configPreferences.getString(SALT_4X_PREF, MiHoYoBBSConstants.SALT_4X_final);
-        String lk2 = configPreferences.getString(LK2_PREF, MiHoYoBBSConstants.LK2_final);
-        String k2 = configPreferences.getString(K2_PREF, MiHoYoBBSConstants.K2_final);
-        String bbsVersion = configPreferences.getString(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
-        String update_time = configPreferences.getString(UPDATE_TIME_PREF, getString(R.string.config_not_fetched));
-        String update_time_Local = configPreferences.getString(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
+        String salt6x = configRepository.get(SALT_6X_PREF, MiHoYoBBSConstants.SALT_6X_final);
+        String salt4x = configRepository.get(SALT_4X_PREF, MiHoYoBBSConstants.SALT_4X_final);
+        String lk2 = configRepository.get(LK2_PREF, MiHoYoBBSConstants.LK2_final);
+        String k2 = configRepository.get(K2_PREF, MiHoYoBBSConstants.K2_final);
+        String bbsVersion = configRepository.get(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
+        String update_time = configRepository.get(UPDATE_TIME_PREF, getString(R.string.config_not_fetched));
+        String update_time_Local = configRepository.get(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
         salt6xValue.setText(getString(R.string.salt_6x_value_fmt, salt6x));
         salt4xValue.setText(getString(R.string.salt_4x_value_fmt, salt4x));
@@ -901,7 +917,7 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 更新配置信息
+     * 后台从网络拉取最新 salt/版本等配置，成功则刷新显示并提示，失败提示错误。
      */
     private void updateConfig(View view) {
         new Thread(() -> {

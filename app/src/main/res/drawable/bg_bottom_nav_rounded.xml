@@ -2,10 +2,12 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
 
+    <!-- 默认填充用主题表面容器色；实际颜色由 MainActivity 的 setTint 叠加半透明，
+         保证首帧与 tint 后一致、不闪白。圆角由 corners 提供。 -->
     <solid android:color="?attr/colorSurfaceContainer" />
-    <corners android:radius="28dp" />
+    <corners android:radius="@dimen/shape_corner_lg" />
     <stroke
         android:width="0.5dp"
-        android:color="?attr/colorOutlineVariant" />
+        android:color="@color/bottom_nav_glass_stroke" />
 
 </shape>

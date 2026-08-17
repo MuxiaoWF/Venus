@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -17,7 +17,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="@dimen/spacing_sm">
+        android:paddingTop="@dimen/space_2">
 
         <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/server_cn"

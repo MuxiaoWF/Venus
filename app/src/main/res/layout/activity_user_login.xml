@@ -22,9 +22,9 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingHorizontal="@dimen/spacing_lg"
-        android:paddingTop="@dimen/spacing_sm"
-        android:paddingBottom="@dimen/spacing_md"
+        android:paddingHorizontal="@dimen/space_5"
+        android:paddingTop="@dimen/space_2"
+        android:paddingBottom="@dimen/space_4"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -35,20 +35,130 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Input grouped section -->
+            <!-- 品牌欢迎区：圆形 App 图标徽标 + 欢迎语（Apple/Things 3 风，柔和留白） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_marginTop="@dimen/space_5"
+                android:layout_marginBottom="@dimen/space_4">
+
+                <ImageView
+                    android:layout_width="@dimen/icon_badge_lg"
+                    android:layout_height="@dimen/icon_badge_lg"
+                    android:background="@drawable/bg_icon_circle"
+                    android:contentDescription="@null"
+                    android:padding="@dimen/space_3"
+                    android:src="@drawable/ic_brand" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_3"
+                    android:text="@string/user_login_welcome"
+                    android:textAppearance="@style/TextAppearance.Venus.Title.Large"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_1"
+                    android:text="@string/user_login_subtitle"
+                    android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+
+            <!-- 登录方式切换：扫码登录 / 账号密码（Apple 风胶囊分段控制） -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/login_mode_card"
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/space_3">
+
+                <com.google.android.material.tabs.TabLayout
+                    android:id="@+id/login_mode_tabs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="@dimen/space_2"
+                    android:background="@android:color/transparent"
+                    app:tabBackground="@drawable/bg_tab_pill"
+                    app:tabGravity="fill"
+                    app:tabIndicatorColor="?attr/colorPrimary"
+                    app:tabIndicatorFullWidth="false"
+                    app:tabIndicatorHeight="0dp"
+                    app:tabMode="fixed"
+                    app:tabRippleColor="?attr/colorPrimary"
+                    app:tabSelectedTextColor="?attr/colorOnPrimaryContainer"
+                    app:tabTextColor="?attr/colorOnSurfaceVariant">
+
+                    <com.google.android.material.tabs.TabItem
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/login_tab_qrcode" />
+
+                    <com.google.android.material.tabs.TabItem
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/login_tab_password" />
+
+                </com.google.android.material.tabs.TabLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 二维码区域（扫码登录）：柔和卡片包裹，居中 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/login_qr_card"
+                style="@style/Widget.Venus.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/space_2"
+                android:visibility="gone"
+                tools:visibility="gone">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="@dimen/spacing_md">
+                    android:gravity="center"
+                    android:padding="@dimen/space_5">
+
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/login_qr_code_image"
+                        android:layout_width="@dimen/qr_code_size"
+                        android:layout_height="@dimen/qr_code_size"
+                        android:contentDescription="@string/login_qr_code"
+                        android:scaleType="fitCenter"
+                        android:background="?attr/colorSurfaceContainerLowest"
+                        app:shapeAppearanceOverlay="@style/ShapeAppearance.Venus.Card.Small"
+                        tools:src="@drawable/ic_brand" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_3"
+                        android:text="@string/login_qr_hint"
+                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 账号密码输入区 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/login_input_card"
+                style="@style/Widget.Venus.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/space_3">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/space_4">
 
                     <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Venus.TextInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/username_hint">
@@ -59,55 +169,92 @@
                             android:layout_height="wrap_content" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/login_btn"
+                    <!-- 账号密码登录专用输入区 -->
+                    <LinearLayout
+                        android:id="@+id/password_login_group"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_md"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        tools:visibility="visible">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.Venus.TextInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/space_3"
+                            android:hint="@string/login_account_hint">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/account_input"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textEmailAddress"
+                                android:autofillHints="username" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.Venus.TextInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/space_3"
+                            android:hint="@string/login_password_hint"
+                            app:endIconMode="password_toggle">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/password_input"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:imeOptions="actionDone"
+                                android:inputType="textPassword"
+                                android:autofillHints="password" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/space_2"
+                            android:text="@string/login_password_notice"
+                            android:textAppearance="@style/TextAppearance.Venus.Caption"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/login_btn"
+                        style="@style/Widget.Venus.Button.Primary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_4"
                         android:text="@string/login" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- QR Code area -->
-            <ImageView
-                android:id="@+id/login_qr_code_image"
-                android:layout_width="200dp"
-                android:layout_height="200dp"
-                android:layout_gravity="center"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:contentDescription="@string/login_qr_code"
-                android:visibility="gone"
-                tools:src="@mipmap/ic_launcher"
-                tools:visibility="gone" />
-
-            <!-- Status log grouped section -->
+            <!-- 状态日志分组 -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="@dimen/spacing_md">
+                    android:padding="@dimen/space_4">
 
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="@dimen/spacing_sm"
+                        android:layout_marginBottom="@dimen/space_2"
                         android:text="@string/login_log"
-                        android:textSize="@dimen/text_card_title"
-                        android:textFontWeight="600"
-                        android:textColor="?attr/colorOnSurface"
-                        tools:targetApi="28" />
+                        android:textAppearance="@style/TextAppearance.Venus.Title"
+                        android:textColor="?attr/colorOnSurface" />
 
                     <ScrollView
                         android:id="@+id/login_scroll_view"
                         android:layout_width="match_parent"
-                        android:layout_height="200dp">
+                        android:layout_height="@dimen/login_log_height">
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/login_status_text"

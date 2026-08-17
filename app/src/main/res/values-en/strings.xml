@@ -2,8 +2,11 @@
 <resources>
     <string name="app_name">Venus</string>
     <string name="about">About</string>
+    <string name="about_license">License: GPL-3.0</string>
+    <string name="about_version">Version %s</string>
     <string name="add_or_login_user">Add/Login User</string>
     <string name="author_name">Author Name</string>
+    <string name="content_description_back">Back</string>
     <string name="auto_check_update">Auto Check Updates</string>
     <string name="auto_check_update_desc">Automatically check for new versions every three days</string>
     <string name="background">Background</string>
@@ -73,6 +76,9 @@
     <string name="login">Login</string>
     <string name="login_log">Login Log</string>
     <string name="login_qr_code">Login QR Code</string>
+    <string name="login_qr_hint">Scan the QR code with the Miyoushe App to log in</string>
+    <string name="user_login_welcome">Welcome</string>
+    <string name="user_login_subtitle">Log in to continue</string>
 
     <string name="miyoushe_version">Miyoushe version: Loading…</string>
     <string name="miyoushe_version_fmt">Miyoushe version: %s</string>
@@ -107,6 +113,7 @@
     <string name="skland_sign_in">Skland Sign-In</string>
     <string name="star_rail">Star Rail</string>
     <string name="task_list">Task List</string>
+    <string name="task_list_empty">No tasks yet — tap "Run Sign-In" to start</string>
     <string name="task_status">Task Status</string>
     <string name="tears_of_themis">Tears of Themis</string>
     <string name="theme">Theme</string>
@@ -333,6 +340,23 @@
     <string name="login_stoken_token_failed">QR stoken retrieval failed-getTokenByGameToken (RETCODE = %1$d), response: %2$s</string>
     <string name="login_ltoken_failed">ltoken retrieval failed-getLTokenBySToken (RETCODE = %1$d), response: %2$s</string>
 
+    <!-- Login method: QR code / account and password -->
+    <string name="login_tab_qrcode">QR Code</string>
+    <string name="login_tab_password">Password</string>
+    <string name="login_account_hint">Phone number / Email</string>
+    <string name="login_password_hint">Password</string>
+    <string name="login_password_notice">Credentials are encrypted on-device and sent only to the official MiYouShe API to obtain an stoken. They are never stored or uploaded.</string>
+    <string name="login_input_account">Please enter your account and password</string>
+    <string name="login_password_only_cn">Password login is only available on the CN server</string>
+    <string name="login_password_start">Starting login task…\nSubmitting account and password…</string>
+    <string name="login_password_token_ok">Credentials accepted, stoken and mid retrieved\n</string>
+    <string name="login_password_failed">Password login failed (RETCODE = %1$d), response: %2$s</string>
+    <string name="login_password_need_captcha">This account requires GeeTest verification (aigis), which password login does not support yet. Please switch to QR code login.</string>
+    <string name="login_password_realname">Note: this account requires real-name or face verification. Please complete it in the MiYouShe app first.\n</string>
+    <string name="login_password_encrypt_failed">Failed to encrypt credentials: %s</string>
+    <string name="login_password_no_token">Response is missing the token field: %s</string>
+    <string name="login_password_no_mid">Response is missing the mid field: %s</string>
+
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">Miyoushe Coin Sign-In requires captcha verification…</string>
     <string name="bbs_captcha_notification">Miyoushe Coin Sign-In waiting for captcha</string>
@@ -439,4 +463,7 @@
 
     <!-- BBSGameDaily additional -->
     <string name="game_thread_error">Thread error: %s</string>
+
+    <!-- Footer: unified brand line at bottom of each page -->
+    <string name="app_footer">Venus · check-in tool for MiYouShe</string>
 </resources>

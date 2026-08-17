@@ -37,6 +37,14 @@ public class BBSDaily {
         JsonObject execute() throws Exception;
     }
 
+    /**
+     * 带验证码重试地执行一次 API 调用。
+     * 最多重试 {@code MAX_RETRIES} 次：retcode=1034 触发极验验证后重试；登录态失效(-100)直接抛错；
+     * retcode=0 且 message 不含 err 视为成功；其余情况按剩余次数提示重试，超出则抛异常。
+     *
+     * @param call 实际发起请求并解析 retcode 的 lambda
+     * @return 成功时的响应 JSON
+     */
     private JsonObject executeWithRetry(ApiCall call) throws Exception {
         for (int retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
             JsonObject data = call.execute();
@@ -103,7 +111,8 @@ public class BBSDaily {
     }
 
     /**
-     * 执行所有任务
+     * 执行米游币社区签到全流程。
+     * 先添加待签到板块，拉取任务列表判断是否已全部完成；未完成则遍历板块签到并重新刷新任务状态。
      *
      * @param name  需要社区签到的板块名称（米游币的那个）可填：崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿(获取方式通过MiHoYoBBSConstants的forum_id)
      */
@@ -126,6 +135,7 @@ public class BBSDaily {
         notifier.notifyListeners(context.getString(R.string.bbs_task_done));
     }
 
+    /** 构建社区签到请求头：基础 BBS 头 + 当前用户的 Cookie。 */
     private Map<String, String> getBbsHeaders() {
         Map<String, String> bbsHeaders = headerManager.get_bbs_headers();
         bbsHeaders.put("Cookie", cookie);
@@ -133,7 +143,9 @@ public class BBSDaily {
     }
 
     /**
-     * 获取任务列表，判断还有什么任务没有执行Part1
+     * 拉取今日任务列表。
+     * 通过 can_get_points 判断今日是否已无可得米游币（=0 视为全部完成）并返回 null，
+     * 否则返回任务数据供后续解析；retcode 非 0 视为 Cookie 失效并抛错。
      */
     private JsonObject checkTasksList() {
         notifier.notifyListeners(context.getString(R.string.bbs_getting_task_list));
@@ -156,7 +168,8 @@ public class BBSDaily {
     }
 
     /**
-     * 获取任务列表，判断还有什么任务没有执行Part2
+     * 解析任务状态：从 states 中查找 mission_id=58（社区签到）的 is_get_award，
+     * 已领奖则标记 signCompleted=true，并通知今日可获取米游币数量。
      */
     private void getTasksList(JsonObject data) {
         for (JsonElement stateElement : data.get("states").getAsJsonArray()) {
@@ -171,7 +184,8 @@ public class BBSDaily {
     }
 
     /**
-     * 签到米游币
+     * 遍历待签到板块逐个完成社区签到（含验证码重试）。
+     * signCompleted 为 true 时说明今日已全部完成，直接返回。
      */
     private void signPosts() throws Exception {
         if (signCompleted) {

@@ -1,5 +1,7 @@
 package com.muxiao.Venus.Link;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
@@ -8,6 +10,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AnimationUtils;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 
@@ -27,6 +30,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.ScaleInItemAnimator;
+import com.muxiao.Venus.common.tools;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,10 +47,13 @@ import android.widget.LinearLayout;
  * 抽卡链接页：内置WebView访问米游社抽卡记录页面，自动拦截含authkey的URL，
  * 提取抽卡链接并展示在列表中，支持复制和多用户切换。
  */
+@AndroidEntryPoint
 public class LinkFragment extends Fragment {
 
-    {
-        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        tools.setupFragmentTransitions(this);
     }
 
     private MaterialTextView errorTextView;
@@ -77,10 +84,6 @@ public class LinkFragment extends Fragment {
         MaterialButton getLinkButton = view.findViewById(R.id.get_link_button);
         webViewContainer = view.findViewById(R.id.webViewContainer);
         webView = view.findViewById(R.id.webView);
-
-        View bottomPaddingView = view.findViewById(R.id.bottom_padding_view);
-        if (getActivity() instanceof MainActivity)
-            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         // 设置ProgressBar为indeterminate模式以显示旋转动画
         progressBar.setIndeterminate(true);
@@ -363,7 +366,7 @@ public class LinkFragment extends Fragment {
     }
 
     /**
-     * 更新用户下拉框
+     * 按当前服务器类型填充用户下拉框，并选定当前/首个用户；无用户则清空选择。
      */
     private void updateDropdown() {
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
@@ -418,32 +421,43 @@ public class LinkFragment extends Fragment {
         updateDropdown();
     }
 
+    /** 统一切换列表卡片与 RecyclerView 的可见性。 */
     private void setRecyclerVisible(boolean visible) {
         int vis = visible ? View.VISIBLE : View.GONE;
         recyclerCard.setVisibility(vis);
         linkItemsRecyclerView.setVisibility(vis);
     }
 
+    /** 显示/隐藏错误文本，遵循“减少动态效果”设置以决定是否淡入。 */
     private void setErrorTextVisible(boolean visible) {
         errorTextView.animate().cancel();
+        if (tools.isReducedMotionEnabled(requireContext())) {
+            errorTextView.setVisibility(visible ? View.VISIBLE : View.GONE);
+            errorTextView.setAlpha(1f);
+            return;
+        }
         if (visible && errorTextView.getVisibility() != View.VISIBLE) {
             errorTextView.setVisibility(View.VISIBLE);
             errorTextView.setAlpha(0f);
             errorTextView.animate()
                     .alpha(1f)
-                    .setDuration(300)
-                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
-                            getContext(), android.R.interpolator.fast_out_slow_in))
+                    .setDuration(getResources().getInteger(R.integer.motion_duration_short))
+                    .setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate))
                     .start();
         } else if (!visible) {
             errorTextView.setVisibility(View.GONE);
         }
     }
 
+    /** 显示/隐藏云游戏 WebView 容器，遵循“减少动态效果”设置以决定是否上滑淡入。 */
     private void setWebViewContainerVisible(boolean visible) {
         webViewContainer.animate().cancel();
         webViewContainer.setTranslationY(0f);
         webViewContainer.setAlpha(1f);
+        if (tools.isReducedMotionEnabled(requireContext())) {
+            webViewContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
+            return;
+        }
         if (visible && webViewContainer.getVisibility() != View.VISIBLE) {
             webViewContainer.setVisibility(View.VISIBLE);
             webViewContainer.setAlpha(0f);
@@ -451,9 +465,8 @@ public class LinkFragment extends Fragment {
             webViewContainer.animate()
                     .alpha(1f)
                     .translationY(0f)
-                    .setDuration(400)
-                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
-                            getContext(), android.R.interpolator.fast_out_slow_in))
+                    .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
+                    .setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate))
                     .start();
         } else if (!visible) {
             webViewContainer.setVisibility(View.GONE);

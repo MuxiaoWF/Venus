@@ -45,7 +45,7 @@ public class UserManager {
     }
 
     /**
-     * 删除用户
+     * 从账户表中移除该用户；若其正为当前用户，则一并清除 current_user 标记。
      */
     public void removeUser(String username) {
         Map<String, String> users = getUsers();
@@ -60,7 +60,7 @@ public class UserManager {
     }
 
     /**
-     * 获取所有用户
+     * 读取并反序列化账户表（用户名 → 空串占位），无数据返回空 Map。
      */
     public Map<String, String> getUsers() {
         String usersJson = sharedPreferences.getString(KEY_USERS, "");
@@ -87,7 +87,7 @@ public class UserManager {
     }
 
     /**
-     * 获取当前用户
+     * 返回当前选中用户名，未设置时返回空串。
      */
     public String getCurrentUser() {
         return sharedPreferences.getString(KEY_CURRENT_USER, "");

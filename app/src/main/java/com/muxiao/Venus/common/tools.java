@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.MotionEvent;
@@ -13,19 +12,23 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.color.MaterialColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.data.UserRepository;
 
 import android.os.Build;
 import android.os.Environment;
+import android.provider.Settings;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import androidx.fragment.app.Fragment;
+
+import com.google.android.material.transition.MaterialSharedAxis;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -41,7 +44,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -57,56 +59,51 @@ import okio.Okio;
  * Snackbar/错误对话框、剪贴板、日志文件读写、键盘收起。
  */
 public class tools {
-    // 共享 OkHttpClient 实例，复用连接池，避免每次请求创建新连接
-    private static volatile OkHttpClient sharedClient;
+    // 共享 OkHttpClient 实例已集中到 ApiClient（P1-3），此处 getSharedClient() 转发到 ApiClient.get()
 
+    /**
+     * 返回应用共享的 OkHttpClient（转发到 {@link ApiClient#get()}，复用连接池）。
+     */
     private static OkHttpClient getSharedClient() {
-        if (sharedClient == null) {
-            synchronized (tools.class) {
-                if (sharedClient == null) {
-                    sharedClient = new OkHttpClient.Builder()
-                            .connectTimeout(10, TimeUnit.SECONDS)
-                            .readTimeout(30, TimeUnit.SECONDS)
-                            .writeTimeout(30, TimeUnit.SECONDS)
-                            .followRedirects(true)
-                            .followSslRedirects(true)
-                            .build();
-                }
-            }
-        }
-        return sharedClient;
+        return ApiClient.get();
     }
 
     private static final Gson GSON = new Gson();
     private static final Random RANDOM = new Random();
 
     /**
-     * 监听器接口
+     * 登录状态变化监听器，回调最新登录状态文案。
      */
     public interface StatusInterface {
         void onLoginStatusChanged(String status);
     }
 
     /**
-     * 监听器类（线程安全）
+     * 登录状态广播器：用 CopyOnWriteArrayList 维护监听器，支持跨线程安全增删与通知。
      */
     public static class StatusNotifier {
         private final CopyOnWriteArrayList<StatusInterface> listeners = new CopyOnWriteArrayList<>();
 
+        /** 注册一个登录状态监听器。 */
         public void addListener(StatusInterface listener) {
             listeners.add(listener);
         }
 
+        /** 清空所有已注册监听器（如 Activity 销毁时调用，避免泄漏）。 */
         public void removeAllListeners() {
             listeners.clear();
         }
 
+        /** 向所有监听器广播最新的登录状态变化。 */
         public void notifyListeners(String status) {
             for (StatusInterface listener : listeners)
                 listener.onLoginStatusChanged(status);
         }
     }
 
+    /**
+     * 发送 GET 请求：params 拼接到 query，自动 gzip 解压；非 2xx 或异常统一抛 RuntimeException（含联网提示）。
+     */
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params) {
         StringBuilder urlBuilder = new StringBuilder(urlStr);
         if (params != null && !params.isEmpty()) {
@@ -130,6 +127,9 @@ public class tools {
         }
     }
 
+    /**
+     * 以 JSON body 发送 POST 请求，自动 gzip 解压；失败抛 RuntimeException（含联网/错误提示）。
+     */
     public static String sendPostRequest(String urlStr, Map<String, String> headers, Map<String, Object> body) {
         RequestBody requestBody;
         if (body != null) {
@@ -153,6 +153,56 @@ public class tools {
         }
     }
 
+    /**
+     * HTTP 响应包装：同时携带状态码、响应体与响应头。
+     * 用于需要读取响应头的接口（如 loginByPassword 的 x-rpc-aigis）。
+     */
+    public static class HttpResponse {
+        public final int code;
+        public final String body;
+        private final okhttp3.Headers headers;
+
+        HttpResponse(int code, String body, okhttp3.Headers headers) {
+            this.code = code;
+            this.body = body;
+            this.headers = headers;
+        }
+
+        /** 按名称读取响应头，headers 为 null 或查询不到时返回 null。 */
+        public String header(String name) {
+            return headers != null ? headers.get(name) : null;
+        }
+    }
+
+    /**
+     * 以原始 JSON 字符串作为请求体发送 POST，并返回状态码/响应体/响应头。
+     * <p>
+     * 与 {@link #sendPostRequest} 的区别：调用方自行完成 JSON 序列化，
+     * 保证「参与 DS 签名的 body」与「实际发出的 body」逐字节一致（DS2 签名必需），
+     * 且非 2xx 不抛异常，由调用方根据 retcode 处理。
+     *
+     * @param jsonBody 已序列化好的 JSON 字符串，为 null 时发送空体
+     */
+    public static HttpResponse postJson(String urlStr, Map<String, String> headers, String jsonBody) {
+        RequestBody requestBody = jsonBody != null
+                ? RequestBody.create(jsonBody, MediaType.parse("application/json; charset=utf-8"))
+                : RequestBody.create(new byte[0], null);
+        Request.Builder requestBuilder = new Request.Builder().url(urlStr).post(requestBody);
+        if (headers != null)
+            for (Map.Entry<String, String> entry : headers.entrySet())
+                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
+            return new HttpResponse(response.code(), readResponseBody(response), response.headers());
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("请检查网络连接：" + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("请求失败：" + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 读取响应体：Content-Encoding=gzip 时按 GzipSource 解压，否则直接读为字符串。
+     */
     private static String readResponseBody(Response response) throws IOException {
         ResponseBody responseBody = response.body();
         if ("gzip".equals(response.header("Content-Encoding"))) {
@@ -165,47 +215,49 @@ public class tools {
     }
 
     /**
-     * 将用户数据写入SharedPreferences
+     * 将用户数据写入SharedPreferences（经 UserRepository 单一入口，P0-1）
      *
      * @param userId 用户标识
      * @param key    数据键名
      * @param value  数据值
      */
     public static void write(Context context, String userId, String key, String value) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(key, value);
-        editor.apply();
+        new UserRepository(context).putString(userId, key, value);
     }
 
     /**
-     * 从SharedPreferences中读取用户数据
+     * 从SharedPreferences中读取用户数据（经 UserRepository 单一入口，P0-1）
      *
      * @param userId 用户标识
      * @param key    数据键名
      * @return 用户数据
      */
     public static String read(Context context, String userId, String key) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
-        return sharedPreferences.getString(key, null);
+        return new UserRepository(context).getString(userId, key);
     }
 
     /**
-     * 显示自定义Snackbar
+     * 显示居中、带 M3 主题配色与内边距的自定义 Snackbar（短时长自动消失）。
      */
     public static void showCustomSnackbar(View view, Context context, String message) {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
         View snackbarView = snackbar.getView();
 
-        // 圆角背景，使用 tint 方式保留 Material3 基础样式
+        // 圆角背景：颜色走 M3 语义 token（colorSurfaceContainerHigh / colorOnSurface / colorPrimary），
+        // 深浅色与彩色主题下自动适配，不再依赖固定的 snackbar_* 裸色。
         snackbarView.setBackgroundResource(R.drawable.snackbar_background);
-        snackbarView.setBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(context.getResources().getColor(R.color.snackbar_background, context.getTheme())));
+        int snackbarBackground = MaterialColors.getColor(
+                snackbarView, com.google.android.material.R.attr.colorSurfaceContainerHigh,
+                context.getResources().getColor(R.color.snackbar_background, context.getTheme()));
+        snackbarView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(snackbarBackground));
 
         // 文本样式
         MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
         if (textView != null) {
-            textView.setTextColor(context.getResources().getColor(R.color.snackbar_text, context.getTheme()));
+            int snackbarText = MaterialColors.getColor(
+                    snackbarView, com.google.android.material.R.attr.colorOnSurface,
+                    context.getResources().getColor(R.color.snackbar_text, context.getTheme()));
+            textView.setTextColor(snackbarText);
             textView.setGravity(android.view.Gravity.CENTER);
             textView.setTextSize(13);
             textView.setMaxLines(3);
@@ -213,8 +265,12 @@ public class tools {
 
         // 动作按钮颜色
         MaterialButton actionView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_action);
-        if (actionView != null)
-            actionView.setTextColor(context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
+        if (actionView != null) {
+            int snackbarAction = MaterialColors.getColor(
+                    snackbarView, android.R.attr.colorPrimary,
+                    context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
+            actionView.setTextColor(snackbarAction);
+        }
 
         // 阴影和内边距
         snackbarView.setElevation(4f);
@@ -237,7 +293,7 @@ public class tools {
     }
 
     /**
-     * 显示错误信息并提供复制
+     * 弹出错误对话框，并提供「复制错误」按钮；复制成功后提示已复制。
      *
      * @param error_message 错误信息
      */
@@ -261,7 +317,7 @@ public class tools {
     }
 
     /**
-     * 复制文本到剪贴板
+     * 复制文本到系统剪贴板，并弹出「已复制」Snackbar 提示。
      */
     public static void copyToClipboard(View view, Context context, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -271,9 +327,9 @@ public class tools {
     }
 
     /**
-     * 复制文件
+     * 将 sourceUri 指向的文件流拷贝到 destFile（8KB 缓冲，源不可打开时抛异常）。
      *
-     * @param sourceUri 源文件URI
+     * @param sourceUri 源文件 URI
      * @param destFile  目标文件
      */
     public static void copyFile(Context context, Uri sourceUri, File destFile) throws Exception {
@@ -372,6 +428,9 @@ public class tools {
         } catch (IOException ignored) {}
     }
 
+    /**
+     * 返回今天的运行日志文件（logs/daily_task_log_yyyy-MM-dd.txt），目录不存在时自动创建。
+     */
     public static File getTodayLogFile(Context context) {
         File logDir = new File(context.getExternalFilesDir(null), "logs");
         if (!logDir.exists()) logDir.mkdirs();
@@ -385,7 +444,7 @@ public class tools {
      * 读取用户 SharedPreferences 中指定 key 的值
      */
     public static String readUserPref(Context context, String userId, String key) {
-        return context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE).getString(key, null);
+        return new UserRepository(context).getString(userId, key);
     }
 
     /**
@@ -400,21 +459,6 @@ public class tools {
         String sessionToken = stoken != null ? stoken : ltoken;
         String tokenKey = stoken != null ? "stoken" : "ltoken";
         return tokenKey + "=" + sessionToken + (mid != null ? ";mid=" + mid : "") + ";stuid=" + stuid + ";ltuid=" + stuid + ";";
-    }
-
-    /**
-     * 获取当前活跃的 token（stoken 优先，否则 ltoken）
-     */
-    public static String getActiveToken(Context context, String userId) {
-        String stoken = read(context, userId, "stoken");
-        return stoken != null ? stoken : read(context, userId, "ltoken");
-    }
-
-    /**
-     * 获取当前活跃 token 的 key 名
-     */
-    public static String getActiveTokenKey(Context context, String userId) {
-        return read(context, userId, "stoken") != null ? "stoken" : "ltoken";
     }
 
     /**
@@ -472,13 +516,40 @@ public class tools {
     }
 
     /**
-     * 为 View 添加状态栏顶部内边距
+     * 系统「减少动态效果」检测：动画时长/转场缩放任一为 0 即视为关闭。
+     * 所有自定义动效在开启时降级为无动画，尊重无障碍偏好。
      */
-    public static void applyStatusBarPadding(View view) {
-        ViewCompat.setOnApplyWindowInsetsListener(view, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            v.setPadding(v.getPaddingLeft(), statusBarHeight, v.getPaddingRight(), v.getPaddingBottom());
-            return insets;
-        });
+    public static boolean isReducedMotionEnabled(Context context) {
+        try {
+            float animatorScale = Settings.Global.getFloat(
+                    context.getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+            float transitionScale = Settings.Global.getFloat(
+                    context.getContentResolver(), Settings.Global.TRANSITION_ANIMATION_SCALE, 1f);
+            return animatorScale == 0f || transitionScale == 0f;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 为 Fragment 设置 M3 MaterialSharedAxis 页面转场（X 轴水平滑入），
+     * 时长取 motion_duration_long，并自动尊重系统「减少动态效果」。
+     */
+    public static void setupFragmentTransitions(Fragment fragment) {
+        if (isReducedMotionEnabled(fragment.requireContext()))
+            return;
+        int duration = fragment.getResources().getInteger(R.integer.motion_duration_long);
+        MaterialSharedAxis enterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        MaterialSharedAxis exitTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        MaterialSharedAxis reenterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        MaterialSharedAxis returnTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        enterTransition.setDuration(duration);
+        exitTransition.setDuration(duration);
+        reenterTransition.setDuration(duration);
+        returnTransition.setDuration(duration);
+        fragment.setEnterTransition(enterTransition);
+        fragment.setExitTransition(exitTransition);
+        fragment.setReenterTransition(reenterTransition);
+        fragment.setReturnTransition(returnTransition);
     }
 }

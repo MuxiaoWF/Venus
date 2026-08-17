@@ -110,6 +110,7 @@ public class BBSGameDaily {
         }
     }
 
+    /** 构建游戏登录类请求头：基础登录头 + 游戏 Cookie；原神/绝区零额外补 x-rpc-signgame。 */
     private Map<String, String> getGameLoginHeaders() {
         Map<String, String> gameLoginHeaders = headerManager.get_game_login_headers();
         gameLoginHeaders.putAll(cookies);
@@ -120,7 +121,8 @@ public class BBSGameDaily {
     }
 
     /**
-     * 更新cookieToken
+     * 刷新 cookie_token：国服用 stoken 重新换取并写回存储；
+     * 国际服无法自动刷新，直接抛错提示需重新登录。
      */
     private String updateCookieToken() {
         if (isOversea) {
@@ -178,6 +180,10 @@ public class BBSGameDaily {
         return getAccountList(gameId, false);
     }
 
+    /**
+     * 获取账号列表的真实实现（带重试守卫）。
+     * CookieToken 失效时递归刷新一次；retried=true 仍失败则抛错，防止无限递归。
+     */
     protected List<Map<String, String>> getAccountList(String gameId, boolean retried) {
         statusNotifier.notifyListeners(context.getString(R.string.notif_title_game_sign, displayName) + " " + context.getString(R.string.snack_loading));
         Map<String, String> headers = getGameLoginHeaders();
@@ -271,6 +277,10 @@ public class BBSGameDaily {
         return isSign(region, uid, false);
     }
 
+    /**
+     * 查询账号签到信息的真实实现（带重试守卫）。
+     * CookieToken 失效时刷新一次后重试；retried=true（或国际服）仍失败则抛错。
+     */
     private Map<String, Object> isSign(String region, String uid, boolean retried) {
         Map<String, String> gameLoginHeaders = getGameLoginHeaders();
         String isSignApi;
@@ -316,10 +326,12 @@ public class BBSGameDaily {
     }
 
     /**
-     * 签到
+     * 执行单个账号的签到（国服），或国际服的整体签到（account 传 null）。
+     * 国服：最多重试 {@code MAX_RETRIES} 次，遇 429 频率限制冷却后重试，
+     * 遇 retcode=0 且 success=1 触发极验验证（performVerificationWithCallback）后再继续。
      *
-     * @param account 账号信息Map<String, String>, key为nickname昵称, game_uid游戏uid, region游戏区.
-     * @return 签到结果String
+     * @param account 账号信息Map<String, String>, key为nickname昵称, game_uid游戏uid, region游戏区（国际服传 null）。
+     * @return 签到接口原始响应字符串
      */
     private String checkIn(Map<String, String> account) throws Exception {
         String signApi;
@@ -378,7 +390,7 @@ public class BBSGameDaily {
     }
 
     /**
-     * 签到(最开始的)
+     * 签到入口：按服务器类型分发到国际服或国服流程。
      */
     public void run() throws Exception {
         if (isOversea) {
@@ -484,6 +496,7 @@ public class BBSGameDaily {
         }
     }
 
+    /** 用 cookie_token + ltoken/stuid 拼出游戏签到所需的 Cookie 字符串。 */
     private String buildGameCookie(String cookieToken) {
         String ltoken = tools.read(context, userId, "ltoken");
         String stuid = tools.read(context, userId, "stuid");

@@ -72,6 +72,8 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
     public void onBindViewHolder(@NonNull ImageViewHolder holder, int position) {
         ImageItem imageItem = imageItems.get(position);
         String imageUrl = imageItem.getImageUrl();
+        // 与 ImageActivity 网格缩略图对应的共享元素名称，用于 MaterialContainerTransform
+        holder.imageView.setTransitionName("image_" + position);
 
         if (imageUrl != null && !imageUrl.isEmpty()) {
             // 显示加载进度条
@@ -132,7 +134,9 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
         return imageItems != null ? imageItems.size() : 0;
     }
 
-    // 添加方法获取指定位置的ImageItem
+    /**
+     * 返回指定位置的 ImageItem；越界（position 非法）时返回 null。
+     */
     public ImageItem getItem(int position) {
         if (position >= 0 && position < imageItems.size())
             return imageItems.get(position);

@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- M3 标准向下 chevron：展开态(rotation=0)指下，折叠态(rotation=180)指上 -->
+    <path
+        android:fillColor="@color/selector"
+        android:pathData="M12,15.75L7.4,11.15C7.01,10.76 7.01,10.14 7.4,9.75C7.79,9.36 8.41,9.36 8.8,9.75L12,13L15.2,9.75C15.59,9.36 16.21,9.36 16.6,9.75C16.99,10.14 16.99,10.76 16.6,11.15L12,15.75Z" />
+</vector>

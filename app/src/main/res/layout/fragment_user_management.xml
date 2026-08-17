@@ -1,76 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        style="@style/Widget.Venus.Toolbar"
+    <!-- 内容区：工具栏 + 可滚动用户列表 -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:subtitle="@string/user_management_subtitle"
-        app:title="@string/user_management_title" />
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-    <ScrollView
-        android:id="@+id/login_scroll_view"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:contentDescription="@string/user_list"
-        android:paddingHorizontal="@dimen/spacing_lg"
-        android:paddingTop="@dimen/spacing_sm"
-        android:paddingBottom="@dimen/spacing_md">
-
-        <LinearLayout
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/user_management_toolbar"
+            style="@style/Widget.Venus.Toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            app:title="@string/user_management_title"
+            app:subtitle="@string/user_management_subtitle" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/no_user_prompt"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginVertical="@dimen/spacing_xl"
-                android:gravity="center"
-                android:text="@string/no_user_prompt"
-                android:textAppearance="?attr/textAppearanceBodyLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:visibility="gone" />
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/login_scroll_view"
+            style="@style/Widget.Venus.ScreenScaffold"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:contentDescription="@string/user_list">
 
-            <!-- User list grouped section -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Venus.Card"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:paddingBottom="@dimen/space_bottom_fab">
 
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/no_user_prompt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginVertical="@dimen/space_7"
+                    android:drawableTop="@drawable/ic_user"
+                    android:drawableTint="?attr/colorOnSurfaceVariant"
+                    android:drawablePadding="@dimen/space_3"
+                    android:gravity="center"
+                    android:text="@string/no_user_prompt"
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+
+                <!-- User list grouped section -->
                 <LinearLayout
                     android:id="@+id/user_list_container"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
 
-            </com.google.android.material.card.MaterialCardView>
+                <Space
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
 
-        </LinearLayout>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
-    </ScrollView>
+    </LinearLayout>
 
+    <!-- 添加/登录用户：悬浮于页面右下角 -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/user_login_btn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="@dimen/spacing_md"
+        android:layout_margin="@dimen/space_4"
         android:text="@string/add_or_login_user"
-        app:backgroundTint="?attr/colorSecondaryContainer"
-        app:iconTint="?attr/colorOnSecondaryContainer" />
+        app:backgroundTint="?attr/colorPrimaryContainer"
+        app:icon="@drawable/ic_user"
+        app:iconTint="?attr/colorOnPrimaryContainer" />
 
-    <View
-        android:id="@+id/bottom_padding_view"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/spacing_bottom_fab" />
-
-</LinearLayout>
+</FrameLayout>

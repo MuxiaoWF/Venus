@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -31,21 +31,15 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_xs"
+        android:layout_marginTop="@dimen/space_1"
         android:text="@string/auto_check_update_desc"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:alpha="0.15"/>
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_4"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
@@ -56,7 +50,7 @@
             android:layout_gravity="center_vertical"
             android:layout_weight="1"
             android:text="@string/check_update_github"
-            android:textSize="@dimen/text_caption" />
+            android:textAppearance="?attr/textAppearanceLabelMedium" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/check_update_button_pan"
@@ -64,10 +58,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
-            android:layout_marginStart="@dimen/spacing_sm"
+            android:layout_marginStart="@dimen/space_2"
             android:layout_weight="1"
             android:text="@string/check_update_pan"
-            android:textSize="@dimen/text_caption" />
+            android:textAppearance="?attr/textAppearanceLabelMedium" />
 
     </LinearLayout>
 

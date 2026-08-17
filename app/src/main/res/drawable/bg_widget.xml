@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面小组件背景：RemoteViews 不支持 ?attr 主题引用，故用 @color/widget_surface（在
+     values/colors.xml 与 values-night/colors.xml 分别定义浅/深色），修复原 #F3F3FA 硬编码
+     导致深色模式小组件仍为浅底的问题。圆角收口到统一 token。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#F3F3FA" />
-    <corners android:radius="20dp" />
+    <solid android:color="@color/widget_surface" />
+    <corners android:radius="@dimen/shape_corner_lg" />
 </shape>

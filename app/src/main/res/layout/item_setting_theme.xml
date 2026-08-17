@@ -3,8 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -13,11 +13,11 @@
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurface" />
 
-    <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-        android:layout_width="match_parent"
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Venus.Dropdown"
+            android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:hint="@string/select_theme">
 
         <com.google.android.material.textfield.MaterialAutoCompleteTextView
@@ -29,16 +29,10 @@
             android:textColor="?attr/colorOnSurface" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:alpha="0.15"/>
-
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_4"
         android:text="@string/theme_variant_setting"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurface" />
@@ -47,7 +41,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="@dimen/spacing_sm">
+        android:paddingTop="@dimen/space_2">
 
         <com.google.android.material.radiobutton.MaterialRadioButton
             android:id="@+id/theme_variant_default"

@@ -5,8 +5,8 @@
     android:minHeight="@dimen/setting_row_height"
     android:gravity="center_vertical"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/background_task_switch"
@@ -20,7 +20,7 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_xs"
+        android:layout_marginTop="@dimen/space_1"
         android:text="@string/background_running_desc"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />

@@ -14,179 +14,273 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
+        style="@style/Widget.Venus.ScreenScaffold"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingBottom="@dimen/spacing_md"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/setting_toolbar">
 
         <LinearLayout
+            android:id="@+id/settings_content_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:animateLayoutChanges="true"
-            android:orientation="vertical"
-            android:paddingHorizontal="@dimen/spacing_lg"
-            android:paddingTop="@dimen/spacing_sm">
+            android:orientation="vertical">
 
-            <!-- Section: Sign-in Settings -->
-            <com.google.android.material.textview.MaterialTextView
+            <!-- ===== 分组：签到设置（Material Settings List） ===== -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Venus.SettingsGroup"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="@string/section_sign_in_settings"
-                android:textAllCaps="true"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:letterSpacing="0.05" />
+                android:layout_height="wrap_content">
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/daily_card"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/sec_sign_in"
+                        style="@style/Widget.Venus.SectionHeaderRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_0"
+                        android:paddingHorizontal="@dimen/gutter_card"
+                        android:paddingTop="@dimen/space_3"
+                        android:paddingBottom="@dimen/space_1"
+                        android:text="@string/section_sign_in_settings" />
+
+                    <!-- 组内可展开行：透明无描边，仅保留折叠交互，▼ 由 CollapsibleCardView 提供 -->
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/daily_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/miyoushe_coin_sign_in" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/game_daily_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/game_sign_in" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ===== 分组：配置（Material Settings List） ===== -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Venus.SettingsGroup"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardTitle="@string/miyoushe_coin_sign_in"
-                app:initialExpanded="false" />
+                android:layout_height="wrap_content">
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/game_daily_card"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/sec_config"
+                        style="@style/Widget.Venus.SectionHeaderRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_0"
+                        android:paddingHorizontal="@dimen/gutter_card"
+                        android:paddingTop="@dimen/space_3"
+                        android:paddingBottom="@dimen/space_1"
+                        android:text="@string/section_config" />
+
+                    <!-- 服务器类型：折叠卡（带 ▼），内容内联分段按钮，缩进显示二级关系 -->
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/server_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/server_type" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/config_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/config_info" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ===== 分组：应用（Material Settings List） ===== -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Venus.SettingsGroup"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/game_sign_in"
-                app:initialExpanded="false" />
+                android:layout_height="wrap_content">
 
-            <!-- Section: Config -->
-            <com.google.android.material.textview.MaterialTextView
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/sec_app"
+                        style="@style/Widget.Venus.SectionHeaderRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_0"
+                        android:paddingHorizontal="@dimen/gutter_card"
+                        android:paddingTop="@dimen/space_3"
+                        android:paddingBottom="@dimen/space_1"
+                        android:text="@string/section_app" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/update_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/update" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/cache_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/cache" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/language_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/language" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/theme_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/theme" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/background_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/background" />
+
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
+
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/notification_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/background_running" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ===== 分组：其他（Material Settings List） ===== -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Venus.SettingsGroup"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xl"
-                android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="@string/section_config"
-                android:textAllCaps="true"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:letterSpacing="0.05" />
+                android:layout_height="wrap_content">
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/server_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/server_type"
-                app:initialExpanded="false" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/config_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/config_info"
-                app:initialExpanded="false" />
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/sec_other"
+                        style="@style/Widget.Venus.SectionHeaderRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_0"
+                        android:paddingHorizontal="@dimen/gutter_card"
+                        android:paddingTop="@dimen/space_3"
+                        android:paddingBottom="@dimen/space_1"
+                        android:text="@string/section_other" />
 
-            <!-- Section: App -->
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xl"
-                android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="@string/section_app"
-                android:textAllCaps="true"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:letterSpacing="0.05" />
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/skland_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/skland_sign_in" />
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/update_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardTitle="@string/update"
-                app:initialExpanded="false" />
+                    <View
+                        style="@style/Widget.Venus.SettingsRowDivider"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/divider_height" />
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/cache_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/cache"
-                app:initialExpanded="false" />
+                    <com.muxiao.Venus.common.CollapsibleCardView
+                        android:id="@+id/about_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:transparent="true"
+                        app:insetHorizontal="@dimen/space_3"
+                        app:cardTitle="@string/about" />
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/language_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/language"
-                app:initialExpanded="false" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/theme_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/theme"
-                app:initialExpanded="false" />
-
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/background_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/background"
-                app:initialExpanded="false" />
-
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/notification_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                app:cardTitle="@string/background_running"
-                app:initialExpanded="false" />
-
-            <!-- Section: Other -->
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xl"
-                android:layout_marginBottom="@dimen/spacing_sm"
-                android:text="@string/section_other"
-                android:textAllCaps="true"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:letterSpacing="0.05" />
-
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/skland_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardTitle="@string/skland_sign_in"
-                app:initialExpanded="false" />
-
+            <!-- 查看榜单图：独立裸按钮，不嵌套任何分组，与四个分组平级 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/image_button"
-                style="@style/Widget.Material3.Button.TonalButton"
+                style="@style/Widget.Venus.Button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                android:text="@string/view_miyoushe_ranking"
-                app:icon="@drawable/ic_link_url" />
-
-            <com.muxiao.Venus.common.CollapsibleCardView
-                android:id="@+id/about_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                android:layout_marginBottom="@dimen/spacing_md"
-                app:cardTitle="@string/about"
-                app:initialExpanded="false" />
+                android:layout_marginTop="@dimen/gap_card"
+                android:text="@string/view_miyoushe_ranking" />
 
             <View
                 android:id="@+id/bottom_padding_view"
                 android:layout_width="match_parent"
-                android:layout_height="@dimen/spacing_bottom_fab" />
+                android:layout_height="@dimen/space_bottom_fab" />
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>

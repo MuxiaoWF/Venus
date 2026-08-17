@@ -1,29 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Spacing System -->
-    <dimen name="spacing_tiny">2dp</dimen>
-    <dimen name="spacing_xs">4dp</dimen>
-    <dimen name="spacing_sm">8dp</dimen>
-    <dimen name="spacing_12">12dp</dimen>
-    <dimen name="spacing_md">16dp</dimen>
-    <dimen name="spacing_lg">20dp</dimen>
-    <dimen name="spacing_xl">28dp</dimen>
-    <dimen name="spacing_xxl">32dp</dimen>
-    <dimen name="spacing_bottom_fab">96dp</dimen>
+    <!-- ===== 间距刻度 space_*（语义化，禁止在布局中写裸 dp/sp） ===== -->
+    <dimen name="space_0">0dp</dimen>    <!-- 无间距 -->
+    <dimen name="space_1">4dp</dimen>    <!-- 微间距 -->
+    <dimen name="space_2">8dp</dimen>    <!-- 紧凑间距 -->
+    <dimen name="space_3">12dp</dimen>   <!-- 常规内边距 -->
+    <dimen name="space_4">16dp</dimen>   <!-- 屏幕级内边距基准 -->
+    <dimen name="space_5">20dp</dimen>   <!-- 区块间距 -->
+    <dimen name="space_6">24dp</dimen>   <!-- 卡片内大留白 -->
+    <dimen name="space_7">28dp</dimen>   <!-- 区块标题上方 -->
+    <dimen name="space_8">32dp</dimen>   <!-- 大间距 -->
+    <dimen name="space_9">40dp</dimen>   <!-- 大区块间距 -->
+    <dimen name="space_10">48dp</dimen>  <!-- 触控目标/特大间距 -->
 
-    <!-- Corner Radius -->
-    <dimen name="radius_grouped_section">16dp</dimen>
+    <!-- 底部 FAB 占位高度（统一到 space_* 命名体系） -->
+    <dimen name="space_bottom_fab">96dp</dimen>
 
-    <!-- Typography -->
+    <!-- ===== 形状刻度（利落现代：圆角适中、阴影轻薄） ===== -->
+    <dimen name="shape_corner_sm">10dp</dimen>  <!-- 输入框/图片/内嵌卡片 -->
+    <dimen name="shape_corner_md">16dp</dimen>  <!-- 分组卡片 -->
+    <dimen name="shape_corner_lg">28dp</dimen>  <!-- 底部导航/悬浮卡 -->
+    <dimen name="radius_grouped_section">@dimen/shape_corner_md</dimen>
+
+    <!-- ===== 排版（仅保留兼容引用，新布局走 TextAppearance.Venus.*） ===== -->
     <dimen name="text_card_title">17sp</dimen>
     <dimen name="text_body">14sp</dimen>
     <dimen name="text_caption">12sp</dimen>
 
-    <!-- Divider -->
+    <!-- ===== 分隔线 ===== -->
     <dimen name="divider_height">0.5dp</dimen>
     <dimen name="divider_indent_icon">56dp</dimen>
 
-    <!-- Component Heights -->
+    <!-- ===== 组件尺寸 ===== -->
     <dimen name="setting_row_height">52dp</dimen>
     <dimen name="item_padding_vertical">14dp</dimen>
+    <dimen name="icon_standard">24dp</dimen>
+    <dimen name="icon_small">20dp</dimen>
+    <dimen name="icon_badge_circle">36dp</dimen>
+    <dimen name="touch_target_min">48dp</dimen>
+
+    <!-- 固定尺寸页面元素 -->
+    <dimen name="qr_code_size">200dp</dimen>
+    <dimen name="login_log_height">200dp</dimen>
+    <dimen name="oauth_webview_height">800dp</dimen>
+    <dimen name="image_card_height">150dp</dimen>
+    <dimen name="task_progress_width">100dp</dimen>
+    <dimen name="progress_track_thickness">4dp</dimen>
+    <dimen name="bottom_nav_elevation">4dp</dimen>
+
+    <!-- 底部导航活动指示器 -->
+    <dimen name="bottom_nav_indicator_width">64dp</dimen>
+    <dimen name="bottom_nav_indicator_height">32dp</dimen>
+    <dimen name="bottom_nav_indicator_margin_horizontal">12dp</dimen>
+    <dimen name="bottom_nav_indicator_expanded_height">40dp</dimen>
+
+    <!-- 卡片阴影（轻盈克制：rest 仅微抬，避免厚重感） -->
+    <dimen name="card_elevation_rest">1dp</dimen>
+    <dimen name="card_elevation_image">10dp</dimen>
+    <!-- 毛玻璃底栏模糊半径（RenderEffect / WindowManager blur） -->
+    <dimen name="bottom_nav_blur_radius">24dp</dimen>
+
+    <!-- Widget 专用字号/间距（RemoteViews 不随主题走，需独立 token） -->
+    <dimen name="widget_text_title">15sp</dimen>
+    <dimen name="widget_text_body">13sp</dimen>
+    <dimen name="widget_text_small">12sp</dimen>
+    <dimen name="widget_text_mini">11sp</dimen>
+    <dimen name="widget_space_1">4dp</dimen>
+    <dimen name="widget_space_2">8dp</dimen>
+    <dimen name="widget_space_3">12dp</dimen>
+    <dimen name="widget_icon">18dp</dimen>
 </resources>

@@ -4,8 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/skland_switch"
@@ -16,23 +16,17 @@
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
 
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:alpha="0.15"/>
-
     <com.google.android.material.chip.ChipGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_4"
         app:singleSelection="false">
 
         <com.google.android.material.checkbox.MaterialCheckBox
             android:id="@+id/skland_checkbox_arknights"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
+            android:padding="@dimen/space_3"
             android:text="@string/arknights"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -41,7 +35,7 @@
             android:id="@+id/skland_checkbox_endfield"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
+            android:padding="@dimen/space_3"
             android:text="@string/endfield"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurface" />
@@ -51,17 +45,17 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:orientation="horizontal">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/skland_link"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/spacing_sm"
+            android:layout_marginEnd="@dimen/space_2"
             android:layout_weight="1"
             android:drawableEnd="@drawable/ic_link_url"
-            android:drawablePadding="6dp"
+            android:drawablePadding="@dimen/space_1"
             android:gravity="center_vertical"
             android:text="@string/go_to_login_skland"
             android:textAppearance="?attr/textAppearanceBodyMedium"
@@ -71,10 +65,10 @@
             android:id="@+id/skland_cookie_link"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/spacing_sm"
+            android:layout_marginStart="@dimen/space_2"
             android:layout_weight="1"
             android:drawableEnd="@drawable/ic_link_url"
-            android:drawablePadding="6dp"
+            android:drawablePadding="@dimen/space_1"
             android:gravity="center_vertical"
             android:text="@string/go_to_get_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
@@ -85,7 +79,7 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_md"
+        android:layout_marginTop="@dimen/space_4"
         android:text="@string/skland_403_tip"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
@@ -93,7 +87,7 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:text="@string/skland_content_tip"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
@@ -104,8 +98,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:text="@string/save_skland_settings"
-        android:textSize="@dimen/text_caption" />
+        android:textAppearance="?attr/textAppearanceLabelMedium" />
 
 </LinearLayout>

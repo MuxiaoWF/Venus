@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 卡片内分组标题行：图标徽标(可选) + 标题 + 右侧槽位(可选，放操作按钮)。
+     用于卡片内部抬头，如“任务列表”。padding 与 CollapsibleCardView 抬头一致(space_4)。 -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/row_min_height"
+    android:orientation="horizontal"
+    android:paddingHorizontal="@dimen/gutter_card"
+    android:paddingVertical="@dimen/space_4">
+
+    <ImageView
+        android:id="@+id/header_icon"
+        android:layout_width="@dimen/icon_badge_circle"
+        android:layout_height="@dimen/icon_badge_circle"
+        android:background="@drawable/bg_icon_circle"
+        android:contentDescription="@null"
+        android:padding="@dimen/space_2"
+        android:src="@drawable/ic_pending"
+        android:visibility="gone"
+        app:tint="?attr/colorOnPrimaryContainer" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/header_title"
+        style="@style/TextAppearance.Venus.Title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/gap_inline"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="?attr/colorOnSurface" />
+
+    <FrameLayout
+        android:id="@+id/header_slot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+</LinearLayout>

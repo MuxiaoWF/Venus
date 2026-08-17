@@ -3,8 +3,24 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/app_version_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingVertical="@dimen/space_2"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingVertical="@dimen/space_2"
+        android:text="@string/about_license"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/github_link"
@@ -12,16 +28,11 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackground"
         android:drawableEnd="@drawable/ic_link_url"
-        android:drawablePadding="6dp"
-        android:paddingVertical="@dimen/spacing_sm"
+        android:drawablePadding="@dimen/space_1"
+        android:paddingVertical="@dimen/space_2"
         android:text="@string/github_source"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:alpha="0.15"/>
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/blog_link"
@@ -29,8 +40,8 @@
         android:layout_height="wrap_content"
         android:background="?attr/selectableItemBackground"
         android:drawableEnd="@drawable/ic_link_url"
-        android:drawablePadding="6dp"
-        android:paddingVertical="@dimen/spacing_sm"
+        android:drawablePadding="@dimen/space_1"
+        android:paddingVertical="@dimen/space_2"
         android:text="@string/my_blog"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />

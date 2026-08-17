@@ -36,25 +36,21 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 底部导航栏 -->
+    <!-- 底部导航栏（Apple 风毛玻璃：半透明 + 柔光阴影 + 大圆角，blur 由 MainActivity 代码叠加） -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
+        style="@style/Widget.Venus.BottomNavigationView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="@drawable/bg_bottom_nav_rounded"
-        app:itemGravity="center"
-        android:layout_marginStart="@dimen/spacing_xxl"
-        android:layout_marginEnd="@dimen/spacing_xxl"
-        android:layout_marginBottom="@dimen/spacing_sm"
-        app:elevation="4dp"
-        app:itemIconTint="@color/selector"
-        app:itemTextColor="@color/selector"
-        app:labelVisibilityMode="labeled"
+        android:layout_marginStart="@dimen/space_5"
+        android:layout_marginEnd="@dimen/space_5"
+        android:layout_marginBottom="@dimen/space_4"
+        app:elevation="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

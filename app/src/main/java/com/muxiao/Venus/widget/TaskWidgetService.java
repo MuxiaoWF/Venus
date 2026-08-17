@@ -6,6 +6,7 @@ import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.common.TaskSettings;
 
 import java.util.ArrayList;
@@ -17,8 +18,16 @@ import java.util.List;
 public class TaskWidgetService extends RemoteViewsService {
 
     @Override
+    // 用 LocaleHelper 包裹上下文，使小组件内的任务名等文本遵循设置语言
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase));
+    }
+
+    @Override
+    // 返回工厂实例（使用本地化 ApplicationContext），为列表提供任务项视图
     public RemoteViewsFactory onGetViewFactory(Intent intent) {
-        return new TaskRemoteViewsFactory(getApplicationContext());
+        // 用 wrap 后的 Application Context，确保任务名等文本遵循设置语言
+        return new TaskRemoteViewsFactory(LocaleHelper.wrap(getApplicationContext()));
     }
 
     private static class TaskRemoteViewsFactory implements RemoteViewsFactory {
@@ -43,6 +52,7 @@ public class TaskWidgetService extends RemoteViewsService {
             loadData();
         }
 
+        // 读取任务配置与每个任务的状态，重建任务名/状态两个列表
         private void loadData() {
             TaskSettings settings = TaskSettings.fromPreferences(context);
             List<String> names = settings.getTaskNames(context);
@@ -66,6 +76,7 @@ public class TaskWidgetService extends RemoteViewsService {
         }
 
         @Override
+        // 根据任务状态渲染列表项（图标与颜色），并设置点击 fill-in intent
         public RemoteViews getViewAt(int position) {
             if (position < 0 || position >= taskNames.size()) {
                 return null;

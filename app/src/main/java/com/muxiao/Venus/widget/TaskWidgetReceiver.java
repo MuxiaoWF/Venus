@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.LocaleHelper;
 
 /**
  * 接收小组件"运行"按钮的广播，启动前台任务服务。
@@ -19,6 +20,7 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
     public static final String ACTION_RUN_TASKS = "com.muxiao.Venus.widget.RUN_TASKS";
 
     @Override
+    // 拦截 RUN_TASKS 广播：未运行且能确定用户时，启动前台任务服务执行签到
     public void onReceive(Context context, Intent intent) {
         if (!ACTION_RUN_TASKS.equals(intent.getAction())) return;
         if (ForegroundTaskService.isRunning()) return;
@@ -29,7 +31,8 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
             userId = new UserManager(context).getCurrentUser();
         }
         if (userId == null || userId.isEmpty()) {
-            Toast.makeText(context, context.getString(R.string.widget_no_user), Toast.LENGTH_SHORT).show();
+            Context localized = LocaleHelper.wrap(context);
+            Toast.makeText(context, localized.getString(R.string.widget_no_user), Toast.LENGTH_SHORT).show();
             return;
         }
 

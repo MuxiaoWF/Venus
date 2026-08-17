@@ -1,30 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
 
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/link_toolbar"
         style="@style/Widget.Venus.Toolbar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:title="@string/gacha_link_title"
         app:subtitle="@string/gacha_link_subtitle" />
 
     <LinearLayout
-        android:layout_width="match_parent"
+        style="@style/Widget.Venus.ScreenScaffold"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1"
         android:orientation="vertical"
-        android:paddingHorizontal="@dimen/spacing_lg"
-        android:paddingTop="@dimen/spacing_sm"
-        android:paddingBottom="@dimen/spacing_md">
+        app:layout_constraintTop_toBottomOf="@id/link_toolbar"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- User selector grouped section -->
+        <!-- User selector grouped section：填充卡 -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Venus.Card"
+            style="@style/Widget.Venus.Card.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -32,11 +36,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="@dimen/spacing_md">
+                android:padding="@dimen/gutter_card">
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/user_dropdown_layout"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    style="@style/Widget.Venus.Dropdown"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/select_user">
@@ -52,32 +56,36 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/get_link_button"
+                    style="@style/Widget.Venus.Button.Primary"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
+                    android:layout_marginTop="@dimen/space_4"
                     android:text="@string/get_gacha_link" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Tabs grouped section -->
+        <!-- Tabs grouped section：填充卡 -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Venus.Card"
+            style="@style/Widget.Venus.Card.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_sm">
+            android:layout_marginTop="@dimen/gap_card">
 
             <com.google.android.material.tabs.TabLayout
                 android:id="@+id/tabLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_margin="@dimen/space_2"
                 android:background="@android:color/transparent"
+                app:tabBackground="@drawable/bg_tab_pill"
                 app:tabGravity="fill"
                 app:tabMode="fixed"
-                app:tabIndicatorFullWidth="false"
                 app:tabIndicatorColor="?attr/colorPrimary"
-                app:tabRippleColor="?attr/colorPrimary"
-                app:tabSelectedTextColor="?attr/colorOnSurface"
+                app:tabIndicatorFullWidth="false"
+                app:tabIndicatorHeight="0dp"
+                app:tabRippleColor="@android:color/transparent"
+                app:tabSelectedTextColor="?attr/colorOnPrimaryContainer"
                 app:tabTextColor="?attr/colorOnSurfaceVariant">
 
                 <com.google.android.material.tabs.TabItem
@@ -104,10 +112,10 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_marginTop="@dimen/spacing_sm"
+            android:layout_marginTop="@dimen/gap_card"
             android:background="@drawable/bg_surface_container_rounded"
             android:orientation="vertical"
-            android:padding="@dimen/spacing_12"
+            android:padding="@dimen/space_3"
             android:visibility="gone"
             tools:ignore="NestedWeights">
 
@@ -121,7 +129,7 @@
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="@dimen/spacing_xs"
+                    android:layout_marginEnd="@dimen/space_1"
                     android:layout_weight="2"
                     android:text="@string/close_webpage" />
 
@@ -130,19 +138,19 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_gravity="center_vertical"
-                    android:text="@string/gacha_login_prompt"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textStyle="bold" />
+            android:text="@string/gacha_login_prompt"
+            android:textAppearance="@style/TextAppearance.Venus.Body.Small"
+            android:textStyle="bold" />
 
             </LinearLayout>
 
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:text="@string/gacha_login_tip"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textAppearance="?attr/textAppearanceBodySmall" />
+                android:layout_marginTop="@dimen/space_1"
+            android:text="@string/gacha_login_tip"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textAppearance="@style/TextAppearance.Venus.Body.Small" />
 
             <WebView
                 android:id="@+id/webView"
@@ -155,10 +163,15 @@
             android:id="@+id/errorTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_sm"
+            android:layout_marginTop="@dimen/gap_card"
+            android:background="@drawable/bg_surface_container_rounded"
+            android:drawableTop="@drawable/ic_error"
+            android:drawableTint="?attr/colorError"
+            android:drawablePadding="@dimen/space_2"
             android:gravity="center"
+            android:padding="@dimen/gutter_card"
+            android:textAppearance="@style/TextAppearance.Venus.Body"
             android:textColor="?attr/colorError"
-            android:textSize="16sp"
             android:visibility="gone" />
 
         <com.google.android.material.progressindicator.CircularProgressIndicator
@@ -166,8 +179,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:paddingTop="@dimen/spacing_md"
+            android:paddingTop="@dimen/space_4"
             app:indicatorColor="?attr/colorPrimary"
+            app:indicatorSize="@dimen/icon_badge_circle"
+            app:trackThickness="@dimen/progress_track_thickness"
             android:visibility="gone" />
 
         <com.google.android.material.card.MaterialCardView
@@ -175,7 +190,7 @@
             style="@style/Widget.Venus.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_sm"
+            android:layout_marginTop="@dimen/gap_card"
             android:visibility="gone">
 
             <androidx.recyclerview.widget.RecyclerView
@@ -186,10 +201,5 @@
                 android:nestedScrollingEnabled="false" />
         </com.google.android.material.card.MaterialCardView>
 
-        <View
-            android:id="@+id/bottom_padding_view"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/spacing_bottom_fab" />
-
     </LinearLayout>
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

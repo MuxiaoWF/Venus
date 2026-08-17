@@ -3,6 +3,7 @@
     <color name="transparent">#00000000</color>
 
     <!-- Widget -->
+    <color name="widget_surface">#F3F3FA</color>
     <color name="widget_text_primary">#DE1A1B20</color>
     <color name="widget_text_secondary">#991A1B20</color>
     <color name="widget_divider">#1A74777F</color>
@@ -179,9 +180,9 @@
     <color name="yellow_theme_onError">#FFFFFF</color>
     <color name="yellow_theme_errorContainer">#FFDAD6</color>
     <color name="yellow_theme_onErrorContainer">#93000A</color>
-    <color name="yellow_theme_background">#FFF9EB</color>
+    <color name="yellow_theme_background">#FFFBF3</color>
     <color name="yellow_theme_onBackground">#1D1C13</color>
-    <color name="yellow_theme_surface">#FFF9EB</color>
+    <color name="yellow_theme_surface">#FFFBF3</color>
     <color name="yellow_theme_onSurface">#1D1C13</color>
     <color name="yellow_theme_surfaceVariant">#E8E2D0</color>
     <color name="yellow_theme_onSurfaceVariant">#4A473A</color>
@@ -202,11 +203,27 @@
     <color name="yellow_theme_onTertiaryFixed">#201C00</color>
     <color name="yellow_theme_tertiaryFixedDim">#D7C770</color>
     <color name="yellow_theme_onTertiaryFixedVariant">#514700</color>
-    <color name="yellow_theme_surfaceDim">#DFDACC</color>
-    <color name="yellow_theme_surfaceBright">#FFF9EB</color>
+    <color name="yellow_theme_surfaceDim">#EDE7D9</color>
+    <color name="yellow_theme_surfaceBright">#FFFBF3</color>
     <color name="yellow_theme_surfaceContainerLowest">#FFFFFF</color>
-    <color name="yellow_theme_surfaceContainerLow">#F9F3E5</color>
-    <color name="yellow_theme_surfaceContainer">#F3EEE0</color>
-    <color name="yellow_theme_surfaceContainerHigh">#EDE8DA</color>
-    <color name="yellow_theme_surfaceContainerHighest">#E7E2D5</color>
+    <color name="yellow_theme_surfaceContainerLow">#FBF6EA</color>
+    <color name="yellow_theme_surfaceContainer">#F6F0E2</color>
+    <color name="yellow_theme_surfaceContainerHigh">#F1EBDC</color>
+    <color name="yellow_theme_surfaceContainerHighest">#ECE6D6</color>
+
+    <!-- ========== 状态语义色：M3 Success / Warning（独立于四套主题的浅色值） ========== -->
+    <!-- 与 colorError / colorOnError / colorErrorContainer 同级的语义状态色；明/暗各一套，
+         由 colors-night.xml 覆盖。用于任务状态（完成=success、警告=warning）、表单校验、提示等。 -->
+    <color name="status_success">#146511</color>
+    <color name="status_on_success">#FFFFFF</color>
+    <color name="status_success_container">#A3F390</color>
+    <color name="status_on_success_container">#002100</color>
+    <color name="status_warning">#615300</color>
+    <color name="status_on_warning">#FFFFFF</color>
+    <color name="status_warning_container">#FFE08A</color>
+    <color name="status_on_warning_container">#1E1A00</color>
+
+    <!-- 毛玻璃底栏：浅色模式半透明表面（透出内容）+ 描边 -->
+    <color name="bottom_nav_glass_surface">#B3F3F3FA</color>
+    <color name="bottom_nav_glass_stroke">#1A000000</color>
 </resources>

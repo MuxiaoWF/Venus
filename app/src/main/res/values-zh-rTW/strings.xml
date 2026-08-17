@@ -2,8 +2,11 @@
 <resources>
     <string name="app_name">啟明星</string>
     <string name="about">關於</string>
+    <string name="about_license">開源協議: GPL-3.0</string>
+    <string name="about_version">版本 %s</string>
     <string name="add_or_login_user">新增/登入使用者</string>
     <string name="author_name">作者名稱</string>
+    <string name="content_description_back">返回</string>
     <string name="auto_check_update">自動檢查更新</string>
     <string name="auto_check_update_desc">開啟後將每隔三天自動檢查是否有新版本</string>
     <string name="background">背景</string>
@@ -73,6 +76,9 @@
     <string name="login">登入</string>
     <string name="login_log">登入日誌</string>
     <string name="login_qr_code">登入二維碼</string>
+    <string name="login_qr_hint">請使用米遊社 App 掃碼登入</string>
+    <string name="user_login_welcome">歡迎</string>
+    <string name="user_login_subtitle">登入以繼續</string>
 
     <string name="miyoushe_version">米遊社版本：載入中…</string>
     <string name="miyoushe_version_fmt">米遊社版本：%s</string>
@@ -107,6 +113,7 @@
     <string name="skland_sign_in">森空島簽到</string>
     <string name="star_rail">星穹鐵道</string>
     <string name="task_list">任務列表</string>
+    <string name="task_list_empty">暫無任務，點擊下方「執行簽到」開始</string>
     <string name="task_status">任務狀態</string>
     <string name="tears_of_themis">未定事件簿</string>
     <string name="theme">主題</string>
@@ -333,6 +340,23 @@
     <string name="login_stoken_token_failed">掃碼取得stoken失敗-getTokenByGameToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
     <string name="login_ltoken_failed">取得ltoken失敗-getLTokenBySToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
 
+    <!-- 登入方式：掃碼 / 帳號密碼 -->
+    <string name="login_tab_qrcode">掃碼登入</string>
+    <string name="login_tab_password">帳號密碼</string>
+    <string name="login_account_hint">手機號 / 電子郵件</string>
+    <string name="login_password_hint">密碼</string>
+    <string name="login_password_notice">帳號密碼僅在本機加密後提交米遊社官方介面換取 stoken，不會儲存或上傳</string>
+    <string name="login_input_account">請輸入帳號和密碼</string>
+    <string name="login_password_only_cn">帳號密碼登入僅支援國服</string>
+    <string name="login_password_start">開始執行登入任務…\n正在提交帳號密碼…</string>
+    <string name="login_password_token_ok">帳號密碼驗證通過，已取得 stoken 與 mid\n</string>
+    <string name="login_password_failed">帳號密碼登入失敗(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+    <string name="login_password_need_captcha">該帳號觸發了極驗人機驗證（aigis），帳號密碼登入暫不支援，請切換至掃碼登入</string>
+    <string name="login_password_realname">提示：該帳號需要實名認證或人臉驗證，請先在米遊社 APP 內完成\n</string>
+    <string name="login_password_encrypt_failed">帳號密碼加密失敗：%s</string>
+    <string name="login_password_no_token">回應中缺少 token 欄位：%s</string>
+    <string name="login_password_no_mid">回應中缺少 mid 欄位：%s</string>
+
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">米遊幣簽到 需要進行人機驗證…</string>
     <string name="bbs_captcha_notification">米遊幣簽到 等待進行人機驗證</string>
@@ -439,5 +463,7 @@
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_thread_error">執行緒異常: %s</string>
-</resources>
 
+    <!-- 頁腳：各頁滾動底部統一品牌行 -->
+    <string name="app_footer">Venus · 啟明星　米游社簽到工具</string>
+</resources>

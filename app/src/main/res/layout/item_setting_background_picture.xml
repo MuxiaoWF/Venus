@@ -4,8 +4,8 @@
     android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
@@ -17,7 +17,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
@@ -25,7 +25,7 @@
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="@dimen/spacing_xs"
+            android:layout_marginEnd="@dimen/space_1"
             android:layout_weight="1"
             android:text="@string/select_image" />
 
@@ -34,7 +34,7 @@
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/spacing_xs"
+            android:layout_marginStart="@dimen/space_1"
             android:layout_weight="1"
             android:text="@string/clear_background" />
 
@@ -43,7 +43,7 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_2"
         android:text="@string/background_opacity"
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
@@ -53,7 +53,7 @@
         style="@style/Widget.Material3.Slider.Legacy"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_xs"
+        android:layout_marginTop="@dimen/space_1"
         android:stepSize="5"
         android:value="30"
         android:valueFrom="0"

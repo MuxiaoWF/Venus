@@ -4,6 +4,7 @@ import static com.muxiao.Venus.common.tools.sendPostRequest;
 
 import android.content.Context;
 import android.os.Build;
+import android.os.Looper;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -24,10 +25,12 @@ public class HeaderManager {
     private static final String os_app_id = "6a4js97g007c";
     private static final Random RANDOM = new Random();
     private static final Gson GSON = new Gson();
+    /** 每次进程启动生成一次，对应 x-rpc-lifecycle_id */
+    private static final String LIFECYCLE_ID = java.util.UUID.randomUUID().toString();
 
-    // DeviceUtils 单例，避免重复初始化 OAID
-    private static volatile DeviceUtils sharedDeviceUtils;
+    // 仅缓存 DeviceUtils 产出的字符串结果，避免静态持有 DeviceUtils（其持有 Context）导致内存泄漏
     private static volatile String cachedDeviceId;
+    private static volatile String cachedExtFields;
 
     private final MiHoYoBBSConstants BBSconstants;
     private String device_id;
@@ -58,25 +61,50 @@ public class HeaderManager {
         this.currentOriginRefererUrl = isOversea ? Constants.Urls.OS_ORIGIN_REFERER_URL : Constants.Urls.ORIGIN_REFERER_URL;
     }
 
+    /**
+     * 初始化共享设备工具并填充静态缓存。
+     * <p>
+     * 阻塞风险：{@link DeviceUtils#waitForDeviceId()} 与 {@link DeviceUtils#getExtFields()}
+     * 在主线程调用时会同步阻塞最多约 10 秒，极易触发 ANR（表现为「进页即闪退」）。
+     * 因此：若当前已是主线程且缓存未热，改在后台线程完成阻塞等待，主线程立即返回；
+     * 非主线程（如 Application 预热、后台任务）仍同步阻塞，行为不变。
+     */
     private static void initSharedDeviceUtils(Context context) {
-        if (sharedDeviceUtils == null) {
-            synchronized (HeaderManager.class) {
-                if (sharedDeviceUtils == null) {
-                    sharedDeviceUtils = new DeviceUtils(context);
-                    cachedDeviceId = sharedDeviceUtils.waitForDeviceId();
-                }
+        if (cachedDeviceId != null && cachedExtFields != null) return;
+
+        boolean isMainThread = Looper.getMainLooper() == Looper.myLooper();
+        if (isMainThread) {
+            // 主线程：避免阻塞，交由后台线程填充缓存，立即返回。
+            new Thread(() -> fillSharedDeviceUtils(context.getApplicationContext()), "HeaderManager-DeviceInit").start();
+            return;
+        }
+
+        synchronized (HeaderManager.class) {
+            if (cachedDeviceId == null || cachedExtFields == null) {
+                fillSharedDeviceUtils(context.getApplicationContext());
             }
+        }
+    }
+
+    /** 实际填充静态设备缓存（可能阻塞，应在非主线程调用）。 */
+    private static void fillSharedDeviceUtils(Context appContext) {
+        synchronized (HeaderManager.class) {
+            if (cachedDeviceId != null && cachedExtFields != null) return;
+            DeviceUtils utils = new DeviceUtils(appContext);
+            cachedDeviceId = utils.waitForDeviceId();
+            cachedExtFields = utils.getExtFields();
         }
     }
 
     private String getDeviceId() {
         if (device_id != null) return device_id;
-        device_id = cachedDeviceId != null ? cachedDeviceId : sharedDeviceUtils.waitForDeviceId();
+        device_id = cachedDeviceId != null ? cachedDeviceId : "";
         return device_id;
     }
 
     /**
-     * 一系列米游社游戏每日签到接口
+     * 每日签到类接口请求头，DS 使用 LK2 salt；
+     * 国际服走不同的 Referer/Cookie 分支（Referer 为 act.hoyolab.com，Cookie 留空）。
      */
     public Map<String, String> get_game_login_headers() {
         Map<String, String> h = new HashMap<>();
@@ -102,7 +130,7 @@ public class HeaderManager {
     }
 
     /**
-     * getLTokenBySToken\getUserMissionsState等一系列米游社接口
+     * 米游社通用接口（如 getLTokenBySToken、getUserMissionsState）请求头，DS 使用 K2 salt。
      */
     public Map<String, String> get_bbs_headers() {
         Map<String, String> h = new HashMap<>();
@@ -120,6 +148,9 @@ public class HeaderManager {
         return h;
     }
 
+    /**
+     * 用 stoken 换取凭证类接口（如 getTokenByGameToken）请求头，DS 使用 LK2 salt。
+     */
     public Map<String, String> get_token_by_stoken_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("Accept", "application/json; utf-8");
@@ -139,7 +170,7 @@ public class HeaderManager {
     }
 
     /**
-     * getTokenByGameToken
+     * getTokenByGameToken 登录态转换接口请求头（无 DS，依赖 app_id / client_type 等标识）。
      */
     public Map<String, String> get_game_token_headers() {
         Map<String, String> h = new HashMap<>();
@@ -158,6 +189,9 @@ public class HeaderManager {
         return h;
     }
 
+    /**
+     * 极验人机验证相关接口请求头，DS 使用 K2 salt，含 account/sdk 版本号与 device_fp。
+     */
     public Map<String, String> get_captcha_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-account_version", "2.20.1");
@@ -176,7 +210,7 @@ public class HeaderManager {
     }
 
     /**
-     * 米游社游戏签到验证码
+     * 游戏签到/记录类接口（如签到记录查询）请求头，含 device_fp 与 page/tool_version 标识。
      */
     public Map<String, String> get_record_headers() {
         Map<String, String> h = new HashMap<>();
@@ -200,6 +234,9 @@ public class HeaderManager {
         return h;
     }
 
+    /**
+     * 小组件（widget）相关接口请求头，DS 使用 K2 salt，csm_source=home。
+     */
     public Map<String, String> get_widget_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-client_type", "2");
@@ -222,7 +259,7 @@ public class HeaderManager {
     }
 
     /**
-     * getUserGameRolesByStoken
+     * getUserGameRolesByStoken（用 stoken 获取角色列表）接口请求头，DS 使用 K2 salt。
      */
     public Map<String, String> get_user_game_roles_stoken_headers() {
         Map<String, String> h = new HashMap<>();
@@ -237,25 +274,46 @@ public class HeaderManager {
         return h;
     }
 
-    public Map<String, String> get_password_headers() {
+    /**
+     * loginByPassword（账号密码登录，passport-api）请求头。
+     * <p>
+     * DS 必须使用「账号 SDK 专用 salt + 带 body 的 DS2 算法」，
+     * 用 K2 / LK2 的无 body 版本会直接被判签名错误。
+     * 传入的 body 必须与实际发出的请求体逐字节一致。
+     *
+     * @param body 已序列化的请求体 JSON 字符串
+     * @param aigis 极验二次提交时的 x-rpc-aigis 值，首次请求传 null 或空串
+     */
+    public Map<String, String> get_password_headers(String body, String aigis) {
         Map<String, String> h = new HashMap<>();
+        h.put("Accept", "application/json");
+        h.put("Content-Type", "application/json");
         h.put("User-Agent", user_agent);
-        h.put("x-rpc-account_version", "2.20.1");
         h.put("x-rpc-app_id", currentAppId);
-        h.put("x-rpc-device_name", Build.DEVICE);
-        h.put("x-rpc-device_fp", getFp());
-        h.put("x-rpc-app_version", BBSconstants.bbs_version);
         h.put("x-rpc-client_type", "2");
         h.put("x-rpc-device_id", getDeviceId());
-        h.put("x-rpc-sdk_version", "2.20.1");
-        h.put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
+        h.put("x-rpc-device_fp", getFp());
+        h.put("x-rpc-device_name", sanitizeHeaderValue(Build.DEVICE));
+        h.put("x-rpc-device_model", sanitizeHeaderValue(Build.MODEL));
+        h.put("x-rpc-sys_version", Build.VERSION.RELEASE);
         h.put("x-rpc-game_biz", isOversea ? "bbs_os" : "bbs_cn");
-        h.put("DS", getDS(BBSconstants.K2));
+        h.put("x-rpc-app_version", BBSconstants.bbs_version);
+        h.put("x-rpc-sdk_version", MiHoYoBBSConstants.ACCOUNT_SDK_VERSION);
+        h.put("x-rpc-account_version", MiHoYoBBSConstants.ACCOUNT_SDK_VERSION);
+        h.put("x-rpc-lifecycle_id", LIFECYCLE_ID);
+        h.put("x-rpc-aigis", aigis != null ? aigis : "");
+        h.put("DS", getDS_passport(body));
         return h;
     }
 
+    /** header 值不能含空格等非法字符，统一替换为 + */
+    private static String sanitizeHeaderValue(String value) {
+        if (value == null) return "";
+        return value.replaceAll("[^A-Za-z0-9._\\-+]", "+");
+    }
+
     /**
-     * 抽卡记录authkey
+     * 抽卡记录 authkey 获取接口请求头，DS 使用 LK2 salt。
      */
     public Map<String, String> get_authkey_headers() {
         Map<String, String> h = new HashMap<>();
@@ -270,7 +328,7 @@ public class HeaderManager {
     }
 
     /**
-     * 设备FP
+     * device_fp 获取接口请求头（无 DS，仅含 UA、版本、Referer/Origin 与语言）。
      */
     public Map<String, String> get_fp_headers() {
         Map<String, String> h = new HashMap<>();
@@ -292,12 +350,15 @@ public class HeaderManager {
     }
 
     /**
-     * 米游社栏目接口
+     * 米游社论坛栏目（forum）接口请求头，与图片接口共用同一套 header。
      */
     public Map<String, String> get_forums_id() {
         return createImageAndForumHeaders();
     }
 
+    /**
+     * 构造图片/论坛栏目接口共用的请求头，DS 使用 K2 salt。
+     */
     private Map<String, String> createImageAndForumHeaders() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-app_version", BBSconstants.bbs_version);
@@ -315,10 +376,16 @@ public class HeaderManager {
         h.put("DS", getDS(BBSconstants.K2));
         return h;
     }
+    /**
+     * 生成普通 DS 签名：以 "salt=" + salt 作为盐，走无 body 的通用算法（t 秒级时间戳 + 6 位随机 r）。
+     */
     private static String getDS(String salt) {
         return generateDS("salt=" + salt);
     }
 
+    /**
+     * 签到专用 DS：以 SALT_6X 为 salt、将请求 body 纳入签名，算法为 MD5("salt=&t=&r=&b=body&q=")。
+     */
     public String getDS_signIn(String body) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
@@ -334,6 +401,33 @@ public class HeaderManager {
         }
     }
 
+    /**
+     * 账号密码登录（passport-api / ma-cn-passport）专用 DS。
+     * <p>
+     * 与 K2 / LK2 的无 body 版本、以及签到用的 SALT_6X 版本都不同：
+     * 使用账号 SDK 专用 SALT_PASSPORT，且必须带上 body 参与签名，POST 无 query 故 q 为空。
+     * 明文顺序为 salt → t → r → b → q，该顺序与 salt 均已用真实抓包 DS 反算命中验证，请勿调整。
+     *
+     * @param body 与实际发出的请求体逐字节一致的 JSON 字符串
+     */
+    public String getDS_passport(String body) {
+        long currentTimeMillis = System.currentTimeMillis() / 1000;
+        StringBuilder r = new StringBuilder();
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (int i = 0; i < 6; i++)
+            r.append(chars.charAt(RANDOM.nextInt(chars.length())));
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            messageDigest.update(("salt=" + BBSconstants.SALT_PASSPORT + "&t=" + currentTimeMillis + "&r=" + r + "&b=" + body + "&q=").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return currentTimeMillis + "," + r + "," + tools.bytesToHex(messageDigest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * DS 通用实现：MD5(saltPart + "&t=" + t + "&r=" + r)，t 为秒级时间戳，r 为 6 位随机串。
+     */
     private static String generateDS(String saltPart) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
@@ -349,6 +443,9 @@ public class HeaderManager {
         }
     }
 
+    /**
+     * 懒加载并缓存 device_fp：向 fp 接口上报设备信息，成功则缓存结果，失败返回空串。
+     */
     private String getFp() {
         if (cachedFp != null) return cachedFp;
         long min = 281474976710657L;
@@ -363,7 +460,7 @@ public class HeaderManager {
         body.put("device_fp", getDeviceId().replace("-", "").substring(8, 21));
         body.put("device_id", getDeviceId());
         body.put("bbs_device_id", getDeviceId());
-        body.put("ext_fields", sharedDeviceUtils.getExtFields());
+        body.put("ext_fields", cachedExtFields != null ? cachedExtFields : "");
         body.put("app_name", appName);
         body.put("seed_time", String.valueOf(System.currentTimeMillis()));
         String response = sendPostRequest(fpUrl, get_fp_headers(), body);

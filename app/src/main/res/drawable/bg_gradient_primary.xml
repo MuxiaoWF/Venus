@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主色柔和渐变（Apple 风）：按钮 90% 区域保持 Primary Container 浅色，
+     仅最右侧 10% 轻轻扫过 Primary，形成极淡的光泽，不抢视觉重心。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="135"
+        android:centerX="90%"
+        android:startColor="?attr/colorPrimaryContainer"
+        android:centerColor="?attr/colorPrimaryContainer"
+        android:endColor="?attr/colorPrimary"
+        android:type="linear" />
+    <corners android:radius="@dimen/shape_corner_md" />
+</shape>

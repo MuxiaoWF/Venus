@@ -28,10 +28,19 @@ public class CaptchaVerificationHelper {
         this.notification = notification;
     }
 
+    /** 返回验证得到的 geetest 结果；未完成或失败时可能为 null。 */
     public Map<String, String> getGeetCode() {
         return geetCode;
     }
 
+    /**
+     * 发起极验验证并注册回调。
+     * 先重置 verificationComplete，验证成功时写入 geetCode 并唤醒等待线程；
+     * 失败时将 geetCode 置为 null 同样唤醒；结果供 waitForCompletion() 阻塞消费。
+     *
+     * @param headers  含 Cookie 的请求头，供 API2 二次验证绑定会话
+     * @param taskName 任务名，用于状态提示
+     */
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
         gt3Controller.updateTaskStatusWaring(taskName);
@@ -62,6 +71,7 @@ public class CaptchaVerificationHelper {
         }
     }
 
+    /** 写入验证结果（成功后非 null；失败传 null）并置 verificationComplete，唤醒 waitForCompletion。 */
     private synchronized void setGeetCodeAndComplete(Map<String, String> code) {
         if (code != null || geetCode == null) {
             geetCode = code;

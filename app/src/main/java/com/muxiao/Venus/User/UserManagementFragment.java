@@ -1,5 +1,7 @@
 package com.muxiao.Venus.User;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
 import android.content.Context;
@@ -18,9 +20,9 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.Home.HomeFragment;
-import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.tools;
 
 import java.util.List;
 import java.util.Objects;
@@ -29,10 +31,13 @@ import java.util.Objects;
  * 用户管理页：按服务器类型分组展示用户列表，支持添加/删除/重命名用户、重新登录。
  * 任务运行时禁止修改用户（防止数据不一致）。
  */
+@AndroidEntryPoint
 public class UserManagementFragment extends Fragment {
 
-    {
-        setEnterTransition(new android.transition.Fade(android.transition.Fade.IN).setDuration(300));
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        tools.setupFragmentTransitions(this);
     }
 
     private UserManager userManager;
@@ -42,10 +47,6 @@ public class UserManagementFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
-
-        View bottomPaddingView = rootView.findViewById(R.id.bottom_padding_view);
-        if (getActivity() instanceof MainActivity)
-            ((MainActivity) getActivity()).applyBottomPadding(bottomPaddingView);
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
@@ -76,7 +77,8 @@ public class UserManagementFragment extends Fragment {
     }
 
     /**
-     * 刷新用户列表
+     * 按当前服务器类型重建用户列表视图，并为每个条目绑定重登录/重命名/删除按钮
+     * （任务运行时这些操作均被拦截）。
      */
     private void refreshUserList() {
         userListContainer.removeAllViews();
@@ -91,10 +93,18 @@ public class UserManagementFragment extends Fragment {
             return;
         }
         // 为每个用户创建新的视图实例
-        for (String username : users) {
+        for (int i = 0; i < users.size(); i++) {
+            String username = users.get(i);
             // 为每个用户inflate一个新的视图
             View userItemView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.item_user_management, userListContainer, false);
+
+            // 第一个用户卡片顶到容器,其余卡片之间留出间距
+            if (i > 0) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) userItemView.getLayoutParams();
+                lp.topMargin = getResources().getDimensionPixelSize(R.dimen.gap_card);
+                userItemView.setLayoutParams(lp);
+            }
 
             MaterialTextView userName = userItemView.findViewById(R.id.user_name_text);
             MaterialButton renameButton = userItemView.findViewById(R.id.rename_user_button);
@@ -161,7 +171,8 @@ public class UserManagementFragment extends Fragment {
     }
 
     /**
-     * 重命名用户
+     * 把用户数据从旧 SharedPreferences 整体迁移到新键名，并同步 UserManager 中的
+     * 当前用户标记与账户列表，最后刷新视图。
      *
      * @param oldUsername 旧用户名
      * @param newUsername 新用户名
@@ -222,7 +233,7 @@ public class UserManagementFragment extends Fragment {
     }
 
     /**
-     * 执行重新登录操作
+     * 切换为指定用户并启动登录页（RELOGIN_MODE=true），用于刷新其 Cookie/凭证。
      *
      * @param username 用户名
      */

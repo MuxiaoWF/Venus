@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -10,43 +9,39 @@
         style="@style/Widget.Venus.Toolbar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:title="@string/daily_tasks_title"
         app:subtitle="@string/home_subtitle"
-        app:title="@string/daily_tasks_title" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <androidx.core.widget.NestedScrollView
+        style="@style/Widget.Venus.ScreenScaffold"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
         android:fillViewport="true"
-        android:paddingHorizontal="@dimen/spacing_lg"
-        android:paddingTop="@dimen/spacing_sm"
-        android:paddingBottom="@dimen/spacing_md"
+        app:layout_constraintTop_toBottomOf="@id/home_toolbar"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/home_toolbar">
+        app:layout_constraintEnd_toEndOf="parent">
 
         <LinearLayout
+            android:id="@+id/home_content_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:animateLayoutChanges="true"
             android:orientation="vertical">
 
-            <!-- Info collapsible section -->
+            <!-- Info collapsible section（默认折叠，无需 initialExpanded） -->
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/home_info_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="@dimen/spacing_sm"
-                app:cardTitle="@string/daily"
-                app:initialExpanded="false" />
+                android:layout_marginBottom="@dimen/gap_card"
+                app:cardTitle="@string/daily" />
 
-            <!-- User selector grouped section -->
+            <!-- User selector grouped section：填充卡，降低视觉重量 -->
             <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Venus.Card"
+                style="@style/Widget.Venus.Card.Filled"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
@@ -54,11 +49,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="@dimen/spacing_md">
+                    android:padding="@dimen/gutter_card">
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/user_dropdown_layout"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                        style="@style/Widget.Venus.Dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/select_user">
@@ -74,9 +69,10 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/start_daily"
+                        style="@style/Widget.Venus.Button.Primary"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_md"
+                        android:layout_marginTop="@dimen/space_4"
                         android:text="@string/run_sign_in" />
 
                     <com.google.android.material.button.MaterialButton
@@ -84,7 +80,7 @@
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_sm"
+                        android:layout_marginTop="@dimen/space_2"
                         android:text="@string/cancel_task"
                         android:visibility="gone" />
 
@@ -93,61 +89,67 @@
                         style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_sm"
+                        android:layout_marginTop="@dimen/space_2"
                         android:text="@string/background_running" />
 
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                    <!-- Geetest 验证容器：置于用户选择区末尾（父 LinearLayout 已含 gutter_card 内边距） -->
+                    <LinearLayout
+                        android:id="@+id/geetest_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/space_2"
+                        android:orientation="horizontal"
+                        android:visibility="gone" />
 
-            <!-- Geetest container -->
-            <LinearLayout
-                android:id="@+id/geetest_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:orientation="horizontal"
-                android:paddingHorizontal="@dimen/spacing_12"
-                android:paddingVertical="@dimen/spacing_sm"
-                android:visibility="gone" />
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Task list grouped section -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm">
+                android:layout_marginTop="@dimen/gap_card">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingTop="@dimen/spacing_md">
+                    android:orientation="vertical">
 
+                    <!-- “任务列表”抬头：统一卡片抬头（图标徽标 + 标题 + 右侧槽位），内联以保证标题文案生效 -->
                     <LinearLayout
+                        android:id="@+id/task_list_header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center_vertical"
+                        android:minHeight="@dimen/row_min_height"
                         android:orientation="horizontal"
-                        android:paddingHorizontal="@dimen/spacing_md"
-                        android:paddingBottom="@dimen/spacing_sm">
+                        android:paddingHorizontal="@dimen/gutter_card"
+                        android:paddingVertical="@dimen/space_4">
 
                         <ImageView
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
-                            android:contentDescription="@string/task_list"
+                            android:id="@+id/header_icon"
+                            android:layout_width="@dimen/icon_badge_circle"
+                            android:layout_height="@dimen/icon_badge_circle"
+                            android:background="@drawable/bg_icon_circle"
+                            android:contentDescription="@null"
+                            android:padding="@dimen/space_2"
                             android:src="@drawable/ic_pending"
-                            app:tint="?attr/colorPrimary" />
+                            android:visibility="gone"
+                            app:tint="?attr/colorOnPrimaryContainer" />
 
                         <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/header_title"
+                            style="@style/TextAppearance.Venus.Title"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="@dimen/spacing_12"
+                            android:layout_marginStart="@dimen/gap_inline"
                             android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:maxLines="1"
                             android:text="@string/task_list"
-                            android:textSize="@dimen/text_card_title"
-                            android:textFontWeight="600"
-                            android:textColor="?attr/colorOnSurface"
-                            tools:targetApi="28" />
+                            android:textColor="?attr/colorOnSurface" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/view_log_btn"
@@ -156,7 +158,50 @@
                             android:layout_height="wrap_content"
                             android:text="@string/view_log" />
 
+                        <FrameLayout
+                            android:id="@+id/header_slot"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone" />
+
                     </LinearLayout>
+
+                    <!-- 空态：统一状态卡视觉 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/task_list_empty_view"
+                        style="@style/Widget.Venus.StateCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="@dimen/gutter_card"
+                        android:layout_marginTop="@dimen/space_2"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:padding="@dimen/space_3">
+
+                            <ImageView
+                                android:layout_width="@dimen/icon_badge_circle"
+                                android:layout_height="@dimen/icon_badge_circle"
+                                android:background="@drawable/bg_icon_circle"
+                                android:contentDescription="@null"
+                                android:padding="@dimen/space_2"
+                                android:src="@drawable/ic_pending"
+                                app:tint="?attr/colorOnPrimaryContainer" />
+
+                            <com.google.android.material.textview.MaterialTextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/space_3"
+                                android:gravity="center"
+                                android:text="@string/task_list_empty"
+                                android:textAppearance="@style/TextAppearance.Venus.Body"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/tasks_recycler_view"
@@ -164,16 +209,12 @@
                         android:layout_height="wrap_content"
                         android:clipToPadding="false"
                         android:nestedScrollingEnabled="false"
-                        android:paddingBottom="@dimen/spacing_sm"
+                        android:paddingBottom="@dimen/space_2"
+                        android:paddingTop="@dimen/space_2"
                         android:scrollbars="vertical" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <View
-                android:id="@+id/bottom_padding_view"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/spacing_bottom_fab" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

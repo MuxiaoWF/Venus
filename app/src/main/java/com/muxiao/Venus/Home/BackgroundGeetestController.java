@@ -8,38 +8,25 @@ import com.geetest.sdk.GT3GeetestUtils;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 后台人机验证控制器。
  * 遇到验证时直接拉起 MainActivity 完成前台验证，
  * 后台线程阻塞等待验证结果，完成后继续执行任务。
+ * 全局验证状态已收敛到 CaptchaCoordinator 单一协调者（P0-4 解耦）。
  */
 public class BackgroundGeetestController implements GeetestController {
 
     private final Context context;
     private final tools.StatusNotifier notifier;
-
     private GT3GeetestUtils gt3Utils;
 
-    // 静态验证结果传递：前台验证完成后直接写入，后台线程通过 latch 读取
-    private static volatile CountDownLatch verificationLatch;
-    private static volatile Map<String, String> verificationResult;
-
-    // 将 pendingGt/pendingChallenge/pendingHeaders 合并为不可变快照，保证复合操作原子性
-    private static class PendingRequest {
-        final String gt, challenge;
-        final Map<String, String> headers;
-        PendingRequest(String gt, String challenge, Map<String, String> headers) {
-            this.gt = gt; this.challenge = challenge; this.headers = headers;
-        }
-    }
-    private static volatile PendingRequest pendingRequest;
+    // 全局验证状态收敛到单一协调者实例（取代原静态 CountDownLatch / pending 状态）
+    private static final CaptchaCoordinator coordinator = new DefaultCaptchaCoordinator();
 
     public BackgroundGeetestController(Context context, tools.StatusNotifier notifier) {
         this.context = context;
@@ -57,10 +44,9 @@ public class BackgroundGeetestController implements GeetestController {
      */
     @Override
     public void createButton(GT3ConfigBean gt3ConfigBean) {
-        android.util.Log.e("VenusCaptcha", "BackgroundGeetestController.createButton called");
+        Logger.debug("VenusCaptcha", "BackgroundGeetestController.createButton called");
         notifier.notifyListeners(context.getString(R.string.geetest_need_verification));
-        verificationLatch = new CountDownLatch(1);
-        verificationResult = null;
+        coordinator.reset();
 
         // 拉起前台 Activity 进行验证
         Intent intent = new Intent(context, MainActivity.class);
@@ -70,11 +56,11 @@ public class BackgroundGeetestController implements GeetestController {
 
         // 阻塞后台线程，等待前台验证完成（最多 5 分钟）
         try {
-            android.util.Log.e("VenusCaptcha", "Background: waiting on latch...");
-            verificationLatch.await(5, TimeUnit.MINUTES);
-            android.util.Log.e("VenusCaptcha", "Background: latch released, continuing task");
+            Logger.debug("VenusCaptcha", "Background: waiting on latch...");
+            coordinator.await();
+            Logger.debug("VenusCaptcha", "Background: latch released, continuing task");
         } catch (InterruptedException e) {
-            android.util.Log.e("VenusCaptcha", "Background: latch interrupted");
+            Logger.debug("VenusCaptcha", "Background: latch interrupted");
             Thread.currentThread().interrupt();
         }
     }
@@ -86,8 +72,7 @@ public class BackgroundGeetestController implements GeetestController {
 
     @Override
     public void destroyButton() {
-        CountDownLatch latch = verificationLatch;
-        if (latch != null) latch.countDown();
+        coordinator.countDown();
     }
 
     @Override
@@ -108,83 +93,54 @@ public class BackgroundGeetestController implements GeetestController {
         notifier.notifyListeners(taskName + context.getString(R.string.geetest_done));
     }
 
+    // ===== 静态门面：供 Geetest / HomeFragment 按原调用方式使用（委托给协调者） =====
+
     /**
      * 由前台 Activity 调用，通知验证成功。
      */
     public static void notifyVerificationSuccess(Map<String, String> geetCode) {
-        android.util.Log.e("VenusCaptcha", "notifyVerificationSuccess: setting result directly");
-        verificationResult = geetCode;
-        CountDownLatch latch = verificationLatch;
-        if (latch != null) latch.countDown();
-        android.util.Log.e("VenusCaptcha", "notifyVerificationSuccess: latch released");
+        coordinator.notifyVerificationSuccess(geetCode);
     }
 
     /**
-     * 获取前台验证完成后存储的 geetest 结果。
-     * 后台任务在 latch 释放后调用此方法获取验证代码。
+     * 获取前台验证完成后存储的 geetest 结果（消费并清除）。
      */
     public static synchronized Map<String, String> getGeetestResult() {
-        Map<String, String> result = verificationResult;
-        verificationResult = null;
-        return result;
+        return coordinator.consumeResult();
     }
 
     /**
      * 保存后台任务 API1 获取的 gt 和 challenge，供前台使用同一 challenge 进行验证。
      */
     public static void savePendingChallenge(String gt, String challenge) {
-        PendingRequest existing = pendingRequest;
-        pendingRequest = new PendingRequest(gt, challenge, existing != null ? existing.headers : null);
+        coordinator.savePendingChallenge(gt, challenge);
     }
 
     /**
      * 消费并清除后台任务保存的 gt 和 challenge。
-     * @return [0]=gt, [1]=challenge，如果没有则返回 null。
      */
     public static String[] consumePendingChallenge() {
-        PendingRequest req = pendingRequest;
-        if (req != null && req.gt != null && req.challenge != null) {
-            // 仅清除 gt/challenge，保留 headers
-            pendingRequest = new PendingRequest(null, null, req.headers);
-            return new String[]{req.gt, req.challenge};
-        }
-        return null;
+        return coordinator.consumePendingChallenge();
     }
 
     /**
      * 保存后台任务的请求 headers（含 Cookie），供前台 API2 二次验证使用。
      */
     public static void savePendingHeaders(Map<String, String> headers) {
-        PendingRequest existing = pendingRequest;
-        Map<String, String> copiedHeaders = headers != null ? new HashMap<>(headers) : null;
-        pendingRequest = new PendingRequest(
-                existing != null ? existing.gt : null,
-                existing != null ? existing.challenge : null,
-                copiedHeaders);
+        coordinator.savePendingHeaders(headers);
     }
 
     /**
      * 消费并清除后台任务保存的 headers。
-     * @return headers 副本，如果没有则返回 null。
      */
     public static Map<String, String> consumePendingHeaders() {
-        PendingRequest req = pendingRequest;
-        if (req != null && req.headers != null) {
-            // 仅清除 headers，保留 gt/challenge
-            pendingRequest = new PendingRequest(req.gt, req.challenge, null);
-            return req.headers;
-        }
-        return null;
+        return coordinator.consumePendingHeaders();
     }
 
     /**
      * 由前台 Activity 调用，通知验证失败。
      */
     public static void notifyVerificationFailure(String error) {
-        android.util.Log.e("VenusCaptcha", "notifyVerificationFailure: " + error);
-        verificationResult = null;
-        CountDownLatch latch = verificationLatch;
-        if (latch != null) latch.countDown();
+        coordinator.notifyVerificationFailure(error);
     }
-
 }

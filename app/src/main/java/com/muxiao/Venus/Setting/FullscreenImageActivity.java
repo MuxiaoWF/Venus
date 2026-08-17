@@ -1,5 +1,9 @@
 package com.muxiao.Venus.Setting;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
+import com.muxiao.Venus.BaseActivity;
+
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
@@ -18,7 +22,6 @@ import android.view.animation.AnimationUtils;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
@@ -27,7 +30,6 @@ import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
-import com.bumptech.glide.request.transition.Transition;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.Gson;
@@ -42,7 +44,8 @@ import java.util.Objects;
 /**
  * 全屏图片查看：支持双指缩放、左右滑动切换、下载保存到相册。
  */
-public class FullscreenImageActivity extends AppCompatActivity {
+@AndroidEntryPoint
+public class FullscreenImageActivity extends BaseActivity {
     private ViewPager2 viewPager;
     private MaterialTextView titleTextView;
     private MaterialTextView authorTextView;
@@ -56,9 +59,19 @@ public class FullscreenImageActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 应用选定的主题
-        int selectedTheme = SettingsFragment.getSelectedTheme(this);
-        setTheme(selectedTheme);
+        // 共享元素转场需要启用 Content Transitions；「减少动态效果」开启时跳过。
+        // 注意：来源 Activity（ImageActivity）使用的是标准 makeSceneTransitionAnimation +
+        // transitionName 共享元素转场，因此本页也走标准共享元素配对，不再叠加
+        // MaterialContainerTransform（MCT 跨 Activity 需要正确的 start/end view 配对，
+        // 此前把共享元素映射到外层 viewPager 导致框架找不到起点、回退到
+        // android.R.id.content 时断言失败并崩溃：IllegalArgumentException
+        // "android:id/content is not a valid ancestor"）。
+        boolean motionEnabled = !com.muxiao.Venus.common.tools.isReducedMotionEnabled(this);
+        if (motionEnabled)
+            getWindow().requestFeature(android.view.Window.FEATURE_CONTENT_TRANSITIONS);
+
+        // 应用选定的主题（含换肤 overlay）
+        SettingsFragment.applyAppTheme(this);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_fullscreen_image);
@@ -74,6 +87,10 @@ public class FullscreenImageActivity extends AppCompatActivity {
         int initialPosition = getIntent().getIntExtra("position", 0);
 
         viewPager = findViewById(R.id.viewPager);
+
+        // 首图 ImageView 的 transitionName 由 ImagePagerAdapter 按 "image_<position>"
+        // 设置，与来源网格缩略图的 transitionName 完全一致，系统据此自动完成标准
+        // 共享元素转场配对，无需手动 onMapSharedElements 映射。
         titleTextView = findViewById(R.id.titleTextView);
         authorTextView = findViewById(R.id.authorTextView);
         timeTextView = findViewById(R.id.timeTextView);
@@ -81,17 +98,6 @@ public class FullscreenImageActivity extends AppCompatActivity {
         counterTextView = findViewById(R.id.counterTextView);
         MaterialButton downloadButton = findViewById(R.id.downloadButton);
         bottomInfoCard = findViewById(R.id.bottomInfoCard); // 引用底部信息卡片
-
-        // 设置进入动画
-        viewPager.setAlpha(0f);
-        viewPager.setScaleX(0.95f);
-        viewPager.setScaleY(0.95f);
-        viewPager.animate()
-                .alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(400)
-                .setInterpolator(AnimationUtils.loadInterpolator(this,
-                        android.R.interpolator.fast_out_slow_in))
-                .start();
 
         imageAdapter = new ImagePagerAdapter(this, Objects.requireNonNull(imageDataList)); // 保存adapter引用
         viewPager.setAdapter(imageAdapter);
@@ -129,7 +135,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
         downloadButton.setOnClickListener(v -> checkPermissionAndDownload());
 
         MaterialButton backButton = findViewById(R.id.backButton);
-        backButton.setOnClickListener(v -> finish());
+        backButton.setOnClickListener(v -> finishAfterTransition());
 
         ViewCompat.setOnApplyWindowInsetsListener(backButton, (v, insets) -> {
             int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
@@ -141,7 +147,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
     }
 
     /**
-     * 更新简介文本
+     * 根据 position 刷新标题/作者/时间/简介与“当前/总数”计数；时间为 0 时不显示。
      */
     private void updateInfoText(int position) {
         ImagePagerAdapter.ImageItem imageItem = imageAdapter.getItem(position);
@@ -187,7 +193,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
     }
 
     /**
-     * 选项菜单布局
+     * 加载图片选择菜单（含下载项）。
      */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -225,7 +231,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
     }
 
     /**
-     * 下载当前图片
+     * 取当前页图片 URL，用 Glide 下载为 Bitmap 后保存到相册；下载失败弹错误框。
      */
     private void downloadCurrentImage() {
         if (imageAdapter == null)
@@ -242,7 +248,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
                         .load(imageUrl)
                         .into(new CustomTarget<Bitmap>() {
                             @Override
-                            public void onResourceReady(@NonNull Bitmap resource, Transition<? super Bitmap> transition) {
+                            public void onResourceReady(@NonNull Bitmap resource, com.bumptech.glide.request.transition.Transition<? super Bitmap> transition) {
                                 saveImageToGallery(resource, currentPosition);
                             }
 
@@ -260,6 +266,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
         }
     }
 
+    /** 将 Bitmap 写入相册 Pictures/Venus 目录并提示保存结果。 */
     private void saveImageToGallery(Bitmap bitmap, int position) {
         try {
             String fileName = "venus_image_" + System.currentTimeMillis() + "_" + position + ".jpg";
@@ -271,7 +278,7 @@ public class FullscreenImageActivity extends AppCompatActivity {
     }
 
     /**
-     * 授权后调用
+     * 存储权限授予后继续下载当前图片，拒绝则提示需要存储权限。
      */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {

@@ -6,44 +6,48 @@
     android:layout_height="match_parent"
     tools:context=".Setting.FullscreenImageActivity">
 
-    <!-- Image display area -->
+    <!-- 图片显示区 -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Floating back button -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/backButton"
-        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="@dimen/spacing_md"
-        app:icon="?attr/homeAsUpIndicator"
-        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
-        android:layout_gravity="top|start" />
+    <!-- 悬浮返回按钮（毛玻璃：半透明 + 柔光阴影 + 大圆角） -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/backButton"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="@dimen/touch_target_min"
+            android:layout_height="@dimen/touch_target_min"
+            android:layout_margin="@dimen/space_4"
+            android:contentDescription="@string/content_description_back"
+            app:icon="?attr/homeAsUpIndicator"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+            android:backgroundTint="?attr/colorSurfaceContainer"
+            app:elevation="6dp"
+            android:layout_gravity="top|start" />
 
-    <!-- Bottom info card -->
+    <!-- 底部信息卡（毛玻璃浮层：半透明 surface + 柔光阴影 + 大圆角） -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/bottomInfoCard"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:elevation="0dp"
-        app:strokeWidth="0.5dp"
-        app:strokeColor="@color/divider_color"
-        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
-        app:cardCornerRadius="16dp"
+        android:layout_margin="@dimen/space_4"
+        app:cardElevation="@dimen/card_elevation_image"
         app:cardBackgroundColor="?attr/colorSurfaceContainer"
-        app:cardUseCompatPadding="true">
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="1dp"
+        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
+        app:cardCornerRadius="@dimen/shape_corner_lg"
+        app:cardUseCompatPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="@dimen/spacing_lg"
-            android:paddingTop="@dimen/spacing_lg"
-            android:paddingBottom="@dimen/spacing_xl">
+            android:paddingHorizontal="@dimen/space_5"
+            android:paddingTop="@dimen/space_5"
+            android:paddingBottom="@dimen/space_6">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -57,16 +61,14 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/image_title"
-                    android:textSize="@dimen/text_card_title"
-                    android:textFontWeight="600"
-                    android:textColor="?attr/colorOnSurface"
-                    tools:targetApi="28" />
+                    android:textAppearance="@style/TextAppearance.Venus.Title"
+                    android:textColor="?attr/colorOnSurface" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/counterTextView"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_md"
+                    android:layout_marginStart="@dimen/space_4"
                     tools:text="1/10"
                     android:textAppearance="?attr/textAppearanceLabelSmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
@@ -76,7 +78,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
+                android:layout_marginTop="@dimen/space_1"
                 android:orientation="horizontal">
 
                 <com.google.android.material.textview.MaterialTextView
@@ -85,15 +87,15 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/author_name"
-                    android:textSize="@dimen/text_caption"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorPrimary" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/timeTextView"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     tools:text="2024-05-20"
-                    android:textSize="@dimen/text_caption"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
@@ -102,22 +104,23 @@
                 android:id="@+id/descriptionTextView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_md"
+                android:layout_marginTop="@dimen/space_4"
                 android:ellipsize="end"
                 android:maxLines="3"
                 android:text="@string/default_description"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurface" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/downloadButton"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:text="@string/download_image"
-                app:icon="@drawable/ic_download"
-                app:iconGravity="textStart" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/downloadButton"
+            style="@style/Widget.Venus.Button.Primary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="@dimen/space_5"
+            android:text="@string/download_image"
+            app:icon="@drawable/ic_download"
+            app:iconGravity="textStart" />
 
         </LinearLayout>
 

@@ -35,10 +35,17 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     private final Map<Integer, String> uid_link_map = new LinkedHashMap<>();
     private Integer[] cachedKeys = new Integer[0];
 
+    /**
+     * 依据当前 map 的 key 集合重建 cachedKeys 数组，供 onBindViewHolder 按 position 索引。
+     */
     private void rebuildKeyCache() {
         cachedKeys = uid_link_map.keySet().toArray(new Integer[0]);
     }
 
+    /**
+     * 以差异方式更新链接数据并通知 RecyclerView：根据旧/新数据量决定插入、删除或变更，
+     * 避免整列表刷新，从而保留项动画。
+     */
     public void setLinks(Map<Integer, String> uid_link_map) {
         int oldSize = this.uid_link_map.size();
         this.uid_link_map.clear();
@@ -85,7 +92,7 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     }
 
     /**
-     * 创建ViewHolder
+     * 创建链接项 ViewHolder，加载 item_link_gacha_link 布局。
      */
     @NonNull
     @Override
@@ -96,7 +103,8 @@ public class LinkAdapter extends RecyclerView.Adapter<LinkViewHolder> {
     }
 
     /**
-     * 绑定ViewHolder
+     * 绑定第 position 项：填充 UID/链接文本、复制按钮、当前用户标签，
+     * 并在布局完成后检测链接是否被截断以决定是否显示“展开”按钮。
      */
     @Override
     public void onBindViewHolder(LinkViewHolder holder, int position) {

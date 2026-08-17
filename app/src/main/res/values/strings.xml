@@ -2,8 +2,11 @@
 <resources>
     <string name="app_name">启明星</string>
     <string name="about">关于</string>
+    <string name="about_license">开源协议: GPL-3.0</string>
+    <string name="about_version">版本 %s</string>
     <string name="add_or_login_user">添加/登录用户</string>
     <string name="author_name">作者名称</string>
+    <string name="content_description_back">返回</string>
     <string name="auto_check_update">自动检查更新</string>
     <string name="auto_check_update_desc">开启后将每隔三天自动检查是否有新版本</string>
     <string name="background">背景</string>
@@ -107,6 +110,7 @@
     <string name="skland_sign_in">森空岛签到</string>
     <string name="star_rail">星铁</string>
     <string name="task_list">任务列表</string>
+    <string name="task_list_empty">暂无任务，点击下方「运行签到」开始</string>
     <string name="task_status">任务状态</string>
     <string name="tears_of_themis">未定</string>
     <string name="theme">主题</string>
@@ -119,6 +123,9 @@
     <string name="update_config">更新配置</string>
     <string name="user_list">用户列表</string>
     <string name="user_login_title">用户登录</string>
+    <string name="user_login_welcome">欢迎</string>
+    <string name="user_login_subtitle">登录以继续</string>
+    <string name="login_qr_hint">请使用米游社 App 扫码登录</string>
     <string name="user_management_subtitle">管理登录账号</string>
     <string name="user_management_title">用户管理</string>
     <string name="user_name">用户名</string>
@@ -333,6 +340,23 @@
     <string name="login_stoken_token_failed">扫码获取stoken失败-getTokenByGameToken(RETCODE = %1$d),返回信息为：%2$s</string>
     <string name="login_ltoken_failed">获取ltoken失败-getLTokenBySToken(RETCODE = %1$d),返回信息为：%2$s</string>
 
+    <!-- 登录方式：扫码 / 账号密码 -->
+    <string name="login_tab_qrcode">扫码登录</string>
+    <string name="login_tab_password">账号密码</string>
+    <string name="login_account_hint">手机号 / 邮箱</string>
+    <string name="login_password_hint">密码</string>
+    <string name="login_password_notice">账号密码仅在本机加密后提交米游社官方接口换取 stoken，不会保存或上传</string>
+    <string name="login_input_account">请输入账号和密码</string>
+    <string name="login_password_only_cn">账号密码登录仅支持国服</string>
+    <string name="login_password_start">开始执行登录任务…\n正在提交账号密码…</string>
+    <string name="login_password_token_ok">账号密码校验通过，已获取 stoken 与 mid\n</string>
+    <string name="login_password_failed">账号密码登录失败(RETCODE = %1$d)，返回信息为：%2$s</string>
+    <string name="login_password_need_captcha">该账号触发了极验人机验证（aigis），账号密码登录暂不支持，请切换到扫码登录</string>
+    <string name="login_password_realname">提示：该账号需要实名认证或人脸验证，请先在米游社 APP 内完成\n</string>
+    <string name="login_password_encrypt_failed">账号密码加密失败：%s</string>
+    <string name="login_password_no_token">响应中缺少 token 字段：%s</string>
+    <string name="login_password_no_mid">响应中缺少 mid 字段：%s</string>
+
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">米游币签到 需要进行人机验证…</string>
     <string name="bbs_captcha_notification">米游币签到 等待进行人机验证</string>
@@ -437,4 +461,7 @@
 
     <!-- 通知标题格式 -->
     <string name="notif_title_game_sign">%s 游戏签到</string>
+
+    <!-- 页脚：各页滚动底部统一品牌行 -->
+    <string name="app_footer">Venus · 启明星　米游社签到工具</string>
 </resources>

@@ -4,8 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="@dimen/spacing_md"
-    android:paddingVertical="@dimen/spacing_sm">
+    android:paddingHorizontal="@dimen/space_4"
+    android:paddingVertical="@dimen/gap_row">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/game_daily_switch_button"
@@ -16,71 +16,53 @@
         android:textAppearance="?attr/textAppearanceBodyLarge"
         android:textColor="?attr/colorOnSurface" />
 
-    <com.google.android.material.divider.MaterialDivider
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:alpha="0.15"/>
-
     <com.google.android.material.chip.ChipGroup
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_sm"
+        android:layout_marginTop="@dimen/space_4"
         app:singleSelection="false">
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_genshin"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/genshin_impact"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/genshin_impact" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_zzz"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/zenless_zone_zero"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/zenless_zone_zero" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_srg"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/star_rail"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/star_rail" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_hr3"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/honkai_impact_3"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/honkai_impact_3" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_hr2"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/honkai_impact_2"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/honkai_impact_2" />
 
-        <com.google.android.material.checkbox.MaterialCheckBox
+        <com.google.android.material.chip.Chip
             android:id="@+id/game_daily_checkbox_weiding"
+            style="@style/Widget.Material3.Chip.Filter"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="@dimen/spacing_12"
-            android:text="@string/tears_of_themis"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/tears_of_themis" />
 
     </com.google.android.material.chip.ChipGroup>
 

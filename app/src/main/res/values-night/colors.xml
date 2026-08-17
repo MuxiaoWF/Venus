@@ -198,6 +198,23 @@
     <color name="snackbar_text">#F1F0F7</color>
     <color name="snackbar_action">#AAC7FF</color>
 
+    <!-- Widget 深色表面（与浅色 @color/widget_surface 配对） -->
+    <color name="widget_surface">#20222A</color>
+
     <!-- Divider color (colorOutline at 8% opacity for dark mode) -->
     <color name="divider_color">#148E9099</color>
+
+    <!-- ========== 状态语义色：M3 Success / Warning（深色值） ========== -->
+    <color name="status_success">#83DB6E</color>
+    <color name="status_on_success">#003900</color>
+    <color name="status_success_container">#1F5C16</color>
+    <color name="status_on_success_container">#A3F390</color>
+    <color name="status_warning">#E6BF4E</color>
+    <color name="status_on_warning">#3A2E00</color>
+    <color name="status_warning_container">#4E4200</color>
+    <color name="status_on_warning_container">#FFE08A</color>
+
+    <!-- 毛玻璃底栏：深色模式半透明表面（透出内容）+ 描边 -->
+    <color name="bottom_nav_glass_surface">#B321222A</color>
+    <color name="bottom_nav_glass_stroke">#1AFFFFFF</color>
 </resources>

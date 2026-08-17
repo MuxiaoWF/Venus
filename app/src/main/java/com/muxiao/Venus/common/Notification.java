@@ -32,6 +32,9 @@ public class Notification {
         this.context = context;
     }
 
+    /**
+     * 按需创建三个通知渠道（任务/错误/进度），仅 Android O+ 生效，进程内只创建一次。
+     */
     private void ensureChannels() {
         if (channelsCreated) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -55,6 +58,9 @@ public class Notification {
         }
     }
 
+    /**
+     * 构造点击通知后跳转主页（home）的 PendingIntent，带唯一 action 时间戳防止复用。
+     */
     private PendingIntent createHomePendingIntent() {
         Intent intent = new Intent(context, com.muxiao.Venus.MainActivity.class);
         intent.setAction(Long.toString(System.currentTimeMillis()));
@@ -64,6 +70,9 @@ public class Notification {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    /**
+     * 内部：发送错误通知；force=false 时受设置中的通知开关控制，未开启则直接返回。
+     */
     private void sendErrorSystemNotification(String title, String content, boolean force) {
         if (!force) {
             SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -84,16 +93,22 @@ public class Notification {
         nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
     }
 
+    /**
+     * 发送错误通知，受设置中的通知开关控制（未开启时不弹）。
+     */
     public void sendErrorNotification(String title, String content) {
         sendErrorSystemNotification(title, content, false);
     }
 
+    /**
+     * 发送错误通知，force=true 时忽略通知开关强制弹出。
+     */
     public void sendErrorNotification(String title, String content, boolean force) {
         sendErrorSystemNotification(title, content, force);
     }
 
     /**
-     * 取消错误通知
+     * 取消并移除错误通知（NOTIFICATION_ID_ERROR）。
      */
     public void dismissErrorNotification() {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -116,7 +131,7 @@ public class Notification {
     }
 
     /**
-     * 更新进度通知
+     * 更新前台进度通知的标题/内容与进度，复用同一 builder 并以其通知 ID 刷新。
      */
     public void updateProgressNotification(NotificationCompat.Builder builder,
                                             String title, String content,
@@ -145,6 +160,9 @@ public class Notification {
         nm.notify(Constants.NOTIFICATION_ID_PROGRESS, completed.build());
     }
 
+    /**
+     * 判断系统级通知是否已被用户关闭（Android N+ 才支持，旧版本恒返回 false）。
+     */
     public boolean areNotificationsDisabled() {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
@@ -152,6 +170,9 @@ public class Notification {
         return false;
     }
 
+    /**
+     * 构造跳转到本应用通知设置页的 Intent，兼容 Android O 前后不同的 Action 与 Extra。
+     */
     public Intent getNotificationSettingsIntent() {
         Intent intent = new Intent();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

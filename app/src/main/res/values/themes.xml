@@ -1,49 +1,44 @@
 <resources>
-    <!-- Base application theme. -->
-    <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
+    <!-- Base application theme：默认走动态取色（DynamicColors）。
+         四套配色主题共享、且跨主题完全一致的语义色提到基类，避免每套重复声明。 -->
+    <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
-    </style>
+        <item name="bottomNavigationStyle">@style/Widget.Venus.BottomNavigationView</item>
 
-    <style name="Theme.Venus.Light" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
-    </style>
-
-    <style name="Theme.Venus.Dark" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
-    </style>
-
-    <!-- Splash启动页Style -->
-    <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">
-        <!--启动画面背景颜色-->
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <!-- 启动画面icon图标：这里可以是图片、帧动画等-->
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
-        <!-- icon动画在关闭之前显示的时长-->
-        <item name="windowSplashScreenAnimationDuration">1000</item>
-        <!-- Splash退出后的主题（原先主主题）-->
-        <item name="postSplashScreenTheme">@style/Theme.Venus</item>
-    </style>
-
-    <!-- 蓝色主题 -->
-    <style name="Theme.Venus.Blue" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
-        <item name="colorPrimary">@color/blue_theme_primary</item>
-        <item name="colorOnPrimary">@color/blue_theme_onPrimary</item>
-        <item name="colorPrimaryContainer">@color/blue_theme_primaryContainer</item>
-        <item name="colorOnPrimaryContainer">@color/blue_theme_onPrimaryContainer</item>
-        <item name="colorSecondary">@color/blue_theme_secondary</item>
-        <item name="colorOnSecondary">@color/blue_theme_onSecondary</item>
-        <item name="colorSecondaryContainer">@color/blue_theme_secondaryContainer</item>
-        <item name="colorOnSecondaryContainer">@color/blue_theme_onSecondaryContainer</item>
-        <item name="colorTertiary">@color/blue_theme_tertiary</item>
-        <item name="colorOnTertiary">@color/blue_theme_onTertiary</item>
-        <item name="colorTertiaryContainer">@color/blue_theme_tertiaryContainer</item>
-        <item name="colorOnTertiaryContainer">@color/blue_theme_onTertiaryContainer</item>
+        <!-- 跨主题一致的语义色（来自 blue 调色板，四套完全相同） -->
         <item name="colorError">@color/blue_theme_error</item>
         <item name="colorOnError">@color/blue_theme_onError</item>
         <item name="colorErrorContainer">@color/blue_theme_errorContainer</item>
         <item name="colorOnErrorContainer">@color/blue_theme_onErrorContainer</item>
+        <item name="colorOnPrimary">@color/blue_theme_onPrimary</item>
+        <item name="colorOnSecondary">@color/blue_theme_onSecondary</item>
+        <item name="colorOnTertiary">@color/blue_theme_onTertiary</item>
+        <item name="colorSurfaceContainerLowest">@color/blue_theme_surfaceContainerLowest</item>
+    </style>
+
+    <!-- Splash 启动页 Style（Apple 风：柔光近白底 + 品牌字标浮起） -->
+    <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">?attr/colorSurfaceContainerLowest</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <item name="postSplashScreenTheme">@style/Theme.Venus</item>
+    </style>
+
+    <!-- ===== 配色主题：改为 ThemeOverlay，运行时通过 getTheme().applyStyle() 叠加 =====
+         仅声明随主题变化的调色板属性；与基类共享的语义色不再重复。 -->
+
+    <!-- 蓝色主题 -->
+    <style name="ThemeOverlay.Venus.Blue" parent="Theme.Venus">
+        <item name="colorPrimary">@color/blue_theme_primary</item>
+        <item name="colorPrimaryContainer">@color/blue_theme_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/blue_theme_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/blue_theme_secondary</item>
+        <item name="colorSecondaryContainer">@color/blue_theme_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/blue_theme_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/blue_theme_tertiary</item>
+        <item name="colorTertiaryContainer">@color/blue_theme_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/blue_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/blue_theme_background</item>
         <item name="colorOnBackground">@color/blue_theme_onBackground</item>
         <item name="colorSurface">@color/blue_theme_surface</item>
@@ -69,7 +64,6 @@
         <item name="colorOnTertiaryFixedVariant">@color/blue_theme_onTertiaryFixedVariant</item>
         <item name="colorSurfaceDim">@color/blue_theme_surfaceDim</item>
         <item name="colorSurfaceBright">@color/blue_theme_surfaceBright</item>
-        <item name="colorSurfaceContainerLowest">@color/blue_theme_surfaceContainerLowest</item>
         <item name="colorSurfaceContainerLow">@color/blue_theme_surfaceContainerLow</item>
         <item name="colorSurfaceContainer">@color/blue_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/blue_theme_surfaceContainerHigh</item>
@@ -77,24 +71,16 @@
     </style>
 
     <!-- 绿色主题 -->
-    <style name="Theme.Venus.Green" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
+    <style name="ThemeOverlay.Venus.Green" parent="Theme.Venus">
         <item name="colorPrimary">@color/green_theme_primary</item>
-        <item name="colorOnPrimary">@color/green_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/green_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/green_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/green_theme_secondary</item>
-        <item name="colorOnSecondary">@color/green_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/green_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/green_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/green_theme_tertiary</item>
-        <item name="colorOnTertiary">@color/green_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/green_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/green_theme_onTertiaryContainer</item>
-        <item name="colorError">@color/green_theme_error</item>
-        <item name="colorOnError">@color/green_theme_onError</item>
-        <item name="colorErrorContainer">@color/green_theme_errorContainer</item>
-        <item name="colorOnErrorContainer">@color/green_theme_onErrorContainer</item>
         <item name="android:colorBackground">@color/green_theme_background</item>
         <item name="colorOnBackground">@color/green_theme_onBackground</item>
         <item name="colorSurface">@color/green_theme_surface</item>
@@ -120,7 +106,6 @@
         <item name="colorOnTertiaryFixedVariant">@color/green_theme_onTertiaryFixedVariant</item>
         <item name="colorSurfaceDim">@color/green_theme_surfaceDim</item>
         <item name="colorSurfaceBright">@color/green_theme_surfaceBright</item>
-        <item name="colorSurfaceContainerLowest">@color/green_theme_surfaceContainerLowest</item>
         <item name="colorSurfaceContainerLow">@color/green_theme_surfaceContainerLow</item>
         <item name="colorSurfaceContainer">@color/green_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/green_theme_surfaceContainerHigh</item>
@@ -128,24 +113,16 @@
     </style>
 
     <!-- 红色主题 -->
-    <style name="Theme_Venus_Red" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
+    <style name="ThemeOverlay.Venus.Red" parent="Theme.Venus">
         <item name="colorPrimary">@color/red_theme_primary</item>
-        <item name="colorOnPrimary">@color/red_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/red_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/red_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/red_theme_secondary</item>
-        <item name="colorOnSecondary">@color/red_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/red_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/red_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/red_theme_tertiary</item>
-        <item name="colorOnTertiary">@color/red_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/red_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/red_theme_onTertiaryContainer</item>
-        <item name="colorError">@color/red_theme_error</item>
-        <item name="colorOnError">@color/red_theme_onError</item>
-        <item name="colorErrorContainer">@color/red_theme_errorContainer</item>
-        <item name="colorOnErrorContainer">@color/red_theme_onErrorContainer</item>
         <item name="android:colorBackground">@color/red_theme_background</item>
         <item name="colorOnBackground">@color/red_theme_onBackground</item>
         <item name="colorSurface">@color/red_theme_surface</item>
@@ -166,12 +143,11 @@
         <item name="colorSecondaryFixedDim">@color/red_theme_secondaryFixedDim</item>
         <item name="colorOnSecondaryFixedVariant">@color/red_theme_onSecondaryFixedVariant</item>
         <item name="colorTertiaryFixed">@color/red_theme_tertiaryFixed</item>
-        <item name="colorOnTertiaryFixed">@color/red_theme_onTertiaryFixed</item>
+        <item name="colorOnTertiaryFixed">@color/red_theme_tertiaryFixed</item>
         <item name="colorTertiaryFixedDim">@color/red_theme_tertiaryFixedDim</item>
         <item name="colorOnTertiaryFixedVariant">@color/red_theme_onTertiaryFixedVariant</item>
         <item name="colorSurfaceDim">@color/red_theme_surfaceDim</item>
         <item name="colorSurfaceBright">@color/red_theme_surfaceBright</item>
-        <item name="colorSurfaceContainerLowest">@color/red_theme_surfaceContainerLowest</item>
         <item name="colorSurfaceContainerLow">@color/red_theme_surfaceContainerLow</item>
         <item name="colorSurfaceContainer">@color/red_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/red_theme_surfaceContainerHigh</item>
@@ -179,24 +155,16 @@
     </style>
 
     <!-- 黄色主题 -->
-    <style name="Theme.Venus.Yellow" parent="Theme.Material3Expressive.DynamicColors.Light.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
+    <style name="ThemeOverlay.Venus.Yellow" parent="Theme.Venus">
         <item name="colorPrimary">@color/yellow_theme_primary</item>
-        <item name="colorOnPrimary">@color/yellow_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/yellow_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/yellow_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/yellow_theme_secondary</item>
-        <item name="colorOnSecondary">@color/yellow_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/yellow_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/yellow_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/yellow_theme_tertiary</item>
-        <item name="colorOnTertiary">@color/yellow_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/yellow_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/yellow_theme_onTertiaryContainer</item>
-        <item name="colorError">@color/yellow_theme_error</item>
-        <item name="colorOnError">@color/yellow_theme_onError</item>
-        <item name="colorErrorContainer">@color/yellow_theme_errorContainer</item>
-        <item name="colorOnErrorContainer">@color/yellow_theme_onErrorContainer</item>
         <item name="android:colorBackground">@color/yellow_theme_background</item>
         <item name="colorOnBackground">@color/yellow_theme_onBackground</item>
         <item name="colorSurface">@color/yellow_theme_surface</item>
@@ -222,7 +190,6 @@
         <item name="colorOnTertiaryFixedVariant">@color/yellow_theme_onTertiaryFixedVariant</item>
         <item name="colorSurfaceDim">@color/yellow_theme_surfaceDim</item>
         <item name="colorSurfaceBright">@color/yellow_theme_surfaceBright</item>
-        <item name="colorSurfaceContainerLowest">@color/yellow_theme_surfaceContainerLowest</item>
         <item name="colorSurfaceContainerLow">@color/yellow_theme_surfaceContainerLow</item>
         <item name="colorSurfaceContainer">@color/yellow_theme_surfaceContainer</item>
         <item name="colorSurfaceContainerHigh">@color/yellow_theme_surfaceContainerHigh</item>

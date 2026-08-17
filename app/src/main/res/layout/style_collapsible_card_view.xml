@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    style="@style/Widget.Venus.Card"
+    style="@style/Widget.Venus.Card.Filled"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="0dp"
-    android:layout_marginTop="0dp"
-    android:layout_marginBottom="0dp">
+    android:layout_height="wrap_content">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,8 +18,8 @@
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="@dimen/spacing_md"
-            android:paddingVertical="@dimen/spacing_md">
+            android:paddingHorizontal="@dimen/space_4"
+            android:paddingVertical="@dimen/space_4">
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/title_text"
@@ -31,10 +27,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/default_title"
-                android:textSize="@dimen/text_card_title"
-                android:textFontWeight="600"
+                android:textAppearance="@style/TextAppearance.Venus.Title"
                 android:textColor="?attr/colorOnSurface"
-                tools:targetApi="28" />
+                android:ellipsize="end"
+                android:maxLines="1" />
 
             <ImageView
                 android:id="@+id/toggle_icon"
@@ -44,8 +40,8 @@
                 android:clickable="true"
                 android:contentDescription="@string/expand_collapse"
                 android:focusable="true"
-                android:padding="@dimen/spacing_tiny"
-                android:src="@drawable/ic_0collapse_180expand" />
+                android:padding="@dimen/space_1"
+                android:src="@drawable/ic_chevron" />
         </LinearLayout>
 
         <FrameLayout
@@ -56,11 +52,7 @@
                 android:id="@+id/content_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="0dp"
-                android:paddingEnd="0dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp">
+                android:orientation="vertical">
             </LinearLayout>
         </FrameLayout>
 

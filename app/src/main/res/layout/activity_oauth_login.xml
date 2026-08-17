@@ -21,9 +21,9 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingHorizontal="@dimen/spacing_lg"
-        android:paddingTop="@dimen/spacing_sm"
-        android:paddingBottom="@dimen/spacing_md"
+        android:paddingHorizontal="@dimen/space_5"
+        android:paddingTop="@dimen/space_2"
+        android:paddingBottom="@dimen/space_4"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -39,61 +39,84 @@
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm">
+                android:layout_marginTop="@dimen/space_2">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="@dimen/spacing_md">
+                    android:padding="@dimen/space_4">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="@dimen/space_3">
+
+                        <ImageView
+                            android:layout_width="@dimen/icon_badge_circle"
+                            android:layout_height="@dimen/icon_badge_circle"
+                            android:background="@drawable/bg_icon_circle"
+                            android:contentDescription="@null"
+                            android:padding="@dimen/space_2"
+                            android:src="@drawable/ic_link"
+                            app:tint="?attr/colorOnPrimaryContainer" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="@dimen/gap_inline"
+                            android:text="@string/cookie_login"
+                            android:textAppearance="@style/TextAppearance.Venus.Title"
+                            android:textColor="?attr/colorOnSurface" />
+                    </LinearLayout>
 
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="@dimen/spacing_sm"
-                        android:text="@string/cookie_login"
-                        android:textSize="@dimen/text_card_title"
-                        android:textFontWeight="600"
-                        android:textColor="?attr/colorOnSurface"
-                        tools:targetApi="28" />
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="@dimen/spacing_sm"
+                        android:layout_marginBottom="@dimen/space_3"
                         android:text="@string/cookie_login_hint"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_cookie_login"
-                        style="@style/Widget.Material3.Button"
+                        style="@style/Widget.Venus.Button.Primary"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/cookie_login_start" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- OAuth WebView -->
-            <FrameLayout
-                android:id="@+id/oauth_webview_container"
+            <!-- OAuth WebView（圆角卡包裹，柔和阴影） -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
-                android:layout_height="800dp"
-                android:layout_marginTop="@dimen/spacing_sm"
-                android:visibility="gone">
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_2"
+                android:visibility="gone"
+                android:id="@+id/oauth_webview_card">
 
-                <WebView
-                    android:id="@+id/oauth_webview"
+                <FrameLayout
+                    android:id="@+id/oauth_webview_container"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
+                    android:layout_height="@dimen/oauth_webview_height"
+                    android:clipToPadding="false">
 
-                <ProgressBar
-                    android:id="@+id/oauth_webview_progress"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top" />
-            </FrameLayout>
+                    <WebView
+                        android:id="@+id/oauth_webview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+
+                    <ProgressBar
+                        android:id="@+id/oauth_webview_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top" />
+                </FrameLayout>
+            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

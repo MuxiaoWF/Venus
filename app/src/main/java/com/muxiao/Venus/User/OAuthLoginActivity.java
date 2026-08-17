@@ -1,5 +1,9 @@
 package com.muxiao.Venus.User;
 
+import dagger.hilt.android.AndroidEntryPoint;
+
+import com.muxiao.Venus.BaseActivity;
+
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -14,7 +18,6 @@ import android.widget.ProgressBar;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
@@ -30,7 +33,8 @@ import java.util.Objects;
  * 国际服用户登录：通过WebView访问HoYoLAB，自动轮询Cookie获取登录凭证。
  * 支持Cookie登录和重新登录两种模式。
  */
-public class OAuthLoginActivity extends AppCompatActivity {
+@AndroidEntryPoint
+public class OAuthLoginActivity extends BaseActivity {
 
     private static final String HOYOLAB_URL = "https://act.hoyolab.com/bbs/event/signin/hkrpg/index.html?act_id=e202303301540311";
 
@@ -40,15 +44,14 @@ public class OAuthLoginActivity extends AppCompatActivity {
     private String relogin_username;
 
     private WebView oauth_webview;
-    private FrameLayout oauth_webview_container;
+    private View oauth_webview_card;
     private ProgressBar oauth_webview_progress;
     private CountDownTimer cookie_polling_timer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        int selectedTheme = SettingsFragment.getSelectedTheme(this);
-        setTheme(selectedTheme);
+        SettingsFragment.applyAppTheme(this);
         setContentView(R.layout.activity_oauth_login);
         EdgeToEdge.enable(this);
 
@@ -67,25 +70,28 @@ public class OAuthLoginActivity extends AppCompatActivity {
 
         status_notifier = new tools.StatusNotifier();
 
-        oauth_webview_container = findViewById(R.id.oauth_webview_container);
+        oauth_webview_card = findViewById(R.id.oauth_webview_card);
         oauth_webview = findViewById(R.id.oauth_webview);
         oauth_webview_progress = findViewById(R.id.oauth_webview_progress);
 
         findViewById(R.id.btn_cookie_login).setOnClickListener(v -> startCookieCapture());
-        oauth_webview_container.setVisibility(View.GONE);
+        oauth_webview_card.setVisibility(View.GONE);
     }
 
     // ==================== Cookie 登录 ====================
 
     @SuppressLint("SetJavaScriptEnabled")
+    // 启动 Cookie 抓取：配置 WebView（强制 https、注入 UA）并清空旧 Cookie，随后加载登录页并开启轮询
     private void startCookieCapture() {
         changeButtonStatus(false);
-        oauth_webview_container.setVisibility(View.VISIBLE);
+        oauth_webview_card.setVisibility(View.VISIBLE);
 
         WebSettings settings = oauth_webview.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        // P1-6 安全：WebView 仅允许 https，禁止加载混合内容（http 子资源），避免明文流量被注入。
+        // 如真机验证发现 HoYoLAB 登录页依赖混合内容导致加载异常，可降级为 MIXED_CONTENT_COMPATIBILITY。
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
 
         CookieManager cookieManager = CookieManager.getInstance();
@@ -107,6 +113,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
         }));
     }
 
+    // 开启 2 分钟倒计时轮询，每 2 秒检测 Cookie 是否出现登录凭证，命中即停止轮询
     private void startCookiePolling() {
         cookie_polling_timer = new CountDownTimer(120000, 2000) {
             @Override
@@ -121,7 +128,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
             @Override
             public void onFinish() {
                 runOnUiThread(() -> {
-                    oauth_webview_container.setVisibility(View.GONE);
+                    oauth_webview_card.setVisibility(View.GONE);
                     changeButtonStatus(true);
                     tools.show_error_dialog(OAuthLoginActivity.this, getString(R.string.cookie_login_failed));
                 });
@@ -129,16 +136,17 @@ public class OAuthLoginActivity extends AppCompatActivity {
         }.start();
     }
 
+    // Cookie 就绪后的处理：重登录模式直接刷新凭证，否则弹出用户名输入对话框
     private void onCookieObtained(String cookieString) {
         if (cookieString == null || cookieString.isEmpty()) {
             runOnUiThread(() -> {
-                oauth_webview_container.setVisibility(View.GONE);
+                oauth_webview_card.setVisibility(View.GONE);
                 changeButtonStatus(true);
             });
             return;
         }
 
-        runOnUiThread(() -> oauth_webview_container.setVisibility(View.GONE));
+        runOnUiThread(() -> oauth_webview_card.setVisibility(View.GONE));
 
         if (relogin_mode && relogin_username != null) {
             getSharedPreferences("user_" + relogin_username, MODE_PRIVATE).edit().clear().apply();
@@ -152,6 +160,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
         }
     }
 
+    // 弹出对话框让用户输入用户名，校验唯一性后保存 Cookie 用户
     private void showUsernameDialog(String cookieString) {
         TextInputLayout inputLayout = new TextInputLayout(this);
         inputLayout.setHint(getString(R.string.username_hint));
@@ -188,6 +197,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
         });
     }
 
+    // 持久化完整 Cookie 字符串，并提取 ltoken/mid/stuid/cookie_token 单独存储
     private void saveCookieUser(String username, String cookieString) {
         tools.write(this, username, "cookie", cookieString);
         tools.write(this, username, "server_type", "1");
@@ -207,6 +217,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
         if (cookieToken != null) tools.write(this, username, "cookie_token", cookieToken);
     }
 
+    // 从 "; " 分隔的 Cookie 串中按名称提取值，未找到返回 null
     private String getCookieValue(String cookieString, String name) {
         if (cookieString == null) return null;
         for (String cookie : cookieString.split(";")) {
@@ -217,6 +228,7 @@ public class OAuthLoginActivity extends AppCompatActivity {
         return null;
     }
 
+    // 启用/禁用 Cookie 登录按钮，防止重复触发
     private void changeButtonStatus(boolean enabled) {
         findViewById(R.id.btn_cookie_login).setEnabled(enabled);
     }
