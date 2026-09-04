@@ -7,7 +7,7 @@
         <domain includeSubdomains="true">passport-api.mihoyo.com</domain>
         <domain includeSubdomains="true">public-data-api.mihoyo.com</domain>
         <domain includeSubdomains="true">api.github.com</domain>
-        <domain includeSubdomains="true">muxiaowf.dpdns.org</domain>
+        <domain includeSubdomains="true">muxiaowf.top</domain>
         <domain includeSubdomains="true">wwzq.lanzouq.com</domain>
         <trust-anchors>
             <certificates src="system"/>
