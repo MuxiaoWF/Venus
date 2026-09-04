@@ -81,11 +81,11 @@ public class Constants {
         public static final String OS_YSH_GACHA_URL = "https://public-operation-hk4e.hoyoverse.com/gacha_info/api/getGachaLog?win_mode=fullscreen&authkey_ver=1&sign_type=2&auth_appid=webview_gacha&init_type=301&lang=en-us&region=os_usa&authkey=";
         public static final String OS_ZZZ_GACHA_URL = "https://public-operation-nap.hoyoverse.com/common/gacha_record/api/getGachaLog?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&win_mode=fullscreen&init_log_gacha_type=2001&init_log_gacha_base_type=2&ui_layout=&button_mode=default&plat_type=3&authkey=";
 
-        public static final String MUXIAO_MINE_UPDATE_SALT_URL = "https://muxiaowf.dpdns.org/api/salt";
+        public static final String MUXIAO_MINE_UPDATE_SALT_URL = "https://muxiaowf.top/api/salt";
         public static final String MUXIAO_MINE_UPDATE_LANZOU_URL = "https://wwzq.lanzouq.com/b00wn0dtfe";
         public static final String MUXIAO_MINE_UPDATE_URL = "https://api.github.com/repos/MuxiaoWF/Venus/releases/latest";
         public static final String MUXIAO_MINE_GITHUB_URL = "https://github.com/MuxiaoWF/Venus";
-        public static final String MUXIAO_MINE_BLOG_URL = "https://muxiaowf.dpdns.org/";
+        public static final String MUXIAO_MINE_BLOG_URL = "https://muxiaowf.top/";
 
         public static final String SKLAND_LOGIN_URL = "https://www.skland.com/login";
         public static final String SKLAND_COOKIE_URL = "https://web-api.skland.com/account/info/hg";
