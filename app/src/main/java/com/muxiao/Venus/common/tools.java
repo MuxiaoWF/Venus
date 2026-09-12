@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -99,29 +100,61 @@ public class tools {
         }
     }
 
+    private static final String JSON_MEDIA_TYPE = "application/json; charset=utf-8";
+
     /**
-     * 发送 GET 请求：params 拼接到 query，自动 gzip 解压；非 2xx 或异常统一抛 RuntimeException（含联网提示）。
+     * 统一网络异常出口（所有请求方法共用）：
+     * <ul>
+     *   <li>DNS/连接类失败 → 统一提示「请检查网络连接」并保留 cause；</li>
+     *   <li>已是业务异常（如「请求失败，状态码：403」）→ 原样抛出，避免出现「请求失败：请求失败…」的嵌套文案；</li>
+     *   <li>其余（IO、解析等）→ 统一包装为「请求失败：…」并保留 cause。</li>
+     * </ul>
+     */
+    private static RuntimeException normalizeRequestError(Exception e) {
+        if (e instanceof UnknownHostException)
+            return new RuntimeException("请检查网络连接：" + e.getMessage(), e);
+        if (e instanceof RuntimeException)
+            return (RuntimeException) e;
+        return new RuntimeException("请求失败：" + e.getMessage(), e);
+    }
+
+    /** 统一的 Header 写入：跳过 null 键值（OkHttp 对 null 名/值会抛 NPE）。 */
+    private static void applyHeaders(Request.Builder builder, Map<String, String> headers) {
+        if (headers == null) return;
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) continue;
+            builder.addHeader(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
+     * 拼接 GET 查询串：走 OkHttp HttpUrl 构建器，保证中文/空格/&/= 等字符被正确百分号编码。
+     * 原实现为字符串手工拼接，参数含特殊字符时会截断 query 或串参数。
+     */
+    private static String buildGetUrl(String urlStr, Map<String, String> params) {
+        if (params == null || params.isEmpty()) return urlStr;
+        HttpUrl base = HttpUrl.parse(urlStr);
+        if (base == null) throw new RuntimeException("非法的请求地址：" + urlStr);
+        HttpUrl.Builder builder = base.newBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (entry.getKey() == null) continue;
+            builder.addQueryParameter(entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
+        }
+        return builder.build().toString();
+    }
+
+    /**
+     * 发送 GET 请求：params 安全编码后拼接到 query，自动 gzip 解压；非 2xx 或异常统一抛 RuntimeException。
      */
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params) {
-        StringBuilder urlBuilder = new StringBuilder(urlStr);
-        if (params != null && !params.isEmpty()) {
-            urlBuilder.append("?");
-            for (Map.Entry<String, String> entry : params.entrySet())
-                urlBuilder.append(entry.getKey()).append("=").append(entry.getValue()).append("&");
-            urlBuilder.deleteCharAt(urlBuilder.length() - 1);
-        }
-        Request.Builder requestBuilder = new Request.Builder().url(urlBuilder.toString()).get();
-        if (headers != null)
-            for (Map.Entry<String, String> entry : headers.entrySet())
-                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        Request.Builder requestBuilder = new Request.Builder().url(buildGetUrl(urlStr, params)).get();
+        applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
                 throw new RuntimeException("请求失败，状态码：" + response.code());
             return readResponseBody(response);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查是否联网" + e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw normalizeRequestError(e);
         }
     }
 
@@ -132,22 +165,18 @@ public class tools {
         RequestBody requestBody;
         if (body != null) {
             String jsonBody = GSON.toJson(body);
-            requestBody = RequestBody.create(jsonBody, MediaType.parse("application/json; charset=utf-8"));
+            requestBody = RequestBody.create(jsonBody, MediaType.parse(JSON_MEDIA_TYPE));
         } else {
             requestBody = RequestBody.create(new byte[0], null);
         }
         Request.Builder requestBuilder = new Request.Builder().url(urlStr).post(requestBody);
-        if (headers != null)
-            for (Map.Entry<String, String> entry : headers.entrySet())
-                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
                 throw new RuntimeException("请求失败，状态码：" + response.code());
             return readResponseBody(response);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查网络连接：" + e.getMessage(), e);
         } catch (Exception e) {
-            throw new RuntimeException("请求失败：" + e.getMessage(), e);
+            throw normalizeRequestError(e);
         }
     }
 
@@ -183,18 +212,14 @@ public class tools {
      */
     public static HttpResponse postJson(String urlStr, Map<String, String> headers, String jsonBody) {
         RequestBody requestBody = jsonBody != null
-                ? RequestBody.create(jsonBody, MediaType.parse("application/json; charset=utf-8"))
+                ? RequestBody.create(jsonBody, MediaType.parse(JSON_MEDIA_TYPE))
                 : RequestBody.create(new byte[0], null);
         Request.Builder requestBuilder = new Request.Builder().url(urlStr).post(requestBody);
-        if (headers != null)
-            for (Map.Entry<String, String> entry : headers.entrySet())
-                requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             return new HttpResponse(response.code(), readResponseBody(response), response.headers());
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("请检查网络连接：" + e.getMessage(), e);
         } catch (Exception e) {
-            throw new RuntimeException("请求失败：" + e.getMessage(), e);
+            throw normalizeRequestError(e);
         }
     }
 
@@ -347,13 +372,22 @@ public class tools {
     }
 
     /**
+     * 运行日志目录：外置私有目录不可用（未挂载/被回收）时回退到内置 filesDir，
+     * 避免 new File(null, "logs") 抛 NPE。写入与清理共用同一目录，保证二者一致。
+     */
+    private static File logDir(Context context) {
+        File external = context.getExternalFilesDir(null);
+        return new File(external != null ? external : context.getFilesDir(), "logs");
+    }
+
+    /**
      * 清理过期的日志文件。
      * 运行日志只保留今天，任务历史日志保留今天和昨天。
      * 在任务开始时调用。
      */
     public static void cleanOldLogs(Context context) {
         // 清理运行日志（只保留今天）
-        File logDir = new File(context.getExternalFilesDir(null), "logs");
+        File logDir = logDir(context);
         if (logDir.exists()) {
             String todayPrefix = "daily_task_log_" + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
             File[] files = logDir.listFiles();
@@ -413,7 +447,7 @@ public class tools {
      * 返回今天的运行日志文件（logs/daily_task_log_yyyy-MM-dd.txt），目录不存在时自动创建。
      */
     public static File getTodayLogFile(Context context) {
-        File logDir = new File(context.getExternalFilesDir(null), "logs");
+        File logDir = logDir(context);
         if (!logDir.exists()) logDir.mkdirs();
         String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
         return new File(logDir, "daily_task_log_" + date + ".txt");
@@ -443,10 +477,16 @@ public class tools {
     }
 
     /**
-     * 随机延时（毫秒），用于避免请求频率限制
+     * 随机延时（毫秒），用于避免请求频率限制。
+     * rangeMs ≤ 0 时退化为固定延时（原实现会在 rangeMs=0 时抛 IllegalArgumentException）。
      */
     public static void randomDelay(int minMs, int rangeMs) throws InterruptedException {
-        Thread.sleep(minMs + RANDOM.nextInt(rangeMs));
+        int base = Math.max(0, minMs);
+        if (rangeMs <= 0) {
+            if (base > 0) Thread.sleep(base);
+            return;
+        }
+        Thread.sleep(base + RANDOM.nextInt(rangeMs));
     }
 
     /**
@@ -464,7 +504,8 @@ public class tools {
     public static String md5Hex(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
-            return bytesToHex(md.digest(input.getBytes()));
+            // 固定 UTF-8，避免依赖平台默认字符集导致同一输入在不同设备上得到不同摘要
+            return bytesToHex(md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -489,7 +530,8 @@ public class tools {
             }
         } else {
             File venusDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Venus");
-            if (!venusDir.exists()) venusDir.mkdirs();
+            if (!venusDir.exists() && !venusDir.mkdirs())
+                throw new IOException("无法创建保存目录：" + venusDir.getAbsolutePath());
             try (OutputStream fos = new FileOutputStream(new File(venusDir, fileName))) {
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
             }

@@ -17,6 +17,13 @@ import java.util.UUID;
 public class DeviceUtils {
     private final Context context;
     public volatile String oaid;
+    /**
+     * 设备标识的最终解析结果（OAID 或回退 UUID）。
+     * 缓存它有两个作用：① 避免同一实例内多次调用各自阻塞最多 5 秒；
+     * ② 保证 device_id 与 ext_fields 中上报的 aaid/oaid/vaid 取值完全一致
+     * （原实现两次独立解析，可能在 OAID 迟到时给出两个不同值）。
+     */
+    private volatile String resolvedDeviceId;
 
     public DeviceUtils(Context context) {
         this.context = context;
@@ -38,6 +45,16 @@ public class DeviceUtils {
      * 阻塞等待 OAID 就绪（最长 5 秒，每 100ms 轮询）；超时、中断或失败时回退到基于 Android ID 生成的 UUID。
      */
     public String waitForDeviceId() {
+        String cached = resolvedDeviceId;
+        if (cached != null) return cached;
+
+        String resolved = pollOaidOrFallback();
+        resolvedDeviceId = resolved;
+        return resolved;
+    }
+
+    /** 轮询 OAID 最多 5 秒（每 100ms 一次），超时或被中断时回退到本地生成的稳定设备 ID。 */
+    private String pollOaidOrFallback() {
         // 最多等待5秒
         int maxWaitTime = 5000;
         int waitInterval = 100;
@@ -64,7 +81,7 @@ public class DeviceUtils {
         String namespace = androidId != null ? androidId : "unknown";
         String name = Build.MANUFACTURER + " " + Build.MODEL;
         // Convert namespace to UUID
-        UUID namespaceUUID = UUID.nameUUIDFromBytes(namespace.getBytes());
+        UUID namespaceUUID = UUID.nameUUIDFromBytes(namespace.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         // Concatenate namespace and name
         long msb = namespaceUUID.getMostSignificantBits();
         long lsb = namespaceUUID.getLeastSignificantBits();
@@ -73,7 +90,7 @@ public class DeviceUtils {
             namespaceBytes[i] = (byte) (msb >>> (8 * (7 - i)));
         for (int i = 8; i < 16; i++)
             namespaceBytes[i] = (byte) (lsb >>> (8 * (15 - i)));
-        byte[] nameBytes = name.getBytes();
+        byte[] nameBytes = name.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] combinedBytes = new byte[namespaceBytes.length + nameBytes.length];
         System.arraycopy(namespaceBytes, 0, combinedBytes, 0, namespaceBytes.length);
         System.arraycopy(nameBytes, 0, combinedBytes, namespaceBytes.length, nameBytes.length);

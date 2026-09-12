@@ -5,12 +5,14 @@ import static com.muxiao.Venus.common.tools.sendPostRequest;
 import android.content.Context;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
@@ -31,6 +33,12 @@ public class BBSDaily {
     private static final int MAX_RETRIES = 3;
     private static final int DELAY_MIN_MS = 500;
     private static final int DELAY_RANGE_MS = 1500;
+    /** 需要人机验证 */
+    private static final int RETCODE_NEED_CAPTCHA = 1034;
+    /** 登录态失效 */
+    private static final int RETCODE_LOGIN_EXPIRED = -100;
+    /** 讨论区签到任务的任务 ID */
+    private static final int MISSION_ID_COMMUNITY_SIGN_IN = 58;
 
     @FunctionalInterface
     private interface ApiCall {
@@ -48,39 +56,54 @@ public class BBSDaily {
     private JsonObject executeWithRetry(ApiCall call) throws Exception {
         for (int retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
             JsonObject data = call.execute();
-            int retcode = data.get("retcode").getAsInt();
-            android.util.Log.e("VenusCaptcha", "BBSDaily: API retcode=" + retcode + ", response=" + data);
-            if (retcode == 1034) { // 1034 = 需要人机验证
-                android.util.Log.e("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
-                notifier.notifyListeners(context.getString(R.string.bbs_captcha_waiting));
-                notification.sendErrorNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
-                // 先触发验证
-                Map<String, String> headers = getBbsHeaders();
-                if (captchaHelper.getGeetCode() != null) headers.putAll(captchaHelper.getGeetCode());
-                captchaHelper.performVerificationWithCallback(headers, context.getString(R.string.task_name_bbs_daily));
-                android.util.Log.e("VenusCaptcha", "BBSDaily: waiting for verification...");
-                captchaHelper.waitForCompletion();
-                android.util.Log.e("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + captchaHelper.getGeetCode());
-                if (captchaHelper.getGeetCode() == null) {
-                    throw new RuntimeException(context.getString(R.string.bbs_captcha_failed));
-                }
-            } else if (retcode == -100) { // -100 = 登录态失效
+            int retcode = JsonAccess.retcode(data);
+            Logger.debug("VenusCaptcha", "BBSDaily: API retcode=" + retcode + ", response=" + data);
+
+            // 成功：retcode=0 且 message 不含 "err"（接口对部分风控会返回带 err 的 0）
+            if (retcode == 0 && !JsonAccess.message(data, "").contains("err")) return data;
+
+            if (retcode == RETCODE_NEED_CAPTCHA) {
+                // 完成人机验证后进入下一轮重试，重试请求会带上 geetCode
+                handleCaptchaRequired();
+                continue;
+            }
+
+            String message = JsonAccess.message(data, context.getString(R.string.bbs_unknown_error));
+            if (retcode == RETCODE_LOGIN_EXPIRED) {
+                // 登录态失效：重试无意义，直接终止
                 String errorMsg = context.getString(R.string.bbs_cookie_expired);
                 notifier.notifyListeners(errorMsg);
                 notification.sendErrorNotification(context.getString(R.string.bbs_signin_failed), errorMsg);
                 throw new RuntimeException(errorMsg);
-            } else if (!data.get("message").getAsString().contains("err") && data.get("retcode").getAsInt() == 0) {
-                return data;
-            } else {
-                String message = data.has("message") ? data.get("message").getAsString() : context.getString(R.string.bbs_unknown_error);
-                String errorMsg = context.getString(R.string.task_name_bbs_daily) + " " + context.getString(R.string.game_sign_failed, message + " (retcode=" + retcode + ")");
-                notifier.notifyListeners(errorMsg);
-                notification.sendErrorNotification(context.getString(R.string.bbs_signin_failed), errorMsg);
-                if (retryCount < MAX_RETRIES - 1)
-                    notifier.notifyListeners(context.getString(R.string.bbs_signin_retrying, retryCount + 2));
             }
+
+            String errorMsg = context.getString(R.string.task_name_bbs_daily) + " "
+                    + context.getString(R.string.game_sign_failed, message + " (retcode=" + retcode + ")");
+            notifier.notifyListeners(errorMsg);
+            notification.sendErrorNotification(context.getString(R.string.bbs_signin_failed), errorMsg);
+            if (retryCount < MAX_RETRIES - 1)
+                notifier.notifyListeners(context.getString(R.string.bbs_signin_retrying, retryCount + 2));
         }
         throw new RuntimeException(context.getString(R.string.bbs_retry_limit_reached));
+    }
+
+    /**
+     * 处理 retcode=1034（需要人机验证）：提示用户完成极验并阻塞等待结果，
+     * 成功后 geetCode 会被下一轮重试请求自动带上；失败则终止任务。
+     */
+    private void handleCaptchaRequired() {
+        Logger.debug("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
+        notifier.notifyListeners(context.getString(R.string.bbs_captcha_waiting));
+        notification.sendErrorNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
+
+        Map<String, String> headers = getBbsHeaders();
+        Map<String, String> geetCode = captchaHelper.getGeetCode();
+        if (geetCode != null) headers.putAll(geetCode);
+        captchaHelper.performVerificationWithCallback(headers, context.getString(R.string.task_name_bbs_daily));
+        captchaHelper.waitForCompletion();
+        Logger.debug("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + captchaHelper.getGeetCode());
+        if (captchaHelper.getGeetCode() == null)
+            throw new RuntimeException(context.getString(R.string.bbs_captcha_failed));
     }
 
     private boolean signCompleted = false;
@@ -118,9 +141,7 @@ public class BBSDaily {
      */
     public void runTask(String[] name) throws Exception {
         notifier.notifyListeners(context.getString(R.string.bbs_start));
-        // 添加需要签到的板块信息
-        for (String key : name)
-            bbsCheckInList.add(MiHoYoBBSConstants.name_to_forum_id(key));
+        resolveCheckInForums(name);
         // 获取任务完成状态
         JsonObject data = checkTasksList();
         if (data != null) {
@@ -133,6 +154,26 @@ public class BBSDaily {
             notifier.notifyListeners(context.getString(R.string.bbs_all_done_today));
 
         notifier.notifyListeners(context.getString(R.string.bbs_task_done));
+    }
+
+    /**
+     * 把板块名解析为板块信息并去重。
+     * <p>
+     * 原实现直接 {@code bbsCheckInList.add(name_to_forum_id(key))}，名称非法时会写入 null，
+     * 直到 {@code signPosts()} 取 forum.get("id") 才以 NPE 形式暴露，错误点与原因相距很远。
+     * 这里前置校验并抛出可读错误。
+     */
+    private void resolveCheckInForums(String[] names) {
+        bbsCheckInList.clear();
+        if (names == null || names.length == 0)
+            throw new RuntimeException(context.getString(R.string.task_bbs_daily_no_forum));
+        for (String key : names) {
+            Map<String, String> forum = key != null ? MiHoYoBBSConstants.name_to_forum_id(key) : null;
+            if (forum == null)
+                throw new RuntimeException(context.getString(R.string.task_bbs_daily_no_forum) + " (" + key + ")");
+            if (!bbsCheckInList.contains(forum))
+                bbsCheckInList.add(forum);
+        }
     }
 
     /** 构建社区签到请求头：基础 BBS 头 + 当前用户的 Cookie。 */
@@ -152,19 +193,21 @@ public class BBSDaily {
         Map<String, String> bbsHeaders = getBbsHeaders();
         String taskUrl = isOversea ? Constants.Urls.OS_BBS_TASK_URL : Constants.Urls.BBS_TASK_URL;
         String response = tools.sendGetRequest(taskUrl, bbsHeaders, null);
-        JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-        if (res.get("retcode").getAsInt() != 0) {
+        JsonObject data = JsonParser.parseString(response).getAsJsonObject();
+        if (JsonAccess.retcode(data) != 0) {
             String errorMsg = context.getString(R.string.bbs_cookie_expired);
             notification.sendErrorNotification(context.getString(R.string.bbs_task_list_failed), errorMsg);
             throw new RuntimeException(errorMsg);
         }
-        JsonObject data = res.get("data").getAsJsonObject();
-        this.todayEarnableCoins = data.get("can_get_points").getAsInt();
+        JsonObject payload = JsonAccess.object(data, "data");
+        if (payload == null) throw new RuntimeException(context.getString(R.string.bbs_task_list_failed));
+        // can_get_points 缺失时按 0 处理：接口语义为「今日无可获取米游币」，即任务已全部完成
+        this.todayEarnableCoins = JsonAccess.optInt(payload, "can_get_points", 0);
         if (this.todayEarnableCoins == 0) {
             this.signCompleted = true;
             return null;
         }
-        return data;
+        return payload;
     }
 
     /**
@@ -172,11 +215,14 @@ public class BBSDaily {
      * 已领奖则标记 signCompleted=true，并通知今日可获取米游币数量。
      */
     private void getTasksList(JsonObject data) {
-        for (JsonElement stateElement : data.get("states").getAsJsonArray()) {
-            JsonObject state = stateElement.getAsJsonObject();
-            if (state.get("mission_id").getAsInt() == 58) {
-                if (state.get("is_get_award").getAsBoolean())
-                    this.signCompleted = true;
+        JsonArray states = JsonAccess.array(data, "states");
+        if (states != null) {
+            for (JsonElement stateElement : states) {
+                JsonObject state = stateElement != null && stateElement.isJsonObject()
+                        ? stateElement.getAsJsonObject() : null;
+                if (state == null) continue;
+                if (JsonAccess.optInt(state, "mission_id", -1) != MISSION_ID_COMMUNITY_SIGN_IN) continue;
+                if (JsonAccess.optBoolean(state, "is_get_award", false)) this.signCompleted = true;
                 break;
             }
         }
@@ -203,13 +249,13 @@ public class BBSDaily {
                 Map<String, String> header = getBbsHeaders();
                 header.put("DS", headerManager.getDS_signIn(postDataJson));
                 if (captchaHelper.getGeetCode() != null) header.putAll(captchaHelper.getGeetCode());
-                android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: geetCode=" + captchaHelper.getGeetCode());
-                android.util.Log.e("VenusCaptcha", "BBSDaily signPosts: all headers=" + header.keySet());
+                Logger.debug("VenusCaptcha", "BBSDaily signPosts: geetCode=" + captchaHelper.getGeetCode());
                 String response = sendPostRequest(signInUrl, header, postDataMap);
                 return JsonParser.parseString(response).getAsJsonObject();
             });
 
-            notifier.notifyListeners(context.getString(R.string.task_name_bbs_daily) + " " + forum.get("name") + result.get("message").getAsString());
+            notifier.notifyListeners(context.getString(R.string.task_name_bbs_daily) + " "
+                    + forum.get("name") + JsonAccess.message(result, ""));
             tools.randomDelay(DELAY_MIN_MS, DELAY_RANGE_MS);
         }
     }

@@ -231,13 +231,10 @@ public class UserLoginActivity extends BaseActivity {
             return;
         }
 
-        // 如果是重新登录模式，先清除旧的token数据
+        // 如果是重新登录模式，先清除旧的token数据（经仓储清除缓存 + 旧 SP + DataStore 三处，
+        // 只清旧 SP 时读取仍会命中缓存/DataStore，导致重新登录后继续使用旧凭证）
         if (relogin_mode && relogin_username != null) {
-            // 获取SharedPreferences并清除其中的数据
-            android.content.SharedPreferences sharedPreferences = getSharedPreferences("user_" + relogin_username, Context.MODE_PRIVATE);
-            android.content.SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.clear(); // 清空所有token数据
-            editor.apply();
+            new com.muxiao.Venus.common.data.UserRepository(this).clear(relogin_username);
         }
 
         change_component_status(false);
@@ -407,10 +404,16 @@ public class UserLoginActivity extends BaseActivity {
             String qrUrl = isOversea ? Constants.Urls.OS_LOGIN_QR_URL : Constants.Urls.LOGIN_QR_URL;
             String response = tools.sendPostRequest(qrUrl, new HashMap<>(), body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = result.get("retcode").getAsInt();
+            int retcode = retcodeOf(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
-            String qr_url = result.getAsJsonObject("data").get("url").getAsString();
+            // data.url 缺失时不再以 NPE 收场，而是走同一条「获取二维码失败」链路
+            JsonObject qrData = result.has("data") && result.get("data").isJsonObject()
+                    ? result.getAsJsonObject("data") : null;
+            String qr_url = qrData != null && qrData.has("url") && !qrData.get("url").isJsonNull()
+                    ? qrData.get("url").getAsString() : null;
+            if (qr_url == null)
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
             String[] ticketParts = qr_url.split("ticket=");
             if (ticketParts.length < 2)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, "URL does not contain ticket parameter"));
@@ -434,13 +437,16 @@ public class UserLoginActivity extends BaseActivity {
 
     /**
      * 轮询扫码登录态（Init/Scanned/Confirmed），Confirmed 时取出 game_token 并走共用收尾。
+     * 轮询次数受 {@link #MAX_QR_POLL_COUNT} 约束（约 4 分钟），避免二维码过期后线程无限空转。
      */
+    private static final int MAX_QR_POLL_COUNT = 120;
+
     private void check_login() throws Exception {
             int times = 0;
             // 用于跟踪上一个状态，避免重复显示相同状态
             String last_status = "";
             String checkUrl = isOversea ? Constants.Urls.OS_LOGIN_CHECK_URL : Constants.Urls.LOGIN_CHECK_URL;
-            while (true) {
+            while (times < MAX_QR_POLL_COUNT) {
                 times++;
                 Map<String, Object> body = new HashMap<>();
                 body.put("app_id", app_id);
@@ -448,51 +454,48 @@ public class UserLoginActivity extends BaseActivity {
                 body.put("device", device_id);
                 String response = tools.sendPostRequest(checkUrl, null, body);
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-                int retcode = result.get("retcode").getAsInt();
+                int retcode = retcodeOf(result);
                 if (retcode != 0)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                JsonObject data = result.getAsJsonObject("data");
-                String stat = data.get("stat").getAsString();
-                switch (stat) {
-                    case "Init":
-                        // 只有状态变化时才通知
-                        if (!"Init".equals(last_status)) {
-                            status_notifier.notifyListeners(getString(R.string.login_waiting_scan) + times);
-                            last_status = "Init";
-                        }
-                        break;
-                    case "Scanned":
-                        if (!"Scanned".equals(last_status)) {
-                            status_notifier.notifyListeners(getString(R.string.login_waiting_confirm) + times);
-                            last_status = "Scanned";
-                        }
-                        break;
-                    case "Confirmed":
-                        // 检查 payload 和 raw 是否存在且不为 null
-                        if (!data.has("payload") || data.get("payload").isJsonNull())
-                            throw new RuntimeException(getString(R.string.login_payload_missing));
-                        JsonObject payload = data.getAsJsonObject("payload");
-                        if (!payload.has("raw") || payload.get("raw").isJsonNull())
-                            throw new RuntimeException(getString(R.string.login_raw_missing));
-                        String raw_string = payload.get("raw").getAsString();
-                        JsonObject raw = JsonParser.parseString(raw_string).getAsJsonObject();
-                        String game_token = raw.get("token").getAsString();
-                        String uid = raw.get("uid").getAsString();
-                        get_stoken_by_game_token(uid, game_token);
-                        // 登录流程完成，走共用收尾
-                        finish_login_success();
-                        return;
-                    default:
-                        status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
-                        throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
+                JsonObject data = result.has("data") && result.get("data").isJsonObject()
+                        ? result.getAsJsonObject("data") : null;
+                if (data == null)
+                    throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
+                String stat = data.has("stat") && !data.get("stat").isJsonNull() ? data.get("stat").getAsString() : "";
+                // Init（等待扫码）与 Scanned（等待确认）仅提示文案不同，合并处理；状态不变时不重复通知
+                if ("Init".equals(stat) || "Scanned".equals(stat)) {
+                    if (!stat.equals(last_status)) {
+                        status_notifier.notifyListeners(getString(
+                                "Init".equals(stat) ? R.string.login_waiting_scan : R.string.login_waiting_confirm) + times);
+                        last_status = stat;
+                    }
+                } else if ("Confirmed".equals(stat)) {
+                    // 检查 payload 和 raw 是否存在且不为 null
+                    if (!data.has("payload") || !data.get("payload").isJsonObject())
+                        throw new RuntimeException(getString(R.string.login_payload_missing));
+                    JsonObject payload = data.getAsJsonObject("payload");
+                    if (!payload.has("raw") || payload.get("raw").isJsonNull())
+                        throw new RuntimeException(getString(R.string.login_raw_missing));
+                    JsonObject raw = JsonParser.parseString(payload.get("raw").getAsString()).getAsJsonObject();
+                    if (!raw.has("token") || raw.get("token").isJsonNull()
+                            || !raw.has("uid") || raw.get("uid").isJsonNull())
+                        throw new RuntimeException(getString(R.string.login_raw_missing));
+                    get_stoken_by_game_token(raw.get("uid").getAsString(), raw.get("token").getAsString());
+                    // 登录流程完成，走共用收尾
+                    finish_login_success();
+                    return;
+                } else {
+                    status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
+                    throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
                 }
                 TimeUnit.MILLISECONDS.sleep((int) (Math.random() * 500 + 1500));
             }
+            throw new RuntimeException(getString(R.string.login_qr_timeout));
         }
 
-        /**
-         * 通过game_token获取stoken，通过check_login()方法登录成功获取game_token后调用
-         */
+    /**
+     * 通过game_token获取stoken，通过check_login()方法登录成功获取game_token后调用
+     */
         private void get_stoken_by_game_token(String stuid, String game_token) {
             Map<String, Object> body = new HashMap<>();
             body.put("account_id", Long.parseLong(stuid));
@@ -501,11 +504,21 @@ public class UserLoginActivity extends BaseActivity {
             String stokenUrl = isOversea ? Constants.Urls.OS_STOKEN_URL : Constants.Urls.STOKEN_URL;
             String response = tools.sendPostRequest(stokenUrl, game_token_headers, body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            if (result.get("retcode").getAsInt() != 0)
-                throw new RuntimeException(getString(R.string.login_stoken_token_failed, result.get("retcode").getAsInt(), response));
-            JsonObject data = result.getAsJsonObject("data");
-            String mid = data.getAsJsonObject("user_info").get("mid").getAsString();
-            String stoken = data.getAsJsonObject("token").get("token").getAsString();
+            int retcode = retcodeOf(result);
+            if (retcode != 0)
+                throw new RuntimeException(getString(R.string.login_stoken_token_failed, retcode, response));
+            JsonObject data = JsonParser.parseString(response).getAsJsonObject().has("data")
+                    && result.get("data").isJsonObject() ? result.getAsJsonObject("data") : null;
+            JsonObject userInfo = data != null && data.has("user_info") && data.get("user_info").isJsonObject()
+                    ? data.getAsJsonObject("user_info") : null;
+            JsonObject tokenObj = data != null && data.has("token") && data.get("token").isJsonObject()
+                    ? data.getAsJsonObject("token") : null;
+            String mid = userInfo != null && userInfo.has("mid") && !userInfo.get("mid").isJsonNull()
+                    ? userInfo.get("mid").getAsString() : null;
+            String stoken = tokenObj != null && tokenObj.has("token") && !tokenObj.get("token").isJsonNull()
+                    ? tokenObj.get("token").getAsString() : null;
+            if (mid == null || stoken == null)
+                throw new RuntimeException(getString(R.string.login_stoken_token_failed, retcode, response));
             tools.write(context, username, "stoken", stoken);
             tools.write(context, username, "mid", mid);
             tools.write(context, username, "game_token", game_token);
@@ -522,10 +535,26 @@ public class UserLoginActivity extends BaseActivity {
             String ltokenUrl = isOversea ? Constants.Urls.OS_LTOKEN_URL : Constants.Urls.LTOKEN_URL;
             String response = tools.sendGetRequest(ltokenUrl, bbs_headers, null);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            if (result.get("retcode").getAsInt() != 0)
-                throw new RuntimeException(getString(R.string.login_ltoken_failed, result.get("retcode").getAsInt(), response));
-            String ltoken = result.getAsJsonObject("data").get("ltoken").getAsString();
+            int retcode = retcodeOf(result);
+            if (retcode != 0)
+                throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
+            JsonObject ltokenData = result.has("data") && result.get("data").isJsonObject()
+                    ? result.getAsJsonObject("data") : null;
+            if (ltokenData == null || !ltokenData.has("ltoken") || ltokenData.get("ltoken").isJsonNull())
+                throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
+            String ltoken = ltokenData.get("ltoken").getAsString();
             tools.write(context, username, "ltoken", ltoken);
+        }
+    }
+
+    /** 安全读取 retcode：缺失、JsonNull 或类型不符时返回哨兵值（不可能是接口真实返回值）。 */
+    private static int retcodeOf(JsonObject obj) {
+        if (obj == null || !obj.has("retcode") || obj.get("retcode").isJsonNull())
+            return Integer.MIN_VALUE;
+        try {
+            return obj.get("retcode").getAsInt();
+        } catch (RuntimeException e) {
+            return Integer.MIN_VALUE;
         }
     }
 

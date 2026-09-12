@@ -13,6 +13,9 @@ import java.util.Map;
  */
 public class CaptchaVerificationHelper {
 
+    /** 等待人机验证结果的最长时间：与前台服务 WakeLock 的 10 分钟上限对齐。 */
+    private static final long WAIT_TIMEOUT_MS = 10 * 60 * 1000L;
+
     private Map<String, String> geetCode = null;
     private volatile boolean verificationComplete = false;
 
@@ -63,11 +66,31 @@ public class CaptchaVerificationHelper {
     }
 
     /**
-     * 阻塞等待验证完成。
+     * 阻塞等待验证完成，最多等待 {@link #WAIT_TIMEOUT_MS}。
+     *
+     * <p>三条退出路径：
+     * <ul>
+     *   <li>验证回调完成（成功/失败）→ {@code verificationComplete} 置位后唤醒返回；</li>
+     *   <li>超时（用户长时间未完成验证或无 UI 可交互）→ 提示后返回，调用方据
+     *       {@link #getGeetCode()} 为 null 走既有的验证失败分支，避免线程永久挂起；</li>
+     *   <li>线程被中断（任务取消）→ 立即还原中断标志并返回。原实现在中断后仍留在
+     *       {@code while} 循环中，因中断标志已置位会导致 {@code wait()} 立刻抛异常 → 忙等自旋。</li>
+     * </ul>
      */
     public synchronized void waitForCompletion() {
+        long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS;
         while (!verificationComplete) {
-            try { this.wait(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            long remaining = deadline - System.currentTimeMillis();
+            if (remaining <= 0) {
+                notifier.notifyListeners(context.getString(R.string.geetest_wait_timeout));
+                return;
+            }
+            try {
+                this.wait(remaining);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 

@@ -192,29 +192,17 @@ public class UserManagementFragment extends Fragment {
     }
 
     /**
-     * 把用户数据从旧 SharedPreferences 整体迁移到新键名，并同步 UserManager 中的
-     * 当前用户标记与账户列表，最后刷新视图。
+     * 把用户数据整体迁移到新用户名，并同步 UserManager 中的当前用户标记与账户列表，最后刷新视图。
+     * <p>
+     * 数据迁移统一交给 {@link com.muxiao.Venus.common.data.UserRepository#migrate(String, String)}：
+     * 原实现只复制旧 SP 文件，遗漏了 DataStore 与内存缓存，重命名后读取到的令牌可能为空
+     * （读取命中缓存/DataStore，而两者仍是旧用户名下的键）。
      *
      * @param oldUsername 旧用户名
      * @param newUsername 新用户名
      */
     private void renameUser(String oldUsername, String newUsername) {
-        // 迁移用户数据（SharedPreferences）
-        android.content.SharedPreferences oldPrefs = requireContext()
-                .getSharedPreferences("user_" + oldUsername, Context.MODE_PRIVATE);
-        java.util.Map<String, ?> allData = oldPrefs.getAll();
-        android.content.SharedPreferences.Editor newEditor = requireContext()
-                .getSharedPreferences("user_" + newUsername, Context.MODE_PRIVATE).edit();
-        for (java.util.Map.Entry<String, ?> entry : allData.entrySet()) {
-            Object v = entry.getValue();
-            if (v instanceof String) newEditor.putString(entry.getKey(), (String) v);
-            else if (v instanceof Boolean) newEditor.putBoolean(entry.getKey(), (Boolean) v);
-            else if (v instanceof Integer) newEditor.putInt(entry.getKey(), (Integer) v);
-            else if (v instanceof Long) newEditor.putLong(entry.getKey(), (Long) v);
-            else if (v instanceof Float) newEditor.putFloat(entry.getKey(), (Float) v);
-        }
-        newEditor.apply();
-        oldPrefs.edit().clear().apply();
+        new com.muxiao.Venus.common.data.UserRepository(requireContext()).migrate(oldUsername, newUsername);
 
         // 添加新用户并删除旧用户
         userManager.addUser(newUsername);

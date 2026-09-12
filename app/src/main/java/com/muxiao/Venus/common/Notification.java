@@ -34,11 +34,16 @@ public class Notification {
 
     /**
      * 按需创建三个通知渠道（任务/错误/进度），仅 Android O+ 生效，进程内只创建一次。
+     * 采用双重检查 + 类锁：创建动作可能来自后台任务线程与主线程，需避免并发重复创建。
+     * 注意只在创建成功后才置位，创建失败时保留重试机会。
      */
     private void ensureChannels() {
         if (channelsCreated) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        synchronized (Notification.class) {
+            if (channelsCreated) return;
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
 
             NotificationChannel workChannel = new NotificationChannel(CHANNEL_WORK, context.getString(R.string.notification_channel_task), NotificationManager.IMPORTANCE_LOW);
             workChannel.setDescription(context.getString(R.string.notification_channel_task_desc));
@@ -56,6 +61,11 @@ public class Notification {
             nm.createNotificationChannel(progressChannel);
             channelsCreated = true;
         }
+    }
+
+    /** 取通知服务；极端情况下（服务不可用）返回 null，由调用方跳过而非抛 NPE。 */
+    private NotificationManager notificationManager() {
+        return (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
     /**
@@ -139,8 +149,8 @@ public class Notification {
         builder.setContentTitle(title)
                 .setContentText(content)
                 .setProgress(max, progress, false);
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.notify(Constants.NOTIFICATION_ID_PROGRESS, builder.build());
+        NotificationManager nm = notificationManager();
+        if (nm != null) nm.notify(Constants.NOTIFICATION_ID_PROGRESS, builder.build());
     }
 
     /**

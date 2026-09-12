@@ -47,6 +47,8 @@ public class ForegroundTaskService extends Service {
     private com.muxiao.Venus.common.Notification notificationHelper;
     private tools.StatusNotifier notifier;
     private PowerManager.WakeLock wakeLock;
+    /** 任务状态写入器：构造含跨日校验，运行期间复用单一实例，避免每条状态重建。 */
+    private TaskStatusManager statusManager;
 
     private static volatile ForegroundTaskService instance;
     /** 后台任务已变更任务状态但尚未被 UI 消费的脏标记（onResume 据此决定是否重建列表）。 */
@@ -95,6 +97,7 @@ public class ForegroundTaskService extends Service {
         broadcastState(true);
         notifier = new tools.StatusNotifier();
         notificationHelper = new com.muxiao.Venus.common.Notification(this);
+        statusManager = new TaskStatusManager(this);
         tools.cleanOldLogs(this);
 
         // 添加日志写入监听器
@@ -146,7 +149,7 @@ public class ForegroundTaskService extends Service {
         wakeLock.acquire(10 * 60 * 1000L);
 
         // 记录当前用户供 Widget 显示
-        new TaskStatusManager(this).setCurrentUser(userId != null ? userId : "");
+        statusManager.setCurrentUser(userId != null ? userId : "");
 
         try {
         currentTaskFuture = AppExecutors.get().io().submit(() -> {
@@ -191,44 +194,30 @@ public class ForegroundTaskService extends Service {
 
                 taskExecutor.executeAll(settings);
             } finally {
-                broadcastState(false);
-                releaseWakeLock();
-                dismissForegroundNotification();
-                instance = null;
-                stopSelf();
+                finishTask();
             }
         });
         } catch (Exception e) {
-            broadcastState(false);
-            releaseWakeLock();
-            dismissForegroundNotification();
-            instance = null;
-            stopSelf();
+            // 仅提交阶段可能同步抛错（如线程池拒绝）；任务体内的异常由 Callback 上报
+            finishTask();
         }
+    }
+
+    /**
+     * 任务收尾：广播停止、释放 WakeLock、撤销前台通知、注销实例并停止自身。
+     * 正常结束、提交失败、取消三条路径共用，避免同一套收尾动作在多处重复。
+     */
+    private void finishTask() {
+        broadcastState(false);
+        releaseWakeLock();
+        dismissForegroundNotification();
+        instance = null;
+        stopSelf();
     }
 
     /** 将任务状态持久化到 TaskStatusManager 并刷新小组件。 */
     private void saveTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        TaskStatusManager manager = new TaskStatusManager(this);
-        switch (status) {
-            case COMPLETED:
-                manager.markCompleted(taskName);
-                break;
-            case ERROR:
-                manager.markError(taskName);
-                break;
-            case IN_PROGRESS:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_IN_PROGRESS);
-                break;
-            case WARNING:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_WARNING);
-                break;
-            case CANCELLED:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_CANCELLED);
-                break;
-            default:
-                break;
-        }
+        statusManager.applyStatus(taskName, status);
         // 通知 Widget 刷新
         TaskWidgetProvider.refreshAllWidgets(this);
         // 标记本机 UI 脏位并向应用内广播单条任务状态，供 HomeFragment 实时/恢复刷新列表图标

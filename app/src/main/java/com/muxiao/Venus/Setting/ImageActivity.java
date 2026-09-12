@@ -553,17 +553,23 @@ public class ImageActivity extends BaseActivity {
             exitSelectionMode();
             return;
         }
-        // 准备下一张图片
-        if (currentImageIndexInPost >= currentPostImages.size()) {
-            if (currentPostIndex >= itemsToDownload.size()) return;
-
-            int position = itemsToDownload.get(currentPostIndex);
-            Map<String, Object> currentPostData = imageDataList.get(position);
+        // 定位下一个「确有图片」的帖子。itemsToDownload 中可能存在 images 缺失的条目：
+        // totalDownloads 累加时已跳过它们，但索引仍留在队列里，原实现会把 null 赋给
+        // currentPostImages，并在下一行 Objects.requireNonNull 处抛 NPE。
+        while (currentImageIndexInPost >= currentPostImages.size()) {
+            if (currentPostIndex >= itemsToDownload.size()) {
+                // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
+                showCustomSnackbar(rootView, this, getString(R.string.snack_download_complete));
+                exitSelectionMode();
+                return;
+            }
+            int position = itemsToDownload.get(currentPostIndex++);
+            Object rawImages = (imageDataList != null && position >= 0 && position < imageDataList.size())
+                    ? imageDataList.get(position).get("images") : null;
             @SuppressWarnings("unchecked")
-            List<String> t = (List<String>) currentPostData.get("images");
-            currentPostImages = t;
+            List<String> images = rawImages instanceof List ? (List<String>) rawImages : null;
+            currentPostImages = images != null ? images : new ArrayList<>();
             currentImageIndexInPost = 0;
-            currentPostIndex++;
         }
 
         String imageUrl = Objects.requireNonNull(currentPostImages).get(currentImageIndexInPost);

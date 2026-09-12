@@ -149,7 +149,8 @@ public class OAuthLoginActivity extends BaseActivity {
         runOnUiThread(() -> oauth_webview_card.setVisibility(View.GONE));
 
         if (relogin_mode && relogin_username != null) {
-            getSharedPreferences("user_" + relogin_username, MODE_PRIVATE).edit().clear().apply();
+            // 经仓储清除缓存 + 旧 SP + DataStore 三处，避免只清旧 SP 时读取仍命中旧凭证
+            new com.muxiao.Venus.common.data.UserRepository(this).clear(relogin_username);
             saveCookieUser(relogin_username, cookieString);
             runOnUiThread(() -> {
                 user_manager.setCurrentUser(relogin_username);

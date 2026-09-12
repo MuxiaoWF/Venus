@@ -85,6 +85,7 @@ import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -96,7 +97,6 @@ import com.yalantis.ucrop.UCrop;
 import java.io.File;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.concurrent.Executors;
 
 /**
  * 设置页Fragment：签到任务开关、森空岛content配置、背景图片/主题/语言切换、
@@ -980,17 +980,22 @@ public class SettingsFragment extends Fragment {
      * 后台从网络拉取最新 salt/版本等配置，成功则刷新显示并提示，失败提示错误。
      */
     private void updateConfig(View view) {
-        new Thread(() -> {
-            boolean success = MiHoYoBBSConstants.update_config_from_web(requireContext());
-            requireActivity().runOnUiThread(() -> {
+        // ApplicationContext 与 Activity 均在 UI 线程取出：后台线程调用 requireContext()/requireActivity()
+        // 在 Fragment detach 后会抛 IllegalStateException。
+        final Context appContext = requireContext().getApplicationContext();
+        final android.app.Activity activity = getActivity();
+        AppExecutors.get().io().execute(() -> {
+            boolean success = MiHoYoBBSConstants.update_config_from_web(appContext);
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
                 if (success) {
                     displayCurrentConfigValues();
-                    showCustomSnackbar(view, requireContext(), getString(R.string.snack_config_updated));
+                    showCustomSnackbar(view, activity, activity.getString(R.string.snack_config_updated));
                 } else {
-                    showCustomSnackbar(view, requireContext(), getString(R.string.snack_config_update_failed));
+                    showCustomSnackbar(view, activity, activity.getString(R.string.snack_config_update_failed));
                 }
             });
-        }).start();
+        });
     }
 
     /**
@@ -999,31 +1004,32 @@ public class SettingsFragment extends Fragment {
      * @param cacheSizeText 显示缓存大小的TextView
      */
     private void calculateCacheSize(MaterialTextView cacheSizeText) {
-        try (java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor()) {
-            executor.execute(() -> {
-                try {
-                    long totalSize = 0;
-                    File internalCache = requireContext().getCacheDir();
-                    totalSize += getDirSizeSafe(internalCache);
-
-                    File externalCache = requireContext().getExternalCacheDir();
-                    if (externalCache != null)
-                        totalSize += getDirSizeSafe(externalCache);
-                    String sizeText = formatFileSize(totalSize);
-                    android.app.Activity activity = getActivity();
-                    if (activity != null)
-                        activity.runOnUiThread(() -> {
-                            cacheSizeText.setText(getString(R.string.current_cache_size_fmt, sizeText));
-                            // 折叠行右侧值摘要同步（设计稿：缓存 128 MB）
-                            if (cacheCard != null) cacheCard.setValue(sizeText);
-                        });
-                } catch (Exception e) {
-                    android.app.Activity activity = getActivity();
-                    if (activity != null)
-                        activity.runOnUiThread(() -> cacheSizeText.setText(getString(R.string.current_cache_size_error)));
-                }
-            });
-        }
+        // 注意：不能写成 try (ExecutorService e = ...) —— try-with-resources 会在 try 出口调用
+        // close()，而 ExecutorService.close() 语义是 shutdown + awaitTermination，
+        // 等于在主线程同步等待整个目录遍历结束（大缓存时直接 ANR）。
+        // 这里改用进程级共享 IO 线程池，并预先在 UI 线程取出 ApplicationContext / Activity 引用：
+        // 后台线程内调用 requireContext() 在 Fragment detach 后会抛 IllegalStateException。
+        final Context appContext = requireContext().getApplicationContext();
+        final android.app.Activity activity = getActivity();
+        AppExecutors.get().io().execute(() -> {
+            try {
+                long totalSize = getDirSizeSafe(appContext.getCacheDir());
+                File externalCache = appContext.getExternalCacheDir();
+                if (externalCache != null)
+                    totalSize += getDirSizeSafe(externalCache);
+                String sizeText = formatFileSize(totalSize);
+                if (activity != null)
+                    activity.runOnUiThread(() -> {
+                        cacheSizeText.setText(activity.getString(R.string.current_cache_size_fmt, sizeText));
+                        // 折叠行右侧值摘要同步（设计稿：缓存 128 MB）
+                        if (cacheCard != null) cacheCard.setValue(sizeText);
+                    });
+            } catch (Exception e) {
+                if (activity != null)
+                    activity.runOnUiThread(() ->
+                            cacheSizeText.setText(activity.getString(R.string.current_cache_size_error)));
+            }
+        });
     }
 
     /**
@@ -1032,31 +1038,32 @@ public class SettingsFragment extends Fragment {
      * @param cacheSizeText 显示缓存大小的TextView
      */
     private void clearCache(MaterialTextView cacheSizeText) {
-        try (java.util.concurrent.ExecutorService executor = Executors.newSingleThreadExecutor()) {
-            executor.execute(() -> {
-                boolean success = true;
-                try {
-                    success &= deleteDirSafe(requireContext().getCacheDir());
-                    File externalCache = requireContext().getExternalCacheDir();
-                    if (externalCache != null)
-                        success &= deleteDirSafe(externalCache);
-                } catch (Exception e) {
-                    success = false;
+        // 同 calculateCacheSize：不可用 try-with-resources（close() 会在主线程同步等待任务结束）。
+        final Context appContext = requireContext().getApplicationContext();
+        final android.app.Activity activity = getActivity();
+        AppExecutors.get().io().execute(() -> {
+            boolean success = true;
+            try {
+                success &= deleteDirSafe(appContext.getCacheDir());
+                File externalCache = appContext.getExternalCacheDir();
+                if (externalCache != null)
+                    success &= deleteDirSafe(externalCache);
+            } catch (Exception e) {
+                success = false;
+            }
+            boolean finalSuccess = success;
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                View snackbarAnchor = activity.findViewById(android.R.id.content);
+                if (finalSuccess) {
+                    cacheSizeText.setText(activity.getString(R.string.current_cache_size_zero));
+                    if (cacheCard != null) cacheCard.setValue("0 B");
+                    showCustomSnackbar(snackbarAnchor, activity, activity.getString(R.string.snack_cache_cleared));
+                } else {
+                    showCustomSnackbar(snackbarAnchor, activity, activity.getString(R.string.snack_cache_clear_partial_failed));
                 }
-                boolean finalSuccess = success;
-                android.app.Activity activity = getActivity();
-                if (activity != null)
-                    activity.runOnUiThread(() -> {
-                        if (finalSuccess) {
-                            cacheSizeText.setText(getString(R.string.current_cache_size_zero));
-                            if (cacheCard != null) cacheCard.setValue("0 B");
-                            showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_cleared));
-                        } else {
-                            showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_clear_partial_failed));
-                        }
-                    });
             });
-        }
+        });
     }
 
     /**

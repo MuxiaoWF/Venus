@@ -32,11 +32,20 @@ public class HeaderManager {
     private static volatile String cachedDeviceId;
     private static volatile String cachedExtFields;
 
+    /**
+     * device_fp 按服务器域（国服/国际服）做进程级缓存。
+     * device_fp 是设备级持久指纹：同设备同域取值不变。原实现按实例缓存，而每个签到模块
+     * 都各自 new HeaderManager，N 个游戏会重复请求 N 次 fp 接口；提升到进程级后每个进程
+     * 每个域只请求一次（失败不缓存，下次调用仍会重试，与原语义一致）。
+     * 仅缓存请求结果，不改变请求参数、签名流程与调用顺序。
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<Boolean, String> CACHED_FP_BY_SERVER =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private final MiHoYoBBSConstants BBSconstants;
     private String device_id;
     private final String user_agent;
     private final boolean isOversea;
-    private String cachedFp;
 
     // Pre-resolved isOversea-dependent values
     private final String currentAppId;
@@ -447,30 +456,44 @@ public class HeaderManager {
      * 懒加载并缓存 device_fp：向 fp 接口上报设备信息，成功则缓存结果，失败返回空串。
      */
     private String getFp() {
-        if (cachedFp != null) return cachedFp;
+        String cached = CACHED_FP_BY_SERVER.get(isOversea);
+        if (cached != null) return cached;
         long min = 281474976710657L;
         long max = 4503599627370494L;
         long randomLong = min + (long) ((max - min + 1) * RANDOM.nextDouble());
         String appName = isOversea ? "bbs_os" : "bbs_cn";
         String fpUrl = isOversea ? Constants.Urls.OS_FP_URL : Constants.Urls.FP_URL;
+        String deviceId = getDeviceId();
 
         Map<String, Object> body = new HashMap<>();
         body.put("seed_id", Long.toString(randomLong, 16));
         body.put("platform", "2");
-        body.put("device_fp", getDeviceId().replace("-", "").substring(8, 21));
-        body.put("device_id", getDeviceId());
-        body.put("bbs_device_id", getDeviceId());
+        body.put("device_fp", seedFromDeviceId(deviceId));
+        body.put("device_id", deviceId);
+        body.put("bbs_device_id", deviceId);
         body.put("ext_fields", cachedExtFields != null ? cachedExtFields : "");
         body.put("app_name", appName);
         body.put("seed_time", String.valueOf(System.currentTimeMillis()));
         String response = sendPostRequest(fpUrl, get_fp_headers(), body);
         JsonObject jsonObject = GSON.fromJson(response, JsonObject.class);
-        int retCode = jsonObject.get("retcode").getAsInt();
-        if (retCode == 0) {
-            JsonObject data = jsonObject.getAsJsonObject("data");
-            cachedFp = data.get("device_fp").getAsString();
-            return cachedFp;
-        }
-        return "";
+        if (jsonObject == null || !jsonObject.has("retcode") || jsonObject.get("retcode").isJsonNull()) return "";
+        if (jsonObject.get("retcode").getAsInt() != 0) return "";
+        JsonObject data = jsonObject.getAsJsonObject("data");
+        if (data == null || !data.has("device_fp") || data.get("device_fp").isJsonNull()) return "";
+        String fp = data.get("device_fp").getAsString();
+        CACHED_FP_BY_SERVER.put(isOversea, fp);
+        return fp;
+    }
+
+    /**
+     * 取设备 ID 去掉连字符后的 [8,21) 片段作为 seed 前缀。
+     * 原实现直接 substring(8,21)，设备 ID 缺失（缓存未热 / 获取失败）时会抛 StringIndexOutOfBoundsException，
+     * 使整个 device_fp 请求失败；此处改为「长度不足则退化为原串」。
+     */
+    private static String seedFromDeviceId(String deviceId) {
+        if (deviceId == null) return "";
+        String compact = deviceId.replace("-", "");
+        if (compact.length() <= 8) return compact;
+        return compact.substring(8, Math.min(21, compact.length()));
     }
 }

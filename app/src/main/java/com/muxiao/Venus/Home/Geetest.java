@@ -12,6 +12,7 @@ import com.geetest.sdk.GT3Listener;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.Logger;
 
@@ -45,13 +46,21 @@ public class Geetest {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_network));
             return;
         }
-        JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        if (data.get("retcode").getAsInt() != 0) {
+        JsonObject data;
+        try {
+            data = JsonParser.parseString(response).getAsJsonObject();
+        } catch (RuntimeException e) {
+            // 非 JSON 响应（网关错误页、风控拦截页等）不再让 JsonSyntaxException 冒泡到任务线程
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_api) + response);
             return;
         }
-        String gt = data.getAsJsonObject("data").get("gt").getAsString();
-        String challenge = data.getAsJsonObject("data").get("challenge").getAsString();
+        JsonObject payload = JsonAccess.object(data, "data");
+        String gt = JsonAccess.optString(payload, "gt", null);
+        String challenge = JsonAccess.optString(payload, "challenge", null);
+        if (JsonAccess.retcode(data) != 0 || gt == null || challenge == null) {
+            callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_api) + response);
+            return;
+        }
         // 保存后台任务的 challenge 和 headers，供前台使用同一 challenge 验证
         if (gt3Controller instanceof BackgroundGeetestController) {
             BackgroundGeetestController.savePendingChallenge(gt, challenge);
@@ -107,15 +116,25 @@ public class Geetest {
 
             @Override
             public void onDialogResult(String result) {
-                JsonObject resultObj = GSON.fromJson(result, JsonObject.class);
-                String geetestChallenge = resultObj.get("geetest_challenge").getAsString();
-                String geetestValidate = resultObj.get("geetest_validate").getAsString();
-                String geetestSeccode = resultObj.get("geetest_seccode").getAsString();
+                JsonObject resultObj;
+                try {
+                    resultObj = GSON.fromJson(result, JsonObject.class);
+                } catch (RuntimeException e) {
+                    resultObj = null;
+                }
+                // SDK 回调运行在极验内部线程，此处任何 NPE 都会直接崩溃进程，故全部走安全读取
+                String geetestChallenge = JsonAccess.optString(resultObj, "geetest_challenge", "");
+                String geetestValidate = JsonAccess.optString(resultObj, "geetest_validate", "");
+                String geetestSeccode = JsonAccess.optString(resultObj, "geetest_seccode", "");
+                if (geetestChallenge.isEmpty() || geetestValidate.isEmpty() || geetestSeccode.isEmpty()) {
+                    callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, String.valueOf(result)));
+                    return;
+                }
                 Map<String, Object> body = new HashMap<>();
                 body.put("geetest_challenge", geetestChallenge);
                 body.put("geetest_seccode", geetestSeccode);
                 body.put("geetest_validate", geetestValidate);
-                new Thread(() -> {
+                AppExecutors.get().io().execute(() -> {
                     try {
                         String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, headers, body);
                         if (checkResponse == null) {
@@ -123,10 +142,11 @@ public class Geetest {
                             return;
                         }
                         JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
-                        JsonObject dataObj = check.getAsJsonObject("data");
-                        if (check.get("retcode").getAsInt() == 0 && dataObj.has("challenge") && !dataObj.get("challenge").isJsonNull()) {
+                        JsonObject dataObj = JsonAccess.object(check, "data");
+                        String challengeValue = JsonAccess.optString(dataObj, "challenge", null);
+                        if (JsonAccess.retcode(check) == 0 && challengeValue != null) {
                             Map<String, String> geetCode = new HashMap<>();
-                            geetCode.put("x-rpc-challenge", dataObj.get("challenge").getAsString());
+                            geetCode.put("x-rpc-challenge", challengeValue);
                             geetCode.put("x-rpc-validate", geetestValidate);
                             geetCode.put("x-rpc-seccode", geetestValidate + "|jordan");
                             verificationSucceeded[0] = true;
@@ -138,7 +158,7 @@ public class Geetest {
                     } catch (Exception e) {
                         callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, e.getMessage()));
                     }
-                }).start();
+                });
             }
 
             @Override
@@ -172,7 +192,7 @@ public class Geetest {
             if (result != null) {
                 callback.onVerificationSuccess(result);
             } else {
-                callback.onVerificationFailed("Verification failed or timed out");
+                callback.onVerificationFailed(context.getString(R.string.geetest_wait_timeout));
             }
         }
     }

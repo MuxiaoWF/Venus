@@ -86,6 +86,13 @@ public class FullscreenImageActivity extends BaseActivity {
         }.getType());
         int initialPosition = getIntent().getIntExtra("position", 0);
 
+        // Intent 数据缺失 / JSON 解析失败时不再以 Object.requireNonNull 抛 NPE（表现为「点开大图闪退」），
+        // 而是直接关闭本页并把结果交回来源页。
+        if (imageDataList == null || imageDataList.isEmpty()) {
+            finish();
+            return;
+        }
+
         viewPager = findViewById(R.id.viewPager);
 
         // 首图 ImageView 的 transitionName 由 ImagePagerAdapter 按 "image_<position>"

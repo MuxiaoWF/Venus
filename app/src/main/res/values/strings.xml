@@ -373,6 +373,7 @@
     <string name="login_relogin_button">重新登录%s</string>
     <string name="login_start_task">开始执行登录任务…\n开始获取二维码…</string>
     <string name="login_qr_generated">二维码已生成，等待扫描…\n请自行截图并使用米游社APP-我-左上角扫描二维码…\n</string>
+    <string name="login_qr_timeout">等待扫码超时，请重新获取二维码</string>
     <string name="login_failed">登录失败</string>
     <string name="login_waiting_scan">等待扫码</string>
     <string name="login_waiting_confirm">等待确认</string>
@@ -432,6 +433,7 @@
     <string name="game_rate_limited">请求过于频繁(429)，即将重试</string>
     <string name="game_captcha_needed">需要进行人机验证</string>
     <string name="game_no_accounts">没有绑定任何账号</string>
+    <string name="game_unsupported">%s 暂不支持签到（当前服务器缺少该游戏映射）</string>
     <string name="game_first_bind">是第一次绑定，请先手动签到一次</string>
 
     <!-- SklandDaily -->
@@ -469,6 +471,7 @@
     <string name="geetest_second_verify_failed">二次验证失败: %s</string>
     <string name="geetest_captcha_closed">验证码已关闭</string>
     <string name="geetest_captcha_error">验证码错误：%s</string>
+    <string name="geetest_wait_timeout">等待人机验证超时，已放弃本次验证</string>
 
     <!-- BBSGameDaily 补充 -->
     <string name="game_cookie_token_refreshed">签到 CookieToken刷新成功</string>

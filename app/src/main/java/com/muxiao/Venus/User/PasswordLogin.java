@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Base64;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
@@ -93,7 +94,9 @@ public final class PasswordLogin {
         tools.HttpResponse response = tools.postJson(Constants.Urls.PASSWORD_LOGIN_URL, headers, body);
 
         JsonObject result = JsonParser.parseString(response.body).getAsJsonObject();
-        int retcode = result.get("retcode").getAsInt();
+        JsonElement retcodeElement = result.get("retcode");
+        // retcode 缺失/JsonNull 时原实现直接 getAsInt() 抛 NPE，此处统一按登录失败处理
+        int retcode = (retcodeElement != null && !retcodeElement.isJsonNull()) ? retcodeElement.getAsInt() : -1;
         String message = result.has("message") && !result.get("message").isJsonNull()
                 ? result.get("message").getAsString() : "";
 
@@ -108,6 +111,8 @@ public final class PasswordLogin {
         }
 
         JsonObject data = result.getAsJsonObject("data");
+        if (data == null)
+            throw new RuntimeException(context.getString(R.string.login_password_no_token, response.body));
         Result parsed = new Result();
         // data.token.token 即 stoken
         JsonObject token = data.getAsJsonObject("token");

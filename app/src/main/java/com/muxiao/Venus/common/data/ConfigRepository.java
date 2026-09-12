@@ -11,6 +11,7 @@ import androidx.datastore.preferences.rxjava3.RxPreferenceDataStoreBuilder;
 import androidx.datastore.rxjava3.RxDataStore;
 
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,15 +53,32 @@ public class ConfigRepository {
             synchronized (initLock) {
                 if (store == null) {
                     store = new RxPreferenceDataStoreBuilder(this.context, Constants.Prefs.CONFIG_PREFS_NAME).build();
-                    // DataStore 数据变化（含后续写入）同步回写缓存
-                    store.data().subscribe(prefs -> {
-                        for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
+                    // DataStore 数据变化（含后续写入）同步回写缓存。
+                    // 必须显式消费 onError：RxJava 对未处理错误会抛 OnErrorNotImplementedException，
+                    // 在 DataStore 读取失败（文件损坏/IO 异常）时直接把异常抛到订阅线程。
+                    // 此处降级为「保留既有缓存 + 旧 SP 兜底」，配置读取不因持久层故障而中断。
+                    store.data().subscribe(
+                            prefs -> {
+                                for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
+                                    Object v = e.getValue();
+                                    if (v instanceof String || v instanceof Boolean) {
+                                        cache.put(e.getKey().getName(), v);
+                                    }
+                                }
+                            },
+                            error -> Logger.debug("VenusConfig", "DataStore observe failed: " + error));
+                    // 同步预灌一次，保证首次冷启动 get() 立即可用（订阅为异步，首帧可能来不及）
+                    try {
+                        Map<Preferences.Key<?>, Object> initial = store.data().firstOrError().blockingGet().asMap();
+                        for (Map.Entry<Preferences.Key<?>, Object> e : initial.entrySet()) {
                             Object v = e.getValue();
                             if (v instanceof String || v instanceof Boolean) {
                                 cache.put(e.getKey().getName(), v);
                             }
                         }
-                    });
+                    } catch (Exception ignore) {
+                        // 读取失败时保持空缓存，后续由 seedCacheFromLegacy 与订阅补全
+                    }
                     seedCacheFromLegacy(this.context);
                 }
             }

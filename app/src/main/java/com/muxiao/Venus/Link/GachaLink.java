@@ -72,26 +72,27 @@ public class GachaLink {
         user_game_roles_stoken_headers.put("Cookie", stoken_and_mid);
         String gameRolesUrl = isOversea ? Constants.Urls.OS_GAME_ROLES_URL : Constants.Urls.GAME_ROLES_URL;
         String content = tools.sendGetRequest(gameRolesUrl, user_game_roles_stoken_headers, null);
-        JsonElement dataElement = JsonParser.parseString(content).getAsJsonObject().get("data");
-        if (dataElement != null && !dataElement.isJsonNull() && dataElement.isJsonObject()) {
-            JsonElement listElement = dataElement.getAsJsonObject().get("list");
-            if (listElement != null && !listElement.isJsonNull() && listElement.isJsonArray()) {
-                ArrayList<Integer> uids = new ArrayList<>();
-                JsonArray list = listElement.getAsJsonArray();
-                for (JsonElement element : list) {
-                    if (element.isJsonObject()) {
-                        JsonObject object = element.getAsJsonObject();
-                        if (object.get("game_biz").getAsString().equals(game_biz))
-                            uids.add(object.get("game_uid").getAsInt());
-                    }
-                }
-                int[] result = new int[uids.size()];
-                for (int i = 0; i < uids.size(); i++)
-                    result[i] = uids.get(i);
-                return result;
-            }
+        JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+        JsonObject data = root.has("data") && root.get("data").isJsonObject() ? root.getAsJsonObject("data") : null;
+        JsonArray list = data != null && data.has("list") && data.get("list").isJsonArray()
+                ? data.getAsJsonArray("list") : null;
+        if (list == null)
+            throw new RuntimeException(context.getString(R.string.gacha_get_roles_failed));
+        ArrayList<Integer> uids = new ArrayList<>();
+        for (JsonElement element : list) {
+            if (element == null || !element.isJsonObject()) continue;
+            JsonObject object = element.getAsJsonObject();
+            String biz = object.has("game_biz") && !object.get("game_biz").isJsonNull()
+                    ? object.get("game_biz").getAsString() : null;
+            if (!game_biz.equals(biz)) continue;
+            JsonElement uidElement = object.get("game_uid");
+            if (uidElement == null || uidElement.isJsonNull()) continue;
+            uids.add(uidElement.getAsInt());
         }
-        throw new RuntimeException(context.getString(R.string.gacha_get_roles_failed));
+        int[] result = new int[uids.size()];
+        for (int i = 0; i < uids.size(); i++)
+            result[i] = uids.get(i);
+        return result;
     }
 
     /**
@@ -126,8 +127,11 @@ public class GachaLink {
         JsonElement dataElement = jsonResponse.get("data");
         if (dataElement != null && !dataElement.isJsonNull() && dataElement.isJsonObject()) {
             JsonObject data = dataElement.getAsJsonObject();
-            String authkey = data.get("authkey").getAsString().replace("/", "%2F");
-            return authkey.replace("+", "%2B");
+            // authkey 缺失时给出可读错误，而不是在 getAsString() 处抛 NPE
+            JsonElement authkeyElement = data.get("authkey");
+            if (authkeyElement == null || authkeyElement.isJsonNull())
+                throw new RuntimeException(context.getString(R.string.link_authkey_error));
+            return authkeyElement.getAsString().replace("/", "%2F").replace("+", "%2B");
         } else {
             JsonElement messageElement = jsonResponse.get("message");
             String message = messageElement != null && !messageElement.isJsonNull() ? messageElement.getAsString() : context.getString(R.string.link_authkey_error);

@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.PreferencesKeys;
 import androidx.datastore.preferences.rxjava3.RxPreferenceDataStoreBuilder;
 import androidx.datastore.rxjava3.RxDataStore;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -150,5 +151,66 @@ public class UserRepository {
     public boolean contains(String userId, String key) {
         storeFor(userId);
         return cache.containsKey(composite(userId, key));
+    }
+
+    /**
+     * 清空某用户的全部数据（内存缓存 + 旧 SP + DataStore），三处必须同步清，
+     * 否则 {@link #getString} 会继续命中缓存返回旧值。
+     * <p>
+     * 用于「重新登录」：原实现只清旧 SP，而读取优先命中缓存，导致重新登录后
+     * 仍可能拿到上一次的 stoken/mid/ltoken。
+     * <p>
+     * 注意先调用 {@link #storeFor} 完成预热/初始化，再清缓存——否则后续首次预热
+     * 会把旧值从 DataStore/旧 SP 重新灌回缓存。
+     */
+    public void clear(String userId) {
+        if (userId == null || userId.isEmpty()) return;
+        storeFor(userId); // 先完成预热，避免清空后又被 seed 回来
+
+        String prefix = userId + ":";
+        for (String cacheKey : cache.keySet()) {
+            if (cacheKey.startsWith(prefix)) cache.remove(cacheKey);
+        }
+        context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE).edit().clear().apply();
+        // DataStore 文件本身按用户隔离（user_{userId}），整体清空即等价于清空该用户
+        storeFor(userId).updateDataAsync(prefs -> {
+            MutablePreferences m = prefs.toMutablePreferences();
+            m.clear();
+            return Single.just(m);
+        }).subscribe();
+    }
+
+    /**
+     * 把 oldUserId 的全部数据整体迁移到 newUserId（用于用户重命名），
+     * 迁移完成后清空 oldUserId。
+     * <p>
+     * 原实现只复制旧 SP 文件，遗漏了 DataStore 与内存缓存，且 newUserId 若此前已被
+     * {@code seeded} 标记过便不会再从旧 SP 回灌，导致重命名后读取到的令牌为空。
+     * 统一走仓储写入路径后，缓存/旧 SP/DataStore 三者保持一致。
+     */
+    public void migrate(String oldUserId, String newUserId) {
+        if (oldUserId == null || newUserId == null
+                || oldUserId.isEmpty() || newUserId.isEmpty()
+                || oldUserId.equals(newUserId)) return;
+        storeFor(oldUserId);
+        storeFor(newUserId);
+
+        // 以内存缓存为主，旧 SP 仅补全缓存缺失的键（缓存可能尚未覆盖历史键）
+        Map<String, String> moved = new HashMap<>();
+        String oldPrefix = oldUserId + ":";
+        for (Map.Entry<String, String> e : cache.entrySet()) {
+            if (e.getKey().startsWith(oldPrefix))
+                moved.put(e.getKey().substring(oldPrefix.length()), e.getValue());
+        }
+        for (Map.Entry<String, ?> e : context.getSharedPreferences("user_" + oldUserId, Context.MODE_PRIVATE)
+                .getAll().entrySet()) {
+            if (e.getValue() instanceof String)
+                moved.putIfAbsent(e.getKey(), (String) e.getValue());
+        }
+
+        clear(oldUserId);
+        for (Map.Entry<String, String> e : moved.entrySet()) {
+            putString(newUserId, e.getKey(), e.getValue());
+        }
     }
 }

@@ -117,9 +117,7 @@ public class HomeFragment extends Fragment {
         public void createButton(GT3ConfigBean gt3ConfigBean) {
             Logger.debug("VenusCaptcha", "Foreground controller createButton called");
             createUtils();
-            android.app.Activity activity = getActivity();
-            if (activity == null) return;
-            activity.runOnUiThread(() -> {
+            runOnUi(() -> {
                 Logger.debug("VenusCaptcha", "Running on UI thread, creating button");
                 try {
                     // 动态创建GT3GeetestButton
@@ -151,9 +149,7 @@ public class HomeFragment extends Fragment {
 
         @Override
         public void destroyButton() {
-            android.app.Activity destroyActivity = getActivity();
-            if (destroyActivity == null) return;
-            destroyActivity.runOnUiThread(() -> {
+            runOnUi(() -> {
                 // 销毁按钮
                 if (geetestButton != null && geetestContainer != null) {
                     geetestContainer.removeView(geetestButton);
@@ -274,11 +270,8 @@ public class HomeFragment extends Fragment {
 
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
-            try (FileWriter ignored = new FileWriter(logFile, false)) {
-                // false 覆盖模式，清空文件
-            } catch (IOException e) {
-                show_error_dialog(requireContext(), getString(R.string.err_clear_log_failed));
-            }
+            // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）
+            if (!clearLogFile()) show_error_dialog(requireContext(), getString(R.string.err_clear_log_failed));
             tools.writeLogSeparator(requireContext());
             // 新一轮运行：复位全部任务状态（含已完成）为未完成，避免重跑时先显示旧状态图标
             viewModel.resetForNewRun();
@@ -292,8 +285,7 @@ public class HomeFragment extends Fragment {
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(requireContext());
                     if (settings.hasAnyTaskDisabled()) {
-                        android.app.Activity activity = getActivity();
-                        if (activity != null) activity.runOnUiThread(() -> show_error_dialog(requireContext(), getString(R.string.err_set_task_first)));
+                        runOnUi(() -> show_error_dialog(requireContext(), getString(R.string.err_set_task_first)));
                         return;
                     }
                     android.app.Activity taskActivity = getActivity();
@@ -311,8 +303,9 @@ public class HomeFragment extends Fragment {
                                 }
                                 @Override
                                 public void onError(String message) {
+                                    // 捕获时判空：避免 Fragment 已 detach 时 requireContext() 抛异常
                                     android.app.Activity a = getActivity();
-                                    if (a != null) a.runOnUiThread(() -> show_error_dialog(requireContext(), message));
+                                    if (a != null) a.runOnUiThread(() -> show_error_dialog(a, message));
                                 }
                                 @Override
                                 public boolean isCancelled() {
@@ -321,16 +314,13 @@ public class HomeFragment extends Fragment {
                             });
                     taskExecutor.executeAll(settings);
                 } finally {
-                    android.app.Activity finallyActivity = getActivity();
-                    if (finallyActivity != null) {
-                        finallyActivity.runOnUiThread(() -> {
-                            controller.destroyButton();
-                            controller.createUtils();
-                            // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复
-                            viewModel.refreshBgFeatureEnabled();
-                            viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
-                        });
-                    }
+                    // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复
+                    runOnUi(() -> {
+                        controller.destroyButton();
+                        controller.createUtils();
+                        viewModel.refreshBgFeatureEnabled();
+                        viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                    });
                 }
             });
         });
@@ -375,9 +365,9 @@ public class HomeFragment extends Fragment {
         viewModel.refreshBgFeatureEnabled();
 
         // 检查是否需要处理后台人机验证
-        if (getActivity() != null && getActivity().getIntent() != null
-                && Constants.ACTION_HANDLE_CAPTCHA.equals(getActivity().getIntent().getAction())) {
-            getActivity().getIntent().setAction(null);
+        android.content.Intent launchIntent = getActivity() != null ? getActivity().getIntent() : null;
+        if (launchIntent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(launchIntent.getAction())) {
+            launchIntent.setAction(null);
             view.postDelayed(this::performBackgroundCaptchaVerification, 300);
         }
 
@@ -414,14 +404,10 @@ public class HomeFragment extends Fragment {
                             .setView(scrollView)
                             .setPositiveButton(getString(R.string.btn_ok), null)
                             .setNegativeButton(getString(R.string.btn_clear_log), (dialog, which) -> {
-                                try {
-                                    FileWriter writer = new FileWriter(logFile, false);
-                                    writer.write("");
-                                    writer.close();
+                                if (clearLogFile())
                                     tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_log_cleared));
-                                } catch (IOException e) {
+                                else
                                     tools.show_error_dialog(requireContext(), getString(R.string.err_clear_log_failed));
-                                }
                             })
                             .show();
                 } else {
@@ -440,21 +426,25 @@ public class HomeFragment extends Fragment {
      */
     public void performBackgroundCaptchaVerification() {
         Logger.debug("VenusCaptcha", "performBackgroundCaptchaVerification called, controller=" + controller);
+        // 预先在 UI 线程取出 Activity 引用：本方法在后台线程内使用 requireContext()/getString()，
+        // Fragment detach 后会抛 IllegalStateException；Activity 引用在销毁前始终可用。
+        final android.app.Activity activity = getActivity();
+        if (activity == null) return;
         // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
-        new Thread(() -> {
+        AppExecutors.get().io().execute(() -> {
             try {
                 // 优先使用后台任务保存的 headers（含 Cookie），确保 API2 二次验证能正确绑定会话
                 Map<String, String> headers = BackgroundGeetestController.consumePendingHeaders();
                 if (headers == null) {
                     Logger.debug("VenusCaptcha", "No pending headers, using fresh BBS headers");
-                    headers = new HeaderManager(requireContext()).get_bbs_headers();
+                    headers = new HeaderManager(activity).get_bbs_headers();
                 } else {
                     Logger.debug("VenusCaptcha", "Using pending headers from background task");
                 }
 
                 // 检查是否有后台任务保存的 challenge（避免重复 API1 导致 challenge 不匹配）
                 String[] savedChallenge = BackgroundGeetestController.consumePendingChallenge();
-                Notification notification = new Notification(requireContext());
+                Notification notification = new Notification(activity);
                 GeetestVerificationCallback callback = new GeetestVerificationCallback() {
                     @Override
                     public void onVerificationSuccess(Map<String, String> geetestCode) {
@@ -472,17 +462,17 @@ public class HomeFragment extends Fragment {
                         Logger.debug("VenusCaptcha", "Verification FAILED: " + error);
                         controller.destroyButton();
                         BackgroundGeetestController.notifyVerificationFailure(error);
-                        notification.sendErrorNotification(getString(R.string.notif_captcha_failed), error, true);
+                        notification.sendErrorNotification(activity.getString(R.string.notif_captcha_failed), error, true);
                     }
                 };
 
                 // 使用后台任务的 challenge 进行验证（同一 challenge，避免 1034 循环）
                 if (savedChallenge != null) {
                     Logger.debug("VenusCaptcha", "Using saved challenge: gt=" + savedChallenge[0]);
-                    Geetest.geetestWithChallenge(requireContext(), savedChallenge[0], savedChallenge[1], headers, callback, controller);
+                    Geetest.geetestWithChallenge(activity, savedChallenge[0], savedChallenge[1], headers, callback, controller);
                 } else {
                     Logger.debug("VenusCaptcha", "No saved challenge, calling API1");
-                    Geetest.geetest(requireContext(), headers, callback, controller);
+                    Geetest.geetest(activity, headers, callback, controller);
                 }
             } catch (Exception e) {
                 Logger.e("Exception in performBackgroundCaptchaVerification", e);
@@ -490,7 +480,7 @@ public class HomeFragment extends Fragment {
                     BackgroundGeetestController.notifyVerificationFailure(e.getMessage());
                 } catch (Exception ignored) {}
             }
-        }).start();
+        });
     }
 
     /**
@@ -649,7 +639,8 @@ public class HomeFragment extends Fragment {
                 if (name == null || statusName == null) return;
                 try {
                     TaskItem.TaskStatus status = TaskItem.TaskStatus.valueOf(statusName);
-                    viewModel.updateTaskStatus(name, status);
+                    // 后台服务是这条状态的写入方：已持久化并刷新过小组件，本页只同步 UI 快照
+                    viewModel.applyExternalTaskStatus(name, status);
                 } catch (IllegalArgumentException ignored) {
                 }
             }
@@ -726,6 +717,12 @@ public class HomeFragment extends Fragment {
         return currentTaskFuture != null && !currentTaskFuture.isDone();
     }
 
+    /** 在宿主 Activity 的主线程执行；Fragment 已 detach 时静默忽略（后台线程回传 UI 的统一出口）。 */
+    private void runOnUi(Runnable action) {
+        android.app.Activity activity = getActivity();
+        if (activity != null) activity.runOnUiThread(action);
+    }
+
     /**
      * 检查任务是否被取消
      *
@@ -734,5 +731,18 @@ public class HomeFragment extends Fragment {
     private boolean isTaskCancelled() {
         return Thread.currentThread().isInterrupted() ||
                 (currentTaskFuture != null && currentTaskFuture.isCancelled());
+    }
+
+    /**
+     * 清空今日日志文件（截断写），成功返回 true。
+     * 统一入口替代原先两处 FileWriter 写法——其中一处未使用 try-with-resources，
+     * 写失败时 FileWriter 不会被关闭，可能长期占用文件句柄。
+     */
+    private boolean clearLogFile() {
+        try (FileWriter ignored = new FileWriter(logFile, false)) {
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

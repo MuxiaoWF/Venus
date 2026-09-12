@@ -373,6 +373,7 @@
     <string name="login_relogin_button">重新登入%s</string>
     <string name="login_start_task">開始執行登入任務…\n開始取得二維碼…</string>
     <string name="login_qr_generated">二維碼已產生，等待掃描…\n請自行截圖並使用米遊社APP-我-左上角掃描二維碼…\n</string>
+    <string name="login_qr_timeout">等待掃碼逾時，請重新取得二維碼</string>
     <string name="login_failed">登入失敗</string>
     <string name="login_waiting_scan">等待掃碼</string>
     <string name="login_waiting_confirm">等待確認</string>
@@ -432,6 +433,7 @@
     <string name="game_rate_limited">請求過於頻繁(429)，即將重試</string>
     <string name="game_captcha_needed">需要進行人機驗證</string>
     <string name="game_no_accounts">沒有綁定任何帳號</string>
+    <string name="game_unsupported">%s 暫不支援簽到（目前伺服器缺少該遊戲對應）</string>
     <string name="game_first_bind">是第一次綁定，請先手動簽到一次</string>
 
     <!-- SklandDaily -->
@@ -469,6 +471,7 @@
     <string name="geetest_second_verify_failed">二次驗證失敗: %s</string>
     <string name="geetest_captcha_closed">驗證碼已關閉</string>
     <string name="geetest_captcha_error">驗證碼錯誤：%s</string>
+    <string name="geetest_wait_timeout">等待人機驗證逾時，已放棄本次驗證</string>
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_cookie_token_refreshed">簽到 CookieToken重新整理成功</string>

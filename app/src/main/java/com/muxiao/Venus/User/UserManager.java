@@ -64,11 +64,18 @@ public class UserManager {
      */
     public Map<String, String> getUsers() {
         String usersJson = sharedPreferences.getString(KEY_USERS, "");
-        if (usersJson.isEmpty())
+        if (usersJson == null || usersJson.isEmpty())
             return new HashMap<>();
 
         Type type = new TypeToken<Map<String, String>>(){}.getType();
-        return gson.fromJson(usersJson, type);
+        try {
+            Map<String, String> parsed = gson.fromJson(usersJson, type);
+            // 存储内容损坏（非 JSON 对象）时 fromJson 返回 null，此处兜底为空表，
+            // 避免调用方 containsKey/put 抛 NullPointerException 而无法进入任何页面。
+            return parsed != null ? parsed : new HashMap<>();
+        } catch (RuntimeException e) {
+            return new HashMap<>();
+        }
     }
 
     /**

@@ -230,25 +230,7 @@ public class HomeViewModel extends AndroidViewModel {
         List<TaskItem> items = new ArrayList<>();
         for (String taskName : settings.getTaskNames(context)) {
             TaskItem item = new TaskItem(taskName);
-            switch (statusManager.getStatus(taskName)) {
-                case TaskStatusManager.STATUS_COMPLETED:
-                    item.setStatus(TaskItem.TaskStatus.COMPLETED);
-                    break;
-                case TaskStatusManager.STATUS_ERROR:
-                    item.setStatus(TaskItem.TaskStatus.ERROR);
-                    break;
-                case TaskStatusManager.STATUS_IN_PROGRESS:
-                    item.setStatus(TaskItem.TaskStatus.IN_PROGRESS);
-                    break;
-                case TaskStatusManager.STATUS_WARNING:
-                    item.setStatus(TaskItem.TaskStatus.WARNING);
-                    break;
-                case TaskStatusManager.STATUS_CANCELLED:
-                    item.setStatus(TaskItem.TaskStatus.CANCELLED);
-                    break;
-                default:
-                    break;
-            }
+            item.setStatus(TaskStatusManager.toTaskStatus(statusManager.getStatus(taskName)));
             items.add(item);
         }
         return items;
@@ -256,22 +238,33 @@ public class HomeViewModel extends AndroidViewModel {
 
     /**
      * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。
+     * 用于「本页线程执行任务」的场景（本页是唯一的状态写入方）。
      * 可从任意线程调用（内部用 postValue）。
      */
     public void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         persistTaskStatus(taskName, status);
+        applyExternalTaskStatus(taskName, status);
+        TaskWidgetProvider.refreshAllWidgets(getApplication());
+    }
 
+    /**
+     * 仅更新 UI 快照，不做任何持久化、不刷新小组件。
+     * <p>
+     * 用于「后台服务 → 广播 → 本页」的场景：{@code ForegroundTaskService} 已经在写入方
+     * 完成了持久化与小组件刷新，本页只负责把图标刷新成最新状态。原实现复用
+     * {@link #updateTaskStatus}，导致同一条状态被写两遍 DataStore（每遍含 current_user
+     * 与成对的 status_/done_）、小组件也被全量刷新两遍。
+     */
+    public void applyExternalTaskStatus(String taskName, TaskItem.TaskStatus status) {
         // 基于旧快照复制出新列表，保持 UiState 不可变语义
         TaskUiState snapshot = current();
-        List<TaskItem> updated = new ArrayList<>();
+        List<TaskItem> updated = new ArrayList<>(snapshot.items.size());
         for (TaskItem old : snapshot.items) {
             TaskItem copy = new TaskItem(old.getName());
             copy.setStatus(old.getName().equals(taskName) ? status : old.getStatus());
             updated.add(copy);
         }
         publishAsync(snapshot.withItems(updated));
-
-        TaskWidgetProvider.refreshAllWidgets(getApplication());
     }
 
     /** 记录当前用户供 Widget 显示。 */
@@ -279,27 +272,13 @@ public class HomeViewModel extends AndroidViewModel {
         new TaskStatusManager(getApplication()).setCurrentUser(currentUser);
     }
 
+    /**
+     * 持久化任务状态。
+     * <p>
+     * 不再逐条调用 {@code setCurrentUser}：当前用户已在 {@link #persistCurrentUserForWidget()}
+     * 于运行开始时写入一次，运行期间恒定；逐条重写只会让 DataStore 多背一条无意义的事务。
+     */
     private void persistTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        TaskStatusManager manager = new TaskStatusManager(getApplication());
-        manager.setCurrentUser(currentUser);
-        switch (status) {
-            case COMPLETED:
-                manager.markCompleted(taskName);
-                break;
-            case ERROR:
-                manager.markError(taskName);
-                break;
-            case IN_PROGRESS:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_IN_PROGRESS);
-                break;
-            case WARNING:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_WARNING);
-                break;
-            case CANCELLED:
-                manager.markStatus(taskName, TaskStatusManager.STATUS_CANCELLED);
-                break;
-            default:
-                break;
-        }
+        new TaskStatusManager(getApplication()).applyStatus(taskName, status);
     }
 }

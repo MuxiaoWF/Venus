@@ -25,6 +25,8 @@ import android.widget.ImageView;
 public class CloudGachaActivity extends BaseActivity {
 
     private WebView webView;
+    /** 抽卡链接只需复制一次：页面加载会触发多次含 authkey 的资源请求，原实现每次都弹提示。 */
+    private boolean linkCopied = false;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -70,7 +72,10 @@ public class CloudGachaActivity extends BaseActivity {
                     };
                     for (String host : gameHosts) {
                         if (url.contains(host)) {
+                            // linkCopied 仅在主线程读写（runOnUiThread 内部），无需额外同步
                             runOnUiThread(() -> {
+                                if (linkCopied) return;
+                                linkCopied = true;
                                 copyToClipboard(view, CloudGachaActivity.this, url);
                                 showCustomSnackbar(view, CloudGachaActivity.this, getString(R.string.snack_link_copied));
                             });

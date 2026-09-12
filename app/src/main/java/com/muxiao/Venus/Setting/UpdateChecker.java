@@ -71,7 +71,14 @@ public class UpdateChecker {
                     return;
                 }
 
-                String latestVersion = releaseInfo.get("tag_name").getAsString();
+                // tag_name 缺失时无法比较版本，按「检查失败」处理而不是抛 NPE
+                String latestVersion = releaseInfo.has("tag_name") && !releaseInfo.get("tag_name").isJsonNull()
+                        ? releaseInfo.get("tag_name").getAsString() : null;
+                if (latestVersion == null) {
+                    if (isManual)
+                        showNoUpdateDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
+                    return;
+                }
 
                 // 比较版本
                 if (isUpdateAvailable(currentVersion, latestVersion))
@@ -132,19 +139,37 @@ public class UpdateChecker {
         return compareVersions(latestVersion, currentVersion) > 0;
     }
 
-    /** 按“.”分段比较版本号，返回 version1 减 version2 的差值（>0 表示 v1 更新）。 */
+    /**
+     * 按“.”分段比较版本号，返回 version1 减 version2 的差值（>0 表示 v1 更新）。
+     * 段内出现非纯数字（如 {@code 1.2.3-beta}）时退化为字符串比较，
+     * 避免 Integer.parseInt 抛 NumberFormatException 导致整个更新检查以错误弹窗收场。
+     */
     private int compareVersions(String version1, String version2) {
         String[] parts1 = version1.split("\\.");
         String[] parts2 = version2.split("\\.");
 
         int length = Math.max(parts1.length, parts2.length);
         for (int i = 0; i < length; i++) {
-            int part1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
-            int part2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
-            if (part1 != part2)
-                return part1 - part2;
+            String part1 = i < parts1.length ? parts1[i] : "0";
+            String part2 = i < parts2.length ? parts2[i] : "0";
+            Integer number1 = parseIntOrNull(part1);
+            Integer number2 = parseIntOrNull(part2);
+            int compared = number1 != null && number2 != null
+                    ? Integer.compare(number1, number2)
+                    : part1.compareTo(part2);
+            if (compared != 0)
+                return compared;
         }
         return 0;
+    }
+
+    /** 纯数字段返回其值，否则返回 null（交由字符串比较兜底）。 */
+    private static Integer parseIntOrNull(String value) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

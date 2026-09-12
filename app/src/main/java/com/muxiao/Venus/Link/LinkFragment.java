@@ -62,7 +62,6 @@ public class LinkFragment extends Fragment {
         userDropdown = view.findViewById(R.id.user_dropdown);
 
         userManager = new UserManager(requireContext());
-        executor = Executors.newSingleThreadExecutor();
 
         updateDropdown();
 
@@ -103,32 +102,41 @@ public class LinkFragment extends Fragment {
         renderGameResult(gameType);
         setChipState(gameType, ChipState.FETCHING);
 
+        // 预先在 UI 线程取出上下文与用户快照：后台线程调用 requireContext()/requireActivity()
+        // 在 Fragment detach（切页/返回）后会抛 IllegalStateException 导致请求结果丢失。
+        final android.content.Context appContext = requireContext().getApplicationContext();
+        final android.app.Activity activity = getActivity();
+        final String userId = currentUserId;
         executor.execute(() -> {
             Map<Integer, String> result;
-            GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
+            GachaLink gachaLink = new GachaLink(appContext, userId);
             try {
                 result = gameType == 0 ? gachaLink.genshin() : gachaLink.zzz();
             } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> {
+                if (activity == null) return;
+                activity.runOnUiThread(() -> {
                     showInlineError(gameType, e.getMessage());
                     setChipState(gameType, ChipState.PENDING);
                 });
                 return;
             }
-            requireActivity().runOnUiThread(() -> {
+            if (activity == null) return;
+            final Map<Integer, String> fetched = result;
+            activity.runOnUiThread(() -> {
                 Map<String, Map<Integer, String>> perUser =
                         tabResults.computeIfAbsent(gameType, k -> new HashMap<>());
-                perUser.put(currentUserId, new HashMap<>(result));
-                if (result.isEmpty()) {
+                perUser.put(userId, new HashMap<>(fetched));
+                View root = getView();
+                if (root == null) return;
+                if (fetched.isEmpty()) {
                     // 无角色 / 未取到链接：直接把本行结果区替换成错误提示
                     renderGameResult(gameType);
                     showInlineError(gameType, getString(R.string.msg_no_game_role_or_error));
                     setChipState(gameType, ChipState.PENDING);
                 } else {
                     renderGameResult(gameType);
-                    View root = requireView();
-                    copyToClipboard(root, requireContext(), result.values().iterator().next());
-                    showCustomSnackbar(root, requireContext(), getString(R.string.snack_link_copied));
+                    copyToClipboard(root, appContext, fetched.values().iterator().next());
+                    showCustomSnackbar(root, appContext, getString(R.string.snack_link_copied));
                 }
             });
         });

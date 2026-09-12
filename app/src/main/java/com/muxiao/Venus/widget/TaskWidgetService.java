@@ -130,8 +130,12 @@ public class TaskWidgetService extends RemoteViewsService {
         }
 
         @Override
+        // hasStableIds() 为 true 时 item id 必须由「项目本身」决定。原实现返回 position，
+        // 当用户在设置里增删游戏导致任务顺序变化时，launcher 会把新顺序的条目误判为同一项而复用旧视图。
         public long getItemId(int position) {
-            return position;
+            if (position < 0 || position >= taskNames.size()) return 0;
+            // 32 位非负稳定 id：顺序变化不再误判为同一项，且不会与 Adapter.NO_ID(-1) 冲突
+            return taskNames.get(position).hashCode() & 0xFFFFFFFFL;
         }
 
         @Override

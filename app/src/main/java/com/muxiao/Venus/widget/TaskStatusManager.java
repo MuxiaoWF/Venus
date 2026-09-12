@@ -2,6 +2,7 @@ package com.muxiao.Venus.widget;
 
 import android.content.Context;
 
+import com.muxiao.Venus.Home.TaskItem;
 import com.muxiao.Venus.common.data.TaskStatusRepository;
 
 import java.io.File;
@@ -42,6 +43,21 @@ public class TaskStatusManager {
     private final Context context;
     private final TaskStatusRepository repo;
 
+    /**
+     * 进程内「已校验过的日期」标记。
+     * <p>
+     * {@link #ensureToday()} 的实际工作（写历史日志 + 清库）只在跨天时需要，但 TaskStatusManager
+     * 是重灾区：每次任务状态变化、每次小组件刷新、每次列表重建都会 new 一个实例。若每次都走完整流程，
+     * 就要重复做日期格式化与仓库读取，跨天那一刻还会在主线程触发文件写。
+     * 用一个静态标记把「今天已校验」的快速路径挡在锁外，跨天只处理一次。
+     */
+    private static volatile String lastEnsuredDate;
+    private static final Object ENSURE_LOCK = new Object();
+
+    /** 日期格式化器：SimpleDateFormat 非线程安全，按线程复用避免高频 new。 */
+    private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT =
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd", Locale.US));
+
     public TaskStatusManager(Context context) {
         this.context = context.getApplicationContext();
         repo = new TaskStatusRepository(context);
@@ -49,29 +65,41 @@ public class TaskStatusManager {
     }
 
     private static String todayString() {
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        return DATE_FORMAT.get().format(new Date());
     }
 
     private void ensureToday() {
         String today = todayString();
-        if (!today.equals(repo.getString(KEY_DATE, ""))) {
-            // 保留 current_user 跨日持久化，清除任务状态
-            String savedUser = repo.getString(KEY_CURRENT_USER, "");
-            // 先写入历史日志（此时缓存还保留着昨日数据）
-            writeDailyLog(savedUser);
-            repo.clear();
-            repo.putString(KEY_DATE, today);
-            repo.putString(KEY_CURRENT_USER, savedUser);
+        // 快速路径：本进程已确认过今天，无需再读仓库
+        if (today.equals(lastEnsuredDate)) return;
+        synchronized (ENSURE_LOCK) {
+            if (today.equals(lastEnsuredDate)) return;
+            if (!today.equals(repo.getString(KEY_DATE, ""))) {
+                // 保留 current_user 跨日持久化，清除任务状态
+                String savedUser = repo.getString(KEY_CURRENT_USER, "");
+                // 先写入历史日志（此时缓存还保留着昨日数据）
+                writeDailyLog(savedUser);
+                repo.clear();
+                repo.putAll(dailyResetKeys(today, savedUser));
+            }
+            lastEnsuredDate = today;
         }
     }
 
+    /** 跨日重置后的首批写入（日期 + 沿用用户）：合并为一次事务。 */
+    private static Map<String, Object> dailyResetKeys(String today, String savedUser) {
+        Map<String, Object> values = new HashMap<>();
+        values.put(KEY_DATE, today);
+        values.put(KEY_CURRENT_USER, savedUser);
+        return values;
+    }
+
     /**
-     * 标记任务为已完成。
-     * 同时写入 status_=completed 与 done_=true，其中 done_ 始终作为「完成态」的镜像字段。
+     * 标记任务为已完成（等价于 {@code markStatus(taskName, STATUS_COMPLETED)}，
+     * 由后者统一维护 done_ 镜像，避免两条写入路径各写一份）。
      */
     public void markCompleted(String taskName) {
-        repo.putBoolean(KEY_PREFIX_DONE + taskName, true);
-        repo.putString(KEY_PREFIX_STATUS + taskName, STATUS_COMPLETED);
+        markStatus(taskName, STATUS_COMPLETED);
     }
 
     /**
@@ -87,13 +115,64 @@ public class TaskStatusManager {
      * @param status   目标状态，取值见本类 STATUS_* 常量
      */
     public void markStatus(String taskName, String status) {
-        repo.putString(KEY_PREFIX_STATUS + taskName, status);
-        repo.putBoolean(KEY_PREFIX_DONE + taskName, STATUS_COMPLETED.equals(status));
+        Map<String, Object> values = new HashMap<>(2);
+        values.put(KEY_PREFIX_STATUS + taskName, status);
+        values.put(KEY_PREFIX_DONE + taskName, STATUS_COMPLETED.equals(status));
+        repo.putAll(values);
     }
 
     /** 标记任务为错误态（等价于 markStatus(taskName, STATUS_ERROR)）。 */
     public void markError(String taskName) {
         markStatus(taskName, STATUS_ERROR);
+    }
+
+    // ========== UI 层状态（TaskItem.TaskStatus）与持久化状态的映射 ==========
+    // 说明：正向（UI → 持久化）与反向（持久化 → UI）映射都只在本类维护，
+    // 避免前台服务与 ViewModel 各写一份 switch 而出现分歧。
+
+    /**
+     * 将 UI 层任务状态写入持久化：COMPLETED 与 {@link #markCompleted(String)} 等价。
+     * PENDING 无对应写入（保持原实现的 default 分支语义：不改变已存状态）。
+     */
+    public void applyStatus(String taskName, TaskItem.TaskStatus status) {
+        switch (status) {
+            case COMPLETED:
+                markCompleted(taskName);
+                break;
+            case ERROR:
+                markError(taskName);
+                break;
+            case IN_PROGRESS:
+                markStatus(taskName, STATUS_IN_PROGRESS);
+                break;
+            case WARNING:
+                markStatus(taskName, STATUS_WARNING);
+                break;
+            case CANCELLED:
+                markStatus(taskName, STATUS_CANCELLED);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** 将持久化状态字符串（status_）映射为 UI 层任务状态；未知/缺失一律按 {@code PENDING}。 */
+    public static TaskItem.TaskStatus toTaskStatus(String status) {
+        if (status == null) return TaskItem.TaskStatus.PENDING;
+        switch (status) {
+            case STATUS_COMPLETED:
+                return TaskItem.TaskStatus.COMPLETED;
+            case STATUS_ERROR:
+                return TaskItem.TaskStatus.ERROR;
+            case STATUS_IN_PROGRESS:
+                return TaskItem.TaskStatus.IN_PROGRESS;
+            case STATUS_WARNING:
+                return TaskItem.TaskStatus.WARNING;
+            case STATUS_CANCELLED:
+                return TaskItem.TaskStatus.CANCELLED;
+            default:
+                return TaskItem.TaskStatus.PENDING;
+        }
     }
 
     /**
@@ -117,9 +196,14 @@ public class TaskStatusManager {
                 names.add(key.substring(KEY_PREFIX_STATUS.length()));
             }
         }
+        if (names.isEmpty()) return;
+        // 全部任务合并为一次事务：逐个 markStatus 会产生 2N 次 DataStore 写入
+        Map<String, Object> values = new HashMap<>(names.size() * 2);
         for (String name : names) {
-            markStatus(name, STATUS_PENDING);
+            values.put(KEY_PREFIX_STATUS + name, STATUS_PENDING);
+            values.put(KEY_PREFIX_DONE + name, false);
         }
+        repo.putAll(values);
     }
 
     /**

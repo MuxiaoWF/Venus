@@ -373,6 +373,7 @@
     <string name="login_relogin_button">Re-login %s</string>
     <string name="login_start_task">Starting login task…\nFetching QR code…</string>
     <string name="login_qr_generated">QR code generated, waiting for scan…\nPlease take a screenshot and use the Miyoushe app (Me - top left) to scan the QR code…\n</string>
+    <string name="login_qr_timeout">Timed out waiting for the QR code to be scanned; please refresh it</string>
     <string name="login_failed">Login failed</string>
     <string name="login_waiting_scan">Waiting for scan</string>
     <string name="login_waiting_confirm">Waiting for confirmation</string>
@@ -432,6 +433,7 @@
     <string name="game_rate_limited">Too many requests (429), retrying soon</string>
     <string name="game_captcha_needed">Captcha verification required</string>
     <string name="game_no_accounts">No accounts bound</string>
+    <string name="game_unsupported">%s sign-in is not supported (this server has no game mapping for it)</string>
     <string name="game_first_bind">First time binding, please sign in manually once first</string>
 
     <!-- SklandDaily -->
@@ -469,6 +471,7 @@
     <string name="geetest_second_verify_failed">Second verification failed: %s</string>
     <string name="geetest_captcha_closed">Captcha closed</string>
     <string name="geetest_captcha_error">Captcha error: %s</string>
+    <string name="geetest_wait_timeout">Timed out waiting for captcha verification; skipped this attempt</string>
 
     <!-- BBSGameDaily additional -->
     <string name="game_cookie_token_refreshed">Sign-in CookieToken refreshed successfully</string>
