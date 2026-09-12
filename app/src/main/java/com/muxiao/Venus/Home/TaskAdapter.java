@@ -78,7 +78,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorSuccess));
                 holder.taskProgress.setVisibility(View.GONE);
                 showChip(holder, context, R.string.task_chip_done,
-                        context.getDrawable(R.drawable.bg_status_chip),
+                        ContextCompat.getColor(context, R.color.status_success_container),
                         ContextCompat.getColor(context, R.color.status_on_success_container));
                 break;
             case ERROR:
@@ -88,7 +88,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorError));
                 holder.taskProgress.setVisibility(View.GONE);
                 showChip(holder, context, R.string.task_chip_failed,
-                        context.getDrawable(R.drawable.bg_chip_error),
+                        MaterialColors.getColor(context, com.google.android.material.R.attr.colorErrorContainer, 0xFFFFDAD6),
                         MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnErrorContainer, 0xFF410E0B));
                 break;
             case CANCELLED:
@@ -118,13 +118,15 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         animateEnter(holder, position, context);
     }
 
-    /** 终态右侧 chip：设置文案、底色与文字色后显示。 */
+    /** 终态右侧 chip：设置文案、底色与文字色后显示。
+     *  底图统一为 bg_chip（胶囊），fillColor 通过 backgroundTint 给定语义色。 */
     private void showChip(TaskViewHolder holder, Context context, int textRes,
-                          android.graphics.drawable.Drawable background, int textColor) {
+                          int fillColor, int textColor) {
         holder.taskProgress.setVisibility(View.GONE);
         holder.taskStatusChip.setVisibility(View.VISIBLE);
         holder.taskStatusChip.setText(textRes);
-        holder.taskStatusChip.setBackground(background);
+        holder.taskStatusChip.setBackgroundResource(R.drawable.bg_chip);
+        holder.taskStatusChip.setBackgroundTintList(ColorStateList.valueOf(fillColor));
         holder.taskStatusChip.setTextColor(textColor);
     }
 

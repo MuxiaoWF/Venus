@@ -6,7 +6,7 @@
         android:gravity="start">
         <shape android:shape="rectangle">
             <solid android:color="?attr/colorOutlineVariant" />
-            <corners android:radius="1dp" />
+            <corners android:radius="@dimen/stroke_width_hairline" />
         </shape>
     </item>
 </layer-list>

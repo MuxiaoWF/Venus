@@ -8,13 +8,12 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <!-- 项间发丝分割线：outlineVariant 1dp，仅 middle/last 之上显示，首条隐藏避免生硬 -->
-    <View
+    <!-- 项间发丝分割线：与全局 Widget.Venus.Divider 同一定义（divider_height + outlineVariant），
+         仅 middle/last 之上显示，首条隐藏避免生硬。 -->
+    <com.google.android.material.divider.MaterialDivider
         android:id="@+id/item_divider"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
+        style="@style/Widget.Venus.Divider"
         android:layout_marginStart="@dimen/divider_indent_icon"
-        android:background="?attr/colorOutlineVariant"
         android:visibility="gone" />
 
     <com.google.android.material.listitem.ListItemLayout
@@ -40,14 +39,14 @@
                 <!-- 状态圈：圈底由 TaskAdapter 按状态切换（成功绿圈/待执行描边圈/进行中主色环） -->
                 <FrameLayout
                     android:id="@+id/status_circle"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="@dimen/status_circle_size"
+                    android:layout_height="@dimen/status_circle_size"
                     android:layout_marginEnd="@dimen/space_4">
 
                     <ImageView
                         android:id="@+id/status_icon"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
+                        android:layout_width="@dimen/status_icon_size"
+                        android:layout_height="@dimen/status_icon_size"
                         android:layout_gravity="center"
                         android:contentDescription="@string/task_status"
                         android:src="@drawable/ic_dot"
@@ -55,8 +54,8 @@
 
                     <ImageView
                         android:id="@+id/status_icon_strike"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
+                        android:layout_width="@dimen/status_icon_size"
+                        android:layout_height="@dimen/status_icon_size"
                         android:layout_gravity="center"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_strike_diagonal"
@@ -70,8 +69,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="?attr/colorOnSurface" />
+                    android:maxLines="1" />
 
                 <!-- 右侧状态：终态=chip（已签/失败），过程态=mono 文案（RUNNING/PENDING） -->
                 <com.google.android.material.textview.MaterialTextView
@@ -87,9 +85,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/space_2"
-                    android:background="@drawable/bg_status_chip"
+                    android:background="@drawable/bg_chip"
+                    android:backgroundTint="@color/status_success_container"
                     android:paddingHorizontal="@dimen/space_2"
-                    android:paddingVertical="2dp"
+                    android:paddingVertical="@dimen/space_hairline"
                     android:textAppearance="@style/TextAppearance.Venus.MonoValue"
                     android:includeFontPadding="false"
                     android:visibility="gone" />

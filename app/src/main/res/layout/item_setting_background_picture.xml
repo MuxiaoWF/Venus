@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    style="@style/Widget.Venus.DrawerPane"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/select_background_image"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -22,7 +20,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/select_background_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Venus.Button.Outlined"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="@dimen/space_1"
@@ -31,7 +29,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/clear_background_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Venus.Button.Outlined"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="@dimen/space_1"
@@ -45,8 +43,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_2"
         android:text="@string/background_opacity"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <com.google.android.material.slider.Slider
         android:id="@+id/background_alpha_slider"

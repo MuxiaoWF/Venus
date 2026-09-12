@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -17,8 +16,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/auto_check_update"
-            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-            android:textColor="?attr/colorOnSurface" />
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/auto_update_switch"
@@ -33,7 +31,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_1"
         android:text="@string/auto_check_update_desc"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <LinearLayout
@@ -44,24 +42,24 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/check_update_button_github"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Venus.Button.Outlined"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:layout_weight="1"
             android:text="@string/check_update_github"
-            android:textAppearance="?attr/textAppearanceLabelMedium" />
+            android:textAppearance="@style/TextAppearance.Venus.Label.Medium" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/check_update_button_pan"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Venus.Button.Outlined"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="@dimen/space_2"
             android:layout_weight="1"
             android:text="@string/check_update_pan"
-            android:textAppearance="?attr/textAppearanceLabelMedium" />
+            android:textAppearance="@style/TextAppearance.Venus.Label.Medium" />
 
     </LinearLayout>
 

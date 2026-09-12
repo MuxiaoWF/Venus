@@ -315,4 +315,17 @@ public class ForegroundTaskService extends Service {
         // 刷新小组件，恢复运行按钮状态
         TaskWidgetProvider.refreshAllWidgets(this);
     }
+
+    /**
+     * Android 15+（API 35）对 dataSync 前台服务设 24 小时累计 6 小时配额：超时后系统回调本方法，
+     * 服务必须在数秒内 stopSelf()，否则抛
+     * RemoteServiceException: "A foreground service of type dataSync did not stop within its timeout"。
+     * 本应用单次任务受 WakeLock 10 分钟上限约束，正常不可能触及配额，此处按官方要求兜底走取消流程。
+     * 低版本设备不会回调本方法（编译期需 compileSdk ≥ 35）。
+     */
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        tools.writeLog(this, "dataSync foreground service timed out, stopping.");
+        cancelTask();
+    }
 }

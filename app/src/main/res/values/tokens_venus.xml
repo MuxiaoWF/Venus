@@ -6,67 +6,64 @@
   间距 / 圆角 / 配色角色以既有 space_* / shape_corner_* / color* 为准，这里补充
   语义别名、层级(阴影)刻度、字体层级与组件尺寸，供统一组件库引用。
   规则：布局中禁止写裸 dp/sp，一律走 Token。
+
+  命名纪律（2026-09 复审后固化）：
+  1. 语义别名只允许「一层」——别名必须直接指向 space_* / shape_corner_* / elevation_level*，
+     不得再定义「别名的别名」，避免同值多路径、改一处不生效。
+  2. 每个别名都必须有真实引用点；零引用的别名即死 Token，随稽核删除。
+  3. 间距/形状/图标刻度（space_* / shape_corner_* / icon_* / widget_*）允许暂未使用，
+     它们表达的是"可选档位"；别名、层级(elevation_level*)与组件专用尺寸则必须被引用，
+     零引用即删除（elevation_level3/4/5 与 task_progress_width 即因此移除）。
   ============================================================================
 -->
 <resources>
 
     <!-- ========== 1. 间距语义别名（基准仍为 space_* 的 4dp 刻度） ========== -->
-    <!-- 屏幕级左右留白（统一收口到 20dp，原 fragment 已普遍使用 space_5） -->
-    <dimen name="gutter_screen">@dimen/space_5</dimen>
-    <!-- 规范要求的 16dp 屏级左右留白（M3 8dp 网格：页面 Margin 16dp）。
-         仅用于重构后的主页，避免改动其他既有页面节奏。 -->
-    <dimen name="gutter_screen_md">@dimen/space_4</dimen>
+    <!-- 屏幕级左右留白。定标 16dp（M3 8dp 网格标准页边距）。
+         历史遗留：曾同时存在 gutter_screen(20dp) 与 gutter_screen_md(16dp) 两条互相否定的
+         注释与取值，导致"新开页面按规范 16dp、老页面 20dp"的节奏漂移。现单点定标 16dp。 -->
+    <dimen name="gutter_screen">@dimen/space_4</dimen>
     <!-- 卡片内边距基准 -->
     <dimen name="gutter_card">@dimen/space_4</dimen>
-    <!-- 卡片内紧凑内边距（图标徽标内、窄卡） -->
-    <dimen name="gutter_card_compact">@dimen/space_3</dimen>
-    <!-- 区块标题上方留白 -->
-    <dimen name="gutter_section_top">@dimen/space_7</dimen>
-    <!-- 区块标题与首张卡之间的间距 -->
-    <dimen name="gutter_section_gap">@dimen/space_2</dimen>
-    <!-- 卡片之间的标准间距（统一为 8dp，原布局散用 space_1/space_2） -->
+    <!-- 卡片之间的标准间距 -->
     <dimen name="gap_card">@dimen/space_2</dimen>
-    <!-- 列表行内部上下留白（统一为 12dp，原散用 8dp/14dp） -->
+    <!-- 列表行内部上下留白 -->
     <dimen name="gap_row">@dimen/space_3</dimen>
-    <!-- 行内元素间距 -->
-    <dimen name="gap_inline">@dimen/space_3</dimen>
 
-    <!-- ========== 2. 圆角角色（补充既有的 sm/md/lg） ========== -->
-    <dimen name="shape_corner_xl">36dp</dimen>      <!-- 悬浮卡 / Hero / 大图 -->
-    <dimen name="shape_corner_none">0dp</dimen>     <!-- 全宽分隔场景 -->
-    <!-- 区块分组圆角语义别名（与 Card 一致） -->
-    <dimen name="radius_group">@dimen/shape_corner_md</dimen>
-    <dimen name="radius_group_lg">@dimen/shape_corner_lg</dimen>
-    <dimen name="radius_inline">@dimen/shape_corner_sm</dimen>
+    <!-- ========== 2. 圆角角色 ==========
+         既有刻度统一在 dimens.xml：shape_corner_xxs/xs/sm/md/lg/pill。
+         此处不再重定义 —— 历史遗留的 shape_corner_xl(36dp)、shape_corner_none(0dp)、
+         radius_group(别名) 均零引用，已随稽核删除（避免"同值多路径"）。 -->
 
-    <!-- ========== 3. 层级 / 阴影刻度（统一 elevation 口径） ========== -->
-    <!-- Material3 采用 tonal elevation（表面带主色染色），这里用 dp 表达抬升档位 -->
+    <!-- ========== 3. 层级 / 阴影刻度（统一 elevation 口径） ==========
+         只保留实际在用的两档：level0(扁平/嵌入) 与 level1(卡片静止) 与 level2(抬升卡/图片卡)。
+         历史遗留的 level3/4/5 零引用，且 level4 注释与取值互相矛盾（注释称 = card_elevation_image，
+         实际 6dp ≠ 10dp），已删除。 -->
     <dimen name="elevation_level0">0dp</dimen>   <!-- 扁平 / 嵌入 -->
-    <dimen name="elevation_level1">1dp</dimen>   <!-- 卡片静止（= card_elevation_rest） -->
+    <dimen name="elevation_level1">1dp</dimen>   <!-- 卡片静止 -->
     <dimen name="elevation_level2">3dp</dimen>   <!-- 抬升卡 / 图片卡 -->
-    <dimen name="elevation_level3">4dp</dimen>   <!-- 底部导航（= bottom_nav_elevation） -->
-    <dimen name="elevation_level4">6dp</dimen>   <!-- 悬浮面 / 图片大卡（= card_elevation_image） -->
-    <dimen name="elevation_level5">8dp</dimen>   <!-- FAB / 对话框 / 弹层 -->
     <!-- 描边统一口径：Filled/Outlined/State 卡共用 1dp 发丝描边，颜色走 outlineVariant；
          Elevated 主卡（Widget.Venus.Card）走 none，仅靠阴影区分，避免双重边界。 -->
     <dimen name="stroke_width_hairline">1dp</dimen>
+    <dimen name="stroke_width_hairline_half">0.5dp</dimen>  <!-- 底栏/细描边 -->
     <dimen name="stroke_width_none">0dp</dimen>
 
     <!-- ========== 4. 组件尺寸 ========== -->
     <dimen name="row_min_height">56dp</dimen>        <!-- 列表/设置行最小触控高度 -->
-    <dimen name="section_header_height">24dp</dimen>
+    <dimen name="list_header_min_height">24dp</dimen> <!-- 列表区块标题行最小高度 -->
     <dimen name="icon_badge_lg">48dp</dimen>         <!-- 状态卡/空态大徽标 -->
-    <dimen name="grid_gap">@dimen/space_3</dimen>    <!-- 栅格间距 -->
-    <dimen name="footer_min_height">64dp</dimen>
+    <dimen name="icon_badge_md">32dp</dimen>         <!-- 行内中号徽标 -->
+    <dimen name="icon_avatar_md">40dp</dimen>        <!-- 用户头像中号 -->
 
     <!-- ========== 5. 字体层级（强制走 TextAppearance.Venus.*，禁止裸 ?attr） ========== -->
-    <!-- 以下为“语义名”映射，具体样式在 widget_venus.xml 的 TextAppearance.Venus.* 定义 -->
-    <!-- Display / Headline 用于启动页或未来大标题；Title/Body/Label/Caption 已存在 -->
-    <!-- 行标题、副标题、操作按钮等一律引用对应 TextAppearance，避免同一处字体三套写法 -->
+    <!-- 全部 TextAppearance.Venus.* 统一定义在 widget_venus.xml 单文件。
+         行标题、副标题、操作按钮等一律引用对应 TextAppearance，
+         避免"同一处字体三套写法"。 -->
 
     <!-- ========== 6. 动效基线（与既有 motion_duration_* 对齐，统一缓动） ========== -->
-    <!-- 强调缓动 cubic-bezier(0.1,0.7,0.1,1.0)，已在 res/interpolator 沉淀，组件引用之 -->
-    <!-- 按压态抬升量：卡片/行按下时 elevation +1 档，释放回落，营造“可点”质感 -->
+    <!-- 强调缓动 cubic-bezier(0.1,0.7,0.1,1.0)，沉淀在 res/anim/emphasized_accelerate.xml
+         与 res/anim/emphasized_decelerate.xml（注意：不是 res/interpolator）。 -->
+    <!-- 按压态抬升量：卡片/行按下时 elevation +1 档，释放回落，营造"可点"质感 -->
 
     <!-- ========== 7. 配色角色（语义层，全部指向 M3 theme attr，禁止硬编码） ========== -->
     <!-- 表面层级：colorSurface(最底) / colorSurfaceContainerLow(卡) / colorSurfaceContainer(容器) / colorSurfaceContainerHigh(凸面) -->

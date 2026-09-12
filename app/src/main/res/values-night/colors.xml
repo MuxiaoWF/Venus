@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_background">#457C77</color>
+    <!-- Widget 深色表面与前景（与浅色 @color/widget_* 配对）。
+         P0-3 修复：过去只覆盖了 widget_surface，文字/分割线仍是浅色模式下推导出的
+         近黑值（#DE1A1B20），配 #20222A 深底对比度仅约 1.2:1 —— 暗色下小组件文字不可读。 -->
+    <color name="widget_surface">#20222A</color>
+    <color name="widget_text_primary">#E6E6E1E5</color>
+    <color name="widget_text_secondary">#99E6E1E5</color>
+    <color name="widget_divider">#1AFFFFFF</color>
+    <!-- Widget 按钮（与浅色 @color/widget_button_* 配对）：暗色下改用浅色叠加，
+         否则 #14415F91 的深蓝微透明压在深底上不可见。 -->
+    <color name="widget_button_surface">#26AAC7FF</color>
+    <color name="widget_button_ripple">#33FFFFFF</color>
+
     <!-- 蓝色主题 -->
     <color name="blue_theme_primary">#AAC7FF</color>
     <color name="blue_theme_onPrimary">#0A305F</color>
@@ -51,12 +62,15 @@
 
     <!-- 绿色主题 -->
     <color name="green_theme_primary">#97D945</color>
+    <color name="green_theme_onPrimary">#0F3900</color>
     <color name="green_theme_primaryContainer">#64A104</color>
     <color name="green_theme_onPrimaryContainer">#192F00</color>
     <color name="green_theme_secondary">#B1D188</color>
+    <color name="green_theme_onSecondary">#1B3700</color>
     <color name="green_theme_secondaryContainer">#365016</color>
     <color name="green_theme_onSecondaryContainer">#A3C37B</color>
     <color name="green_theme_tertiary">#5DDCB0</color>
+    <color name="green_theme_onTertiary">#00382A</color>
     <color name="green_theme_tertiaryContainer">#05A47C</color>
     <color name="green_theme_onTertiaryContainer">#002F21</color>
     <color name="green_theme_background">#11150B</color>
@@ -91,12 +105,15 @@
 
     <!-- 红色主题 -->
     <color name="red_theme_primary">#FFB5A0</color>
+    <color name="red_theme_onPrimary">#5F1600</color>
     <color name="red_theme_primaryContainer">#B33B15</color>
     <color name="red_theme_onPrimaryContainer">#FFDAD0</color>
     <color name="red_theme_secondary">#FFB5A0</color>
+    <color name="red_theme_onSecondary">#5F1600</color>
     <color name="red_theme_secondaryContainer">#713524</color>
     <color name="red_theme_onSecondaryContainer">#F4A088</color>
     <color name="red_theme_tertiary">#E5C362</color>
+    <color name="red_theme_onTertiary">#3E2E00</color>
     <color name="red_theme_tertiaryContainer">#C8A84A</color>
     <color name="red_theme_onTertiaryContainer">#4F3D00</color>
     <color name="red_theme_background">#1C110D</color>
@@ -131,12 +148,15 @@
 
     <!-- 黄色主题 -->
     <color name="yellow_theme_primary">#FFFAFF</color>
+    <color name="yellow_theme_onPrimary">#3A3000</color>
     <color name="yellow_theme_primaryContainer">#FFDE3F</color>
     <color name="yellow_theme_onPrimaryContainer">#736100</color>
     <color name="yellow_theme_secondary">#D8C682</color>
+    <color name="yellow_theme_onSecondary">#3B3000</color>
     <color name="yellow_theme_secondaryContainer">#544910</color>
     <color name="yellow_theme_onSecondaryContainer">#C9B875</color>
     <color name="yellow_theme_tertiary">#F8FFDF</color>
+    <color name="yellow_theme_onTertiary">#394D00</color>
     <color name="yellow_theme_tertiaryContainer">#C6ED6B</color>
     <color name="yellow_theme_onTertiaryContainer">#506B00</color>
     <color name="yellow_theme_background">#16130A</color>
@@ -169,20 +189,17 @@
     <color name="yellow_theme_surfaceContainerHigh">#2D2A1F</color>
     <color name="yellow_theme_surfaceContainerHighest">#383529</color>
 
-    <!-- Widget 深色表面（与浅色 @color/widget_surface 配对） -->
-    <color name="widget_surface">#20222A</color>
-
-    <!-- Divider color (colorOutline at 8% opacity for dark mode) -->
-    <color name="divider_color">#148E9099</color>
-
     <!-- 青色主题 -->
     <color name="cyan_theme_primary">#84D4D3</color>
+    <color name="cyan_theme_onPrimary">#003737</color>
     <color name="cyan_theme_primaryContainer">#006A6A</color>
     <color name="cyan_theme_onPrimaryContainer">#97E7E6</color>
     <color name="cyan_theme_secondary">#AECCCC</color>
+    <color name="cyan_theme_onSecondary">#163131</color>
     <color name="cyan_theme_secondaryContainer">#2F4C4B</color>
     <color name="cyan_theme_onSecondaryContainer">#9DBBBA</color>
     <color name="cyan_theme_tertiary">#DABAF7</color>
+    <color name="cyan_theme_onTertiary">#3F2059</color>
     <color name="cyan_theme_tertiaryContainer">#6E5389</color>
     <color name="cyan_theme_onTertiaryContainer">#E9CFFF</color>
     <color name="cyan_theme_background">#101414</color>
@@ -217,12 +234,15 @@
 
     <!-- 紫色主题 -->
     <color name="purple_theme_primary">#CFBCFF</color>
+    <color name="purple_theme_onPrimary">#340080</color>
     <color name="purple_theme_primaryContainer">#6750A4</color>
     <color name="purple_theme_onPrimaryContainer">#E0D2FF</color>
     <color name="purple_theme_secondary">#CDC0E9</color>
+    <color name="purple_theme_onSecondary">#332A4E</color>
     <color name="purple_theme_secondaryContainer">#4D4465</color>
     <color name="purple_theme_onSecondaryContainer">#BFB2DA</color>
     <color name="purple_theme_tertiary">#FFAEDB</color>
+    <color name="purple_theme_onTertiary">#56154B</color>
     <color name="purple_theme_tertiaryContainer">#924274</color>
     <color name="purple_theme_onTertiaryContainer">#FFCAE5</color>
     <color name="purple_theme_background">#141218</color>
@@ -265,7 +285,6 @@
     <color name="status_warning_container">#4E4200</color>
     <color name="status_on_warning_container">#FFE08A</color>
 
-    <!-- 毛玻璃底栏：深色模式半透明表面（透出内容）+ 描边 -->
-    <color name="bottom_nav_glass_surface">#B321222A</color>
+    <!-- 毛玻璃底栏描边（深色模式用浅色发丝线）。填充色见 values/colors.xml 说明。 -->
     <color name="bottom_nav_glass_stroke">#1AFFFFFF</color>
 </resources>

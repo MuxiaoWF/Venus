@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="@dimen/setting_row_height"
-    android:gravity="center_vertical"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:gravity="center_vertical">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/background_task_switch"
@@ -21,7 +20,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_1"
         android:text="@string/background_running_desc"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
 </LinearLayout>

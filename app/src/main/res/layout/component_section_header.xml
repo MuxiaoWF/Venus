@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 统一区块标题：分组之间的小标题。当前 Fragment 已直接内联 TextView 使用 Widget.Venus.SectionHeaderRow，
-     因为 <include> 对 android:text 透传不可靠。本文件保留作为样式/内联参考。 -->
-<com.google.android.material.textview.MaterialTextView
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Widget.Venus.SectionHeaderRow"
-    android:id="@+id/section_header"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content" />

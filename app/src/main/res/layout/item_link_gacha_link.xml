@@ -49,20 +49,20 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/expandButton"
-                style="@style/Widget.Material3.Button.TextButton"
+                style="@style/Widget.Venus.Button.Text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/show_more"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
+                android:textAppearance="@style/TextAppearance.Venus.Label.Medium"
                 android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/copyButton"
-                style="@style/Widget.Material3.Button.TextButton"
+                style="@style/Widget.Venus.Button.Text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/copy_link"
-                android:textAppearance="?attr/textAppearanceLabelMedium" />
+                android:textAppearance="@style/TextAppearance.Venus.Label.Medium" />
 
         </LinearLayout>
 

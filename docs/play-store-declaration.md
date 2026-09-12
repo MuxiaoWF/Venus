@@ -219,9 +219,9 @@ Play 对「应用索要用户密码」高度敏感。当前实现在政策与代
 - **但**商品详情、截图、宣传图中**不得**使用米哈游 Logo、官方美术素材或游戏角色立绘
 - 描述中避免暗示「官方」「正版授权」等字样
 
-### 5. 后台服务声明（低风险）
+### 5. 后台服务声明（低风险，但**必填、未填会阻断发布**）
 
-使用了 `FOREGROUND_SERVICE_DATA_SYNC` + `WAKE_LOCK` 后台执行签到。需在 Play 的**前台服务类型声明**中如实申报 `dataSync` 用途，并提供说明视频或截图。
+使用了 `FOREGROUND_SERVICE_DATA_SYNC` + `WAKE_LOCK` 后台执行签到。清单与权限侧已满足 Android 14 的强制要求，但 Play 要求在控制台**逐类型申报「功能说明 + 用户影响 + 演示视频」**。**填写文案与视频脚本见第十节**，直接复制粘贴即可。
 
 ### 6. 病毒误报（已在 README 记录）
 
@@ -238,7 +238,7 @@ OAID 库可能被部分安全软件标记为风险。建议提交时使用**不�
 - [ ] 按第三节选择类别「工具」与标签
 - [ ] 按第四节填写数据安全表单
 - [ ] 核验商品详情与截图无第三方商标 / 版权素材
-- [ ] 申报前台服务类型 `dataSync`
+- [ ] 申报前台服务类型 `dataSync`（四项内容 + 演示视频，文案见**第十节**）
 - [ ] 用第六节/第七节的英文文本填写「登录详细信息」，替换测试账号占位符
 
 ---
@@ -419,3 +419,150 @@ PRIVACY & SECURITY
 DISCLAIMER
 Venus is an independent third-party tool and is not affiliated with or endorsed by miHoYo / HoYoverse, Hypergryph (Skland / Arknights), or any other publisher. It is not an official app. Use it in accordance with the relevant community's terms of service.
 ```
+
+---
+
+## 十、前台服务（FGS）类型申报 —— 控制台必填
+
+> **触发信号**：Play 控制台提示「Android 14+ requires Foreground Service types declaration and justification」。
+> 这是**控制台申报**要求，**不是代码缺陷**：清单与权限侧的 Android 14 强制项已全部满足（见 10.1）。
+> 换言之，只改代码（或只改 `AndroidManifest.xml`）**不会**消除该提示，必须在表单里逐类型说明用途、用户影响并附演示视频。
+> **入口**：Play 控制台 → 监控和改进 → **应用内容 → 前台服务**
+> （`https://play.google.com/console/app/app-content/summary`）
+
+### 10.1 代码侧合规核验（已满足，无需改动）
+
+| Android 14+ 强制要求 | 现状 | 位置 |
+|---|---|---|
+| 服务声明 `android:foregroundServiceType` | ✅ `dataSync` | `app/src/main/AndroidManifest.xml` → `ForegroundTaskService` |
+| 与类型配对的权限 | ✅ `android.permission.FOREGROUND_SERVICE_DATA_SYNC` | 同上 |
+| 基础权限 | ✅ `android.permission.FOREGROUND_SERVICE` | 同上 |
+| `startForeground()` 必须带类型 | ✅ API 34+ 传 `FOREGROUND_SERVICE_TYPE_DATA_SYNC` | `Home/ForegroundTaskService.java` |
+| 常驻可见通知（用户可感知） | ✅ 进度通知 + 「取消」按钮 | `common/Notification.java` |
+| 任务结束即停止服务 | ✅ 完成 / 取消 / 异常三条路径均 `stopSelf()` | `Home/ForegroundTaskService.java` |
+| Android 15+ dataSync 配额兜底 | ✅ 已覆写 `Service.onTimeout(int,int)` | 同上（见 10.6） |
+
+核验方式（合并后的最终清单，库引入的服务也在其中）：
+
+```
+app/build/intermediates/packaged_manifests/release/processReleaseManifestForPackage/AndroidManifest.xml
+```
+
+该文件中前台服务仅 1 处，`foregroundServiceType="dataSync"` 与 `FOREGROUND_SERVICE_DATA_SYNC` 成对出现，无其它库引入的「未声明类型的前台服务」。
+
+### 10.2 表单四项怎么填
+
+| 项目 | 填写方式 |
+|---|---|
+| ① 功能说明 | 粘贴 10.3 文案 **A** |
+| ② 用户影响说明（任务被延迟 / 被中断时的影响） | 粘贴 10.3 文案 **B** |
+| ③ 用例（Use case） | 选 **网络传输：上传或下载** / *Network transfer: upload or download*；下拉无此项则手动输入该英文名 |
+| ④ 演示视频链接 | 按 10.4 录制，上传 YouTube（可设为「不公开」）后填入链接 |
+
+> ⚠️ **用例不要选「备份和恢复」**。官方对该用例的定义是「专门由用户单独启动的备份动作」（如手动把某张照片备份到云端），与本应用语义不符，容易被判定用例不匹配。
+
+### 10.3 申报文案（英文，直接粘贴）
+
+**A. 功能说明**
+
+```
+Venus is a third-party task-automation utility for the MiYouShe (miHoYo)
+community. The foreground service starts only after the user taps "Run" on
+the app's Home screen, or taps "Run" on the app's home-screen widget. It
+then executes the user's daily check-in requests one by one: it signs each
+request, sends it over HTTPS to MiYouShe's official servers, downloads their
+responses, and writes the resulting status to local storage so the widget can
+display it. This is a straight upload/download/sync cycle with the servers,
+which is why the service is declared as dataSync.
+
+The foreground service is necessary for two reasons. First, the request
+sequence must not be killed midway while the device is idle or the user
+switches to another app, because a partial run would leave the account in an
+inconsistent state. Second, MiYouShe's risk control may interrupt the
+sequence with a GeeTest CAPTCHA, which the user must solve on screen; the
+service waits for that interaction and then continues. A persistent
+notification reports per-task progress and offers a Cancel action, and the
+service stops itself as soon as the task list finishes, is cancelled, or fails.
+```
+
+**B. 用户影响说明**
+
+```
+If the system defers the start of the task, nothing is lost: each check-in is
+idempotent and can simply be run again later, and the progress notification
+appears as soon as the task actually starts, so a deferred start is always
+visible to the user.
+
+If the system interrupts or stops the task midway, the affected items are
+shown as failed in the task list and the user can re-run them with one tap;
+items already completed are kept and are not repeated. Whenever the service
+stops — normally, on cancel, or on error — it releases its wake lock and
+removes the progress notification.
+```
+
+### 10.4 演示视频（必需）
+
+Play 要求视频展示**用户为触发该功能需要执行的操作步骤**。录一段 ≤60 秒的竖屏录屏，依次覆盖：
+
+1. 打开应用 → 「首页」点击**执行签到**
+2. 通知栏出现常驻进度通知（含进度文本与「取消」按钮）
+3. 任务列表逐条由「待执行」变为「已完成」，通知文本同步刷新
+4. 全部完成后通知自动消失
+5. 回到桌面 → 点小组件上的**运行**按钮，重复 2~4（证明功能由**用户主动操作**触发，而非后台自启）
+
+### 10.5 审核追问的应对
+
+| 追问点 | 答复口径 |
+|---|---|
+| 为什么不改用 WorkManager？ | ①WorkManager 执行长任务仍需内部启动前台服务（`SystemForegroundService`），**本表照样要填，且需为它再声明一次**；②任务是「等用户在场解完人机验证再续跑」的语义，非前台 Worker 承载不了。完整论证与代码依据见 **10.7**。 |
+| 是否用前台服务保活？ | 不是。通知文案只描述本次任务；服务在任务结束/取消/异常后立即 `stopSelf()`，且 WakeLock 设 10 分钟超时上限。申报文案里**不要**出现「保持运行 / 常驻后台」这类表述。 |
+| 用户是否可感知？ | 已满足：常驻通知（含进度与取消）+ 用户主动点击触发。 |
+
+### 10.6 Android 15+ 补充：dataSync 有 6 小时 / 24 小时配额
+
+本项目 `targetSdk = 37`，因此适用：系统允许 `dataSync` 前台服务在 24 小时内累计运行 **6 小时**；超时后回调 `Service.onTimeout(int,int)`，服务须在数秒内 `stopSelf()`，否则抛
+`RemoteServiceException: "A foreground service of type dataSync did not stop within its timeout"` 并崩溃；配额耗尽期间再启动会抛 `ForegroundServiceStartNotAllowedException`。
+
+对本应用的实际影响极小（单次任务受 WakeLock 10 分钟上限约束，几乎不可能触及配额），但已按官方建议在
+`Home/ForegroundTaskService.java` 中覆写 `onTimeout()` 兜底（超时即走取消流程）。**注意**：该方法仅在 API 35+ 被回调，低版本设备不会调用，因此不影响现网行为。
+
+### 10.7 备查：为什么不用 WorkManager / JobScheduler
+
+> 这一节不是给 Play 表单填的，是给「审核追问」和「后续维护者」留的决策记录。若审核方反问"为什么必须用前台服务"，可直接引用本节。
+
+**结论一：换成 WorkManager 并不能免掉本表。**
+WorkManager 执行长任务必须调用 `setForegroundAsync(ForegroundInfo)`，其内部仍会启动前台服务（宿主为 WorkManager 自带的 `SystemForegroundService`）。API 34+ 若不传 `FOREGROUND_SERVICE_TYPE_DATA_SYNC` 会直接抛异常；传了则清单仍须声明 `android:foregroundServiceType` 并声明 `FOREGROUND_SERVICE_DATA_SYNC` 权限。而 `dataSync` 属于 Play 的**特殊类型**，**即使由 WorkManager 承载，也照样要填本表单并录演示视频**。
+→ 申报义务跟着「应用行为」走，不跟「使用哪个 API」走。
+
+**结论二：本应用的交互语义无法用 Worker 承载。**
+任务执行途中可能被 GeeTest 人机验证打断，需要用户**在场解题**后继续，等待上限 5 分钟。非前台 Worker 受运行时长上限约束且进程可被随时回收，无法保证这段时间内存状态存活。
+
+**结论三：若要彻底移除前台服务，唯一可行路径是重构交互（当前版本未采用）。**
+把一次执行拆成「跑到需要验证即停 → 高优先级通知 → 用户点击回到界面解题 → 结果持久化 → 继续执行」。可行依据：Android 的 BAL 豁免清单明确包含「活动由系统发送的 PendingIntent 启动（例如轻触通知）」。代价：验证状态需从内存改为持久化、需处理 `challenge` 时效过期重取、UX 降级为「必须点通知」。
+
+**代码依据（可复核）**
+
+| 事实 | 位置 |
+|---|---|
+| 遇到验证时拉起前台 Activity 并阻塞等待（最长 5 分钟） | `Home/BackgroundGeetestController.java:52-55` |
+| 等待逻辑与 5 分钟上限 | `Home/DefaultCaptchaCoordinator.java:25-27` |
+| `gt` / `challenge` / `headers` 保存在**内存静态字段** | `Home/DefaultCaptchaCoordinator.java:14-16, 54-87` |
+| API 34+ 显式传入 `FOREGROUND_SERVICE_TYPE_DATA_SYNC` | `Home/ForegroundTaskService.java:123-128` |
+| 进度通知的 PendingIntent（通知回拉改造的半成品） | `common/Notification.java:64-71` |
+
+### 10.8 待真机验证的风险点：后台拉起 Activity（BAL）
+
+BAL（后台活动启动）的官方豁免清单中**不包含**「持有前台服务」，但包含「启动作业由启动器应用发起，例如用户轻触应用图标或与小组件互动时」。本应用两条触发路径的表现因此不同：
+
+| 触发路径 | 位置 | 预期 |
+|---|---|---|
+| App 内点击「执行签到」 | `Home/HomeFragment.java:612` | 刚从前台退下，通常可正常拉起验证界面 |
+| 桌面小组件点击「运行」 | `widget/TaskWidgetReceiver.java:42` | 依赖「用户刚与小组件互动」这一**短时效豁免**；若用户点击后锁屏放置数分钟才走到验证步骤，能否拉起**未经真机验证** |
+
+**验证方法**（真机：点小组件运行 → 立即锁屏 → 等待数分钟后再观察验证界面是否弹出）：
+
+```
+adb shell logcat | grep -iE "background activity|not started"
+```
+
+出现 `Background activity start ... is blocked` 即表示被拦截。若确认被拦，10.3 文案中「服务等待用户完成验证后继续」一句需配套改为「通知回拉」交互，否则 10.4 演示视频第 5 步无法录制。

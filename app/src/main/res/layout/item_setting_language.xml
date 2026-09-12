@@ -1,17 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/select_language"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Venus.Dropdown"

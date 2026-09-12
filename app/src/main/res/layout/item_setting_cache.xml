@@ -1,22 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/cache_size_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/current_cache_size"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/clear_cache_button"
-        style="@style/Widget.Material3.Button.TonalButton"
+        style="@style/Widget.Venus.Button.Tonal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_2"

@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/daily_switch_button"
@@ -21,7 +20,7 @@
         android:layout_marginTop="@dimen/space_2"
         android:layout_marginBottom="@dimen/space_4"
         android:text="@string/bbs_daily_tip"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.chip.ChipGroup

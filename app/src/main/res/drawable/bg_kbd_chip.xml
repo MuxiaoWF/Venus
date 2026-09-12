@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 命令条右侧提示 chip：白色 20% 透明底（叠于主色按钮上） -->
+<!-- 命令条右侧提示 chip：只提供"矩形 + 6dp 圆角"的形态，
+     实际底色由调用点的 android:backgroundTint="@color/on_primary_alpha_20"
+     （主题感知的 colorOnPrimary 20% 色状态列表）赋予，故此处 solid 仅为兜底。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#33FFFFFF" />
+    <solid android:color="?attr/colorOnPrimary" />
     <corners android:radius="6dp" />
 </shape>

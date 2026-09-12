@@ -381,16 +381,14 @@ public class MainActivity extends BaseActivity {
     private void adjustCardsForBackground() {
         Uri bgUri = SettingsFragment.getBackgroundImageUri(this);
         viewPager.post(() -> {
-            // 底部导航栏：始终为半透明毛玻璃（colorSurfaceContainer 的半透明，比 window 背景深一档），
-            // 圆角由 bg_bottom_nav_rounded 提供。无背景图时也能浮在浅色背景上；
-            // 有背景图时则透出图片形成真正的毛玻璃悬浮。不再依赖 backgroundTint，
-            // 因为样式里已将其置 @null，此处直接给 drawable 上色。
-            if (bottomNavigationView != null) {
-                int navColor = (0x99 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
-                        bottomNavigationView, com.google.android.material.R.attr.colorSurfaceContainer, 0));
-                android.graphics.drawable.Drawable bg = bottomNavigationView.getBackground().mutate();
-                bg.setTint(navColor);
-                bottomNavigationView.setBackground(bg);
+            // 底部导航栏毛玻璃：颜色由 bg_bottom_nav_rounded 的 ?attr/colorSurfaceContainer
+            // 提供（随 6 套 ThemeOverlay 与昼夜在运行时解析），此处只叠加"不透明度"，
+            // 且 alpha 取自 @integer/bottom_nav_glass_alpha。
+            // 颜色来源与不透明度各归一处；不再像过去那样 setTint 一个写死 alpha 的
+            // 颜色去覆盖 drawable，也不再把颜色写死在 drawable 里（两者都会让换肤失效）。
+            if (bottomNavigationView != null && bottomNavigationView.getBackground() != null) {
+                bottomNavigationView.getBackground().mutate()
+                        .setAlpha(getResources().getInteger(R.integer.bottom_nav_glass_alpha));
             }
             if (bgUri == null) return;
             int semiTransparentColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(

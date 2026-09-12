@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Widget 按钮背景（widget_task_status 的 RemoteViews 用）：
+     颜色走 widget 专用语义 token（昼夜各一套），不再写死 #20000000 / #14415F91 ——
+     原 #14415F91 与 blue primary 绑定，暗色下不可见。 -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#20000000">
+    android:color="@color/widget_button_ripple">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#14415F91" />
+            <solid android:color="@color/widget_button_surface" />
             <corners android:radius="6dp" />
         </shape>
     </item>

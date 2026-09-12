@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Snackbar 背景：主题感知（修复原 @color/snackbar_background 硬编码浅灰，深色下才靠 night 覆盖）。
-     现直接走 colorSurfaceContainerHigh，随浅色/深色/四主题自适应；圆角用 sm。 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="?attr/colorSurfaceContainerHigh" />
-    <corners android:radius="@dimen/shape_corner_sm" />
-</shape>

@@ -92,10 +92,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/miyoushe_coin_sign_in" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/game_daily_card"
@@ -105,10 +103,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/game_sign_in" />
 
-            <View
+            <com.google.android.material.divider.MaterialDivider
                 style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height"
                 android:layout_marginTop="@dimen/space_2" />
 
             <!-- ===== 分组：配置 ===== -->
@@ -128,10 +124,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/server_type" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/config_card"
@@ -141,10 +135,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/config_info" />
 
-            <View
+            <com.google.android.material.divider.MaterialDivider
                 style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height"
                 android:layout_marginTop="@dimen/space_2" />
 
             <!-- ===== 分组：应用 ===== -->
@@ -164,10 +156,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/update" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/cache_card"
@@ -177,10 +167,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/cache" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/language_card"
@@ -190,10 +178,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/language" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/theme_card"
@@ -203,10 +189,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/theme" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/background_card"
@@ -216,10 +200,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/background" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/notification_card"
@@ -229,10 +211,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/background_running" />
 
-            <View
+            <com.google.android.material.divider.MaterialDivider
                 style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height"
                 android:layout_marginTop="@dimen/space_2" />
 
             <!-- ===== 分组：其他 ===== -->
@@ -252,10 +232,8 @@
                 app:insetHorizontal="@dimen/space_2"
                 app:cardTitle="@string/skland_sign_in" />
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <com.muxiao.Venus.common.CollapsibleCardView
                 android:id="@+id/about_card"

@@ -11,8 +11,6 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.color.MaterialColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textview.MaterialTextView;
@@ -238,38 +236,21 @@ public class tools {
 
     /**
      * 显示居中、带 M3 主题配色与内边距的自定义 Snackbar（短时长自动消失）。
+     *
+     * <p>配色（表面色 / 文本 / 动作按钮）与圆角全部由主题的
+     * {@code snackbarStyle} / {@code snackbarTextViewStyle} / {@code snackbarButtonStyle}
+     * 承载（见 Theme.Venus 与 Widget.Venus.Snackbar*），本方法只保留
+     * 居中、留白、短时长这类"布局行为"，不再逐层覆盖 hardcode 颜色。
      */
     public static void showCustomSnackbar(View view, Context context, String message) {
         Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
         View snackbarView = snackbar.getView();
 
-        // 圆角背景：颜色走 M3 语义 token（colorSurfaceContainerHigh / colorOnSurface / colorPrimary），
-        // 深浅色与彩色主题下自动适配，不再依赖固定的 snackbar_* 裸色。
-        snackbarView.setBackgroundResource(R.drawable.snackbar_background);
-        int snackbarBackground = MaterialColors.getColor(
-                snackbarView, com.google.android.material.R.attr.colorSurfaceContainerHigh,
-                context.getResources().getColor(R.color.snackbar_background, context.getTheme()));
-        snackbarView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(snackbarBackground));
-
-        // 文本样式
+        // 文本居中 + 最多三行（颜色/字号走 snackbarTextViewStyle）
         MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
         if (textView != null) {
-            int snackbarText = MaterialColors.getColor(
-                    snackbarView, com.google.android.material.R.attr.colorOnSurface,
-                    context.getResources().getColor(R.color.snackbar_text, context.getTheme()));
-            textView.setTextColor(snackbarText);
             textView.setGravity(android.view.Gravity.CENTER);
-            textView.setTextSize(13);
             textView.setMaxLines(3);
-        }
-
-        // 动作按钮颜色
-        MaterialButton actionView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_action);
-        if (actionView != null) {
-            int snackbarAction = MaterialColors.getColor(
-                    snackbarView, android.R.attr.colorPrimary,
-                    context.getResources().getColor(R.color.snackbar_action, context.getTheme()));
-            actionView.setTextColor(snackbarAction);
         }
 
         // 阴影和内边距

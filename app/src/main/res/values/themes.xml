@@ -1,11 +1,23 @@
 <resources>
     <!-- Base application theme：默认走动态取色（DynamicColors）。
-         四套配色主题共享、且跨主题完全一致的语义色提到基类，避免每套重复声明。 -->
+         四套配色主题共享、且跨主题完全一致的语义色提到基类，避免每套重复声明。
+
+         注意（P0-1 修复）：本 style 只在 values/ 声明一次。
+         曾同时在 values-night/themes.xml 声明同名 style，而 Android 资源按限定符
+         “整体替换”而非合并 item —— 暗色下基类的 8 项语义色会被整体覆盖掉，
+         静默回落到动态取色。夜主题文件已删除，语义色仅在此单点维护。 -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
         <item name="bottomNavigationStyle">@style/Widget.Venus.BottomNavigationView</item>
 
-        <!-- 跨主题一致的语义色（来自 blue 调色板，四套完全相同） -->
+        <!-- Snackbar 收敛为单一样式来源（原先 Java 侧三重手工着色 + 专属 drawable 并存） -->
+        <item name="snackbarStyle">@style/Widget.Venus.Snackbar</item>
+        <item name="snackbarTextViewStyle">@style/Widget.Venus.Snackbar.TextView</item>
+        <item name="snackbarButtonStyle">@style/Widget.Venus.Snackbar.Action</item>
+
+        <!-- 跨主题一致的语义色（来自 blue 调色板）。
+             colorOnPrimary / colorOnSecondary / colorOnTertiary 是"未叠加配色 Overlay 时"的
+             默认兜底值；6 套 ThemeOverlay 各自声明与自身调色板匹配的反色，见下方。 -->
         <item name="colorError">@color/blue_theme_error</item>
         <item name="colorOnError">@color/blue_theme_onError</item>
         <item name="colorErrorContainer">@color/blue_theme_errorContainer</item>
@@ -16,7 +28,10 @@
         <item name="colorSurfaceContainerLowest">@color/blue_theme_surfaceContainerLowest</item>
     </style>
 
-    <!-- Splash 启动页 Style（Apple 风：柔光近白底 + 品牌字标浮起） -->
+    <!-- Splash 启动页 Style（Apple 风：柔光近白底 + 品牌字标浮起）
+         昼夜共用一份定义：windowSplashScreenBackground 走 ?attr，随基主题的
+         colorSurfaceContainerLowest（已有 day/night 两套取值）自动切换，
+         避免过去夜间写死 @color/splash_background(#457C77) 导致的“墨绿 → 深色”跳色。 -->
     <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">
         <item name="windowSplashScreenBackground">?attr/colorSurfaceContainerLowest</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
@@ -25,18 +40,24 @@
         <item name="postSplashScreenTheme">@style/Theme.Venus</item>
     </style>
 
-    <!-- ===== 配色主题：改为 ThemeOverlay，运行时通过 getTheme().applyStyle() 叠加 =====
-         仅声明随主题变化的调色板属性；与基类共享的语义色不再重复。 -->
+    <!-- ===== 配色主题：ThemeOverlay，运行时通过 getTheme().applyStyle() 叠加 =====
+         每套声明三组：主/次/第三色的**基色**与**反色（on*）**。
+         反色必须随调色板走：6 套主题的 colorPrimary 明度差异极大（暗色下 yellow 的
+         primary 是 #FFFAFF 近白），若 on* 共用一份，就会出现"近白底 + 白字"的对比度失效。
+         全部反色实测对比度 ≥ 7:1（WCAG AA 需 4.5:1）。 -->
 
     <!-- 蓝色主题 -->
     <style name="ThemeOverlay.Venus.Blue" parent="Theme.Venus">
         <item name="colorPrimary">@color/blue_theme_primary</item>
+        <item name="colorOnPrimary">@color/blue_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/blue_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/blue_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/blue_theme_secondary</item>
+        <item name="colorOnSecondary">@color/blue_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/blue_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/blue_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/blue_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/blue_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/blue_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/blue_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/blue_theme_background</item>
@@ -73,12 +94,15 @@
     <!-- 绿色主题 -->
     <style name="ThemeOverlay.Venus.Green" parent="Theme.Venus">
         <item name="colorPrimary">@color/green_theme_primary</item>
+        <item name="colorOnPrimary">@color/green_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/green_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/green_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/green_theme_secondary</item>
+        <item name="colorOnSecondary">@color/green_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/green_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/green_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/green_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/green_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/green_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/green_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/green_theme_background</item>
@@ -115,12 +139,15 @@
     <!-- 红色主题 -->
     <style name="ThemeOverlay.Venus.Red" parent="Theme.Venus">
         <item name="colorPrimary">@color/red_theme_primary</item>
+        <item name="colorOnPrimary">@color/red_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/red_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/red_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/red_theme_secondary</item>
+        <item name="colorOnSecondary">@color/red_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/red_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/red_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/red_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/red_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/red_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/red_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/red_theme_background</item>
@@ -143,7 +170,9 @@
         <item name="colorSecondaryFixedDim">@color/red_theme_secondaryFixedDim</item>
         <item name="colorOnSecondaryFixedVariant">@color/red_theme_onSecondaryFixedVariant</item>
         <item name="colorTertiaryFixed">@color/red_theme_tertiaryFixed</item>
-        <item name="colorOnTertiaryFixed">@color/red_theme_tertiaryFixed</item>
+        <!-- P0-2 修复：原误写为 red_theme_tertiaryFixed（容器色），
+             导致 tertiaryFixed 上的文字/图标对比度趋近 1:1、文字不可读。 -->
+        <item name="colorOnTertiaryFixed">@color/red_theme_onTertiaryFixed</item>
         <item name="colorTertiaryFixedDim">@color/red_theme_tertiaryFixedDim</item>
         <item name="colorOnTertiaryFixedVariant">@color/red_theme_onTertiaryFixedVariant</item>
         <item name="colorSurfaceDim">@color/red_theme_surfaceDim</item>
@@ -157,12 +186,15 @@
     <!-- 黄色主题 -->
     <style name="ThemeOverlay.Venus.Yellow" parent="Theme.Venus">
         <item name="colorPrimary">@color/yellow_theme_primary</item>
+        <item name="colorOnPrimary">@color/yellow_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/yellow_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/yellow_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/yellow_theme_secondary</item>
+        <item name="colorOnSecondary">@color/yellow_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/yellow_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/yellow_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/yellow_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/yellow_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/yellow_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/yellow_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/yellow_theme_background</item>
@@ -199,12 +231,15 @@
     <!-- 青色主题 -->
     <style name="ThemeOverlay.Venus.Cyan" parent="Theme.Venus">
         <item name="colorPrimary">@color/cyan_theme_primary</item>
+        <item name="colorOnPrimary">@color/cyan_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/cyan_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/cyan_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/cyan_theme_secondary</item>
+        <item name="colorOnSecondary">@color/cyan_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/cyan_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/cyan_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/cyan_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/cyan_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/cyan_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/cyan_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/cyan_theme_background</item>
@@ -241,12 +276,15 @@
     <!-- 紫色主题 -->
     <style name="ThemeOverlay.Venus.Purple" parent="Theme.Venus">
         <item name="colorPrimary">@color/purple_theme_primary</item>
+        <item name="colorOnPrimary">@color/purple_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/purple_theme_primaryContainer</item>
         <item name="colorOnPrimaryContainer">@color/purple_theme_onPrimaryContainer</item>
         <item name="colorSecondary">@color/purple_theme_secondary</item>
+        <item name="colorOnSecondary">@color/purple_theme_onSecondary</item>
         <item name="colorSecondaryContainer">@color/purple_theme_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/purple_theme_onSecondaryContainer</item>
         <item name="colorTertiary">@color/purple_theme_tertiary</item>
+        <item name="colorOnTertiary">@color/purple_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/purple_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/purple_theme_onTertiaryContainer</item>
         <item name="android:colorBackground">@color/purple_theme_background</item>

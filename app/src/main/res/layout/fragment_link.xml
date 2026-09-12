@@ -79,8 +79,8 @@
                 android:paddingVertical="@dimen/space_2">
 
                 <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="@dimen/icon_badge_md"
+                    android:layout_height="@dimen/icon_badge_md"
                     android:background="@drawable/bg_icon_circle"
                     android:contentDescription="@null"
                     android:padding="@dimen/space_2"
@@ -97,7 +97,7 @@
                     android:background="@android:color/transparent"
                     android:inputType="none"
                     android:textColor="?attr/colorOnSurface"
-                    android:textSize="16sp" />
+                    android:textAppearance="@style/TextAppearance.Venus.Body.Large" />
 
                 <ImageView
                     android:layout_width="wrap_content"
@@ -107,10 +107,8 @@
                     app:tint="?attr/colorPrimary" />
             </LinearLayout>
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
         </LinearLayout>
 
         <!-- ===== 来源列表 ===== -->
@@ -140,8 +138,8 @@
 
                 <ImageView
                     android:id="@+id/icon_genshin"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="@dimen/icon_badge_circle"
+                    android:layout_height="@dimen/icon_badge_circle"
                     android:background="@drawable/bg_icon_circle"
                     android:contentDescription="@null"
                     android:padding="@dimen/space_2"
@@ -166,7 +164,7 @@
                         style="@style/TextAppearance.Venus.MonoValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginTop="@dimen/space_hairline"
                         android:text="@string/gacha_not_fetched" />
                 </LinearLayout>
 
@@ -174,17 +172,18 @@
                     android:id="@+id/chip_genshin"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_chip_surface"
+                    android:background="@drawable/bg_chip"
+                    android:backgroundTint="?attr/colorSurfaceContainerHigh"
                     android:paddingHorizontal="@dimen/space_2"
-                    android:paddingVertical="2dp"
+                    android:paddingVertical="@dimen/space_hairline"
                     android:text="@string/gacha_not_fetched"
                     android:textAppearance="@style/TextAppearance.Venus.MonoValue"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <ImageView
                     android:id="@+id/refresh_genshin"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="@dimen/icon_badge_circle"
+                    android:layout_height="@dimen/icon_badge_circle"
                     android:layout_marginStart="@dimen/space_2"
                     android:background="@drawable/bg_surface_circle"
                     android:contentDescription="@string/get_gacha_link"
@@ -201,12 +200,21 @@
                 android:layout_marginStart="@dimen/space_9"
                 android:orientation="vertical"
                 android:visibility="gone" />
+
+            <!-- 就地错误：无角色 / 获取失败时顶替结果行的位置显示，不另起全局提示区 -->
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/error_genshin"
+                style="@style/TextAppearance.Venus.Body.Small"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_9"
+                android:paddingVertical="@dimen/space_2"
+                android:textColor="?attr/colorError"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <View
-            style="@style/Widget.Venus.SettingsRowDivider"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height" />
+        <com.google.android.material.divider.MaterialDivider
+            style="@style/Widget.Venus.SettingsRowDivider" />
 
         <!-- 绝区零：点行获取，结果行内展示 -->
         <LinearLayout
@@ -227,8 +235,8 @@
 
                 <ImageView
                     android:id="@+id/icon_zzz"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="@dimen/icon_badge_circle"
+                    android:layout_height="@dimen/icon_badge_circle"
                     android:background="@drawable/bg_surface_circle"
                     android:contentDescription="@null"
                     android:padding="@dimen/space_2"
@@ -253,7 +261,7 @@
                         style="@style/TextAppearance.Venus.MonoValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
+                        android:layout_marginTop="@dimen/space_hairline"
                         android:text="@string/gacha_not_fetched" />
                 </LinearLayout>
 
@@ -261,17 +269,18 @@
                     android:id="@+id/chip_zzz"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_chip_surface"
+                    android:background="@drawable/bg_chip"
+                    android:backgroundTint="?attr/colorSurfaceContainerHigh"
                     android:paddingHorizontal="@dimen/space_2"
-                    android:paddingVertical="2dp"
+                    android:paddingVertical="@dimen/space_hairline"
                     android:text="@string/gacha_not_fetched"
                     android:textAppearance="@style/TextAppearance.Venus.MonoValue"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <ImageView
                     android:id="@+id/refresh_zzz"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="@dimen/icon_badge_circle"
+                    android:layout_height="@dimen/icon_badge_circle"
                     android:layout_marginStart="@dimen/space_2"
                     android:background="@drawable/bg_surface_circle"
                     android:contentDescription="@string/get_gacha_link"
@@ -288,12 +297,21 @@
                 android:layout_marginStart="@dimen/space_9"
                 android:orientation="vertical"
                 android:visibility="gone" />
+
+            <!-- 就地错误：同原神行，顶替结果行的位置显示 -->
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/error_zzz"
+                style="@style/TextAppearance.Venus.Body.Small"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_9"
+                android:paddingVertical="@dimen/space_2"
+                android:textColor="?attr/colorError"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <View
-            style="@style/Widget.Venus.SettingsRowDivider"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/divider_height" />
+        <com.google.android.material.divider.MaterialDivider
+            style="@style/Widget.Venus.SettingsRowDivider" />
 
         <!-- 云游戏获取：导航行，打开 WebView 页面捕获 -->
         <LinearLayout
@@ -308,8 +326,8 @@
             android:paddingVertical="@dimen/gap_row">
 
             <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="@dimen/icon_badge_circle"
+                android:layout_height="@dimen/icon_badge_circle"
                 android:background="@drawable/bg_icon_circle"
                 android:contentDescription="@null"
                 android:padding="@dimen/space_2"
@@ -334,7 +352,7 @@
                     style="@style/TextAppearance.Venus.MonoValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                    android:layout_marginTop="@dimen/space_hairline"
                     android:text="@string/cloud_open_hint" />
             </LinearLayout>
 
@@ -347,21 +365,10 @@
                 app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
-        <!-- 错误提示（保留原 id） -->
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/errorTextView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/space_3"
-            android:background="@drawable/bg_surface_container_rounded"
-            android:drawableTop="@drawable/ic_error"
-            android:drawableTint="?attr/colorError"
-            android:drawablePadding="@dimen/space_2"
-            android:gravity="center"
-            android:padding="@dimen/gutter_card"
-            android:textAppearance="@style/TextAppearance.Venus.Body"
-            android:textColor="?attr/colorError"
-            android:visibility="gone" />
+        <!-- 错误态不单独立块：无角色 / 获取失败时，由 Java 把错误行直接渲染进
+             触发它的那条来源行的结果区（result_genshin / result_zzz），
+             就地替换该行的结果内容。如此错误长在出事的那一行下面，
+             既不把列表下方撑出一块新提示区，也不会两个来源互相干扰。 -->
 
         <!-- 底部弹性占位：内容少时来源列表贴近顶部 -->
         <Space

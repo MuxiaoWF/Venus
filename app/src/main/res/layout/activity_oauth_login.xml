@@ -66,7 +66,7 @@
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="@dimen/gap_inline"
+                            android:layout_marginStart="@dimen/gap_row"
                             android:text="@string/cookie_login"
                             android:textAppearance="@style/TextAppearance.Venus.Title"
                             android:textColor="?attr/colorOnSurface" />
@@ -77,12 +77,11 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="@dimen/space_3"
                         android:text="@string/cookie_login_hint"
-                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_cookie_login"
-                        style="@style/Widget.Venus.Button.Primary"
+                        style="@style/Widget.Venus.Button.Filled"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/cookie_login_start" />

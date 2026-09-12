@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/app_version_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingVertical="@dimen/space_2"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.Body"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.textview.MaterialTextView
@@ -19,7 +18,7 @@
         android:layout_height="wrap_content"
         android:paddingVertical="@dimen/space_2"
         android:text="@string/about_license"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.Body"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.textview.MaterialTextView
@@ -31,7 +30,7 @@
         android:drawablePadding="@dimen/space_1"
         android:paddingVertical="@dimen/space_2"
         android:text="@string/github_source"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.Body"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.textview.MaterialTextView
@@ -43,7 +42,7 @@
         android:drawablePadding="@dimen/space_1"
         android:paddingVertical="@dimen/space_2"
         android:text="@string/my_blog"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.Body"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
 </LinearLayout>

@@ -1,20 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 主题选择（命令台风格）：四色圆点 + 系统动态取色点；深浅模式为药丸分段。
      选中态由 Java 以 MaterialButton 描边表达。 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/select_app_theme"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <!-- 七枚主题圆点（ChipGroup 流式排布，放不下自动换行）：系统(动态取色) + 蓝/绿/红/黄/青/紫，选中 = 主色描边（Java 控制） -->
     <com.google.android.material.chip.ChipGroup
@@ -92,8 +90,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_4"
         android:text="@string/theme_variant_setting"
-        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <!-- 深浅模式：药丸分段按钮，选中段主色填充 -->
     <com.google.android.material.button.MaterialButtonToggleGroup

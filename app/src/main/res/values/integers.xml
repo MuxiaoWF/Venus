@@ -4,4 +4,9 @@
     <integer name="motion_duration_short">100</integer>
     <integer name="motion_duration_medium">250</integer>
     <integer name="motion_duration_long">350</integer>
+
+    <!-- ===== 不透明度 Token ===== -->
+    <!-- 底部导航毛玻璃不透明度（0-255）。颜色走 ?attr/colorSurfaceContainer，
+         透明度无法由主题属性表达，故单独成 token 供 MainActivity 施加。 -->
+    <integer name="bottom_nav_glass_alpha">153</integer>
 </resources>

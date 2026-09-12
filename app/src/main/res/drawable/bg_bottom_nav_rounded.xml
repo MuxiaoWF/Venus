@@ -2,12 +2,19 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
 
-    <!-- 默认填充用主题表面容器色；实际颜色由 MainActivity 的 setTint 叠加半透明，
-         保证首帧与 tint 后一致、不闪白。圆角由 corners 提供。 -->
+    <!-- 底部导航"毛玻璃"表面。颜色必须走 ?attr/colorSurfaceContainer ——
+         它在运行时按当前 ThemeOverlay（蓝/绿/红/黄/青/紫）与昼夜限定符解析，
+         是唯一能"跟着换肤走"的写法。
+         踩坑记录：此处曾改成写死色 @color/bottom_nav_glass_surface(#B3F3F3FA)，
+         结果是底栏永远停在默认中性浅色，切到蓝/绿/红主题时颜色对不上 ——
+         静态色无法表达"随主题变化"的语义，凡是要跟随换肤的表面色都不得写死。
+         透明度（毛玻璃感）无法挂在主题属性上，改由 MainActivity 施加
+         @integer/bottom_nav_glass_alpha。分工：本文件声明"颜色来源"，
+         Java 只声明"不透明度"，全项目不再出现第二处底栏颜色。 -->
     <solid android:color="?attr/colorSurfaceContainer" />
     <corners android:radius="@dimen/shape_corner_lg" />
     <stroke
-        android:width="0.5dp"
+        android:width="@dimen/stroke_width_hairline_half"
         android:color="@color/bottom_nav_glass_stroke" />
 
 </shape>

@@ -29,8 +29,8 @@
 
             <ImageView
                 android:id="@+id/user_avatar"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="@dimen/icon_avatar_md"
+                android:layout_height="@dimen/icon_avatar_md"
                 android:background="@drawable/bg_icon_circle"
                 android:contentDescription="@null"
                 android:padding="@dimen/space_2"
@@ -65,9 +65,10 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="@dimen/space_2"
-                        android:background="@drawable/bg_chip_primary"
+                        android:background="@drawable/bg_chip"
+                        android:backgroundTint="@color/primary_alpha_10"
                         android:paddingHorizontal="@dimen/space_2"
-                        android:paddingVertical="2dp"
+                        android:paddingVertical="@dimen/space_hairline"
                         android:text="@string/user_chip_default"
                         android:textAppearance="@style/TextAppearance.Venus.MonoValue"
                         android:textColor="?attr/colorPrimary"
@@ -77,13 +78,13 @@
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                    android:layout_marginTop="@dimen/space_hairline"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <ImageView
-                        android:layout_width="11dp"
-                        android:layout_height="11dp"
+                        android:layout_width="@dimen/status_icon_size"
+                        android:layout_height="@dimen/status_icon_size"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_check"
                         app:tint="@color/status_success" />
@@ -121,7 +122,7 @@
                 android:layout_weight="1"
                 android:background="?attr/selectableItemBackground"
                 android:text="@string/re_login"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textAppearance="@style/TextAppearance.Venus.Label.Large"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 app:icon="@drawable/ic_refresh"
                 app:iconTint="?attr/colorOnSurfaceVariant"
@@ -140,7 +141,7 @@
                 android:layout_weight="1"
                 android:background="?attr/selectableItemBackground"
                 android:text="@string/delete_user"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textAppearance="@style/TextAppearance.Venus.Label.Large"
                 android:textColor="?attr/colorError"
                 app:icon="@drawable/ic_trash"
                 app:iconTint="?attr/colorError"

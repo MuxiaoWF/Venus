@@ -70,7 +70,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/space_4"
                     tools:text="1/10"
-                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textAppearance="@style/TextAppearance.Venus.Label.Small"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
@@ -87,7 +87,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="@string/author_name"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="@style/TextAppearance.Venus.Body.Small"
                     android:textColor="?attr/colorPrimary" />
 
                 <com.google.android.material.textview.MaterialTextView
@@ -95,7 +95,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     tools:text="2024-05-20"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textAppearance="@style/TextAppearance.Venus.Body.Small"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
@@ -108,12 +108,12 @@
                 android:ellipsize="end"
                 android:maxLines="3"
                 android:text="@string/default_description"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textAppearance="@style/TextAppearance.Venus.Body"
                 android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/downloadButton"
-            style="@style/Widget.Venus.Button.Primary"
+            style="@style/Widget.Venus.Button.Filled"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"

@@ -88,7 +88,7 @@
                     android:drawablePadding="@dimen/space_3"
                     android:gravity="center"
                     android:text="@string/no_user_prompt"
-                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    android:textAppearance="@style/TextAppearance.Venus.Body.Large"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:visibility="gone" />
 

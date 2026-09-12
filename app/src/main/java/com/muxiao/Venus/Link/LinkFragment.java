@@ -7,7 +7,6 @@ import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
 import android.graphics.Typeface;
 import android.os.Bundle;
-import android.view.animation.AnimationUtils;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,6 +14,7 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
@@ -47,7 +47,6 @@ public class LinkFragment extends Fragment {
         tools.setupFragmentTransitions(this);
     }
 
-    private MaterialTextView errorTextView;
     private String currentUserId;
     private ExecutorService executor;
     private UserManager userManager;
@@ -60,7 +59,6 @@ public class LinkFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_link, container, false);
 
-        errorTextView = view.findViewById(R.id.errorTextView);
         userDropdown = view.findViewById(R.id.user_dropdown);
 
         userManager = new UserManager(requireContext());
@@ -75,8 +73,7 @@ public class LinkFragment extends Fragment {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             currentUserId = selectedUser;
-            setErrorTextVisible(false);
-            // 切换用户后按新用户重绘两游戏的行内结果
+            // 切换用户后按新用户重绘两游戏的行内结果；结果区重建时，上一次的行内错误随之清除
             renderGameResult(0);
             renderGameResult(1);
         });
@@ -96,14 +93,14 @@ public class LinkFragment extends Fragment {
         return view;
     }
 
-    /** 按 gameType（0=原神, 1=绝区零）拉取抽卡链接，成功后行内展示结果。 */
+    /** 按 gameType（0=原神, 1=绝区零）拉取抽卡链接：成功行内展示结果，失败则在同一行内就地报错。 */
     private void fetchGame(int gameType) {
         if (currentUserId == null || currentUserId.isEmpty()) {
-            errorTextView.setText(getString(R.string.msg_select_user_first));
-            setErrorTextVisible(true);
+            showInlineError(gameType, getString(R.string.msg_select_user_first));
             return;
         }
-        setErrorTextVisible(false);
+        // 重绘结果区，顺带清掉上一次的行内错误；再进入获取态
+        renderGameResult(gameType);
         setChipState(gameType, ChipState.FETCHING);
 
         executor.execute(() -> {
@@ -113,8 +110,7 @@ public class LinkFragment extends Fragment {
                 result = gameType == 0 ? gachaLink.genshin() : gachaLink.zzz();
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() -> {
-                    errorTextView.setText(e.getMessage());
-                    setErrorTextVisible(true);
+                    showInlineError(gameType, e.getMessage());
                     setChipState(gameType, ChipState.PENDING);
                 });
                 return;
@@ -124,10 +120,10 @@ public class LinkFragment extends Fragment {
                         tabResults.computeIfAbsent(gameType, k -> new HashMap<>());
                 perUser.put(currentUserId, new HashMap<>(result));
                 if (result.isEmpty()) {
-                    errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
-                    setErrorTextVisible(true);
-                    setChipState(gameType, ChipState.PENDING);
+                    // 无角色 / 未取到链接：直接把本行结果区替换成错误提示
                     renderGameResult(gameType);
+                    showInlineError(gameType, getString(R.string.msg_no_game_role_or_error));
+                    setChipState(gameType, ChipState.PENDING);
                 } else {
                     renderGameResult(gameType);
                     View root = requireView();
@@ -146,6 +142,7 @@ public class LinkFragment extends Fragment {
         Map<String, Map<Integer, String>> perUser = tabResults.get(gameType);
         Map<Integer, String> links = perUser == null ? null : perUser.get(currentUserId);
 
+        hideInlineError(gameType);
         container.removeAllViews();
         if (links == null || links.isEmpty()) {
             container.setVisibility(View.GONE);
@@ -197,7 +194,7 @@ public class LinkFragment extends Fragment {
 
         ImageView copyBtn = new ImageView(ctx);
         copyBtn.setImageResource(R.drawable.ic_copy);
-        copyBtn.setBackground(ctx.getDrawable(R.drawable.bg_surface_button));
+        copyBtn.setBackground(AppCompatResources.getDrawable(ctx, R.drawable.bg_surface_button));
         // 图标着次要色：ic_copy 原始为白色，浅色表面上不彩色会与底融为一体（视觉上像透明）
         copyBtn.setImageTintList(android.content.res.ColorStateList.valueOf(
                 MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575)));
@@ -212,17 +209,6 @@ public class LinkFragment extends Fragment {
         return row;
     }
 
-    /** 行内状态文字保留（获取中提示）；颜色由 chip/主题统一接管后此方法仅用于文本。 */
-    private void setStatusText(int gameType, String text, @Nullable Integer colorAttrOrRes) {
-        View root = requireView();
-        MaterialTextView status = root.findViewById(gameType == 0 ? R.id.status_genshin : R.id.status_zzz);
-        status.setText(text);
-        if (colorAttrOrRes != null)
-            status.setTextColor(colorAttrOrRes);
-        else
-            status.setTextColor(MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575));
-    }
-
     /** 来源行状态（对齐设计稿 chip 语义：待获取/获取中 = 中性 chip，已获取 = 语义成功 chip）。 */
     private enum ChipState {PENDING, FETCHING, FETCHED}
 
@@ -235,11 +221,15 @@ public class LinkFragment extends Fragment {
         android.content.Context ctx = requireContext();
         int gray = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575);
         int primary = MaterialColors.getColor(ctx, androidx.appcompat.R.attr.colorPrimary, 0xFF415F91);
+        // chip 合并后唯一底图 bg_chip，填充色由 tint 按状态给定（中性=凸面，成功=语义成功容器）
+        int chipNeutral = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFF3F3FA);
+        int chipSuccess = ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success_container);
         switch (state) {
             case FETCHING:
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_fetching);
-                chip.setBackgroundResource(R.drawable.bg_chip_surface);
+                chip.setBackgroundResource(R.drawable.bg_chip);
+                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipNeutral));
                 chip.setTextColor(primary);
                 status.setText(R.string.gacha_fetching);
                 status.setTextColor(primary);
@@ -249,7 +239,8 @@ public class LinkFragment extends Fragment {
             case FETCHED:
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_fetched);
-                chip.setBackgroundResource(R.drawable.bg_status_chip);
+                chip.setBackgroundResource(R.drawable.bg_chip);
+                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipSuccess));
                 chip.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_on_success_container));
                 status.setText(R.string.gacha_fetched);
                 status.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success));
@@ -259,7 +250,8 @@ public class LinkFragment extends Fragment {
             default: // PENDING
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_chip_pending);
-                chip.setBackgroundResource(R.drawable.bg_chip_surface);
+                chip.setBackgroundResource(R.drawable.bg_chip);
+                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipNeutral));
                 chip.setTextColor(gray);
                 status.setText(R.string.gacha_not_fetched);
                 status.setTextColor(gray);
@@ -269,25 +261,27 @@ public class LinkFragment extends Fragment {
         }
     }
 
-    /** 显示/隐藏错误文本，遵循"减少动态效果"设置以决定是否淡入。 */
-    private void setErrorTextVisible(boolean visible) {
-        errorTextView.animate().cancel();
-        if (tools.isReducedMotionEnabled(requireContext())) {
-            errorTextView.setVisibility(visible ? View.VISIBLE : View.GONE);
-            errorTextView.setAlpha(1f);
-            return;
-        }
-        if (visible && errorTextView.getVisibility() != View.VISIBLE) {
-            errorTextView.setVisibility(View.VISIBLE);
-            errorTextView.setAlpha(0f);
-            errorTextView.animate()
-                    .alpha(1f)
-                    .setDuration(getResources().getInteger(R.integer.motion_duration_short))
-                    .setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate))
-                    .start();
-        } else if (!visible) {
-            errorTextView.setVisibility(View.GONE);
-        }
+    /**
+     * 就地错误：把错误文案写进该来源行的错误位，并收起结果行 —— 错误「顶替」结果的位置出现，
+     * 不在页面下方另起一块独立提示卡。错误跟着出事的这一行走，两个来源互不干扰。
+     */
+    private void showInlineError(int gameType, @Nullable String message) {
+        View root = requireView();
+        LinearLayout result = root.findViewById(gameType == 0 ? R.id.result_genshin : R.id.result_zzz);
+        MaterialTextView errorView = root.findViewById(gameType == 0 ? R.id.error_genshin : R.id.error_zzz);
+        result.removeAllViews();
+        result.setVisibility(View.GONE);
+        errorView.setText(message != null && !message.isEmpty()
+                ? message
+                : getString(R.string.msg_no_game_role_or_error));
+        errorView.setVisibility(View.VISIBLE);
+    }
+
+    /** 收起某来源行的就地错误（重绘结果时调用）。 */
+    private void hideInlineError(int gameType) {
+        View root = requireView();
+        root.findViewById(gameType == 0 ? R.id.error_genshin : R.id.error_zzz)
+                .setVisibility(View.GONE);
     }
 
     /**

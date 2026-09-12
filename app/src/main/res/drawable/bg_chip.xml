@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全项目唯一"小 chip"底：全圆角胶囊。
+     填充色不在本文件体现象征语义 —— 由调用点 android:backgroundTint 按语义给定：
+       中性 / 待获取 / 进行中 → ?attr/colorSurfaceContainerHigh
+       成功（已签 / 已获取）  → @color/status_success_container
+       失败                  → ?attr/colorErrorContainer
+       主色（默认用户标签）   → @color/primary_alpha_10
+     solid 仅为未设 tint 时的兜底（中性表面），保证漏设也不会出现刺眼白底。
+     合并历史：bg_chip_surface / bg_status_chip / bg_chip_error / bg_chip_primary
+     四文件除 solid 外逐字相同，属"同形 × 四色"，已收敛至此一处。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="?attr/colorSurfaceContainerHigh" />
+    <corners android:radius="@dimen/shape_corner_pill" />
+</shape>

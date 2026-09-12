@@ -65,8 +65,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/space_1"
                     android:text="@string/user_login_subtitle"
-                    android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textAppearance="@style/TextAppearance.Venus.RowSubtitle" />
             </LinearLayout>
 
             <!-- 登录方式切换：扫码登录 / 账号密码（Apple 风胶囊分段控制） -->
@@ -138,8 +137,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/space_3"
                         android:text="@string/login_qr_hint"
-                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:textAppearance="@style/TextAppearance.Venus.RowSubtitle" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -215,14 +213,14 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="@dimen/space_2"
                             android:text="@string/login_password_notice"
-                            android:textAppearance="@style/TextAppearance.Venus.Caption"
+                            android:textAppearance="@style/TextAppearance.Venus.Body.Small"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/login_btn"
-                        style="@style/Widget.Venus.Button.Primary"
+                        style="@style/Widget.Venus.Button.Filled"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/space_4"
@@ -261,7 +259,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/waiting"
-                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:textAppearance="@style/TextAppearance.Venus.Body"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
                     </ScrollView>

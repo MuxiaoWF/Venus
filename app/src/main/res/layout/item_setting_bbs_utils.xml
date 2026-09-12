@@ -2,19 +2,18 @@
 <!-- 配置信息内容（命令台扁平 KV 行）：小灰标签在左 + mono 值右对齐，行距分隔（不加分割线）；
      去掉嵌套卡片（抽屉内不再套卡），更新配置为全宽表面行按钮。
      保留 7 个 value id 供 SettingsFragment.displayCurrentConfigValues 绑定。 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Venus.DrawerPane"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingHorizontal="@dimen/space_4"
-    android:paddingVertical="@dimen/gap_row">
+    android:layout_height="wrap_content">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/refresh_tip"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <com.google.android.material.textview.MaterialTextView

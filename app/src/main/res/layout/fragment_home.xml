@@ -96,8 +96,8 @@
                 android:paddingVertical="@dimen/gap_row">
 
                 <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="@dimen/icon_badge_md"
+                    android:layout_height="@dimen/icon_badge_md"
                     android:background="@drawable/bg_icon_circle"
                     android:contentDescription="@null"
                     android:padding="@dimen/space_2"
@@ -115,7 +115,7 @@
                     android:inputType="none"
                     android:textAlignment="viewStart"
                     android:textColor="?attr/colorOnSurface"
-                    android:textSize="16sp" />
+                    android:textAppearance="@style/TextAppearance.Venus.Body.Large" />
 
                 <ImageView
                     android:layout_width="wrap_content"
@@ -125,10 +125,8 @@
                     app:tint="?attr/colorPrimary" />
             </LinearLayout>
 
-            <View
-                style="@style/Widget.Venus.SettingsRowDivider"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/divider_height" />
+            <com.google.android.material.divider.MaterialDivider
+                style="@style/Widget.Venus.SettingsRowDivider" />
 
             <!-- ===== 操作区（设计稿规格：8dp 圆角填充行，左图标+文字，右侧 mono 提示） ===== -->
             <com.google.android.material.textview.MaterialTextView
@@ -157,8 +155,8 @@
                     android:paddingHorizontal="@dimen/space_4">
 
                     <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
+                        android:layout_width="@dimen/icon_inline"
+                        android:layout_height="@dimen/icon_inline"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_play"
                         app:tint="?attr/colorOnPrimary" />
@@ -169,12 +167,12 @@
                         android:layout_marginStart="@dimen/space_2"
                         android:text="@string/run_sign_in"
                         android:textColor="?attr/colorOnPrimary"
-                        android:textSize="14sp"
+                        android:textAppearance="@style/TextAppearance.Venus.Label.Large"
                         android:textStyle="bold" />
 
                     <Space
                         android:layout_width="0dp"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/space_hairline"
                         android:layout_weight="1" />
 
                     <com.google.android.material.textview.MaterialTextView
@@ -185,7 +183,7 @@
                         android:background="@drawable/bg_kbd_chip"
                         android:backgroundTint="@color/on_primary_alpha_20"
                         android:paddingHorizontal="@dimen/space_2"
-                        android:paddingVertical="2dp"
+                        android:paddingVertical="@dimen/space_hairline"
                         android:textColor="?attr/colorOnPrimary" />
                 </LinearLayout>
 
@@ -213,8 +211,8 @@
                     android:paddingHorizontal="@dimen/space_4">
 
                     <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
+                        android:layout_width="@dimen/icon_inline"
+                        android:layout_height="@dimen/icon_inline"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_notification"
                         app:tint="?attr/colorOnSurfaceVariant" />
@@ -226,11 +224,11 @@
                         android:layout_marginStart="@dimen/space_3"
                         android:text="@string/background_running"
                         android:textColor="?attr/colorOnSurface"
-                        android:textSize="14sp" />
+                        android:textAppearance="@style/TextAppearance.Venus.Label.Large" />
 
                     <Space
                         android:layout_width="0dp"
-                        android:layout_height="1dp"
+                        android:layout_height="@dimen/space_hairline"
                         android:layout_weight="1" />
 
                     <com.google.android.material.textview.MaterialTextView
@@ -250,10 +248,8 @@
                     android:orientation="horizontal"
                     android:visibility="gone" />
 
-                <View
+                <com.google.android.material.divider.MaterialDivider
                     style="@style/Widget.Venus.SettingsRowDivider"
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/divider_height"
                     android:layout_marginTop="@dimen/space_4" />
             </LinearLayout>
 
@@ -264,7 +260,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/space_2"
                 android:gravity="center_vertical"
-                android:minHeight="@dimen/section_header_height"
+                android:minHeight="@dimen/list_header_min_height"
                 android:orientation="horizontal">
 
                 <com.google.android.material.textview.MaterialTextView
@@ -295,7 +291,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/view_log_btn"
-                    style="@style/Widget.Material3.Button.TextButton"
+                    style="@style/Widget.Venus.Button.Text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:minWidth="0dp"

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 图片卡：画廊/结果缩略卡。标题=强调行标题，作者=主色署名，描述/时间=次要小字，
+     颜色全部由 TextAppearance 内置，调用点不再声明 textColor（消除双真相源）。 -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.Venus.Card.Image"
@@ -18,31 +20,28 @@
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/imageView"
             android:layout_width="match_parent"
-            android:layout_height="160dp"
+            android:layout_height="@dimen/image_card_height"
             android:contentDescription="@string/image"
             android:scaleType="centerCrop"
             app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Material3.Corner.Top" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/titleTextView"
-            style="@style/TextAppearance.Venus.RowTitle"
+            style="@style/TextAppearance.Venus.RowTitle.Emphasized"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_3"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?attr/colorOnSurface"
-            android:textStyle="bold" />
+            android:maxLines="1" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/authorTextView"
-            style="@style/TextAppearance.Venus.RowSubtitle"
+            style="@style/TextAppearance.Venus.RowAuthor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_1"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?attr/colorPrimary" />
+            android:maxLines="1" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/descriptionTextView"
@@ -51,18 +50,16 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_1"
             android:ellipsize="end"
-            android:maxLines="2"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:maxLines="2" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/timeTextView"
-            style="@style/TextAppearance.Venus.Caption"
+            style="@style/TextAppearance.Venus.RowSubtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/space_2"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:maxLines="1" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

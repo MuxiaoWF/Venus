@@ -37,10 +37,8 @@
             android:textAppearance="@style/TextAppearance.Venus.Title" />
     </LinearLayout>
 
-    <View
-        style="@style/Widget.Venus.SettingsRowDivider"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/divider_height" />
+    <com.google.android.material.divider.MaterialDivider
+        style="@style/Widget.Venus.SettingsRowDivider" />
 
     <!-- 提示行：登录后自动复制 -->
     <com.google.android.material.textview.MaterialTextView
