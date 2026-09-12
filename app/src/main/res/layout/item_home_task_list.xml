@@ -1,23 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 任务列表项：M3 List-Item（Material 1.14.0 新 API: ListItemLayout ⊃ ListItemCardView）。
-     ListItemLayout 持有 first/middle/last/single 位置状态；ListItemCardView 通过
-     duplicateParentState 继承该状态，自动应用 M3 圆角与按下涟漪（常态背景透明，仅选中着色）。
-     外层 LinearLayout 承载「M3 列表分割线」，与 List-Item 解耦，避免裁剪冲突。
-     保留 status_icon / task_name / task_progress 三个 id 供 TaskAdapter 绑定。
-     规范第 9 条：多任务置于大圆角卡内，项间用 1dp outlineVariant 发丝线 +
-     16dp 上下 padding 分割，首条不显示分割线，避免生硬分割。 -->
+<!-- 任务列表项（命令台风格，对齐 .superdesign/c_final_merged.html）：
+     20dp 状态圈（圈底随状态切换）+ 12dp 状态图形 + 任务名 + 右侧 mono 状态文案/chip；
+     行间发丝线与 M3 List-Item 涟漪沿用。保留 status_icon / task_name / task_progress 供 TaskAdapter 绑定。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <!-- 项间发丝分割线：outlineVariant 1dp，仅 middle/last 之上显示，首条隐藏避免生硬。
-         divider 与内容行的 16dp 上下 padding 配合，形成柔和节律而非硬切。 -->
+    <!-- 项间发丝分割线：outlineVariant 1dp，仅 middle/last 之上显示，首条隐藏避免生硬 -->
     <View
         android:id="@+id/item_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
+        android:layout_marginStart="@dimen/divider_indent_icon"
         android:background="?attr/colorOutlineVariant"
         android:visibility="gone" />
 
@@ -41,26 +37,30 @@
                 android:paddingTop="@dimen/gutter_card"
                 android:paddingBottom="@dimen/gutter_card">
 
+                <!-- 状态圈：圈底由 TaskAdapter 按状态切换（成功绿圈/待执行描边圈/进行中主色环） -->
                 <FrameLayout
-                    android:layout_width="@dimen/icon_standard"
-                    android:layout_height="@dimen/icon_standard"
+                    android:id="@+id/status_circle"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:layout_marginEnd="@dimen/space_4">
 
                     <ImageView
                         android:id="@+id/status_icon"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
+                        android:layout_width="12dp"
+                        android:layout_height="12dp"
+                        android:layout_gravity="center"
                         android:contentDescription="@string/task_status"
-                        android:src="@drawable/ic_pending"
+                        android:src="@drawable/ic_dot"
                         app:tint="?attr/colorOnSurfaceVariant" />
 
                     <ImageView
                         android:id="@+id/status_icon_strike"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:visibility="gone"
+                        android:layout_width="12dp"
+                        android:layout_height="12dp"
+                        android:layout_gravity="center"
                         android:contentDescription="@null"
-                        android:src="@drawable/ic_strike_diagonal" />
+                        android:src="@drawable/ic_strike_diagonal"
+                        android:visibility="gone" />
                 </FrameLayout>
 
                 <com.google.android.material.textview.MaterialTextView
@@ -73,14 +73,26 @@
                     android:maxLines="1"
                     android:textColor="?attr/colorOnSurface" />
 
-                <com.google.android.material.progressindicator.LinearProgressIndicator
+                <!-- 右侧状态：终态=chip（已签/失败），过程态=mono 文案（RUNNING/PENDING） -->
+                <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/task_progress"
-                    android:layout_width="@dimen/task_progress_width"
+                    style="@style/TextAppearance.Venus.MonoValue"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/space_2"
-                    android:indeterminate="false"
-                    android:visibility="gone"
-                    app:trackThickness="4dp" />
+                    android:includeFontPadding="false" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/task_status_chip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/space_2"
+                    android:background="@drawable/bg_status_chip"
+                    android:paddingHorizontal="@dimen/space_2"
+                    android:paddingVertical="2dp"
+                    android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+                    android:includeFontPadding="false"
+                    android:visibility="gone" />
 
             </LinearLayout>
         </com.google.android.material.listitem.ListItemCardView>

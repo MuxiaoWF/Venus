@@ -19,6 +19,7 @@ import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.android.material.color.MaterialColors;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 
@@ -33,7 +34,6 @@ public class CollapsibleCardView extends FrameLayout {
     // 完全展开时的高度
     private int expandedHeight = -1;
     private ValueAnimator heightAnimator;
-
     /**
      * 代码创建时用构造，委托 {@link #init(AttributeSet)}（attrs 为 null）完成视图初始化。
      */
@@ -77,6 +77,9 @@ public class CollapsibleCardView extends FrameLayout {
                 String title = a.getString(R.styleable.CollapsibleCardView_cardTitle);
                 if (title != null)
                     titleText.setText(title);
+                String value = a.getString(R.styleable.CollapsibleCardView_cardValue);
+                if (value != null)
+                    setValue(value);
                 // 初始状态的处理（默认折叠：全部 13 处调用均传 false，故默认改为 false 以收敛样板）
                 this.isExpanded = a.getBoolean(R.styleable.CollapsibleCardView_initialExpanded, false);
                 // 透明变体：移除内部 MaterialCardView 的背景与描边，仅保留折叠交互。
@@ -88,13 +91,20 @@ public class CollapsibleCardView extends FrameLayout {
                             (com.google.android.material.card.MaterialCardView) getChildAt(0);
                     inner.setCardBackgroundColor(android.graphics.Color.TRANSPARENT);
                     inner.setStrokeWidth(0);
-                    // 二级关系：给内部 contentLayout 加左右缩进（相对 header 内缩），
-                    // 并保留适度上下 padding 作为呼吸；header 的上下边距保持不变。
+                    // 二级关系：内容整体从父行标题缩进（insetHorizontal = 引导线位置）。
+                    // 上下内边距交给各内容布局自带 padding（12dp），避免与 Rail 起止错位叠加；
+                    // 展开内容左侧引导线（bg_drawer_rail）表达"从属于父行"的层级。
                     int inset = a.getDimensionPixelSize(R.styleable.CollapsibleCardView_insetHorizontal, 0);
                     if (contentLayout != null) {
-                        int vTop = getResources().getDimensionPixelSize(R.dimen.space_1);
-                        int vBottom = getResources().getDimensionPixelSize(R.dimen.space_3);
-                        contentLayout.setPadding(inset, vTop, inset, vBottom);
+                        contentLayout.setPadding(inset, 0, 0, 0);
+                        // 命令台层级：展开内容左侧引导线，表达"从属于父行"
+                        if (inset > 0) {
+                            android.graphics.drawable.Drawable rail =
+                                    androidx.core.content.ContextCompat.getDrawable(getContext(), R.drawable.bg_drawer_rail);
+                            if (rail != null)
+                                contentLayout.setBackground(
+                                        new android.graphics.drawable.InsetDrawable(rail, inset, 0, 0, 0));
+                        }
                     }
                 }
             }
@@ -128,6 +138,28 @@ public class CollapsibleCardView extends FrameLayout {
      */
     public ViewGroup getContentLayout() {
         return contentLayout;
+    }
+
+    /**
+     * 设置标题行右侧的 mono 值摘要（如「已开启」「4/5 已开启」「国服」）。
+     */
+    public void setValue(CharSequence value) {
+        MaterialTextView valueText = findViewById(R.id.card_value);
+        if (valueText != null)
+            valueText.setText(value);
+    }
+
+    /**
+     * 设置值摘要颜色（如「已开启」用语义成功色）；传 0 恢复默认次要色。
+     */
+    public void setValueColor(int color) {
+        MaterialTextView valueText = findViewById(R.id.card_value);
+        if (valueText == null) return;
+        if (color != 0)
+            valueText.setTextColor(color);
+        else
+            valueText.setTextColor(
+                    MaterialColors.getColor(getContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575));
     }
 
     /**
@@ -229,6 +261,9 @@ public class CollapsibleCardView extends FrameLayout {
             contentLayout.setAlpha(1f);
             toggleIcon.setRotation(expanding ? 0f : 180f);
             requestLayout();
+            if (expanding)
+                post(() -> requestRectangleOnScreen(
+                        new android.graphics.Rect(0, 0, getWidth(), getHeight()), true));
             return;
         }
 
@@ -253,6 +288,11 @@ public class CollapsibleCardView extends FrameLayout {
                 if (!expanding) {
                     contentLayout.setVisibility(View.GONE);
                     contentLayout.setAlpha(1f);
+                } else {
+                    // 展开完成后请求滚动父容器把整卡带入视口：
+                    // 修复设置页底部行（如“主题”）展开后内容落在视口外、被底栏遮挡的问题。
+                    post(() -> requestRectangleOnScreen(
+                            new android.graphics.Rect(0, 0, getWidth(), getHeight()), true));
                 }
             }
         });

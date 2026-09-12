@@ -37,7 +37,6 @@ import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
-import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -80,10 +79,17 @@ public class HomeFragment extends Fragment {
     private LinearLayout geetestContainer;
     private static volatile Future<?> currentTaskFuture;
     private MaterialAutoCompleteTextView user_dropdown;
-    private MaterialButton start_daily_btn;
-    private MaterialButton start_daily_bg_btn;
+    private View start_daily_btn;
+    private View start_daily_bg_btn;
     private MaterialButton cancel_daily_btn;
-    private TextInputLayout user_dropdown_layout;
+    /** 后台运行行内文字（运行中切换为「取消任务」）。 */
+    private android.widget.TextView start_daily_bg_text;
+    private android.widget.TextView start_daily_hint;
+    /** 页眉副标题（运行外追加「已完成 x/y」进度）与任务列表头部的 DONE 计数。 */
+    private android.widget.TextView homeSubtitle;
+    private android.widget.TextView taskDoneLabel;
+    /** 账号上下文区块（标签 + 下拉行整体），运行期间按 UiState 隐藏。 */
+    private View userSection;
     private TaskAdapter taskAdapter;
     private View taskListEmptyView;
     private ViewGroup homeContentContainer;
@@ -196,16 +202,25 @@ public class HomeFragment extends Fragment {
         start_daily_btn = view.findViewById(R.id.start_daily);
         cancel_daily_btn = view.findViewById(R.id.cancel_daily);
         start_daily_bg_btn = view.findViewById(R.id.start_daily_bg);
+        start_daily_bg_text = view.findViewById(R.id.start_daily_bg_text);
+        start_daily_hint = view.findViewById(R.id.start_daily_hint);
+        homeSubtitle = view.findViewById(R.id.home_subtitle);
+        taskDoneLabel = view.findViewById(R.id.task_done_label);
         MaterialButton view_log_btn = view.findViewById(R.id.view_log_btn);
         RecyclerView tasksRecyclerView = view.findViewById(R.id.tasks_recycler_view);
         taskListEmptyView = view.findViewById(R.id.task_list_empty_view);
         geetestContainer = view.findViewById(R.id.geetest_container);
-        user_dropdown_layout = view.findViewById(R.id.user_dropdown_layout);
+        userSection = view.findViewById(R.id.user_section);
         homeContentContainer = view.findViewById(R.id.home_content_container);
 
-        // 提示框
-        CollapsibleCardView homeInfoCard = view.findViewById(R.id.home_info_card);
-        homeInfoCard.setContent(R.layout.item_home_daily_info);
+        // 页眉日期 chip：MM/dd 周几
+        android.widget.TextView dateChip = view.findViewById(R.id.home_date_chip);
+        if (dateChip != null) {
+            String pattern = android.text.format.DateFormat.is24HourFormat(requireContext())
+                    ? "MM/dd E" : "MM/dd E";
+            dateChip.setText(new java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+                    .format(new java.util.Date()));
+        }
 
         // 初始化
         userManager = new UserManager(requireContext());
@@ -232,11 +247,11 @@ public class HomeFragment extends Fragment {
         String initialUser = userManager.getCurrentUser();
         if (!initialUser.isEmpty() && usernames.contains(initialUser)) {
             viewModel.setCurrentUser(initialUser);
-            user_dropdown.setText(initialUser, false);
+            user_dropdown.setText(formatUserLabel(initialUser, isOversea), false);
         } else if (!usernames.isEmpty()) {
             // 如果当前用户不存在或为空，设置为第一个用户
             viewModel.setCurrentUser(usernames.get(0));
-            user_dropdown.setText(usernames.get(0), false);
+            user_dropdown.setText(formatUserLabel(usernames.get(0), isOversea), false);
         } else {
             viewModel.setCurrentUser("");
         }
@@ -245,6 +260,9 @@ public class HomeFragment extends Fragment {
             viewModel.setCurrentUser(picked);
             userManager.setCurrentUser(picked);
         });
+        // 点击整行展开用户下拉（命令台无框行，无内置 endIcon）
+        userSection.setOnClickListener(v -> user_dropdown.showDropDown());
+        user_dropdown.setOnClickListener(v -> user_dropdown.showDropDown());
 
         // 设置任务列表RecyclerView
         tasksRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -256,9 +274,6 @@ public class HomeFragment extends Fragment {
 
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
-            if (homeInfoCard.isExpanded())
-                homeInfoCard.toggle();
-
             try (FileWriter ignored = new FileWriter(logFile, false)) {
                 // false 覆盖模式，清空文件
             } catch (IOException e) {
@@ -353,7 +368,6 @@ public class HomeFragment extends Fragment {
                 return;
             }
 
-            if (homeInfoCard.isExpanded()) homeInfoCard.toggle();
             checkAndStartTask(viewModel.getCurrentUser());
         });
 
@@ -508,18 +522,34 @@ public class HomeFragment extends Fragment {
         }
 
         // 可见性一律由 UiState 派生
-        if (user_dropdown_layout != null)
-            user_dropdown_layout.setVisibility(state.userDropdownVisible() ? View.VISIBLE : View.GONE);
+        if (userSection != null)
+            userSection.setVisibility(state.userDropdownVisible() ? View.VISIBLE : View.GONE);
         if (cancel_daily_btn != null)
             cancel_daily_btn.setVisibility(state.cancelButtonVisible() ? View.VISIBLE : View.GONE);
         if (start_daily_btn != null)
             start_daily_btn.setVisibility(state.startButtonVisible() ? View.VISIBLE : View.GONE);
-        if (start_daily_bg_btn != null) {
+        if (start_daily_bg_btn != null)
             start_daily_bg_btn.setVisibility(state.bgButtonVisible() ? View.VISIBLE : View.GONE);
-            start_daily_bg_btn.setText(state.bgButtonShowsCancel()
+        if (start_daily_bg_text != null)
+            start_daily_bg_text.setText(state.bgButtonShowsCancel()
                     ? getString(R.string.cancel_task)
                     : getString(R.string.background_running));
+        if (start_daily_hint != null)
+            start_daily_hint.setText(getString(R.string.run_remaining, taskList.size()));
+
+        // 页眉副标题与任务列表头 DONE 计数（已完成 = 已签 + 已签过）
+        int total = taskList.size();
+        int done = 0;
+        for (TaskItem item : taskList) {
+            TaskItem.TaskStatus s = item.getStatus();
+            if (s == TaskItem.TaskStatus.COMPLETED || s == TaskItem.TaskStatus.WARNING)
+                done++;
         }
+        if (homeSubtitle != null)
+            homeSubtitle.setText(getString(R.string.home_subtitle)
+                    + " · " + getString(R.string.home_done_fmt, done, total));
+        if (taskDoneLabel != null)
+            taskDoneLabel.setText(getString(R.string.task_done_fmt, done, total));
     }
 
     /**
@@ -530,6 +560,14 @@ public class HomeFragment extends Fragment {
      */
     private void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         viewModel.updateTaskStatus(taskName, status);
+    }
+
+    /**
+     * 账号上下文行显示文案：用户名 + 服务器后缀（如「t [国服]」，与设计稿一致）。
+     */
+    private String formatUserLabel(String username, boolean isOversea) {
+        String serverName = getString(isOversea ? R.string.server_os : R.string.server_cn);
+        return username + " [" + serverName + "]";
     }
 
     /** 启动后台任务前校验：任务已配置、已选用户、通知权限、电池优化豁免，全部通过才拉起 Service。 */
@@ -636,9 +674,9 @@ public class HomeFragment extends Fragment {
 
             // 恢复之前选中的用户（如果仍然存在于列表中）
             if (!currentUser.isEmpty() && usernames.contains(currentUser))
-                user_dropdown.setText(currentUser, false);
+                user_dropdown.setText(formatUserLabel(currentUser, isOversea), false);
             else if (!usernames.isEmpty())
-                user_dropdown.setText(usernames.get(0), false);
+                user_dropdown.setText(formatUserLabel(usernames.get(0), isOversea), false);
             else
                 user_dropdown.setText("", false);
         }

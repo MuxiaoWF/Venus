@@ -90,7 +90,7 @@
                     app:tabIndicatorHeight="0dp"
                     app:tabMode="fixed"
                     app:tabRippleColor="?attr/colorPrimary"
-                    app:tabSelectedTextColor="?attr/colorOnPrimaryContainer"
+                    app:tabSelectedTextColor="?attr/colorPrimary"
                     app:tabTextColor="?attr/colorOnSurfaceVariant">
 
                     <com.google.android.material.tabs.TabItem

@@ -2,6 +2,8 @@
 <resources>
     <declare-styleable name="CollapsibleCardView">
         <attr name="cardTitle" format="string" />
+        <!-- 标题行右侧的 mono 值摘要（如「已开启」「国服」），可由 setValue 运行时更新 -->
+        <attr name="cardValue" format="string" />
         <attr name="initialExpanded" format="boolean" />
         <!-- true 时内部 MaterialCardView 背景与描边均置透明，仅保留折叠交互；
              用于 Material Settings List 组内可展开行，使分组外壳统一承载描边/阴影。 -->

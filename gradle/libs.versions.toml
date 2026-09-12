@@ -1,5 +1,5 @@
 [versions]
-agp = "9.3.2"
+agp = "9.4.0"
 android_cn_oaidVersion = "4.2.17"
 comGoogleCodeGsonGson = "2.14.0"
 coreSplashscreenVersion = "1.2.0"

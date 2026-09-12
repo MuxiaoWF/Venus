@@ -61,3 +61,7 @@ scripts/
 
 # Release build output
 /app/release
+
+# design
+.design-review/
+.superdesign/

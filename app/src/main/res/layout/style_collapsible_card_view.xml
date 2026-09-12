@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 可折叠行（命令台风格，对齐 .superdesign/page_settings.html）：
+     标题行 = 标题 + 右侧 mono 值摘要 + 下拉箭头（主色）；
+     透明变体下标题与区块标签齐平（无水平内边距），展开内容经引导线缩进。 -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/Widget.Venus.Card.Filled"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
@@ -18,7 +22,8 @@
             android:focusable="true"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="@dimen/space_4"
+            android:paddingStart="@dimen/space_2"
+            android:paddingEnd="@dimen/space_2"
             android:paddingVertical="@dimen/space_4">
 
             <com.google.android.material.textview.MaterialTextView
@@ -32,6 +37,16 @@
                 android:ellipsize="end"
                 android:maxLines="1" />
 
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/card_value"
+                style="@style/TextAppearance.Venus.MonoValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_2"
+                android:layout_marginEnd="@dimen/space_1"
+                android:ellipsize="end"
+                android:maxLines="1" />
+
             <ImageView
                 android:id="@+id/toggle_icon"
                 android:layout_width="wrap_content"
@@ -41,7 +56,8 @@
                 android:contentDescription="@string/expand_collapse"
                 android:focusable="true"
                 android:padding="@dimen/space_1"
-                android:src="@drawable/ic_chevron" />
+                android:src="@drawable/ic_chevron"
+                app:tint="?attr/colorPrimary" />
         </LinearLayout>
 
         <FrameLayout

@@ -14,8 +14,7 @@
         android:layout_height="wrap_content"
         android:checked="false"
         android:text="@string/enable_background_running"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"

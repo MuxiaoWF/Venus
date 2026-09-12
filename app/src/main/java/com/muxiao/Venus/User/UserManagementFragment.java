@@ -43,14 +43,23 @@ public class UserManagementFragment extends Fragment {
     private UserManager userManager;
     private ViewGroup userListContainer;
     private MaterialTextView noUserPrompt;
+    /** 页面根视图：onCreateView 阶段 requireView() 尚不可用，列表刷新统一走此引用。 */
+    private View pageRootView;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
+        pageRootView = rootView;
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
         noUserPrompt = rootView.findViewById(R.id.no_user_prompt);
+
+        // 页眉日期 chip：MM/dd 周几（与设计稿一致）
+        android.widget.TextView dateChip = rootView.findViewById(R.id.users_date_chip);
+        if (dateChip != null)
+            dateChip.setText(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
+                    .format(new java.util.Date()));
 
         ExtendedFloatingActionButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
         userLoginBtn.setOnClickListener(v -> {
@@ -77,7 +86,7 @@ public class UserManagementFragment extends Fragment {
     }
 
     /**
-     * 按当前服务器类型重建用户列表视图，并为每个条目绑定重登录/重命名/删除按钮
+     * 按当前服务器类型重建用户列表视图，并为每个条目绑定重登录/重命名/删除操作
      * （任务运行时这些操作均被拦截）。
      */
     private void refreshUserList() {
@@ -85,13 +94,21 @@ public class UserManagementFragment extends Fragment {
         // 根据当前服务器类型过滤用户
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
         List<String> users = userManager.getUsernamesByServerType(isOversea);
-        // 如果没有用户，显示提示信息
+        // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
+        MaterialTextView subtitle = pageRootView.findViewById(R.id.users_subtitle);
+        if (subtitle != null)
+            subtitle.setText(getString(R.string.user_count_fmt, users.size()));
+        // 如果没有用户，显示提示信息（隐藏区块标签）
+        View sectionLabel = pageRootView.findViewById(R.id.users_section_label);
         if (users.isEmpty()) {
+            if (sectionLabel != null) sectionLabel.setVisibility(View.GONE);
             noUserPrompt.setVisibility(View.VISIBLE);
             String serverName = isOversea ? getString(R.string.server_os) : getString(R.string.server_cn);
             noUserPrompt.setText(getString(R.string.msg_no_server_user, serverName));
             return;
         }
+        if (sectionLabel != null) sectionLabel.setVisibility(View.VISIBLE);
+        String currentUsername = userManager.getCurrentUser();
         // 为每个用户创建新的视图实例
         for (int i = 0; i < users.size(); i++) {
             String username = users.get(i);
@@ -107,26 +124,30 @@ public class UserManagementFragment extends Fragment {
             }
 
             MaterialTextView userName = userItemView.findViewById(R.id.user_name_text);
-            MaterialButton renameButton = userItemView.findViewById(R.id.rename_user_button);
+            View defaultChip = userItemView.findViewById(R.id.user_default_chip);
+            View infoRow = userItemView.findViewById(R.id.user_info_row);
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
             MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
 
             // 显示用户名和服务器类型
             String serverType = isOversea ? " [" + getString(R.string.server_os) + "]" : " [" + getString(R.string.server_cn) + "]";
             userName.setText(username + serverType);
+            // 当前用户标注「默认」chip（设计稿语义）
+            defaultChip.setVisibility(username.equals(currentUsername) ? View.VISIBLE : View.GONE);
+
+            // 信息行点击 = 重命名（设计稿无独立重命名按钮，保留原入口能力）
+            infoRow.setOnClickListener(v -> {
+                if (isTaskRunning())
+                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
+                else
+                    showRenameUserDialog(username);
+            });
 
             reloginButton.setOnClickListener(v -> {
                 if (isTaskRunning())
                     showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_relogin));
                 else
                     performRelogin(username);
-            });
-
-            renameButton.setOnClickListener(v -> {
-                if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
-                else
-                    showRenameUserDialog(username);
             });
 
             deleteButton.setOnClickListener(v -> {

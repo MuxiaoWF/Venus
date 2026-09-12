@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 用户头像圆底：浅表面 + 发丝描边（跟随明暗主题） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="?attr/colorSurfaceContainerHighest" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <stroke android:width="1dp" android:color="?attr/colorOutlineVariant" />
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</layer-list>

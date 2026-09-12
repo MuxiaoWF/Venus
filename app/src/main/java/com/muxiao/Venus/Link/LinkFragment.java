@@ -5,47 +5,38 @@ import dagger.hilt.android.AndroidEntryPoint;
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
-import android.annotation.SuppressLint;
+import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.animation.AnimationUtils;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AnimationUtils;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.textfield.MaterialAutoCompleteTextView;
-import com.google.android.material.button.MaterialButton;
+import com.google.android.material.color.MaterialColors;
 import com.google.android.material.textview.MaterialTextView;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
-import com.muxiao.Venus.common.ScaleInItemAnimator;
 import com.muxiao.Venus.common.tools;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 /**
- * 抽卡链接页：内置WebView访问米游社抽卡记录页面，自动拦截含authkey的URL，
- * 提取抽卡链接并展示在列表中，支持复制和多用户切换。
+ * 抽卡链接页（命令台来源列表）：原神/绝区零为「点行即获取」，结果与复制长在行下；
+ * 云游戏获取为导航行，打开内置 WebView 访问米游社抽卡记录页面，自动拦截含 authkey 的 URL。
  */
 @AndroidEntryPoint
 public class LinkFragment extends Fragment {
@@ -57,378 +48,228 @@ public class LinkFragment extends Fragment {
     }
 
     private MaterialTextView errorTextView;
-    private LinkAdapter adapter;
     private String currentUserId;
     private ExecutorService executor;
     private UserManager userManager;
-    private MaterialAutoCompleteTextView userDropdown;
-    private WebView webView;
-    private LinearLayout webViewContainer;
-    private RecyclerView linkItemsRecyclerView;
-    private MaterialCardView recyclerCard;
+    private com.google.android.material.textfield.MaterialAutoCompleteTextView userDropdown;
 
-    // 按 tab -> userId -> (roleId -> link) 存储
+    // 按 gameType -> userId -> (uid -> link) 存储（0=原神, 1=绝区零）
     private final Map<Integer, Map<String, Map<Integer, String>>> tabResults = new HashMap<>();
-    private int currentTabPosition = 0;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_link, container, false);
 
-        TabLayout tabLayout = view.findViewById(R.id.tabLayout);
-        linkItemsRecyclerView = view.findViewById(R.id.recyclerView);
-        recyclerCard = view.findViewById(R.id.recycler_card);
-        CircularProgressIndicator progressBar = view.findViewById(R.id.progressBar);
         errorTextView = view.findViewById(R.id.errorTextView);
         userDropdown = view.findViewById(R.id.user_dropdown);
-        MaterialButton getLinkButton = view.findViewById(R.id.get_link_button);
-        webViewContainer = view.findViewById(R.id.webViewContainer);
-        webView = view.findViewById(R.id.webView);
-
-        // 设置ProgressBar为indeterminate模式以显示旋转动画
-        progressBar.setIndeterminate(true);
-
-        // 设置RecyclerView
-        linkItemsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        linkItemsRecyclerView.setItemAnimator(new ScaleInItemAnimator());
-        adapter = new LinkAdapter(view, requireContext());
-        linkItemsRecyclerView.setAdapter(adapter);
 
         userManager = new UserManager(requireContext());
         executor = Executors.newSingleThreadExecutor();
 
         updateDropdown();
 
+        // 点击整行（含图标）展开用户下拉
+        View userSection = view.findViewById(R.id.user_section);
+        userSection.setOnClickListener(v -> userDropdown.showDropDown());
         userDropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             currentUserId = selectedUser;
-            // 更新 adapter 中的当前用户
-            adapter.setCurrentUser(selectedUser);
-
-            // 切换用户时尝试恢复当前 tab + 当前用户 的已保存结果
-            Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
-            if (perUser != null) {
-                Map<Integer, String> resultsForUser = perUser.get(selectedUser);
-                if (resultsForUser != null && !resultsForUser.isEmpty()) {
-                    // 传入拷贝，避免引用共享
-                    adapter.setLinks(new HashMap<>(resultsForUser));
-                    setRecyclerVisible(true);
-                    setErrorTextVisible(false);
-                    return;
-                } else if (perUser.containsKey(selectedUser)) {
-                    // 已加载但为空
-                    adapter.setLinks(new HashMap<>());
-                    errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
-                    setErrorTextVisible(true);
-                    setRecyclerVisible(false);
-                    return;
-                }
-            }
-            // 没有任何已保存结果：清空显示
-            adapter.setLinks(new HashMap<>());
-            setRecyclerVisible(false);
             setErrorTextVisible(false);
+            // 切换用户后按新用户重绘两游戏的行内结果
+            renderGameResult(0);
+            renderGameResult(1);
         });
 
-        // 设置Tab选择栏监听器，委托到类级别方法处理
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                currentTabPosition = tab.getPosition();
-                if (currentTabPosition == 2) {
-                    // 云游戏
-                    adapter.setLinksSilently(new HashMap<>());
-                    setRecyclerVisible(false);
-                    setErrorTextVisible(false);
-                    setTopCardVisible(false);
-                    setWebViewContainerVisible(true);
-                    setupWebViewForCloudGame();
-                    // 云游戏 WebView 需要横向滑动，禁用 ViewPager2 滑动切换
-                    if (getActivity() instanceof MainActivity)
-                        ((MainActivity) getActivity()).setViewPagerSwipeEnabled(false);
-                } else {
-                    // 原神 / 绝区零 — 先设置数据，再设置可见性
-                    destroyWebView();
-                    setWebViewContainerVisible(false);
-                    setTopCardVisible(true);
-                    // 恢复 ViewPager2 滑动切换
-                    if (getActivity() instanceof MainActivity)
-                        ((MainActivity) getActivity()).setViewPagerSwipeEnabled(true);
+        // 原神 / 绝区零：点行或刷新图标即获取
+        View srcGenshin = view.findViewById(R.id.src_genshin);
+        View srcZzz = view.findViewById(R.id.src_zzz);
+        srcGenshin.setOnClickListener(v -> fetchGame(0));
+        srcZzz.setOnClickListener(v -> fetchGame(1));
+        view.findViewById(R.id.refresh_genshin).setOnClickListener(v -> fetchGame(0));
+        view.findViewById(R.id.refresh_zzz).setOnClickListener(v -> fetchGame(1));
 
-                    Map<String, Map<Integer, String>> perUser = tabResults.get(currentTabPosition);
-                    if (perUser != null) {
-                        Map<Integer, String> resultsForCurrentUser = perUser.get(currentUserId);
-                        if (resultsForCurrentUser != null && !resultsForCurrentUser.isEmpty()) {
-                            adapter.setLinksSilently(new HashMap<>(resultsForCurrentUser));
-                            setRecyclerVisible(true);
-                            setErrorTextVisible(false);
-                        } else if (perUser.containsKey(currentUserId)) {
-                            // 已加载过但为空
-                            adapter.setLinksSilently(new HashMap<>());
-                            errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
-                            setRecyclerVisible(false);
-                            setErrorTextVisible(true);
-                        } else {
-                            // 未加载过该标签页+用户的结果
-                            adapter.setLinksSilently(new HashMap<>());
-                            setRecyclerVisible(false);
-                            setErrorTextVisible(false);
-                        }
-                    } else {
-                        // 该 tab 完全没加载过任何用户
-                        adapter.setLinksSilently(new HashMap<>());
-                        setRecyclerVisible(false);
-                        setErrorTextVisible(false);
-                    }
-                }
-            }
-
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) {
-            }
-
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) {
-            }
-        });
-
-        // 恢复当前 tab 的可见性状态（处理 view 重建的情况）
-        if (currentTabPosition == 2) {
-            setTopCardVisible(false);
-            setRecyclerVisible(false);
-            setErrorTextVisible(false);
-            setWebViewContainerVisible(true);
-            setupWebViewForCloudGame();
-            if (getActivity() instanceof MainActivity)
-                ((MainActivity) getActivity()).setViewPagerSwipeEnabled(false);
-        }
-
-        // 获取链接按钮点击事件
-        getLinkButton.setOnClickListener(v -> {
-            if (currentUserId == null || currentUserId.isEmpty()) {
-                errorTextView.setText(getString(R.string.msg_select_user_first));
-                setErrorTextVisible(true);
-                return;
-            }
-            progressBar.setVisibility(View.VISIBLE);
-            setErrorTextVisible(false);
-            int gameType = tabLayout.getSelectedTabPosition();
-            executor.execute(() -> {
-                Map<Integer, String> result;
-                GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
-                try {
-                    if (gameType == 0) // 原神
-                        result = gachaLink.genshin();
-                    else // 绝区零（不存在是云游戏的情形）
-                        result = gachaLink.zzz();
-                } catch (Exception e) {
-                    requireActivity().runOnUiThread(() -> {
-                        errorTextView.setText(e.getMessage());
-                        progressBar.setVisibility(View.GONE);
-                        setErrorTextVisible(true);
-                    });
-                    return;
-                }
-                // 获取到结果并更新UI
-                requireActivity().runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-
-                    // 将 result 按 tab 和 userId 存储（注意做一次拷贝）
-                    Map<String, Map<Integer, String>> perUser = tabResults.get(gameType);
-                    if (perUser == null) {
-                        perUser = new HashMap<>();
-                        tabResults.put(gameType, perUser);
-                    }
-                    perUser.put(currentUserId, new HashMap<>(result)); // 存拷贝，避免引用共享
-
-                    // 更新对应标签页的数据
-                    if (!result.isEmpty()) {
-                        // 直接更新UI
-                        if (currentTabPosition == gameType) {
-                            adapter.setLinks(new HashMap<>(result)); // 传入拷贝到 adapter
-                            setErrorTextVisible(false);
-                            setRecyclerVisible(true);
-                        }
-                    } else {
-                        // 空结果，显示错误信息
-                        if (currentTabPosition == gameType) {
-                            errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
-                            setErrorTextVisible(true);
-                            setRecyclerVisible(false);
-                        }
-                    }
-                });
-            });
-        });
-
-        // 关闭 WebView 按钮
-        view.findViewById(R.id.closeWebViewButton).setOnClickListener(v -> Objects.requireNonNull(tabLayout.getTabAt(0)).select());
+        // 云游戏获取：打开独立 WebView 页面（导航行）
+        view.findViewById(R.id.src_cloud).setOnClickListener(v ->
+                startActivity(new android.content.Intent(requireContext(), CloudGachaActivity.class)));
 
         return view;
     }
 
-    /**
-     * 设置顶部操作区卡片（用户下拉框 + 按钮）可见性
-     */
-    private void setTopCardVisible(boolean visible) {
-        LinearLayout userDropdownLayout = requireView().findViewById(R.id.user_dropdown_layout);
-        if (userDropdownLayout != null) {
-            View card = (View) userDropdownLayout.getParent().getParent();
-            if (card != null)
-                card.setVisibility(visible ? View.VISIBLE : View.GONE);
+    /** 按 gameType（0=原神, 1=绝区零）拉取抽卡链接，成功后行内展示结果。 */
+    private void fetchGame(int gameType) {
+        if (currentUserId == null || currentUserId.isEmpty()) {
+            errorTextView.setText(getString(R.string.msg_select_user_first));
+            setErrorTextVisible(true);
+            return;
         }
-    }
+        setErrorTextVisible(false);
+        setChipState(gameType, ChipState.FETCHING);
 
-    /**
-     * 创建云游戏 WebView 并监听 URL，以便捕捉抽卡链接
-     */
-    @SuppressLint("SetJavaScriptEnabled")
-    private void setupWebViewForCloudGame() {
-        setRecyclerVisible(false);
-        setWebViewContainerVisible(true);
-
-        webViewContainer.removeAllViews();
-        webView = new WebView(requireContext());
-        webView.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-        ));
-        webViewContainer.addView(webView);
-        // 配置WebView设置
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
-        webView.getSettings().setLoadWithOverviewMode(true);
-        webView.getSettings().setUseWideViewPort(true);
-        webView.getSettings().setSupportZoom(false);
-        webView.getSettings().setBuiltInZoomControls(false);
-        webView.getSettings().setDisplayZoomControls(false);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                // 修改 navigator.language 和 navigator.languages 属性
-                view.evaluateJavascript(
-                        "Object.defineProperty(navigator, 'language', {get: function(){return 'zh-CN';}});" +
-                                "Object.defineProperty(navigator, 'languages', {get: function(){return ['zh-CN'];}});",
-                        null
-                );
+        executor.execute(() -> {
+            Map<Integer, String> result;
+            GachaLink gachaLink = new GachaLink(requireContext(), currentUserId);
+            try {
+                result = gameType == 0 ? gachaLink.genshin() : gachaLink.zzz();
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() -> {
+                    errorTextView.setText(e.getMessage());
+                    setErrorTextVisible(true);
+                    setChipState(gameType, ChipState.PENDING);
+                });
+                return;
             }
-
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (url.contains("authkey=")) {
-                    String[] gameHosts = {
-                            "public-operation-hk4e.",
-                            "public-operation-hkrpg.",
-                            "public-operation-nap.",
-                    };
-                    for (String host : gameHosts) {
-                        if (url.contains(host)) {
-                            requireActivity().runOnUiThread(() -> {
-                                copyToClipboard(view, requireContext(), url);
-                                showCustomSnackbar(view, requireContext(), getString(R.string.snack_link_copied));
-                            });
-                            break;
-                        }
-                    }
+            requireActivity().runOnUiThread(() -> {
+                Map<String, Map<Integer, String>> perUser =
+                        tabResults.computeIfAbsent(gameType, k -> new HashMap<>());
+                perUser.put(currentUserId, new HashMap<>(result));
+                if (result.isEmpty()) {
+                    errorTextView.setText(getString(R.string.msg_no_game_role_or_error));
+                    setErrorTextVisible(true);
+                    setChipState(gameType, ChipState.PENDING);
+                    renderGameResult(gameType);
+                } else {
+                    renderGameResult(gameType);
+                    View root = requireView();
+                    copyToClipboard(root, requireContext(), result.values().iterator().next());
+                    showCustomSnackbar(root, requireContext(), getString(R.string.snack_link_copied));
                 }
-                return super.shouldInterceptRequest(view, request);
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return false;
-            }
+            });
         });
-
-        // 加载米哈游云游戏页面
-        webView.loadUrl("https://mhyy.mihoyo.com/");
     }
 
-    /**
-     * 销毁 WebView（安全清理）
-     */
-    private void destroyWebView() {
-        if (webView != null) {
-            // 在销毁前清除缓存和历史记录
-            webView.clearHistory();
-            webView.clearCache(true);
-            webView.loadUrl("about:blank"); // 加载空白页以停止当前页面的执行
-            webViewContainer.removeView(webView);
-            webView.removeAllViews();
-            webView.destroy();
-            webView = null;
+    /** 行内渲染某游戏的全部链接（uid 分组，每条带复制按钮）。 */
+    private void renderGameResult(int gameType) {
+        View root = requireView();
+        LinearLayout container = root.findViewById(gameType == 0 ? R.id.result_genshin : R.id.result_zzz);
+        ImageView refresh = root.findViewById(gameType == 0 ? R.id.refresh_genshin : R.id.refresh_zzz);
+        Map<String, Map<Integer, String>> perUser = tabResults.get(gameType);
+        Map<Integer, String> links = perUser == null ? null : perUser.get(currentUserId);
+
+        container.removeAllViews();
+        if (links == null || links.isEmpty()) {
+            container.setVisibility(View.GONE);
+            setChipState(gameType, ChipState.PENDING);
+            refresh.setVisibility(View.VISIBLE);
+            return;
+        }
+        for (Map.Entry<Integer, String> e : links.entrySet())
+            container.addView(buildLinkRow(e.getKey(), e.getValue()));
+        container.setVisibility(View.VISIBLE);
+        setChipState(gameType, ChipState.FETCHED);
+        refresh.setVisibility(View.VISIBLE);
+    }
+
+    /** 构造单条链接行：UID 小字 + 截断链接 + 复制按钮。 */
+    private View buildLinkRow(int uid, String url) {
+        android.content.Context ctx = requireContext();
+        float density = ctx.getResources().getDisplayMetrics().density;
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, (int) (8 * density), 0, (int) (8 * density));
+
+        LinearLayout textCol = new LinearLayout(ctx);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textColParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        row.addView(textCol, textColParams);
+
+        MaterialTextView uidView = new MaterialTextView(ctx);
+        uidView.setText(getString(R.string.gacha_uid_label, uid));
+        uidView.setTextSize(10);
+        uidView.setTypeface(Typeface.MONOSPACE);
+        uidView.setLetterSpacing(0.05f);
+        uidView.setTextColor(MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575));
+        textCol.addView(uidView);
+
+        MaterialTextView linkView = new MaterialTextView(ctx);
+        linkView.setText(url);
+        linkView.setTextSize(11);
+        linkView.setMaxLines(1);
+        linkView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        linkView.setTypeface(Typeface.MONOSPACE);
+        LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        linkParams.topMargin = (int) (4 * density);
+        textCol.addView(linkView, linkParams);
+
+        ImageView copyBtn = new ImageView(ctx);
+        copyBtn.setImageResource(R.drawable.ic_copy);
+        copyBtn.setBackground(ctx.getDrawable(R.drawable.bg_surface_button));
+        // 图标着次要色：ic_copy 原始为白色，浅色表面上不彩色会与底融为一体（视觉上像透明）
+        copyBtn.setImageTintList(android.content.res.ColorStateList.valueOf(
+                MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575)));
+        int pad = (int) (7 * density);
+        copyBtn.setPadding(pad, pad, pad, pad);
+        copyBtn.setContentDescription(getString(R.string.copy));
+        copyBtn.setOnClickListener(v -> copyToClipboard(v, ctx, url));
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
+                (int) (32 * density), (int) (32 * density));
+        copyParams.setMarginStart((int) (12 * density));
+        row.addView(copyBtn, copyParams);
+        return row;
+    }
+
+    /** 行内状态文字保留（获取中提示）；颜色由 chip/主题统一接管后此方法仅用于文本。 */
+    private void setStatusText(int gameType, String text, @Nullable Integer colorAttrOrRes) {
+        View root = requireView();
+        MaterialTextView status = root.findViewById(gameType == 0 ? R.id.status_genshin : R.id.status_zzz);
+        status.setText(text);
+        if (colorAttrOrRes != null)
+            status.setTextColor(colorAttrOrRes);
+        else
+            status.setTextColor(MaterialColors.getColor(requireContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575));
+    }
+
+    /** 来源行状态（对齐设计稿 chip 语义：待获取/获取中 = 中性 chip，已获取 = 语义成功 chip）。 */
+    private enum ChipState {PENDING, FETCHING, FETCHED}
+
+    /** 同步某游戏行的状态 chip（文案/底色/文字色）与头像圈（未获取=表面圆灰图标，已获取=主色圆主色图标）。 */
+    private void setChipState(int gameType, ChipState state) {
+        View root = requireView();
+        MaterialTextView chip = root.findViewById(gameType == 0 ? R.id.chip_genshin : R.id.chip_zzz);
+        ImageView icon = root.findViewById(gameType == 0 ? R.id.icon_genshin : R.id.icon_zzz);
+        MaterialTextView status = root.findViewById(gameType == 0 ? R.id.status_genshin : R.id.status_zzz);
+        android.content.Context ctx = requireContext();
+        int gray = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575);
+        int primary = MaterialColors.getColor(ctx, androidx.appcompat.R.attr.colorPrimary, 0xFF415F91);
+        switch (state) {
+            case FETCHING:
+                chip.setVisibility(View.VISIBLE);
+                chip.setText(R.string.gacha_fetching);
+                chip.setBackgroundResource(R.drawable.bg_chip_surface);
+                chip.setTextColor(primary);
+                status.setText(R.string.gacha_fetching);
+                status.setTextColor(primary);
+                icon.setBackgroundResource(R.drawable.bg_surface_circle);
+                icon.setImageTintList(android.content.res.ColorStateList.valueOf(gray));
+                break;
+            case FETCHED:
+                chip.setVisibility(View.VISIBLE);
+                chip.setText(R.string.gacha_fetched);
+                chip.setBackgroundResource(R.drawable.bg_status_chip);
+                chip.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_on_success_container));
+                status.setText(R.string.gacha_fetched);
+                status.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success));
+                icon.setBackgroundResource(R.drawable.bg_icon_circle);
+                icon.setImageTintList(android.content.res.ColorStateList.valueOf(primary));
+                break;
+            default: // PENDING
+                chip.setVisibility(View.VISIBLE);
+                chip.setText(R.string.gacha_chip_pending);
+                chip.setBackgroundResource(R.drawable.bg_chip_surface);
+                chip.setTextColor(gray);
+                status.setText(R.string.gacha_not_fetched);
+                status.setTextColor(gray);
+                icon.setBackgroundResource(R.drawable.bg_surface_circle);
+                icon.setImageTintList(android.content.res.ColorStateList.valueOf(gray));
+                break;
         }
     }
 
-    /**
-     * 按当前服务器类型填充用户下拉框，并选定当前/首个用户；无用户则清空选择。
-     */
-    private void updateDropdown() {
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
-        List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
-                usernames
-        );
-        userDropdown.setAdapter(dropdownAdapter);
-        // 设置当前用户为默认选中项
-        String currentUser = userManager.getCurrentUser();
-        if (currentUser != null && !currentUser.isEmpty() && usernames.contains(currentUser)) {
-            userDropdown.setText(currentUser, false);
-            currentUserId = currentUser;
-            this.adapter.setCurrentUser(currentUser);
-        } else if (!usernames.isEmpty()) {
-            // 如果没有设置当前用户但有用户存在，默认选择第一个
-            String firstUser = usernames.get(0);
-            userDropdown.setText(firstUser, false);
-            userManager.setCurrentUser(firstUser);
-            currentUserId = firstUser;
-            this.adapter.setCurrentUser(firstUser);
-        } else {
-            // 当前服务器没有用户，清空选择
-            userDropdown.setText("", false);
-            currentUserId = null;
-            this.adapter.setCurrentUser(null);
-        }
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        // 恢复 ViewPager2 滑动切换
-        if (getActivity() instanceof MainActivity)
-            ((MainActivity) getActivity()).setViewPagerSwipeEnabled(true);
-        destroyWebView();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (executor != null && !executor.isShutdown())
-            executor.shutdown();
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
-        updateDropdown();
-    }
-
-    /** 统一切换列表卡片与 RecyclerView 的可见性。 */
-    private void setRecyclerVisible(boolean visible) {
-        int vis = visible ? View.VISIBLE : View.GONE;
-        recyclerCard.setVisibility(vis);
-        linkItemsRecyclerView.setVisibility(vis);
-    }
-
-    /** 显示/隐藏错误文本，遵循“减少动态效果”设置以决定是否淡入。 */
+    /** 显示/隐藏错误文本，遵循"减少动态效果"设置以决定是否淡入。 */
     private void setErrorTextVisible(boolean visible) {
         errorTextView.animate().cancel();
         if (tools.isReducedMotionEnabled(requireContext())) {
@@ -449,27 +290,61 @@ public class LinkFragment extends Fragment {
         }
     }
 
-    /** 显示/隐藏云游戏 WebView 容器，遵循“减少动态效果”设置以决定是否上滑淡入。 */
-    private void setWebViewContainerVisible(boolean visible) {
-        webViewContainer.animate().cancel();
-        webViewContainer.setTranslationY(0f);
-        webViewContainer.setAlpha(1f);
-        if (tools.isReducedMotionEnabled(requireContext())) {
-            webViewContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
-            return;
+    /**
+     * 按当前服务器类型填充用户下拉框，并选定当前/首个用户；无用户则清空选择。
+     */
+    private void updateDropdown() {
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+        List<String> usernames = userManager.getUsernamesByServerType(isOversea);
+        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_dropdown_item_1line,
+                usernames
+        );
+        userDropdown.setAdapter(dropdownAdapter);
+        // 行内展示带服务器后缀（如「t [国服]」，与设计稿一致）
+        boolean finalIsOversea = isOversea;
+        java.util.function.Function<String, String> label = u ->
+                u + " [" + getString(finalIsOversea ? R.string.server_os : R.string.server_cn) + "]";
+        // 设置当前用户为默认选中项
+        String currentUser = userManager.getCurrentUser();
+        if (currentUser != null && !currentUser.isEmpty() && usernames.contains(currentUser)) {
+            userDropdown.setText(label.apply(currentUser), false);
+            currentUserId = currentUser;
+        } else if (!usernames.isEmpty()) {
+            // 如果没有设置当前用户但有用户存在，默认选择第一个
+            String firstUser = usernames.get(0);
+            userDropdown.setText(label.apply(firstUser), false);
+            userManager.setCurrentUser(firstUser);
+            currentUserId = firstUser;
+        } else {
+            // 当前服务器没有用户，清空选择
+            userDropdown.setText("", false);
+            currentUserId = null;
         }
-        if (visible && webViewContainer.getVisibility() != View.VISIBLE) {
-            webViewContainer.setVisibility(View.VISIBLE);
-            webViewContainer.setAlpha(0f);
-            webViewContainer.setTranslationY(60f);
-            webViewContainer.animate()
-                    .alpha(1f)
-                    .translationY(0f)
-                    .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
-                    .setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate))
-                    .start();
-        } else if (!visible) {
-            webViewContainer.setVisibility(View.GONE);
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (executor != null && !executor.isShutdown())
+            executor.shutdown();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
+        updateDropdown();
+        if (getView() != null) {
+            // 恢复后按当前用户重绘行内结果
+            renderGameResult(0);
+            renderGameResult(1);
         }
     }
 }

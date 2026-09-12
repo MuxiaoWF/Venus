@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 云游戏获取页：独立 Activity 承载 WebView，登录云游戏后自动捕获抽卡链接 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    android:orientation="vertical">
+
+    <!-- 页眉（紧凑单行）：返回 + 标题。长提示由下方提示行与捕获 Snackbar 承担 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/space_2"
+        android:paddingEnd="@dimen/gutter_screen"
+        android:paddingTop="@dimen/space_2"
+        android:paddingBottom="@dimen/space_2">
+
+        <ImageView
+            android:id="@+id/cloud_close_button"
+            android:layout_width="@dimen/touch_target_min"
+            android:layout_height="@dimen/touch_target_min"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/close_webpage"
+            android:padding="@dimen/space_3"
+            android:src="@drawable/ic_chevron"
+            android:rotation="90"
+            app:tint="?attr/colorOnSurface" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_1"
+            android:text="@string/cloud_gaming"
+            android:textAppearance="@style/TextAppearance.Venus.Title" />
+    </LinearLayout>
+
+    <View
+        style="@style/Widget.Venus.SettingsRowDivider"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/divider_height" />
+
+    <!-- 提示行：登录后自动复制 -->
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:drawableStart="@drawable/ic_copy"
+        android:drawablePadding="@dimen/space_2"
+        android:drawableTint="?attr/colorOnSurfaceVariant"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="@dimen/gutter_screen"
+        android:paddingVertical="@dimen/space_3"
+        android:text="@string/gacha_login_prompt"
+        android:textAppearance="@style/TextAppearance.Venus.Body"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+</LinearLayout>

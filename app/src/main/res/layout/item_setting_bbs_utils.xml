@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 配置信息内容（命令台扁平 KV 行）：小灰标签在左 + mono 值右对齐，行距分隔（不加分割线）；
+     去掉嵌套卡片（抽屉内不再套卡），更新配置为全宽表面行按钮。
+     保留 7 个 value id 供 SettingsFragment.displayCurrentConfigValues 绑定。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -16,102 +20,216 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/space_1"
+        android:layout_marginTop="@dimen/space_3"
         android:text="@string/current_config_value"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
-    <com.google.android.material.card.MaterialCardView
+    <!-- 本机参数更新时间 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/space_2"
-        android:layout_marginBottom="@dimen/space_2"
-        android:layout_marginStart="@dimen/space_1"
-        android:layout_marginEnd="@dimen/space_1"
-        style="@style/Widget.Venus.Card">
+        android:layout_marginTop="@dimen/space_1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="@dimen/space_3"
-            android:paddingEnd="@dimen/space_3"
-            android:paddingBottom="@dimen/space_3">
+            android:text="@string/config_key_local_time"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/update_time_local"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/local_config_update_time"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/update_time_local"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/update_time"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/cloud_config_update_time"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+    <!-- 云端配置更新时间 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/bbs_version_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/miyoushe_version"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/config_key_cloud_time"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/salt_6x_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/salt_6x_value"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/update_time"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/salt_4x_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/salt_4x_value"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+    <!-- 米游社版本 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/lk2_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/lk2_value"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/config_key_bbs_version"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/k2_value"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/space_1"
-                android:text="@string/k2_value"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/bbs_version_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/update_config_button"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:layout_marginTop="@dimen/space_2"
-                android:text="@string/update_config" />
+    <!-- SALT_6X -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
 
-        </LinearLayout>
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SALT_6X"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
-    </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/salt_6x_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <!-- SALT_4X -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SALT_4X"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/salt_4x_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <!-- LK2 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LK2"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/lk2_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <!-- K2 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="@dimen/space_2">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="K2"
+            android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/k2_value"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/space_3"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:gravity="end"
+            android:maxLines="1"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <!-- 更新配置：全宽表面行按钮（与主页「后台运行」行同款） -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/update_config_button"
+        style="@style/Widget.Venus.RowButton"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/touch_target_min"
+        android:layout_marginTop="@dimen/space_3"
+        android:text="@string/update_config"
+        app:icon="@drawable/ic_refresh"
+        app:iconTint="?attr/colorOnSurfaceVariant" />
 
 </LinearLayout>

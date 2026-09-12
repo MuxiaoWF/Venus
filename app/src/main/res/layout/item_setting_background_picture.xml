@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/select_background_image"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
         android:textColor="?attr/colorOnSurface" />
 
     <LinearLayout
@@ -45,7 +45,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_2"
         android:text="@string/background_opacity"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
         android:textColor="?attr/colorOnSurface" />
 
     <com.google.android.material.slider.Slider

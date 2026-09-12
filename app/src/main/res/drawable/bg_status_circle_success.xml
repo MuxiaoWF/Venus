@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 任务状态圈 · 已完成：语义成功容器浅绿（M3 语义色，独立于主题） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/status_success_container" />
+</shape>

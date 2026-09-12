@@ -126,6 +126,13 @@
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
+    <!-- 抽屉展开行标签：13sp + 次要色（设计稿 text-[13px] text-zinc-600），
+         与折叠行标题（16sp+ onSurface）形成明确的从属层级 -->
+    <style name="TextAppearance.Venus.DrawerLabel" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
     <!-- ===================== 状态卡（空态 / 错误 / 提示） ===================== -->
     <style name="Widget.Venus.StateCard" parent="Widget.Material3.CardView.Elevated">
         <item name="cardElevation">@dimen/elevation_level0</item>
@@ -211,12 +218,55 @@
         <item name="shapeAppearance">@style/ShapeAppearance.Venus.TextInput</item>
     </style>
 
-    <!-- ===================== 按钮语义样式（同类型控件以样式/状态区分，避免扁平化） ===================== -->
-    <!-- 主操作=Filled(Widget.Venus.Button) / 次操作=Tonal / 弱化=Outlined / 文字=Text。
+    <!-- 无框下拉（命令台上下文行）：填充模式 + 透明底 + 无下划线，视觉为行内文本。
+         注意：ExposedDropdownMenu 的 endIcon 模式不支持 boxBackgroundMode=none，必须用 filled。 -->
+    <style name="Widget.Venus.Dropdown.Borderless" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="boxBackgroundMode">filled</item>
+        <item name="boxBackgroundColor">@android:color/transparent</item>
+        <item name="boxStrokeWidth">0dp</item>
+        <item name="boxStrokeWidthFocused">0dp</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <!-- ===================== 按钮语义样式（同类型控件以样式/状态区分，避免扁平化） =====================
+         四级按钮统一药丸形（M3 Expressive 形状语言），与 FAB / 分段按钮 / 底栏指示器一致。
+         主操作=Filled(Widget.Venus.Button) / 次操作=Tonal / 弱化=Outlined / 文字=Text。
          同一屏内主/次/弱/文字四类并存即构成合理区分，而非全部同款扁平按钮。 -->
-    <style name="Widget.Venus.Button" parent="Widget.Material3.Button" />
-    <style name="Widget.Venus.Button.Tonal" parent="Widget.Material3.Button.TonalButton" />
-    <style name="Widget.Venus.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton" />
+    <style name="Widget.Venus.Button" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Pill</item>
+    </style>
+    <style name="Widget.Venus.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Pill</item>
+    </style>
+    <style name="Widget.Venus.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Pill</item>
+    </style>
+    <style name="Widget.Venus.Button.Outlined.Destructive" parent="Widget.Material3.Button.OutlinedButton">
+        <!-- 破坏性操作：错误色描边 + 文字 + 低透明红涟漪 -->
+        <item name="shapeAppearance">@style/ShapeAppearance.Venus.Pill</item>
+        <item name="android:textColor">?attr/colorError</item>
+        <item name="iconTint">?attr/colorError</item>
+        <item name="strokeColor">?attr/colorError</item>
+        <item name="rippleColor">@color/destructive_ripple</item>
+    </style>
     <style name="Widget.Venus.Button.Text" parent="Widget.Material3.Button.TextButton" />
+
+    <!-- ===================== 命令台区块标签（mono 小标签） ===================== -->
+    <!-- 等宽全大写小节标签：账号 · CONTEXT / 操作 · ACTIONS，置于区块首行；
+         字距按设计稿 tracking 加大到 0.25，强化 mono 后缀的仪表感 -->
+    <style name="Widget.Venus.SectionLabel" parent="Widget.Venus">
+        <item name="android:textAppearance">@style/TextAppearance.Venus.Eyebrow</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.25</item>
+        <item name="android:layout_marginBottom">@dimen/space_1</item>
+    </style>
+
+    <!-- ===================== 抽屉引导线容器（设置页层级） ===================== -->
+    <!-- 展开内容外层：左侧 2dp 引导线 + 缩进，表达"从属于父行"的层级 -->
+    <style name="Widget.Venus.DrawerRail" parent="Widget.Venus">
+        <item name="android:background">@drawable/bg_drawer_rail</item>
+        <item name="android:paddingStart">@dimen/gutter_card</item>
+        <item name="android:layout_marginStart">@dimen/space_1</item>
+    </style>
 
 </resources>

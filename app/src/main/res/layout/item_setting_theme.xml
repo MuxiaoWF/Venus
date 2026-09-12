@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 主题选择（命令台风格）：四色圆点 + 系统动态取色点；深浅模式为药丸分段。
+     选中态由 Java 以 MaterialButton 描边表达。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -10,66 +13,120 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/select_app_theme"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
         android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Venus.Dropdown"
-            android:layout_width="match_parent"
+    <!-- 七枚主题圆点（ChipGroup 流式排布，放不下自动换行）：系统(动态取色) + 蓝/绿/红/黄/青/紫，选中 = 主色描边（Java 控制） -->
+    <com.google.android.material.chip.ChipGroup
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/space_2"
-        android:hint="@string/select_theme">
+        android:layout_marginTop="@dimen/space_3"
+        app:chipSpacingHorizontal="@dimen/space_3"
+        app:chipSpacingVertical="@dimen/space_2"
+        app:singleLine="false">
 
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/theme_dropdown"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="none"
-            android:text="@string/select_theme"
-            android:textColor="?attr/colorOnSurface" />
-    </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_system"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_system"
+            app:backgroundTint="?attr/colorSurfaceContainerHighest"
+            app:icon="@drawable/ic_brand"
+            app:iconTint="?attr/colorOnSurfaceVariant"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_blue"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_blue"
+            app:backgroundTint="@color/blue_theme_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_green"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_green"
+            app:backgroundTint="@color/green_theme_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_red"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_red"
+            app:backgroundTint="@color/red_theme_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_yellow"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_yellow"
+            app:backgroundTint="@color/yellow_theme_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_cyan"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_cyan"
+            app:backgroundTint="@color/cyan_theme_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/theme_dot_purple"
+            style="@style/Widget.Venus.ThemeDot"
+            android:layout_width="@dimen/theme_dot_size"
+            android:layout_height="@dimen/theme_dot_size"
+            android:contentDescription="@string/theme_purple"
+            app:backgroundTint="@color/purple_theme_primary" />
+
+    </com.google.android.material.chip.ChipGroup>
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_4"
         android:text="@string/theme_variant_setting"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel"
         android:textColor="?attr/colorOnSurface" />
 
-    <RadioGroup
+    <!-- 深浅模式：药丸分段按钮，选中段主色填充 -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/theme_variant_group"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="@dimen/space_2">
+        android:layout_marginTop="@dimen/space_2"
+        app:selectionRequired="true"
+        app:singleSelection="true">
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/theme_variant_default"
+            style="@style/Widget.Venus.SegmentedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/theme_follow"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/theme_follow" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/theme_variant_light"
+            style="@style/Widget.Venus.SegmentedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/theme_light"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/theme_light" />
 
-        <com.google.android.material.radiobutton.MaterialRadioButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/theme_variant_dark"
+            style="@style/Widget.Venus.SegmentedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/theme_dark"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface" />
-
-    </RadioGroup>
+            android:text="@string/theme_dark" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
 
 </LinearLayout>

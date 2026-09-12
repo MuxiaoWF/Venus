@@ -196,4 +196,88 @@
         <item name="colorSurfaceContainerHighest">@color/yellow_theme_surfaceContainerHighest</item>
     </style>
 
+    <!-- 青色主题 -->
+    <style name="ThemeOverlay.Venus.Cyan" parent="Theme.Venus">
+        <item name="colorPrimary">@color/cyan_theme_primary</item>
+        <item name="colorPrimaryContainer">@color/cyan_theme_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/cyan_theme_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/cyan_theme_secondary</item>
+        <item name="colorSecondaryContainer">@color/cyan_theme_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/cyan_theme_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/cyan_theme_tertiary</item>
+        <item name="colorTertiaryContainer">@color/cyan_theme_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/cyan_theme_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/cyan_theme_background</item>
+        <item name="colorOnBackground">@color/cyan_theme_onBackground</item>
+        <item name="colorSurface">@color/cyan_theme_surface</item>
+        <item name="colorOnSurface">@color/cyan_theme_onSurface</item>
+        <item name="colorSurfaceVariant">@color/cyan_theme_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/cyan_theme_onSurfaceVariant</item>
+        <item name="colorOutline">@color/cyan_theme_outline</item>
+        <item name="colorOutlineVariant">@color/cyan_theme_outlineVariant</item>
+        <item name="colorSurfaceInverse">@color/cyan_theme_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/cyan_theme_inverseOnSurface</item>
+        <item name="colorPrimaryInverse">@color/cyan_theme_inversePrimary</item>
+        <item name="colorPrimaryFixed">@color/cyan_theme_primaryFixed</item>
+        <item name="colorOnPrimaryFixed">@color/cyan_theme_onPrimaryFixed</item>
+        <item name="colorPrimaryFixedDim">@color/cyan_theme_primaryFixedDim</item>
+        <item name="colorOnPrimaryFixedVariant">@color/cyan_theme_onPrimaryFixedVariant</item>
+        <item name="colorSecondaryFixed">@color/cyan_theme_secondaryFixed</item>
+        <item name="colorOnSecondaryFixed">@color/cyan_theme_onSecondaryFixed</item>
+        <item name="colorSecondaryFixedDim">@color/cyan_theme_secondaryFixedDim</item>
+        <item name="colorOnSecondaryFixedVariant">@color/cyan_theme_onSecondaryFixedVariant</item>
+        <item name="colorTertiaryFixed">@color/cyan_theme_tertiaryFixed</item>
+        <item name="colorOnTertiaryFixed">@color/cyan_theme_onTertiaryFixed</item>
+        <item name="colorTertiaryFixedDim">@color/cyan_theme_tertiaryFixedDim</item>
+        <item name="colorOnTertiaryFixedVariant">@color/cyan_theme_onTertiaryFixedVariant</item>
+        <item name="colorSurfaceDim">@color/cyan_theme_surfaceDim</item>
+        <item name="colorSurfaceBright">@color/cyan_theme_surfaceBright</item>
+        <item name="colorSurfaceContainerLow">@color/cyan_theme_surfaceContainerLow</item>
+        <item name="colorSurfaceContainer">@color/cyan_theme_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/cyan_theme_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/cyan_theme_surfaceContainerHighest</item>
+    </style>
+
+    <!-- 紫色主题 -->
+    <style name="ThemeOverlay.Venus.Purple" parent="Theme.Venus">
+        <item name="colorPrimary">@color/purple_theme_primary</item>
+        <item name="colorPrimaryContainer">@color/purple_theme_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/purple_theme_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/purple_theme_secondary</item>
+        <item name="colorSecondaryContainer">@color/purple_theme_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/purple_theme_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/purple_theme_tertiary</item>
+        <item name="colorTertiaryContainer">@color/purple_theme_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/purple_theme_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/purple_theme_background</item>
+        <item name="colorOnBackground">@color/purple_theme_onBackground</item>
+        <item name="colorSurface">@color/purple_theme_surface</item>
+        <item name="colorOnSurface">@color/purple_theme_onSurface</item>
+        <item name="colorSurfaceVariant">@color/purple_theme_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/purple_theme_onSurfaceVariant</item>
+        <item name="colorOutline">@color/purple_theme_outline</item>
+        <item name="colorOutlineVariant">@color/purple_theme_outlineVariant</item>
+        <item name="colorSurfaceInverse">@color/purple_theme_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/purple_theme_inverseOnSurface</item>
+        <item name="colorPrimaryInverse">@color/purple_theme_inversePrimary</item>
+        <item name="colorPrimaryFixed">@color/purple_theme_primaryFixed</item>
+        <item name="colorOnPrimaryFixed">@color/purple_theme_onPrimaryFixed</item>
+        <item name="colorPrimaryFixedDim">@color/purple_theme_primaryFixedDim</item>
+        <item name="colorOnPrimaryFixedVariant">@color/purple_theme_onPrimaryFixedVariant</item>
+        <item name="colorSecondaryFixed">@color/purple_theme_secondaryFixed</item>
+        <item name="colorOnSecondaryFixed">@color/purple_theme_onSecondaryFixed</item>
+        <item name="colorSecondaryFixedDim">@color/purple_theme_secondaryFixedDim</item>
+        <item name="colorOnSecondaryFixedVariant">@color/purple_theme_onSecondaryFixedVariant</item>
+        <item name="colorTertiaryFixed">@color/purple_theme_tertiaryFixed</item>
+        <item name="colorOnTertiaryFixed">@color/purple_theme_onTertiaryFixed</item>
+        <item name="colorTertiaryFixedDim">@color/purple_theme_tertiaryFixedDim</item>
+        <item name="colorOnTertiaryFixedVariant">@color/purple_theme_onTertiaryFixedVariant</item>
+        <item name="colorSurfaceDim">@color/purple_theme_surfaceDim</item>
+        <item name="colorSurfaceBright">@color/purple_theme_surfaceBright</item>
+        <item name="colorSurfaceContainerLow">@color/purple_theme_surfaceContainerLow</item>
+        <item name="colorSurfaceContainer">@color/purple_theme_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/purple_theme_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/purple_theme_surfaceContainerHighest</item>
+    </style>
+
 </resources>

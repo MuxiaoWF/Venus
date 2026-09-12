@@ -6,16 +6,15 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.listitem.ListItemViewHolder;
-import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.tools;
@@ -52,55 +51,63 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         int colorPrimary = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0xFF1B6FE0);
         int colorError = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorError, 0xFFB3261E);
         int colorGray = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575);
+        int colorSuccess = ContextCompat.getColor(context, R.color.status_success);
 
         // 默认隐藏删除线覆盖层，仅 CANCELLED 态显示
         holder.statusIconStrike.setVisibility(View.GONE);
 
-        int tintColor;
+        // 状态圈圈底 + 状态图形 + 右侧状态（终态=chip，过程态=mono 文案），对齐设计稿状态语义
+        holder.taskProgress.setVisibility(View.VISIBLE);
+        holder.taskProgress.setBackground(null);
+        holder.taskProgress.setTextColor(colorGray);
+        holder.taskStatusChip.setVisibility(View.GONE);
         switch (task.getStatus()) {
             case IN_PROGRESS:
-                holder.statusIcon.setImageResource(R.drawable.ic_pending);
-                tintColor = neutralTint(context);
-                holder.taskProgress.setVisibility(View.VISIBLE);
-                holder.taskProgress.setIndeterminate(true);
+                // 主色环 + 主色点；右侧 mono RUNNING（设计稿活状态）
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_running);
+                holder.statusIcon.setImageResource(R.drawable.ic_dot);
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorPrimary));
+                holder.taskProgress.setText(R.string.task_status_running);
+                holder.taskProgress.setTextColor(colorPrimary);
                 break;
             case COMPLETED:
+            case WARNING:
+                // 成功容器绿圈 + 语义成功 check；右侧「已签」chip（WARNING=已签过，同归已签语义）
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_success);
                 holder.statusIcon.setImageResource(R.drawable.ic_check);
-                tintColor = colorPrimary;
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorSuccess));
                 holder.taskProgress.setVisibility(View.GONE);
-                holder.taskProgress.setIndeterminate(false);
+                showChip(holder, context, R.string.task_chip_done,
+                        context.getDrawable(R.drawable.bg_status_chip),
+                        ContextCompat.getColor(context, R.color.status_on_success_container));
                 break;
             case ERROR:
+                // 描边圈 + 错误色图形；右侧「失败」chip（错误容器底）
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
                 holder.statusIcon.setImageResource(R.drawable.ic_error);
-                tintColor = colorError;
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorError));
                 holder.taskProgress.setVisibility(View.GONE);
-                holder.taskProgress.setIndeterminate(false);
-                break;
-            case WARNING:
-                holder.statusIcon.setImageResource(R.drawable.ic_warning);
-                tintColor = ContextCompat.getColor(context, R.color.status_warning);
-                holder.taskProgress.setVisibility(View.VISIBLE);
-                holder.taskProgress.setIndeterminate(true);
+                showChip(holder, context, R.string.task_chip_failed,
+                        context.getDrawable(R.drawable.bg_chip_error),
+                        MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnErrorContainer, 0xFF410E0B));
                 break;
             case CANCELLED:
-                // 灰色图标 + 高对比删除线（colorError 斜线覆盖，明显可辨）
-                holder.statusIcon.setImageResource(R.drawable.ic_pending);
-                tintColor = colorGray;
-                holder.taskProgress.setVisibility(View.GONE);
-                holder.taskProgress.setIndeterminate(false);
+                // 灰色点 + 高对比删除线（colorError 斜线覆盖，明显可辨）；右侧 mono 已取消
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+                holder.statusIcon.setImageResource(R.drawable.ic_dot);
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorGray));
                 holder.statusIconStrike.setVisibility(View.VISIBLE);
                 holder.statusIconStrike.setImageTintList(ColorStateList.valueOf(colorError));
+                holder.taskProgress.setText(R.string.task_status_cancelled);
                 break;
             default: // PENDING
-                holder.statusIcon.setImageResource(R.drawable.ic_pending);
-                tintColor = colorGray;
-                holder.taskProgress.setVisibility(View.GONE);
-                holder.taskProgress.setIndeterminate(false);
+                // 描边圈 + 灰点；右侧 mono PENDING
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+                holder.statusIcon.setImageResource(R.drawable.ic_dot);
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorGray));
+                holder.taskProgress.setText(R.string.task_status_pending);
                 break;
         }
-
-        // 状态色着色
-        holder.statusIcon.setImageTintList(ColorStateList.valueOf(tintColor));
 
         // 项间发丝分割线：首条隐藏（避免顶端生硬分割），其后每条之上显示 1dp outlineVariant 线
         holder.itemDivider.setVisibility(position == 0 ? View.GONE : View.VISIBLE);
@@ -111,9 +118,14 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         animateEnter(holder, position, context);
     }
 
-    /** 中性强调色（进行中/待定/取消态的图标着色）。 */
-    private int neutralTint(Context context) {
-        return AppCompatResources.getColorStateList(context, R.color.tint_neutral).getDefaultColor();
+    /** 终态右侧 chip：设置文案、底色与文字色后显示。 */
+    private void showChip(TaskViewHolder holder, Context context, int textRes,
+                          android.graphics.drawable.Drawable background, int textColor) {
+        holder.taskProgress.setVisibility(View.GONE);
+        holder.taskStatusChip.setVisibility(View.VISIBLE);
+        holder.taskStatusChip.setText(textRes);
+        holder.taskStatusChip.setBackground(background);
+        holder.taskStatusChip.setTextColor(textColor);
     }
 
     /**
@@ -145,9 +157,11 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
 
     public static class TaskViewHolder extends ListItemViewHolder {
         private final MaterialTextView taskName;
-        private final LinearProgressIndicator taskProgress;
+        private final MaterialTextView taskProgress;
+        private final MaterialTextView taskStatusChip;
         private final ImageView statusIcon;
         private final ImageView statusIconStrike;
+        private final FrameLayout statusCircle;
         private final View itemDivider;
 
         public TaskViewHolder(@NonNull View itemView) {
@@ -155,7 +169,9 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             taskName = itemView.findViewById(R.id.task_name);
             statusIcon = itemView.findViewById(R.id.status_icon);
             taskProgress = itemView.findViewById(R.id.task_progress);
+            taskStatusChip = itemView.findViewById(R.id.task_status_chip);
             statusIconStrike = itemView.findViewById(R.id.status_icon_strike);
+            statusCircle = itemView.findViewById(R.id.status_circle);
             itemDivider = itemView.findViewById(R.id.item_divider);
         }
     }

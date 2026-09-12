@@ -13,8 +13,7 @@
         android:layout_height="wrap_content"
         android:checked="true"
         android:text="@string/enable_feature"
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface" />
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
     <com.google.android.material.chip.ChipGroup
         android:layout_width="match_parent"

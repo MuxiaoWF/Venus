@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 抽屉展开内容左侧引导线：2dp 竖线，表达"从属于父行"的层级关系 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="2dp"
+        android:gravity="start">
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/colorOutlineVariant" />
+            <corners android:radius="1dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认用户小 chip 底：主色容器淡底（近似设计稿 primary/10），全圆角（跟随主题换肤） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/primary_alpha_10" />
+    <corners android:radius="99dp" />
+</shape>

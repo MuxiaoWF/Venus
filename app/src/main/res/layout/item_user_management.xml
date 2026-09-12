@@ -1,74 +1,150 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 用户条目（命令台风格，对齐 .superdesign/page_users.html）：
+     整体容器 = 信息行 + 附着操作栏（重新登录 | 删除用户），共享同一边界表达一体化；
+     信息行 = 头像圆 + （名称行[+默认chip] + 已登录状态行）+ chevron；
+     重命名入口收敛到信息行点击（保持原 rename_user_dialog 能力）。 -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Widget.Venus.Card"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Venus.Card.Outlined"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="@dimen/space_4"
-        android:paddingVertical="@dimen/gap_row">
+        android:orientation="vertical">
 
+        <!-- 信息行（点击 = 重命名） -->
         <LinearLayout
+            android:id="@+id/user_info_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
             android:gravity="center_vertical"
-            android:layout_marginBottom="@dimen/space_3">
+            android:orientation="horizontal"
+            android:paddingHorizontal="@dimen/space_4"
+            android:paddingVertical="@dimen/gap_row">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/user_name_text"
+            <ImageView
+                android:id="@+id/user_avatar"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_icon_circle"
+                android:contentDescription="@null"
+                android:padding="@dimen/space_2"
+                android:src="@drawable/ic_user"
+                app:tint="?attr/colorPrimary" />
+
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_3"
                 android:layout_weight="1"
-                android:ellipsize="marquee"
-                android:gravity="start|center_vertical"
-                android:maxLines="1"
-                android:text="@string/user_name"
-                android:textAlignment="viewStart"
-                android:textAppearance="@style/TextAppearance.Venus.Title"
-                android:textColor="?attr/colorOnSurface" />
+                android:orientation="vertical">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/rename_user_button"
-                style="@style/Widget.Material3.Button.TextButton"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/user_name_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="@string/user_name"
+                        android:textAppearance="@style/TextAppearance.Venus.Title"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/user_default_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_2"
+                        android:background="@drawable/bg_chip_primary"
+                        android:paddingHorizontal="@dimen/space_2"
+                        android:paddingVertical="2dp"
+                        android:text="@string/user_chip_default"
+                        android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+                        android:textColor="?attr/colorPrimary"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="11dp"
+                        android:layout_height="11dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_check"
+                        app:tint="@color/status_success" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_1"
+                        android:text="@string/user_logged_in_status"
+                        android:textAppearance="@style/TextAppearance.Venus.MonoValue"
+                        android:textColor="@color/status_success" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <ImageView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:minWidth="0dp"
-                android:paddingHorizontal="@dimen/space_3"
-                android:text="@string/rename"
-                android:textAppearance="?attr/textAppearanceLabelLarge" />
-
+                android:contentDescription="@string/rename"
+                android:rotation="270"
+                android:src="@drawable/ic_chevron"
+                app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
+        <!-- 附着操作栏：与容器同边界，对半切分 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/relogin_user_button"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.Venus.Button.Text"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="@dimen/space_2"
+                android:layout_height="@dimen/touch_target_min"
                 android:layout_weight="1"
-                android:text="@string/re_login" />
+                android:background="?attr/selectableItemBackground"
+                android:text="@string/re_login"
+                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                app:icon="@drawable/ic_refresh"
+                app:iconTint="?attr/colorOnSurfaceVariant"
+                app:rippleColor="?attr/colorOutlineVariant" />
+
+            <View
+                android:layout_width="@dimen/divider_height"
+                android:layout_height="match_parent"
+                android:background="?attr/colorOutlineVariant" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/delete_user_button"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.Venus.Button.Text"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/space_2"
+                android:layout_height="@dimen/touch_target_min"
                 android:layout_weight="1"
-                android:text="@string/delete_user" />
-
+                android:background="?attr/selectableItemBackground"
+                android:text="@string/delete_user"
+                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textColor="?attr/colorError"
+                app:icon="@drawable/ic_trash"
+                app:iconTint="?attr/colorError"
+                app:rippleColor="@color/destructive_ripple" />
         </LinearLayout>
-
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

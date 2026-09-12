@@ -69,4 +69,7 @@
     <dimen name="widget_space_2">8dp</dimen>
     <dimen name="widget_space_3">12dp</dimen>
     <dimen name="widget_icon">18dp</dimen>
+
+    <!-- theme dot diameter -->
+    <dimen name="theme_dot_size">28dp</dimen>
 </resources>

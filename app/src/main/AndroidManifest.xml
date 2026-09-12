@@ -51,6 +51,11 @@
             android:name=".User.UserLoginActivity"
             android:exported="false" />
         <activity
+            android:name=".Link.CloudGachaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Venus"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity
             android:name=".User.OAuthLoginActivity"
             android:exported="true"
             android:launchMode="singleTop">

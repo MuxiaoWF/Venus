@@ -89,7 +89,7 @@
                 app:tabIndicatorFullWidth="false"
                 app:tabIndicatorHeight="0dp"
                 app:tabRippleColor="@android:color/transparent"
-                app:tabSelectedTextColor="?attr/colorOnPrimaryContainer"
+                app:tabSelectedTextColor="?attr/colorPrimary"
                 app:tabTextColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>

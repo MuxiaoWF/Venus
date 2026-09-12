@@ -67,8 +67,10 @@ import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.color.MaterialColors;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
@@ -129,6 +131,18 @@ public class SettingsFragment extends Fragment {
     private MaterialTextView updateTimeLocal;
     private MaterialTextView updateTime;
 
+    // 折叠行右侧 mono 值摘要（命令台设计稿行值）所需的卡片引用
+    private CollapsibleCardView dailyCard;
+    private CollapsibleCardView gameDailyCard;
+    private CollapsibleCardView serverCard;
+    private CollapsibleCardView updateCard;
+    private CollapsibleCardView cacheCard;
+    private CollapsibleCardView languageCard;
+    private CollapsibleCardView themeCard;
+    private CollapsibleCardView backgroundCard;
+    private CollapsibleCardView notificationCard;
+    private CollapsibleCardView sklandCard;
+
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
 
@@ -142,45 +156,67 @@ public class SettingsFragment extends Fragment {
         // 加载布局
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
 
+        // 页眉版本 chip（设计稿：v2.4.0 形式）
+        android.widget.TextView versionChip = view.findViewById(R.id.settings_version_chip);
+        if (versionChip != null)
+            versionChip.setText("v" + BuildConfig.VERSION_NAME);
+
         // 设置折叠按钮
         CollapsibleCardView bbsCard = view.findViewById(R.id.daily_card);
         CollapsibleCardView bbsGameCard = view.findViewById(R.id.game_daily_card);
-        CollapsibleCardView serverCard = view.findViewById(R.id.server_card);
+        CollapsibleCardView serverCardView = view.findViewById(R.id.server_card);
         CollapsibleCardView bbsUtilsCard = view.findViewById(R.id.config_card);
-        CollapsibleCardView updateCard = view.findViewById(R.id.update_card);
-        CollapsibleCardView cacheCard = view.findViewById(R.id.cache_card);
-        CollapsibleCardView languageCard = view.findViewById(R.id.language_card);
-        CollapsibleCardView themeCard = view.findViewById(R.id.theme_card);
-        CollapsibleCardView backgroundCard = view.findViewById(R.id.background_card);
-        CollapsibleCardView notificationCard = view.findViewById(R.id.notification_card);
+        CollapsibleCardView updateCardView = view.findViewById(R.id.update_card);
+        CollapsibleCardView cacheCardView = view.findViewById(R.id.cache_card);
+        CollapsibleCardView languageCardView = view.findViewById(R.id.language_card);
+        CollapsibleCardView themeCardView = view.findViewById(R.id.theme_card);
+        CollapsibleCardView backgroundCardView = view.findViewById(R.id.background_card);
+        CollapsibleCardView notificationCardView = view.findViewById(R.id.notification_card);
         CollapsibleCardView aboutCard = view.findViewById(R.id.about_card);
-        CollapsibleCardView sklandCard = view.findViewById(R.id.skland_card);
+        CollapsibleCardView sklandCardView = view.findViewById(R.id.skland_card);
+        dailyCard = bbsCard;
+        gameDailyCard = bbsGameCard;
+        serverCard = serverCardView;
+        updateCard = updateCardView;
+        cacheCard = cacheCardView;
+        languageCard = languageCardView;
+        themeCard = themeCardView;
+        backgroundCard = backgroundCardView;
+        notificationCard = notificationCardView;
+        sklandCard = sklandCardView;
 
         bbsCard.setContent(R.layout.item_setting_bbs_daily);
         bbsGameCard.setContent(R.layout.item_setting_game_daily);
-        serverCard.setContent(R.layout.item_setting_server_segmented);
+        serverCardView.setContent(R.layout.item_setting_server_segmented);
         bbsUtilsCard.setContent(R.layout.item_setting_bbs_utils);
-        updateCard.setContent(R.layout.item_setting_update);
-        cacheCard.setContent(R.layout.item_setting_cache);
-        languageCard.setContent(R.layout.item_setting_language);
-        themeCard.setContent(R.layout.item_setting_theme);
-        backgroundCard.setContent(R.layout.item_setting_background_picture);
-        notificationCard.setContent(R.layout.item_setting_notification);
+        updateCardView.setContent(R.layout.item_setting_update);
+        cacheCardView.setContent(R.layout.item_setting_cache);
+        languageCardView.setContent(R.layout.item_setting_language);
+        themeCardView.setContent(R.layout.item_setting_theme);
+        backgroundCardView.setContent(R.layout.item_setting_background_picture);
+        notificationCardView.setContent(R.layout.item_setting_notification);
         aboutCard.setContent(R.layout.item_setting_about);
-        sklandCard.setContent(R.layout.item_setting_skland);
+        sklandCardView.setContent(R.layout.item_setting_skland);
 
         View dailyView = bbsCard.getContentLayout();
         View bbsGameView = bbsGameCard.getContentLayout();
-        View serverView = serverCard.getContentLayout();
+        View serverView = serverCardView.getContentLayout();
         View utilsView = bbsUtilsCard.getContentLayout();
-        View updateView = updateCard.getContentLayout();
-        View cacheView = cacheCard.getContentLayout();
-        View languageView = languageCard.getContentLayout();
-        View themeView = themeCard.getContentLayout();
-        View backgroundView = backgroundCard.getContentLayout();
-        View notificationView = notificationCard.getContentLayout();
+        View updateView = updateCardView.getContentLayout();
+        View cacheView = cacheCardView.getContentLayout();
+        View languageView = languageCardView.getContentLayout();
+        View themeView = themeCardView.getContentLayout();
+        View backgroundView = backgroundCardView.getContentLayout();
+        View notificationView = notificationCardView.getContentLayout();
         View aboutView = aboutCard.getContentLayout();
-        View sklandView = sklandCard.getContentLayout();
+        View sklandView = sklandCardView.getContentLayout();
+
+        // 静态行值摘要（设计稿：配置信息=已配置、关于=开源许可 · 隐私政策、背景按设置）
+        bbsUtilsCard.setValue(getString(R.string.config_configured));
+        bbsUtilsCard.setValueColor(ContextCompat.getColor(requireContext(), com.muxiao.Venus.R.color.status_success));
+        aboutCard.setValue(getString(R.string.about_value));
+        backgroundCard.setValue(getString(SettingsFragment.getBackgroundImageUri(requireContext()) != null
+                ? R.string.background_value_custom : R.string.background_value_default));
 
         // 初始化SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -255,6 +291,10 @@ public class SettingsFragment extends Fragment {
         dailySwitchButton.setChecked(sharedPreferences.getBoolean(DAILY, true));
         gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
         backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
+        // 折叠行值摘要初始态（设计稿：行右侧 mono 摘要）
+        updateDailyCardValue(dailySwitchButton.isChecked());
+        updateGameCardValue();
+        updateNotificationCardValue(backgroundTaskSwitch.isChecked());
 
         // checkbox-pref 映射，统一恢复状态和设置监听器
         Object[][] dailyBindings = {
@@ -293,6 +333,7 @@ public class SettingsFragment extends Fragment {
             cb.setOnCheckedChangeListener((btn, checked) -> {
                 if (blockIfTaskRunning(btn, checked)) return;
                 sharedPreferences.edit().putBoolean(key, checked).apply();
+                updateGameCardValue();
             });
         }
 
@@ -300,6 +341,7 @@ public class SettingsFragment extends Fragment {
         dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (blockIfTaskRunning(buttonView, isChecked)) return;
             sharedPreferences.edit().putBoolean(DAILY, isChecked).apply();
+            updateDailyCardValue(isChecked);
         });
 
         gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -324,6 +366,7 @@ public class SettingsFragment extends Fragment {
             sharedPreferences.edit().putBoolean(BACKGROUND_TASK_ENABLED, isChecked).apply();
             // 后台运行开启时同步开启通知，关闭时同步关闭
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
+            updateNotificationCardValue(isChecked);
         });
 
         // 关于
@@ -370,8 +413,11 @@ public class SettingsFragment extends Fragment {
         SwitchMaterial autoUpdateSwitch = updateView.findViewById(R.id.auto_update_switch);
         boolean autoUpdateEnabled = sharedPreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
         autoUpdateSwitch.setChecked(autoUpdateEnabled);
-        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
-                sharedPreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply());
+        updateUpdateCardValue(autoUpdateEnabled);
+        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            sharedPreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply();
+            updateUpdateCardValue(isChecked);
+        });
         // 手动检查更新按钮
         MaterialButton checkUpdateButton = updateView.findViewById(R.id.check_update_button_github);
         checkUpdateButton.setOnClickListener(v -> {
@@ -414,11 +460,13 @@ public class SettingsFragment extends Fragment {
         sklandCheckboxEndfield.setChecked(sharedPreferences.getBoolean(SKLAND_ENDFIELD_ENABLED, false));
         sklandCheckboxArknights.setEnabled(sklandEnabled);
         sklandCheckboxEndfield.setEnabled(sklandEnabled);
+        updateSklandCardValue(sklandEnabled);
         sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (blockIfTaskRunning(buttonView, isChecked)) return;
             sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply();
             sklandCheckboxArknights.setEnabled(isChecked);
             sklandCheckboxEndfield.setEnabled(isChecked);
+            updateSklandCardValue(isChecked);
         });
         sklandCheckboxArknights.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (blockIfTaskRunning(buttonView, isChecked)) return;
@@ -474,6 +522,7 @@ public class SettingsFragment extends Fragment {
         if (sharedPreferences != null && getView() != null) {
             SwitchMaterial backgroundTaskSwitch = getView().findViewById(R.id.background_task_switch);
             backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
+            updateNotificationCardValue(backgroundTaskSwitch.isChecked());
         }
     }
 
@@ -646,12 +695,14 @@ public class SettingsFragment extends Fragment {
         // 再由下面的 addOnButtonCheckedListener 接管后续交互。
         segmented.setSelectionRequired(true);
         segmented.check(serverType == 0 ? R.id.server_cn : R.id.server_os);
+        updateServerCardValue(serverType == 0);
 
         segmented.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (!isChecked) return; // 仅处理被选中的一个
             int newType = (checkedId == R.id.server_cn) ? 0 : 1;
             prefs.edit().putInt(SERVER_TYPE, newType).apply();
             MiHoYoBBSConstants.clearOverseaCache();
+            updateServerCardValue(newType == 0);
             if (!tools.isReducedMotionEnabled(requireContext()) && settingsContainer != null)
                 TransitionManager.beginDelayedTransition(settingsContainer, new Fade());
             bbsCard.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
@@ -681,8 +732,10 @@ public class SettingsFragment extends Fragment {
                 android.R.layout.simple_dropdown_item_1line, languages);
         languageDropdown.setAdapter(adapter);
 
-        if (selectedLanguage >= 0 && selectedLanguage < languages.length)
+        if (selectedLanguage >= 0 && selectedLanguage < languages.length) {
             languageDropdown.setText(languages[selectedLanguage], false);
+            languageCard.setValue(languages[selectedLanguage]);
+        }
 
         languageDropdown.setOnItemClickListener((parent, view1, position, id) -> saveAndApplyLanguage(position));
     }
@@ -708,47 +761,51 @@ public class SettingsFragment extends Fragment {
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
         int selectedThemeVariant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
 
-        AutoCompleteTextView themeDropdown = view.findViewById(R.id.theme_dropdown);
-
-        String[] themes = {
-                getString(R.string.theme_system),
-                getString(R.string.theme_blue),
-                getString(R.string.theme_green),
-                getString(R.string.theme_red),
-                getString(R.string.theme_yellow),
-                getString(R.string.theme_light_name),
-                getString(R.string.theme_dark_name)
+        // 七枚主题圆点：index 与 saveAndApplyTheme 的主题序号一致（0=系统动态取色，1-6=蓝绿红黄青紫）
+        MaterialButton[] themeDots = {
+                view.findViewById(R.id.theme_dot_system),
+                view.findViewById(R.id.theme_dot_blue),
+                view.findViewById(R.id.theme_dot_green),
+                view.findViewById(R.id.theme_dot_red),
+                view.findViewById(R.id.theme_dot_yellow),
+                view.findViewById(R.id.theme_dot_cyan),
+                view.findViewById(R.id.theme_dot_purple)
         };
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_dropdown_item_1line, themes);
-        themeDropdown.setAdapter(adapter);
+        java.util.function.IntConsumer applyTheme = this::saveAndApplyTheme;
+        updateThemeCardValue();
+        for (int i = 0; i < themeDots.length; i++) {
+            MaterialButton dot = themeDots[i];
+            final int themeIndex = i;
+            if (i == selectedTheme)
+                markThemeDotSelected(dot, 0);
+            dot.setOnClickListener(v -> {
+                for (MaterialButton d : themeDots) d.setForeground(null);
+                markThemeDotSelected(dot, 0);
+                applyTheme.accept(themeIndex);
+                updateThemeCardValue();
+            });
+        }
 
-        if (selectedTheme >= 0 && selectedTheme < themes.length)
-            themeDropdown.setText(themes[selectedTheme], false);
-
-        themeDropdown.setOnItemClickListener((parent, view1, position, id) ->
-                saveAndApplyTheme(position));
-
-        // 查找所有主题变体单选按钮
-        MaterialRadioButton themeVariantDefault = view.findViewById(R.id.theme_variant_default);
-        MaterialRadioButton themeVariantLight = view.findViewById(R.id.theme_variant_light);
-        MaterialRadioButton themeVariantDark = view.findViewById(R.id.theme_variant_dark);
-
-        // 根据保存的设置选中对应的深浅色模式
-        MaterialRadioButton[] variantButtons = {themeVariantDefault, themeVariantLight, themeVariantDark};
-        if (selectedThemeVariant >= 0 && selectedThemeVariant < variantButtons.length)
-            variantButtons[selectedThemeVariant].setChecked(true);
-
-        // 为每个主题变体单选按钮设置监听器
-        themeVariantDefault.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_DEFAULT);
+        // 深浅模式分段（沿用原单选语义：default/light/dark）
+        MaterialButtonToggleGroup variantGroup = view.findViewById(R.id.theme_variant_group);
+        int[] variantIds = {R.id.theme_variant_default, R.id.theme_variant_light, R.id.theme_variant_dark};
+        if (selectedThemeVariant >= 0 && selectedThemeVariant < variantIds.length)
+            variantGroup.check(variantIds[selectedThemeVariant]);
+        variantGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            if (checkedId == R.id.theme_variant_default) saveAndApplyThemeVariant(THEME_VARIANT_DEFAULT);
+            else if (checkedId == R.id.theme_variant_light) saveAndApplyThemeVariant(THEME_VARIANT_LIGHT);
+            else if (checkedId == R.id.theme_variant_dark) saveAndApplyThemeVariant(THEME_VARIANT_DARK);
+            updateThemeCardValue();
         });
-        themeVariantLight.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_LIGHT);
-        });
-        themeVariantDark.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) saveAndApplyThemeVariant(THEME_VARIANT_DARK);
-        });
+    }
+
+    /** 主题圆点选中态：foreground 主色环（backgroundTint 会连带染色 stroke，故不用 stroke）。 */
+    private void markThemeDotSelected(MaterialButton dot, int ringPx) {
+        android.graphics.drawable.Drawable ring =
+                androidx.core.content.ContextCompat.getDrawable(requireContext(), R.drawable.bg_theme_dot_ring);
+        if (ring != null)
+            dot.setForeground(ring);
     }
 
     /**
@@ -814,6 +871,8 @@ public class SettingsFragment extends Fragment {
             R.style.ThemeOverlay_Venus_Green,  // GREEN
             R.style.ThemeOverlay_Venus_Red,    // RED
             R.style.ThemeOverlay_Venus_Yellow, // YELLOW
+            R.style.ThemeOverlay_Venus_Cyan,   // CYAN
+            R.style.ThemeOverlay_Venus_Purple, // PURPLE
             0,                                  // LIGHT（浅/深由 AppCompatDelegate 变体控制）
             0,                                  // DARK
     };
@@ -907,13 +966,14 @@ public class SettingsFragment extends Fragment {
         String update_time = configRepository.get(UPDATE_TIME_PREF, getString(R.string.config_not_fetched));
         String update_time_Local = configRepository.get(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
-        salt6xValue.setText(getString(R.string.salt_6x_value_fmt, salt6x));
-        salt4xValue.setText(getString(R.string.salt_4x_value_fmt, salt4x));
-        lk2Value.setText(getString(R.string.lk2_value_fmt, lk2));
-        k2Value.setText(getString(R.string.k2_value_fmt, k2));
-        bbsVersionValue.setText(getString(R.string.miyoushe_version_fmt, bbsVersion));
-        updateTimeLocal.setText(getString(R.string.local_config_update_time_fmt, update_time_Local));
-        updateTime.setText(getString(R.string.cloud_config_update_time_fmt, update_time));
+        // KV 行布局：标签在布局中，此处只绑裸值（mono 右对齐）
+        salt6xValue.setText(salt6x);
+        salt4xValue.setText(salt4x);
+        lk2Value.setText(lk2);
+        k2Value.setText(k2);
+        bbsVersionValue.setText(bbsVersion);
+        updateTimeLocal.setText(update_time_Local);
+        updateTime.setText(update_time);
     }
 
     /**
@@ -952,7 +1012,11 @@ public class SettingsFragment extends Fragment {
                     String sizeText = formatFileSize(totalSize);
                     android.app.Activity activity = getActivity();
                     if (activity != null)
-                        activity.runOnUiThread(() -> cacheSizeText.setText(getString(R.string.current_cache_size_fmt, sizeText)));
+                        activity.runOnUiThread(() -> {
+                            cacheSizeText.setText(getString(R.string.current_cache_size_fmt, sizeText));
+                            // 折叠行右侧值摘要同步（设计稿：缓存 128 MB）
+                            if (cacheCard != null) cacheCard.setValue(sizeText);
+                        });
                 } catch (Exception e) {
                     android.app.Activity activity = getActivity();
                     if (activity != null)
@@ -985,6 +1049,7 @@ public class SettingsFragment extends Fragment {
                     activity.runOnUiThread(() -> {
                         if (finalSuccess) {
                             cacheSizeText.setText(getString(R.string.current_cache_size_zero));
+                            if (cacheCard != null) cacheCard.setValue("0 B");
                             showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_cleared));
                         } else {
                             showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_cache_clear_partial_failed));
@@ -1056,6 +1121,67 @@ public class SettingsFragment extends Fragment {
             return true;
         }
         return false;
+    }
+
+    /** 折叠行值摘要：positive 时用语义成功色，否则回退次要色。 */
+    private void setCardValue(CollapsibleCardView card, CharSequence value, boolean positive) {
+        if (card == null) return;
+        card.setValue(value);
+        card.setValueColor(positive
+                ? ContextCompat.getColor(requireContext(), com.muxiao.Venus.R.color.status_success)
+                : 0);
+    }
+
+    private void updateDailyCardValue(boolean enabled) {
+        setCardValue(dailyCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+    }
+
+    /** 游戏签到行值：已开启游戏数 / 总数（设计稿：4/5 已开启）。 */
+    private void updateGameCardValue() {
+        if (gameDailyCard == null) return;
+        String[][] defs = {
+                {GAME_DAILY_GENSHIN, "false"}, {GAME_DAILY_ZZZ, "false"}, {GAME_DAILY_SRG, "false"},
+                {GAME_DAILY_HR3, "false"}, {GAME_DAILY_HR2, "false"}, {GAME_DAILY_WEIDING, "false"}
+        };
+        int enabled = 0;
+        for (String[] d : defs)
+            if (sharedPreferences.getBoolean(d[0], Boolean.parseBoolean(d[1]))) enabled++;
+        setCardValue(gameDailyCard, getString(R.string.game_enabled_fmt, enabled, defs.length), enabled > 0);
+    }
+
+    private void updateNotificationCardValue(boolean enabled) {
+        setCardValue(notificationCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+    }
+
+    private void updateSklandCardValue(boolean enabled) {
+        setCardValue(sklandCard, getString(enabled ? R.string.value_enabled : R.string.value_disabled), enabled);
+    }
+
+    private void updateUpdateCardValue(boolean auto) {
+        setCardValue(updateCard, getString(auto ? R.string.update_value_auto : R.string.update_value_manual), false);
+    }
+
+    private void updateServerCardValue(boolean isCn) {
+        setCardValue(serverCard, getString(isCn ? R.string.server_cn : R.string.server_os), false);
+    }
+
+    /** 主题行值：主题名 · 深浅名（设计稿：蓝色 · 浅色）。 */
+    private void updateThemeCardValue() {
+        if (themeCard == null) return;
+        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        int theme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
+        int variant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
+        String[] names = {
+                getString(R.string.theme_dynamic), getString(R.string.theme_blue),
+                getString(R.string.theme_green), getString(R.string.theme_red), getString(R.string.theme_yellow),
+                getString(R.string.theme_cyan), getString(R.string.theme_purple)
+        };
+        String[] variants = {
+                getString(R.string.theme_follow), getString(R.string.theme_light), getString(R.string.theme_dark)
+        };
+        String name = names[theme >= 0 && theme < names.length ? theme : 0];
+        String mode = variants[variant >= 0 && variant < variants.length ? variant : 0];
+        setCardValue(themeCard, getString(R.string.theme_value_fmt, name, mode), false);
     }
 
 }

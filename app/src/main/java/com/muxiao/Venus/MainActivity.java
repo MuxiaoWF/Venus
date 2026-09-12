@@ -69,7 +69,9 @@ public class MainActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         // 启动闪屏
         SplashScreen.installSplashScreen(this);
-        // 应用选定的主题（含换肤 overlay）
+        // 应用选定的主题（含换肤 overlay）。
+        // 注意必须放在 installSplashScreen 之后：闪屏库内部 setTheme(postSplashScreenTheme)
+        // 会重置主题、冲掉此前 applyStyle 的换肤 overlay，导致窗口背景回落到系统动态色。
         SettingsFragment.applyAppTheme(this);
 
         super.onCreate(savedInstanceState);
@@ -332,8 +334,13 @@ public class MainActivity extends BaseActivity {
      */
     private void setupBackground() {
         ImageView backgroundImage = findViewById(R.id.background_image);
+        View backgroundMask = findViewById(R.id.background_mask);
         Uri backgroundImageUri = SettingsFragment.getBackgroundImageUri(this);
         float backgroundAlpha = SettingsFragment.getBackgroundAlpha(this);
+
+        // 遮罩仅用于压暗背景图；无图时隐藏，让页面保持纯主题底色
+        Runnable hideMask = () -> backgroundMask.setVisibility(android.view.View.GONE);
+        Runnable showMask = () -> backgroundMask.setVisibility(android.view.View.VISIBLE);
 
         if (backgroundImageUri != null) {
             try {
@@ -342,8 +349,10 @@ public class MainActivity extends BaseActivity {
                     backgroundImage.setImageDrawable(drawable);
                     backgroundImage.setAlpha(backgroundAlpha);
                     backgroundImage.setVisibility(android.view.View.VISIBLE);
+                    showMask.run();
                 } else {
                     backgroundImage.setVisibility(android.view.View.GONE);
+                    hideMask.run();
                 }
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
@@ -353,13 +362,16 @@ public class MainActivity extends BaseActivity {
                         .remove("background_image_uri")
                         .apply();
                 backgroundImage.setVisibility(android.view.View.GONE);
+                hideMask.run();
             } catch (Exception e) {
                 // 出现其他异常时隐藏背景图片
                 backgroundImage.setVisibility(android.view.View.GONE);
+                hideMask.run();
                 show_error_dialog(this, getString(R.string.err_background_setup_error) + e.getMessage());
             }
         } else {
             backgroundImage.setVisibility(android.view.View.GONE);
+            hideMask.run();
         }
     }
 
