@@ -70,13 +70,11 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
-import com.google.android.material.color.MaterialColors;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.button.MaterialButtonToggleGroup;
-import com.google.android.material.radiobutton.MaterialRadioButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
@@ -139,7 +137,6 @@ public class SettingsFragment extends Fragment {
     private CollapsibleCardView cacheCard;
     private CollapsibleCardView languageCard;
     private CollapsibleCardView themeCard;
-    private CollapsibleCardView backgroundCard;
     private CollapsibleCardView notificationCard;
     private CollapsibleCardView sklandCard;
 
@@ -159,7 +156,7 @@ public class SettingsFragment extends Fragment {
         // 页眉版本 chip（设计稿：v2.4.0 形式）
         android.widget.TextView versionChip = view.findViewById(R.id.settings_version_chip);
         if (versionChip != null)
-            versionChip.setText("v" + BuildConfig.VERSION_NAME);
+            versionChip.setText(getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME));
 
         // 设置折叠按钮
         CollapsibleCardView bbsCard = view.findViewById(R.id.daily_card);
@@ -181,7 +178,6 @@ public class SettingsFragment extends Fragment {
         cacheCard = cacheCardView;
         languageCard = languageCardView;
         themeCard = themeCardView;
-        backgroundCard = backgroundCardView;
         notificationCard = notificationCardView;
         sklandCard = sklandCardView;
 
@@ -215,7 +211,7 @@ public class SettingsFragment extends Fragment {
         bbsUtilsCard.setValue(getString(R.string.config_configured));
         bbsUtilsCard.setValueColor(ContextCompat.getColor(requireContext(), com.muxiao.Venus.R.color.status_success));
         aboutCard.setValue(getString(R.string.about_value));
-        backgroundCard.setValue(getString(SettingsFragment.getBackgroundImageUri(requireContext()) != null
+        backgroundCardView.setValue(getString(SettingsFragment.getBackgroundImageUri(requireContext()) != null
                 ? R.string.background_value_custom : R.string.background_value_default));
 
         // 初始化SharedPreferences
@@ -771,17 +767,17 @@ public class SettingsFragment extends Fragment {
                 view.findViewById(R.id.theme_dot_cyan),
                 view.findViewById(R.id.theme_dot_purple)
         };
-        java.util.function.IntConsumer applyTheme = this::saveAndApplyTheme;
         updateThemeCardValue();
+        // 注：java.util.function.IntConsumer 需 API 24，直接调用 saveAndApplyTheme 代替
         for (int i = 0; i < themeDots.length; i++) {
             MaterialButton dot = themeDots[i];
             final int themeIndex = i;
             if (i == selectedTheme)
-                markThemeDotSelected(dot, 0);
+                markThemeDotSelected(dot);
             dot.setOnClickListener(v -> {
                 for (MaterialButton d : themeDots) d.setForeground(null);
-                markThemeDotSelected(dot, 0);
-                applyTheme.accept(themeIndex);
+                markThemeDotSelected(dot);
+                saveAndApplyTheme(themeIndex);
                 updateThemeCardValue();
             });
         }
@@ -801,7 +797,7 @@ public class SettingsFragment extends Fragment {
     }
 
     /** 主题圆点选中态：foreground 主色环（backgroundTint 会连带染色 stroke，故不用 stroke）。 */
-    private void markThemeDotSelected(MaterialButton dot, int ringPx) {
+    private void markThemeDotSelected(MaterialButton dot) {
         android.graphics.drawable.Drawable ring =
                 androidx.core.content.ContextCompat.getDrawable(requireContext(), R.drawable.bg_theme_dot_ring);
         if (ring != null)
@@ -881,14 +877,6 @@ public class SettingsFragment extends Fragment {
     private static int getSelectedThemeIndex(Context context) {
         SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         return themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
-    }
-
-    /**
-     * @deprecated 替换为 {@link #applyAppTheme(Activity)}。保留以兼容旧调用，仅返回基础主题。
-     */
-    @Deprecated
-    public static int getSelectedTheme() {
-        return R.style.Theme_Venus;
     }
 
     /**
@@ -984,7 +972,7 @@ public class SettingsFragment extends Fragment {
         // 在 Fragment detach 后会抛 IllegalStateException。
         final Context appContext = requireContext().getApplicationContext();
         final android.app.Activity activity = getActivity();
-        AppExecutors.get().io().execute(() -> {
+        AppExecutors.get().execute(() -> {
             boolean success = MiHoYoBBSConstants.update_config_from_web(appContext);
             if (activity == null) return;
             activity.runOnUiThread(() -> {
@@ -1011,7 +999,7 @@ public class SettingsFragment extends Fragment {
         // 后台线程内调用 requireContext() 在 Fragment detach 后会抛 IllegalStateException。
         final Context appContext = requireContext().getApplicationContext();
         final android.app.Activity activity = getActivity();
-        AppExecutors.get().io().execute(() -> {
+        AppExecutors.get().execute(() -> {
             try {
                 long totalSize = getDirSizeSafe(appContext.getCacheDir());
                 File externalCache = appContext.getExternalCacheDir();
@@ -1041,7 +1029,7 @@ public class SettingsFragment extends Fragment {
         // 同 calculateCacheSize：不可用 try-with-resources（close() 会在主线程同步等待任务结束）。
         final Context appContext = requireContext().getApplicationContext();
         final android.app.Activity activity = getActivity();
-        AppExecutors.get().io().execute(() -> {
+        AppExecutors.get().execute(() -> {
             boolean success = true;
             try {
                 success &= deleteDirSafe(appContext.getCacheDir());

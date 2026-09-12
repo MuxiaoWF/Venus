@@ -76,14 +76,6 @@ public class BackgroundGeetestController implements GeetestController {
     }
 
     @Override
-    public void destroyUtils() {
-        if (gt3Utils != null) {
-            gt3Utils.destory();
-            gt3Utils = null;
-        }
-    }
-
-    @Override
     public void updateTaskStatusWaring(String taskName) {
         notifier.notifyListeners(taskName + context.getString(R.string.geetest_waiting));
     }
@@ -140,7 +132,7 @@ public class BackgroundGeetestController implements GeetestController {
     /**
      * 由前台 Activity 调用，通知验证失败。
      */
-    public static void notifyVerificationFailure(String error) {
-        coordinator.notifyVerificationFailure(error);
+    public static void notifyVerificationFailure() {
+        coordinator.notifyVerificationFailure();
     }
 }

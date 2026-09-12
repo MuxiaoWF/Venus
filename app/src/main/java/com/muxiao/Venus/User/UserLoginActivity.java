@@ -437,7 +437,7 @@ public class UserLoginActivity extends BaseActivity {
 
     /**
      * 轮询扫码登录态（Init/Scanned/Confirmed），Confirmed 时取出 game_token 并走共用收尾。
-     * 轮询次数受 {@link #MAX_QR_POLL_COUNT} 约束（约 4 分钟），避免二维码过期后线程无限空转。
+     * 轮询次数受当前约束（约 4 分钟），避免二维码过期后线程无限空转。
      */
     private static final int MAX_QR_POLL_COUNT = 120;
 

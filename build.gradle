@@ -6,16 +6,12 @@ plugins {
 tasks.named("dependencyUpdates").configure {
     revision = 'release'
     outputFormatter = 'json'
-    // 过滤预发布版本：alpha / beta / rc / cr / milestone 不列为可升级项
-    resolutionStrategy {
-        componentSelection {
-            all {
-                if (['alpha', 'beta', 'rc', 'cr', 'm'].any { q ->
-                    candidate.version ==~ /(?i).*[.-]${q}[.\d-]*/
-                }) {
-                    reject('Release candidate')
-                }
-            }
+    // 过滤预发布版本：alpha / beta / rc / cr / milestone 不列为可升级项。
+    // 用任务自带的 rejectVersionIf 代替 componentSelection.all{}，
+    // 避免 Lint「Task configuration avoidance」的 configureEach 提示。
+    rejectVersionIf {
+        ['alpha', 'beta', 'rc', 'cr', 'm'].any { q ->
+            candidate.version ==~ /(?i).*[.-]${q}[.\d-]*/
         }
     }
 }

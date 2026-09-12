@@ -22,8 +22,8 @@ public interface CaptchaCoordinator {
     /** 前台验证成功：写入结果并释放 latch */
     void notifyVerificationSuccess(Map<String, String> geetCode);
 
-    /** 前台验证失败：清除结果并释放 latch */
-    void notifyVerificationFailure(String error);
+    /** 前台验证失败：清除结果并释放 latch（失败详情由调用方自行记录日志） */
+    void notifyVerificationFailure();
 
     /** 读取并清除验证结果（前台验证完成后由后台线程消费） */
     Map<String, String> consumeResult();

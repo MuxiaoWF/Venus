@@ -10,8 +10,8 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.muxiao.Venus.BaseActivity;
 import com.muxiao.Venus.R;
@@ -93,17 +93,19 @@ public class CloudGachaActivity extends BaseActivity {
         });
 
         webView.loadUrl("https://mhyy.mihoyo.com/");
-    }
 
-    /** 返回键优先回退 WebView 历史，无历史时退出页面。 */
-    @SuppressLint("SetJavaScriptEnabled")
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        // 返回键优先回退 WebView 历史，无历史时退出页面。
+        // 注：onBackPressed 在预测性返回手势下不再被调用，改用 OnBackPressedDispatcher 注册。
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    finish();
+                }
+            }
+        });
     }
 
     @Override

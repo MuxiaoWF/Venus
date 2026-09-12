@@ -9,9 +9,9 @@
     <dimen name="space_5">20dp</dimen>   <!-- 区块间距 -->
     <dimen name="space_6">24dp</dimen>   <!-- 卡片内大留白 -->
     <dimen name="space_7">28dp</dimen>   <!-- 区块标题上方 -->
-    <dimen name="space_8">32dp</dimen>   <!-- 大间距 -->
+    <!-- 大间距 -->
     <dimen name="space_9">40dp</dimen>   <!-- 大区块间距 -->
-    <dimen name="space_10">48dp</dimen>  <!-- 触控目标/特大间距 -->
+    <!-- 触控目标/特大间距 -->
     <dimen name="space_hairline">2dp</dimen> <!-- 发丝级间距（描边内缩/极小间隙） -->
 
     <!-- 底部 FAB 占位高度（统一到 space_* 命名体系） -->
@@ -31,9 +31,7 @@
 
     <!-- ===== 组件尺寸 ===== -->
     <dimen name="setting_row_height">52dp</dimen>
-    <dimen name="icon_standard">24dp</dimen>
     <dimen name="icon_inline">18dp</dimen>   <!-- 命令按钮内的行内图标 -->
-    <dimen name="icon_small">20dp</dimen>
     <dimen name="icon_badge_circle">36dp</dimen>
     <dimen name="touch_target_min">48dp</dimen>
 
@@ -57,15 +55,12 @@
     <dimen name="card_elevation_rest">@dimen/elevation_level1</dimen>
     <dimen name="card_elevation_image">10dp</dimen>
 
-    <!-- Widget 专用字号/间距（RemoteViews 不随主题走，需独立 token） -->
+    <!-- Widget 专用字号（RemoteViews 不随主题走，字号刻度独立于全局 type 刻度）；
+         间距/图标尺寸无主题问题，直接复用全局 space_* / icon_*，不再另设同值路径 -->
     <dimen name="widget_text_title">15sp</dimen>
     <dimen name="widget_text_body">13sp</dimen>
     <dimen name="widget_text_small">12sp</dimen>
     <dimen name="widget_text_mini">11sp</dimen>
-    <dimen name="widget_space_1">4dp</dimen>
-    <dimen name="widget_space_2">8dp</dimen>
-    <dimen name="widget_space_3">12dp</dimen>
-    <dimen name="widget_icon">18dp</dimen>
     <!-- Widget 内联按钮内边距（widget_task_status 的 RemoteViews 按钮，非 8dp 网格值） -->
     <dimen name="widget_button_padding_horizontal">10dp</dimen>
     <dimen name="widget_button_padding_vertical">3dp</dimen>

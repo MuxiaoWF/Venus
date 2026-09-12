@@ -20,14 +20,14 @@
 -keepattributes Signature
 -keepattributes InnerClasses,EnclosingMethod
 
-# ---------- RxJava3（DataStore RxJava3 绑定，R8 fullMode 需保留） ----------
--keep class io.reactivex.rxjava3.** { *; }
--keep interface io.reactivex.rxjava3.** { *; }
+# ---------- RxJava3 ----------
+# RxJava 无反射调用，无需 keep：全量 keep 会保留全部 1700+ 类（约 1/3 的 dex 体积）。
+# R8 会只保留实际用到的操作符；dontwarn 处理 optional 依赖引用。
 -dontwarn io.reactivex.rxjava3.**
+-dontwarn org.reactivestreams.**
 
-# ---------- DataStore（Preferences + 内部 protobuf 序列化，R8 fullMode 需保留） ----------
--keep class androidx.datastore.** { *; }
--keep class androidx.datastore.preferences.protobuf.** { *; }
+# ---------- DataStore ----------
+# androidx 系列库自带 consumer rules；全量 keep 会连内部 protobuf 元数据一起保留。
 -dontwarn androidx.datastore.**
 
 # ---------- GeeTest 极验验证码（混淆会导致无法正常显示） ----------
@@ -43,8 +43,8 @@
 -keep class a.a.a.** {*;}
 
 # ---------- uCrop 图片裁剪 ----------
--keep class com.yalantis.ucrop.** {*;}
--keepclassmembers class com.yalantis.ucrop.** {*;}
+# uCrop 的 UCropActivity / 自定义 View 已由 manifest/XML 引用自动 keep（AAPT 规则），
+# 库自带 consumer rules；无需 app 侧全量 keep（否则 85+ 类全部保留）。
 
 # ---------- Glide（自带 consumer-rules，补充公共 API） ----------
 -keep public class * implements com.bumptech.glide.module.GlideModule
@@ -56,7 +56,7 @@
 }
 
 # ---------- ZXing 二维码 ----------
--keep class com.google.zxing.** {*;}
+# 仅用到 QRCodeWriter/BitMatrix 等直调类，无反射，交给 R8 按需裁剪（全量 keep 会保留 289 类）。
 # ZXing javase 模块包含桌面端类（java.awt/javax.swing），Android 上不存在
 -dontwarn java.awt.**
 -dontwarn javax.swing.**
@@ -78,8 +78,8 @@
 -dontwarn org.openjsse.**
 
 # ---------- AndroidX / Material ----------
--keep class androidx.core.app.CoreComponentFactory { *; }
--keep class com.google.android.material.** {*;}
+# Material 自带完备的 consumer rules；XML 引用的组件由 AAPT 规则自动 keep。
+# 全量 keep 会保留全部未用到的组件与联动资源（dex + resources.arsc 双重膨胀）。
 
 # ---------- 保留 Application 和 Activity 入口 ----------
 -keep class com.muxiao.Venus.VenusApplication { *; }

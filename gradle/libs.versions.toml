@@ -1,4 +1,6 @@
 [versions]
+adsIdentifier = "3.4.62.300"
+adsIdentifierVersion = "1.0.2.301"
 agp = "9.4.0"
 android_cn_oaidVersion = "4.2.17"
 comGoogleCodeGsonGson = "2.14.0"
@@ -26,6 +28,7 @@ datastoreRx = "1.2.1"
 rxjava3 = "3.1.12"
 
 [libraries]
+ads-identifier = { module = "com.huawei.hms:ads-identifier", version.ref = "adsIdentifier" }
 com-google-code-gson-gson3 = { module = "com.google.code.gson:gson", version.ref = "comGoogleCodeGsonGson" }
 core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreenVersion" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
@@ -40,6 +43,7 @@ lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata"
 material = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+mcs-ads-identifier = { module = "com.hihonor.mcs:ads-identifier", version.ref = "adsIdentifierVersion" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 sensebot = { module = "com.geetest.sensebot:sensebot", version.ref = "sensebot" }
 touchimageview = { module = "com.github.MikeOrtiz:TouchImageView", version.ref = "touchimageview" }

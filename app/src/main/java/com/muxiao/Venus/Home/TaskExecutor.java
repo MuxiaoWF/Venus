@@ -72,17 +72,17 @@ public class TaskExecutor {
         notifier.notifyListeners(context.getString(R.string.task_mgr_start, userId));
         List<Future<?>> futures = new ArrayList<>();
         // 统一线程池（AppExecutors）：米游币签到、游戏签到、森空岛签到可并行。
-        // 注意：共享线程池不可 shutdown，取消时改为 future.cancel(true)；
-        // 因此直接调用 AppExecutors.get().io().submit(...)，不持有 ExecutorService 变量，
-        // 避免触发 “ExecutorService used without try-with-resources” 警告。
+        // 注意：共享线程池不可 shutdown，取消时改为 future.cancel(true)。
+        // 经 AppExecutors.submit() 门面提交：不暴露 ExecutorService（AutoCloseable），
+        // 从源头避免 Lint「AutoCloseable used without try-with-resources」误报。
         if (settings.isDailyEnabled())
-            futures.add(AppExecutors.get().io().submit(() -> executeBbsDaily(settings.getDailyForums())));
+            futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums())));
         if (settings.isGameDailyEnabled())
-            futures.add(AppExecutors.get().io().submit(() -> executeGameDaily(settings.getGameDailyGames())));
+            futures.add(AppExecutors.get().submit(() -> executeGameDaily(settings.getGameDailyGames())));
         if (settings.isSklandArknightsEnabled())
-            futures.add(AppExecutors.get().io().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
+            futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
         if (settings.isSklandEndfieldEnabled())
-            futures.add(AppExecutors.get().io().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
+            futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
 
         if (!awaitAll(futures)) return;
         if (!callback.isCancelled()) {

@@ -64,7 +64,7 @@ public class UserManager {
      */
     public Map<String, String> getUsers() {
         String usersJson = sharedPreferences.getString(KEY_USERS, "");
-        if (usersJson == null || usersJson.isEmpty())
+        if (usersJson.isEmpty())
             return new HashMap<>();
 
         Type type = new TypeToken<Map<String, String>>(){}.getType();

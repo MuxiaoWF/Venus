@@ -35,7 +35,6 @@
     <!-- 层级：Title(L/M/S) / Body(L/M/S) / Label(L/M/S) / 命令台专用(Eyebrow/HeaderTitle/HeaderSubtitle/MonoValue) -->
     <style name="TextAppearance.Venus.Title" parent="TextAppearance.Material3.TitleMedium.Emphasized" />
     <style name="TextAppearance.Venus.Title.Large" parent="TextAppearance.Material3.TitleLarge.Emphasized" />
-    <style name="TextAppearance.Venus.Title.Small" parent="TextAppearance.Material3.TitleSmall.Emphasized" />
 
     <style name="TextAppearance.Venus.Body" parent="TextAppearance.Material3.BodyMedium" />
     <style name="TextAppearance.Venus.Body.Large" parent="TextAppearance.Material3.BodyLarge" />

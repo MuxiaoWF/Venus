@@ -36,16 +36,20 @@
          radius_group(别名) 均零引用，已随稽核删除（避免"同值多路径"）。 -->
 
     <!-- ========== 3. 层级 / 阴影刻度（统一 elevation 口径） ==========
-         只保留实际在用的两档：level0(扁平/嵌入) 与 level1(卡片静止) 与 level2(抬升卡/图片卡)。
-         历史遗留的 level3/4/5 零引用，且 level4 注释与取值互相矛盾（注释称 = card_elevation_image，
-         实际 6dp ≠ 10dp），已删除。 -->
+         level0(扁平/嵌入) / level1(卡片静止) / level2(抬升卡/图片卡)
+         / level3(悬浮工具条/图片操作层) / level4(底部导航毛玻璃)。
+         历史遗留的 level3/4/5 曾因零引用删除；本次为消除布局裸 dp
+         （activity_image 4dp、底栏 8dp）按"引用了就补档位"纪律恢复两档。 -->
     <dimen name="elevation_level0">0dp</dimen>   <!-- 扁平 / 嵌入 -->
     <dimen name="elevation_level1">1dp</dimen>   <!-- 卡片静止 -->
     <dimen name="elevation_level2">3dp</dimen>   <!-- 抬升卡 / 图片卡 -->
+    <dimen name="elevation_level3">4dp</dimen>   <!-- 悬浮工具条 / 图片操作层 -->
+    <dimen name="elevation_level4">8dp</dimen>   <!-- 底部导航毛玻璃 -->
     <!-- 描边统一口径：Filled/Outlined/State 卡共用 1dp 发丝描边，颜色走 outlineVariant；
          Elevated 主卡（Widget.Venus.Card）走 none，仅靠阴影区分，避免双重边界。 -->
     <dimen name="stroke_width_hairline">1dp</dimen>
     <dimen name="stroke_width_hairline_half">0.5dp</dimen>  <!-- 底栏/细描边 -->
+    <dimen name="stroke_width_focused">1.5dp</dimen>  <!-- 输入框聚焦描边 -->
     <dimen name="stroke_width_none">0dp</dimen>
 
     <!-- ========== 4. 组件尺寸 ========== -->
@@ -59,6 +63,7 @@
     <!-- 全部 TextAppearance.Venus.* 统一定义在 widget_venus.xml 单文件。
          行标题、副标题、操作按钮等一律引用对应 TextAppearance，
          避免"同一处字体三套写法"。 -->
+    <dimen name="text_line_spacing_extra">2dp</dimen> <!-- 正文多行行距（layout 的 lineSpacingExtra） -->
 
     <!-- ========== 6. 动效基线（与既有 motion_duration_* 对齐，统一缓动） ========== -->
     <!-- 强调缓动 cubic-bezier(0.1,0.7,0.1,1.0)，沉淀在 res/anim/emphasized_accelerate.xml

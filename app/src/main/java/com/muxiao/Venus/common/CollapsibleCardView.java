@@ -163,33 +163,12 @@ public class CollapsibleCardView extends FrameLayout {
     }
 
     /**
-     * 用指定 View 替换内容区：先清空旧内容并解除其原有父布局绑定，再添加新 View 并触发高度重算。
-     */
-    public void setContent(View contentView) {
-        contentLayout.removeAllViews();
-        if (contentView.getParent() != null)
-            // 如果视图已经有父视图，先从父视图中移除
-            ((ViewGroup) contentView.getParent()).removeView(contentView);
-        contentLayout.addView(contentView);
-        requestRecalculateHeight();
-    }
-
-    /**
      * 用布局资源 ID inflate 的视图替换内容区，随后触发展开高度重算。
      */
     public void setContent(int layoutResId) {
         contentLayout.removeAllViews();
         LayoutInflater.from(getContext()).inflate(layoutResId, contentLayout, true);
         requestRecalculateHeight();
-    }
-
-    /**
-     * 获取当前内容区域是否已展开
-     *
-     * @return true表示已展开，false表示已折叠
-     */
-    public boolean isExpanded() {
-        return isExpanded;
     }
 
     /**

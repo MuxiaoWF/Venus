@@ -106,9 +106,19 @@ public class FullscreenImageActivity extends BaseActivity {
         MaterialButton downloadButton = findViewById(R.id.downloadButton);
         bottomInfoCard = findViewById(R.id.bottomInfoCard); // 引用底部信息卡片
 
-        imageAdapter = new ImagePagerAdapter(this, Objects.requireNonNull(imageDataList)); // 保存adapter引用
+        imageAdapter = new ImagePagerAdapter(this, Objects.requireNonNull(imageDataList),
+                initialPosition, this::startEnterTransitionIfPending);
         viewPager.setAdapter(imageAdapter);
         viewPager.setCurrentItem(initialPosition, false);
+
+        // 共享元素转场正确性：全屏页与网格缩略图的 Glide 缓存 key 不同（override 尺寸不同），
+        // 转场开始时大图必然尚未解码，加载完成后会突兀跳变。
+        // 这里推迟进入转场，等首图就绪（成功/失败/超时兜底三选一）后再开始。
+        if (motionEnabled) {
+            supportPostponeEnterTransition();
+            // 兜底：加载卡死/回调丢失时也要解除 postponed，避免整页空白卡住
+            viewPager.postDelayed(this::startEnterTransitionIfPending, 1500);
+        }
 
         // 设置页面间间距和边缘装饰效果
         viewPager.setPageTransformer((page, position) -> {
@@ -150,6 +160,21 @@ public class FullscreenImageActivity extends BaseActivity {
             params.topMargin = statusBarHeight + (int) (8 * getResources().getDisplayMetrics().density);
             v.setLayoutParams(params);
             return insets;
+        });
+    }
+
+    /**
+     * 首图就绪回调（成功/失败/超时兜底三选一，幂等）：解除推迟的进入转场。
+     * 在布局完成后的下一帧再开始，避免共享元素位置尚未测量导致跳变。
+     */
+    private boolean enterTransitionStarted = false;
+
+    private void startEnterTransitionIfPending() {
+        if (enterTransitionStarted) return;
+        enterTransitionStarted = true;
+        viewPager.post(() -> {
+            if (!isFinishing() && !isDestroyed())
+                supportStartPostponedEnterTransition();
         });
     }
 
@@ -299,34 +324,46 @@ public class FullscreenImageActivity extends BaseActivity {
     }
 
     /**
-     * 隐藏底部信息栏
+     * 隐藏底部信息栏：状态立即翻转并取消在跑动画。
+     * 原实现把 isBottomInfoVisible 翻转放进 withEndAction——动画运行期间状态过期，
+     * 快速缩放切换时 show/hide 互相错过（守卫读到旧值），信息栏会卡在错误状态或重复起动画。
      */
     public void hideBottomInfo() {
-        if (isBottomInfoVisible && bottomInfoCard != null && bottomInfoCard.getVisibility() == View.VISIBLE)
-            bottomInfoCard.animate()
-                    .translationY(bottomInfoCard.getHeight())
-                    .alpha(0f)
-                    .setDuration(300)
-                    .setInterpolator(AnimationUtils.loadInterpolator(this,
-                            android.R.interpolator.fast_out_linear_in))
-                    .withEndAction(() -> isBottomInfoVisible = false)
-                    .start();
+        if (!isBottomInfoVisible || bottomInfoCard == null
+                || bottomInfoCard.getVisibility() != View.VISIBLE) return;
+        isBottomInfoVisible = false;
+        bottomInfoCard.animate().cancel();
+        if (com.muxiao.Venus.common.tools.isReducedMotionEnabled(this)) {
+            bottomInfoCard.setAlpha(0f);
+            bottomInfoCard.setTranslationY(bottomInfoCard.getHeight());
+            return;
+        }
+        bottomInfoCard.animate()
+                .translationY(bottomInfoCard.getHeight())
+                .alpha(0f)
+                .setDuration(300)
+                .setInterpolator(AnimationUtils.loadInterpolator(this,
+                        android.R.interpolator.fast_out_linear_in))
+                .start();
     }
 
-    /**
-     * 显示底部信息栏
-     */
+    /** 显示底部信息栏：状态立即翻转并取消在跑动画，与 {@link #hideBottomInfo()} 对称。 */
     public void showBottomInfo() {
-        if (!isBottomInfoVisible && bottomInfoCard != null) {
-            bottomInfoCard.setAlpha(0f);
-            bottomInfoCard.animate()
-                    .translationY(0)
-                    .alpha(1f)
-                    .setDuration(350)
-                    .setInterpolator(AnimationUtils.loadInterpolator(this,
-                            android.R.interpolator.fast_out_slow_in))
-                    .withEndAction(() -> isBottomInfoVisible = true)
-                    .start();
+        if (isBottomInfoVisible || bottomInfoCard == null) return;
+        isBottomInfoVisible = true;
+        bottomInfoCard.animate().cancel();
+        if (com.muxiao.Venus.common.tools.isReducedMotionEnabled(this)) {
+            bottomInfoCard.setAlpha(1f);
+            bottomInfoCard.setTranslationY(0);
+            return;
         }
+        bottomInfoCard.setAlpha(0f);
+        bottomInfoCard.animate()
+                .translationY(0)
+                .alpha(1f)
+                .setDuration(350)
+                .setInterpolator(AnimationUtils.loadInterpolator(this,
+                        android.R.interpolator.fast_out_slow_in))
+                .start();
     }
 }

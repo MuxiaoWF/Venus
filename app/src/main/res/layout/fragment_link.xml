@@ -23,14 +23,12 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/link_eyebrow"
             style="@style/TextAppearance.Venus.Eyebrow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/venus_eyebrow" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/link_title"
             style="@style/TextAppearance.Venus.HeaderTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -38,7 +36,6 @@
             android:text="@string/gacha_link_title" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/link_subtitle"
             style="@style/TextAppearance.Venus.HeaderSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -47,7 +44,6 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/link_content"
         style="@style/Widget.Venus.ScreenScaffold"
         android:layout_width="0dp"
         android:layout_height="0dp"
@@ -95,6 +91,7 @@
                     android:layout_weight="1"
                     android:background="@android:color/transparent"
                     android:inputType="none"
+                    android:textAlignment="viewStart"
                     android:textColor="?attr/colorOnSurface"
                     android:textAppearance="@style/TextAppearance.Venus.Body.Large" />
 
@@ -139,11 +136,13 @@
                     android:id="@+id/icon_genshin"
                     android:layout_width="@dimen/icon_badge_circle"
                     android:layout_height="@dimen/icon_badge_circle"
-                    android:background="@drawable/bg_icon_circle"
+                    android:background="@drawable/bg_surface_circle"
                     android:contentDescription="@null"
                     android:padding="@dimen/space_2"
                     android:src="@drawable/ic_sparkles"
-                    app:tint="?attr/colorPrimary" />
+                    app:tint="?attr/colorOnSurfaceVariant" />
+                <!-- 初始态必须 = 状态机 PENDING（灰表面圆）：XML 曾写"已获取"点亮视觉，
+                     onResume 被 setChipState(PENDING) 纠正 → 首帧"点亮→熄灭"闪变 -->
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -324,10 +323,12 @@
             android:orientation="horizontal"
             android:paddingVertical="@dimen/gap_row">
 
+            <!-- 导航行中性化：bg_icon_circle+primary 是"已获取点亮"专属视觉，
+                 导航行不是状态载体，与"未获取"行区分靠右侧 chevron -->
             <ImageView
                 android:layout_width="@dimen/icon_badge_circle"
                 android:layout_height="@dimen/icon_badge_circle"
-                android:background="@drawable/bg_icon_circle"
+                android:background="@drawable/bg_surface_circle"
                 android:contentDescription="@null"
                 android:padding="@dimen/space_2"
                 android:src="@drawable/ic_cloud"
@@ -347,7 +348,6 @@
                     android:textAppearance="@style/TextAppearance.Venus.RowTitle" />
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/status_cloud"
                     style="@style/TextAppearance.Venus.MonoValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

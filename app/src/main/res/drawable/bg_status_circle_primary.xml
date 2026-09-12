@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 任务状态圈 · 已完成：主题主色容器（?attr/colorPrimaryContainer），跟随四套主题与动态取色。
+     主题属性在 drawable 中自 API 21 起可解析（minSdk 23 满足）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="?attr/colorPrimaryContainer" />
+</shape>

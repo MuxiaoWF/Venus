@@ -23,24 +23,15 @@
     <string name="clear_background">清除背景</string>
     <string name="clear_cache">清理快取</string>
     <string name="close_webpage">關閉網頁</string>
-    <string name="cloud_config_update_time">雲端參數更新時間：載入中…</string>
-    <string name="cloud_config_update_time_fmt">雲端參數更新時間：%s</string>
     <string name="cloud_gaming">雲端遊戲取得</string>
     <string name="config_info">設定資訊</string>
-    <string name="copy_link">複製連結</string>
-    <string name="show_more">展開全部</string>
-    <string name="show_less">收起</string>
     <string name="current_cache_size">當前快取大小：計算中…</string>
     <string name="current_cache_size_error">當前快取大小：計算失敗</string>
     <string name="current_cache_size_fmt">當前快取大小：%s</string>
     <string name="current_cache_size_zero">當前快取大小：0 B</string>
     <string name="current_config_value">當前設定值：</string>
     <string name="dabieye">大別墅</string>
-    <string name="daily">日常</string>
-    <string name="daily_settings_info">有關的更詳細的設定可以到底部設定裡查看。</string>
-    <string name="daily_sign_in_info">米遊社有關的日常一鍵簽到，需要先到底部使用者管理新增使用者再使用該功能。</string>
     <string name="daily_tasks_title">日常任務</string>
-    <string name="daily_update_hint">如果遇到一些問題，可以嘗試在設定裡更新設定。（不用經常更新）</string>
     <string name="default_description">詳細介紹內容</string>
     <string name="default_title">標題</string>
 
@@ -53,7 +44,6 @@
     <string name="gacha_link_subtitle">點擊遊戲行取得連結</string>
     <string name="gacha_link_title">抽卡連結</string>
     <string name="gacha_login_prompt">請在網頁中登入並開啟抽卡紀錄頁面</string>
-    <string name="gacha_login_tip">提示：登入後請開啟一次抽卡紀錄頁面，將自動擷取連結。\n取得完記得退出遊戲喔</string>
     <string name="miyoushe_coin_sign_in">米遊幣簽到</string>
     <string name="game_sign_in">遊戲簽到</string>
     <string name="genshin_impact">原神</string>
@@ -68,12 +58,6 @@
     <string name="image">圖片</string>
     <string name="image_title">圖片標題</string>
     <string name="image_type">圖片類型</string>
-    <string name="k2_value">K2：載入中…</string>
-    <string name="k2_value_fmt">K2：%s</string>
-    <string name="lk2_value">LK2：載入中…</string>
-    <string name="lk2_value_fmt">LK2：%s</string>
-    <string name="local_config_update_time">本機參數更新時間：載入中…</string>
-    <string name="local_config_update_time_fmt">本機參數更新時間：%s</string>
     <string name="login">登入</string>
     <string name="login_log">登入日誌</string>
     <string name="login_qr_code">登入二維碼</string>
@@ -81,8 +65,6 @@
     <string name="user_login_welcome">歡迎</string>
     <string name="user_login_subtitle">登入以繼續</string>
 
-    <string name="miyoushe_version">米遊社版本：載入中…</string>
-    <string name="miyoushe_version_fmt">米遊社版本：%s</string>
     <string name="my_blog">我的Blog（甚麼都沒有）</string>
     <string name="nav_gacha_link">抽卡連結</string>
     <string name="nav_home">主頁</string>
@@ -93,10 +75,6 @@
     <string name="refresh_tip">建議不要經常重新整理</string>
     <string name="rename">重新命名</string>
     <string name="run_sign_in">執行簽到</string>
-    <string name="salt_4x_value">SALT_4X：載入中…</string>
-    <string name="salt_4x_value_fmt">SALT_4X：%s</string>
-    <string name="salt_6x_value">SALT_6X：載入中…</string>
-    <string name="salt_6x_value_fmt">SALT_6X：%s</string>
     <string name="save_skland_settings">儲存森空島設定</string>
     <string name="section_app">應用 · APP</string>
     <string name="section_config">設定 · CONFIG</string>
@@ -106,7 +84,6 @@
     <string name="select_background_image">選擇背景圖片：</string>
     <string name="select_image">選擇圖片</string>
     <string name="select_image_source">選擇圖片來源</string>
-    <string name="select_theme">選擇主題</string>
     <string name="select_user">選擇使用者</string>
     <string name="settings_title">設定</string>
     <string name="settings_subtitle">個人化與應用偏好</string>
@@ -122,12 +99,18 @@
     <string name="gacha_fetching">獲取中…</string>
     <string name="gacha_chip_pending">待獲取</string>
     <string name="cloud_open_hint">打開雲遊戲頁面 · 自動捕獲連結</string>
-    <string name="run_remaining">剩餘 %1$d 項</string>
+    <plurals name="run_remaining">
+        <item quantity="other">剩餘 %1$d 項</item>
+    </plurals>
     <string name="bg_hint_notify">通知欄可控</string>
     <!-- 命令台設計稿：行內值 / 狀態 chip 文案 -->
-    <string name="home_done_fmt">已完成 %1$d/%2$d</string>
+    <plurals name="home_done_fmt">
+        <item quantity="other">已完成 %1$d/%2$d</item>
+    </plurals>
     <string name="task_done_fmt">%1$d/%2$d DONE</string>
-    <string name="user_count_fmt">管理登入帳號 · 共 %1$d 個帳號</string>
+    <plurals name="user_count_fmt">
+        <item quantity="other">管理登入帳號 · 共 %1$d 個帳號</item>
+    </plurals>
     <string name="user_logged_in_status">已登入</string>
     <string name="user_chip_default">預設</string>
     <string name="task_chip_done">已簽</string>
@@ -186,7 +169,6 @@
     <string name="server_type">伺服器類型</string>
     <string name="server_cn">國服</string>
     <string name="server_os">國際服</string>
-    <string name="select_server">選擇伺服器：</string>
     <string name="oauth_login_title">HoYoLAB登入</string>
     <string name="oauth_set_username">請設定一個使用者名稱（推薦使用UID）</string>
     <string name="cookie_login">Cookie 登入</string>
@@ -278,7 +260,6 @@
     <!-- 錯誤對話框訊息 -->
     <string name="err_no_background_permission">沒有權限存取背景圖片，清除背景設定</string>
     <string name="err_background_setup_error">設定背景圖片出錯，隱藏背景圖片</string>
-    <string name="err_get_drawable_error">從Uri取得Drawable出錯</string>
     <string name="err_crop_failed">圖片裁剪失敗：%s</string>
     <string name="err_save_background_failed">儲存背景圖片失敗：%s</string>
     <string name="err_delete_background_error">刪除背景圖片出錯：%s</string>
@@ -293,7 +274,9 @@
     <!-- 工具列標題 -->
     <string name="toolbar_image_browse">圖片瀏覽</string>
     <string name="toolbar_crop_image">裁剪圖片</string>
-    <string name="toolbar_items_selected">%d 項已選擇</string>
+    <plurals name="toolbar_items_selected">
+        <item quantity="other">%d 項已選擇</item>
+    </plurals>
 
     <!-- 設定頁主題 -->
     <string name="theme_system">系統</string>
@@ -303,8 +286,6 @@
     <string name="theme_yellow">黃色</string>
     <string name="theme_cyan">青色</string>
     <string name="theme_purple">紫色</string>
-    <string name="theme_light_name">淺色</string>
-    <string name="theme_dark_name">深色</string>
     <string name="config_not_fetched">未取得</string>
 
     <!-- 更新檢查 -->
@@ -322,11 +303,12 @@
     <string name="image_author_prefix">作者：</string>
     <string name="image_time_prefix">時間：</string>
     <string name="image_unknown_author">未知作者</string>
-    <string name="image_user_label">使用者：</string>
 
     <!-- Widget -->
     <string name="widget_description">顯示今日任務完成狀態</string>
-    <string name="widget_task_summary">%1$d/%2$d 已完成</string>
+    <plurals name="widget_task_summary">
+        <item quantity="other">%1$d/%2$d 已完成</item>
+    </plurals>
     <string name="widget_run">執行</string>
     <string name="widget_running">執行中…</string>
     <string name="widget_no_user">請先在應用中登入帳號</string>
@@ -420,7 +402,9 @@
     <string name="bbs_task_list_failed">米遊幣簽到 任務取得失敗</string>
     <string name="bbs_stoken_null">stoken/mid/stuid為null，請嘗試重新登入</string>
     <string name="bbs_login_error">登入錯誤</string>
-    <string name="bbs_earnable_today">米遊幣簽到 今日還可獲得%d個米遊幣</string>
+    <plurals name="bbs_earnable_today">
+        <item quantity="other">米遊幣簽到 今日還可獲得%d個米遊幣</item>
+    </plurals>
     <string name="bbs_forum_sign_done">米遊幣簽到 討論區每日簽到已完成</string>
     <string name="bbs_forum_signing">米遊幣簽到 正在執行討論區簽到…</string>
 
@@ -440,7 +424,9 @@
     <string name="skland_content_not_set">森空島content未設定</string>
     <string name="skland_start">森空島簽到 開始執行</string>
     <string name="skland_cred_success">森空島簽到 取得認證資訊成功</string>
-    <string name="skland_roles_found">森空島簽到 取得角色列表成功，共找到 %d 個角色</string>
+    <plurals name="skland_roles_found">
+        <item quantity="other">森空島簽到 取得角色列表成功，共找到 %d 個角色</item>
+    </plurals>
     <string name="skland_no_roles">森空島簽到 未找到可簽到的角色</string>
     <string name="skland_signing_role">森空島簽到 正在為角色 [%1$s] (%2$d/%3$d) 執行簽到…</string>
     <string name="skland_all_done">森空島簽到 全部角色簽到完成</string>
@@ -475,17 +461,23 @@
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_cookie_token_refreshed">簽到 CookieToken重新整理成功</string>
-    <string name="game_accounts_found">簽到 已取得%d個帳號</string>
+    <plurals name="game_accounts_found">
+        <item quantity="other">簽到 已取得%d個帳號</item>
+    </plurals>
     <string name="game_getting_rewards">簽到 正在取得簽到獎勵清單…</string>
     <string name="game_rewards_retry">簽到 取得簽到獎勵清單失敗，第%d次重試</string>
     <string name="game_rewards_max_retry">簽到 取得簽到獎勵清單失敗，重試次數已達上限</string>
-    <string name="game_start_with_accounts">簽到 開始執行，共%d個帳號</string>
+    <plurals name="game_start_with_accounts">
+        <item quantity="other">簽到 開始執行，共%d個帳號</item>
+    </plurals>
     <string name="game_already_signed">今日已簽到</string>
     <string name="game_sign_success">簽到成功</string>
     <string name="game_sign_captcha_triggered">觸發驗證碼</string>
     <string name="game_sign_failed">簽到失敗: %s</string>
     <string name="game_sign_failed_rate_limit">簽到失敗: 請求過於頻繁(429)</string>
-    <string name="game_consecutive_days">已連續簽到%d天</string>
+    <plurals name="game_consecutive_days">
+        <item quantity="other">已連續簽到%d天</item>
+    </plurals>
     <string name="game_today_reward">簽到 今日獎勵: %1$s×%2$s</string>
 
     <!-- SklandDaily 補充 -->
@@ -512,6 +504,4 @@
     <!-- BBSGameDaily 補充 -->
     <string name="game_thread_error">執行緒異常: %s</string>
 
-    <!-- 頁腳：各頁滾動底部統一品牌行 -->
-    <string name="app_footer">Venus · 啟明星　米游社簽到工具</string>
 </resources>

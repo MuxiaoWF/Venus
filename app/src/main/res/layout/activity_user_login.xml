@@ -143,7 +143,6 @@
 
             <!-- 账号密码输入区 -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/login_input_card"
                 style="@style/Widget.Venus.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

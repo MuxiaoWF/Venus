@@ -20,10 +20,6 @@ public class ScaleInItemAnimator extends DefaultItemAnimator {
 
     private final boolean withScale;
 
-    public ScaleInItemAnimator() {
-        this(true);
-    }
-
     public ScaleInItemAnimator(boolean withScale) {
         this.withScale = withScale;
     }

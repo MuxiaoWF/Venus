@@ -1,51 +1,41 @@
 package com.muxiao.Venus.common;
 
-import android.os.Handler;
-import android.os.Looper;
-
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * 统一线程模型（Now in Android 推荐：结构化并发 + 生命周期感知 Executor）。
  * 替代散落的 new Thread / Executors.newFixedThreadPool(3) / runOnUiThread。
- * - io()：后台任务线程池（网络、文件、加解密等）。
- * - main()：主线程 Executor，用于把结果切回 UI。
+ * - execute()/submit()：后台任务线程池（网络、文件、加解密等）的门面方法。
  * 注意：本类为进程级单例线程池，禁止 shutdown；任务取消请使用 Future.cancel(true)。
+ * 对外不暴露 {@link ExecutorService}：compileSdk 34+ 起它实现了 AutoCloseable，
+ * 链式调用（如 io().execute(...)）会触发 Lint「AutoCloseable used without try-with-resources」误报，
+ * 且门面从类型上杜绝了调用方误 shutdown 共享线程池的可能。
  */
 public final class AppExecutors {
 
     private static final AppExecutors INSTANCE = new AppExecutors();
 
     private final ExecutorService io;
-    private final Executor main;
 
     private AppExecutors() {
         int cores = Runtime.getRuntime().availableProcessors();
         // 至少 4 个线程，覆盖「米游币/游戏/森空岛×2」并行上限，并预留余量。
         this.io = Executors.newFixedThreadPool(Math.max(4, cores * 2));
-        this.main = new MainThreadExecutor();
     }
 
     public static AppExecutors get() {
         return INSTANCE;
     }
 
-    public ExecutorService io() {
-        return io;
+    /** 在 IO 线程池执行后台任务（fire-and-forget）。 */
+    public void execute(Runnable command) {
+        io.execute(command);
     }
 
-    public Executor main() {
-        return main;
-    }
-
-    private static final class MainThreadExecutor implements Executor {
-        private final Handler handler = new Handler(Looper.getMainLooper());
-
-        @Override
-        public void execute(Runnable command) {
-            handler.post(command);
-        }
+    /** 在 IO 线程池提交后台任务，返回可 {@code cancel(true)} 的 Future。 */
+    public Future<?> submit(Runnable task) {
+        return io.submit(task);
     }
 }

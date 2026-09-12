@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 主题选择（命令台风格）：四色圆点 + 系统动态取色点；深浅模式为药丸分段。
+<!-- 主题选择（命令台风格）：七枚主题圆点（系统动态取色 + 蓝/绿/红/黄/青/紫）；深浅模式为药丸分段。
      选中态由 Java 以 MaterialButton 描边表达。 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"

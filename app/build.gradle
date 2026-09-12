@@ -12,16 +12,16 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.muxiao.Venus"
+        applicationId = "com.muxiao.Venus"
         minSdk = 23
         targetSdk = 37
-        versionCode 7
-        versionName "0.0.7"
+        versionCode = 8
+        versionName = "0.0.8"
 
         buildConfigField "int", "VERSION_CODE", "${defaultConfig.versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${defaultConfig.versionName}\""
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         resConfigs "zh-rCN", "zh-rTW", "en"
     }
@@ -29,10 +29,10 @@ android {
         release {
             def storeFileProp = project.findProperty('VENUS_STORE_FILE')
             if (storeFileProp != null) {
-                storeFile file(storeFileProp)
-                storePassword project.findProperty('VENUS_STORE_PASSWORD')
-                keyAlias project.findProperty('VENUS_KEY_ALIAS')
-                keyPassword project.findProperty('VENUS_KEY_PASSWORD')
+                storeFile = file(storeFileProp)
+                storePassword = project.findProperty('VENUS_STORE_PASSWORD')
+                keyAlias = project.findProperty('VENUS_KEY_ALIAS')
+                keyPassword = project.findProperty('VENUS_KEY_PASSWORD')
             }
             enableV1Signing = true
             enableV2Signing = true
@@ -41,20 +41,28 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig = signingConfigs.release
             ndk {
-                debugSymbolLevel 'FULL'
+                debugSymbolLevel = 'FULL'
             }
         }
         debug {
-            debuggable true
-            jniDebuggable true
+            debuggable = true
+            jniDebuggable = true
             pseudoLocalesEnabled = true
         }
     }
+    // LocaleHelper 支持运行时动态切换语言（简/繁/英），禁用按语言拆分，
+    // 确保所有语言资源都打包进基础 APK，避免 Bundle 分发下切换语言后资源缺失。
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
@@ -95,6 +103,8 @@ hilt {
 dependencies {
     implementation libs.core.splashscreen
     implementation libs.gzu.liyujiang.android.cn.oaid
+    runtimeOnly libs.ads.identifier
+    runtimeOnly libs.mcs.ads.identifier
     implementation libs.sensebot
     implementation libs.okhttp
     implementation libs.com.google.zxing.core

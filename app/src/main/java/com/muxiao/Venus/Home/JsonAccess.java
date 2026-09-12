@@ -40,10 +40,13 @@ final class JsonAccess {
         return optString(obj, "message", fallback);
     }
 
-    /** 读取子对象：字段缺失、为 {@code JsonNull} 或不是对象时返回 {@code null}。 */
-    static JsonObject object(JsonObject obj, String member) {
+    /**
+     * 读取 {@code "data"} 载荷子对象：字段缺失、为 {@code JsonNull} 或不是对象时返回 {@code null}。
+     * 米游社响应包的业务载荷统一在 {@code data} 字段下（全项目唯一取值），故键名内建。
+     */
+    static JsonObject data(JsonObject obj) {
         if (obj == null) return null;
-        JsonElement element = obj.get(member);
+        JsonElement element = obj.get("data");
         if (element == null || !element.isJsonObject()) return null;
         return element.getAsJsonObject();
     }
@@ -68,8 +71,12 @@ final class JsonAccess {
         }
     }
 
-    /** 读取整数字段：缺失、{@code JsonNull} 或类型不符时返回 {@code null}（区别于合法的 0）。 */
-    static Integer optIntOrNull(JsonObject obj, String member) {
+    /**
+     * 读取 {@code total_sign_day}（本月累计签到天数）：缺失、{@code JsonNull} 或类型不符时
+     * 返回 {@code null}（区别于合法的 0）。全项目唯一取值即该字段，故键名内建。
+     */
+    static Integer optTotalSignDay(JsonObject obj) {
+        String member = "total_sign_day";
         if (obj == null || !obj.has(member) || obj.get(member).isJsonNull()) return null;
         try {
             return obj.get(member).getAsInt();
@@ -88,15 +95,19 @@ final class JsonAccess {
         }
     }
 
-    /** 读取布尔字段：缺失、{@code JsonNull} 或类型不符时返回 {@code fallback}。 */
-    static boolean optBoolean(JsonObject obj, String member, boolean fallback) {
-        if (obj == null) return fallback;
+    /**
+     * 读取 {@code is_get_award}（今日是否已领取奖励）：缺失、{@code JsonNull} 或类型不符时
+     * 返回 {@code false}。全项目唯一取值即该字段且兜底恒为 false，故参数内建。
+     */
+    static boolean optIsGetAward(JsonObject obj) {
+        String member = "is_get_award";
+        if (obj == null) return false;
         JsonElement element = obj.get(member);
-        if (element == null || element.isJsonNull()) return fallback;
+        if (element == null || element.isJsonNull()) return false;
         try {
             return element.getAsBoolean();
         } catch (RuntimeException e) {
-            return fallback;
+            return false;
         }
     }
 

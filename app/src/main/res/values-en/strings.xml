@@ -23,24 +23,15 @@
     <string name="clear_background">Clear Background</string>
     <string name="clear_cache">Clear Cache</string>
     <string name="close_webpage">Close Webpage</string>
-    <string name="cloud_config_update_time">Cloud config update time: Loading…</string>
-    <string name="cloud_config_update_time_fmt">Cloud config update time: %s</string>
     <string name="cloud_gaming">Cloud Gaming Fetch</string>
     <string name="config_info">Config Info</string>
-    <string name="copy_link">Copy Link</string>
-    <string name="show_more">Show All</string>
-    <string name="show_less">Show Less</string>
     <string name="current_cache_size">Current cache size: Calculating…</string>
     <string name="current_cache_size_error">Current cache size: Calculation failed</string>
     <string name="current_cache_size_fmt">Current cache size: %s</string>
     <string name="current_cache_size_zero">Current cache size: 0 B</string>
     <string name="current_config_value">Current config value:</string>
     <string name="dabieye">Dabieye</string>
-    <string name="daily">Daily</string>
-    <string name="daily_settings_info">For more detailed settings, please check the settings section at the bottom.</string>
-    <string name="daily_sign_in_info">Daily sign-in tasks for Miyoushe. Please add a user in User Management before using this feature.</string>
     <string name="daily_tasks_title">Daily Tasks</string>
-    <string name="daily_update_hint">If you encounter issues, try updating the config in Settings. (No need to update frequently)</string>
     <string name="default_description">Detailed description</string>
     <string name="default_title">Title</string>
 
@@ -53,7 +44,6 @@
     <string name="gacha_link_subtitle">Tap a game row to fetch</string>
     <string name="gacha_link_title">Gacha Link</string>
     <string name="gacha_login_prompt">Please log in on the webpage and open the gacha history page</string>
-    <string name="gacha_login_tip">Tip: After logging in, please open the gacha history page once to capture the link automatically.\nRemember to exit the game after obtaining the link.</string>
     <string name="miyoushe_coin_sign_in">Miyoushe Coin Sign-In</string>
     <string name="game_sign_in">Game Sign-In</string>
     <string name="genshin_impact">Genshin Impact</string>
@@ -68,12 +58,6 @@
     <string name="image">Image</string>
     <string name="image_title">Image Title</string>
     <string name="image_type">Image Type</string>
-    <string name="k2_value">K2: Loading…</string>
-    <string name="k2_value_fmt">K2: %s</string>
-    <string name="lk2_value">LK2: Loading…</string>
-    <string name="lk2_value_fmt">LK2: %s</string>
-    <string name="local_config_update_time">Local config update time: Loading…</string>
-    <string name="local_config_update_time_fmt">Local config update time: %s</string>
     <string name="login">Login</string>
     <string name="login_log">Login Log</string>
     <string name="login_qr_code">Login QR Code</string>
@@ -81,8 +65,6 @@
     <string name="user_login_welcome">Welcome</string>
     <string name="user_login_subtitle">Log in to continue</string>
 
-    <string name="miyoushe_version">Miyoushe version: Loading…</string>
-    <string name="miyoushe_version_fmt">Miyoushe version: %s</string>
     <string name="my_blog">My Blog (Nothing here)</string>
     <string name="nav_gacha_link">Gacha Link</string>
     <string name="nav_home">Home</string>
@@ -93,10 +75,6 @@
     <string name="refresh_tip">Avoid refreshing too frequently</string>
     <string name="rename">Rename</string>
     <string name="run_sign_in">Run Sign-In</string>
-    <string name="salt_4x_value">SALT_4X: Loading…</string>
-    <string name="salt_4x_value_fmt">SALT_4X: %s</string>
-    <string name="salt_6x_value">SALT_6X: Loading…</string>
-    <string name="salt_6x_value_fmt">SALT_6X: %s</string>
     <string name="save_skland_settings">Save Skland Settings</string>
     <string name="section_app">APP</string>
     <string name="section_config">CONFIG</string>
@@ -106,7 +84,6 @@
     <string name="select_background_image">Select Background Image:</string>
     <string name="select_image">Select Image</string>
     <string name="select_image_source">Select Image Source</string>
-    <string name="select_theme">Select Theme</string>
     <string name="select_user">Select User</string>
     <string name="settings_title">Settings</string>
     <string name="settings_subtitle">Personalize</string>
@@ -122,12 +99,21 @@
     <string name="gacha_fetching">Fetching…</string>
     <string name="gacha_chip_pending">Pending</string>
     <string name="cloud_open_hint">Open cloud page · link captured automatically</string>
-    <string name="run_remaining">%1$d remaining</string>
+    <plurals name="run_remaining">
+        <item quantity="one">%1$d remaining</item>
+        <item quantity="other">%1$d remaining</item>
+    </plurals>
     <string name="bg_hint_notify">Controllable from notification</string>
     <!-- Console design: row values / status chip labels -->
-    <string name="home_done_fmt">%1$d/%2$d done</string>
+    <plurals name="home_done_fmt">
+        <item quantity="one">%1$d/%2$d done</item>
+        <item quantity="other">%1$d/%2$d done</item>
+    </plurals>
     <string name="task_done_fmt">%1$d/%2$d DONE</string>
-    <string name="user_count_fmt">Manage logged-in accounts · %1$d total</string>
+    <plurals name="user_count_fmt">
+        <item quantity="one">Manage logged-in accounts · %1$d total</item>
+        <item quantity="other">Manage logged-in accounts · %1$d total</item>
+    </plurals>
     <string name="user_logged_in_status">Signed in</string>
     <string name="user_chip_default">Default</string>
     <string name="task_chip_done">Done</string>
@@ -186,7 +172,6 @@
     <string name="server_type">Server Type</string>
     <string name="server_cn">China</string>
     <string name="server_os">Global</string>
-    <string name="select_server">Select Server:</string>
     <string name="oauth_login_title">HoYoLAB Login</string>
     <string name="oauth_set_username">Please set a username (UID recommended)</string>
     <string name="cookie_login">Cookie Login</string>
@@ -278,7 +263,6 @@
     <!-- Error dialog messages -->
     <string name="err_no_background_permission">No permission to access background image, clearing background settings</string>
     <string name="err_background_setup_error">Error setting background image, hiding background image</string>
-    <string name="err_get_drawable_error">Error getting Drawable from Uri</string>
     <string name="err_crop_failed">Image crop failed: %s</string>
     <string name="err_save_background_failed">Failed to save background image: %s</string>
     <string name="err_delete_background_error">Error deleting background image: %s</string>
@@ -293,7 +277,10 @@
     <!-- Toolbar titles -->
     <string name="toolbar_image_browse">Image Gallery</string>
     <string name="toolbar_crop_image">Crop Image</string>
-    <string name="toolbar_items_selected">%d items selected</string>
+    <plurals name="toolbar_items_selected">
+        <item quantity="one">%d item selected</item>
+        <item quantity="other">%d items selected</item>
+    </plurals>
 
     <!-- Settings theme -->
     <string name="theme_system">System</string>
@@ -303,8 +290,6 @@
     <string name="theme_yellow">Yellow</string>
     <string name="theme_cyan">Cyan</string>
     <string name="theme_purple">Purple</string>
-    <string name="theme_light_name">Light</string>
-    <string name="theme_dark_name">Dark</string>
     <string name="config_not_fetched">Not fetched</string>
 
     <!-- Update checker -->
@@ -322,11 +307,13 @@
     <string name="image_author_prefix">Author: </string>
     <string name="image_time_prefix">Time: </string>
     <string name="image_unknown_author">Unknown Author</string>
-    <string name="image_user_label">User: </string>
 
     <!-- Widget -->
     <string name="widget_description">Show today\'s task completion status</string>
-    <string name="widget_task_summary">%1$d/%2$d completed</string>
+    <plurals name="widget_task_summary">
+        <item quantity="one">%1$d/%2$d completed</item>
+        <item quantity="other">%1$d/%2$d completed</item>
+    </plurals>
     <string name="widget_run">Run</string>
     <string name="widget_running">Running…</string>
     <string name="widget_no_user">Please log in to the app first</string>
@@ -420,7 +407,10 @@
     <string name="bbs_task_list_failed">Miyoushe Coin Sign-In task list fetch failed</string>
     <string name="bbs_stoken_null">stoken/mid/stuid is null, please try re-logging in</string>
     <string name="bbs_login_error">Login error</string>
-    <string name="bbs_earnable_today">Miyoushe Coin Sign-In can still earn %d coins today</string>
+    <plurals name="bbs_earnable_today">
+        <item quantity="one">Miyoushe Coin Sign-In can still earn %d coin today</item>
+        <item quantity="other">Miyoushe Coin Sign-In can still earn %d coins today</item>
+    </plurals>
     <string name="bbs_forum_sign_done">Miyoushe Coin Sign-In forum daily sign-in completed</string>
     <string name="bbs_forum_signing">Miyoushe Coin Sign-In executing forum sign-in…</string>
 
@@ -440,7 +430,10 @@
     <string name="skland_content_not_set">Skland content not set</string>
     <string name="skland_start">Skland Sign-In started</string>
     <string name="skland_cred_success">Skland Sign-In credentials obtained</string>
-    <string name="skland_roles_found">Skland Sign-In found %d characters</string>
+    <plurals name="skland_roles_found">
+        <item quantity="one">Skland Sign-In found %d character</item>
+        <item quantity="other">Skland Sign-In found %d characters</item>
+    </plurals>
     <string name="skland_no_roles">Skland Sign-In: no signable characters found</string>
     <string name="skland_signing_role">Skland Sign-In signing for [%1$s] (%2$d/%3$d)…</string>
     <string name="skland_all_done">Skland Sign-In all characters completed</string>
@@ -475,17 +468,26 @@
 
     <!-- BBSGameDaily additional -->
     <string name="game_cookie_token_refreshed">Sign-in CookieToken refreshed successfully</string>
-    <string name="game_accounts_found">Sign-in found %d accounts</string>
+    <plurals name="game_accounts_found">
+        <item quantity="one">Sign-in found %d account</item>
+        <item quantity="other">Sign-in found %d accounts</item>
+    </plurals>
     <string name="game_getting_rewards">Sign-in getting reward list…</string>
     <string name="game_rewards_retry">Sign-in failed to get rewards, retry %d</string>
     <string name="game_rewards_max_retry">Sign-in failed to get rewards, max retries reached</string>
-    <string name="game_start_with_accounts">Sign-in starting, %d accounts total</string>
+    <plurals name="game_start_with_accounts">
+        <item quantity="one">Sign-in starting, %d account total</item>
+        <item quantity="other">Sign-in starting, %d accounts total</item>
+    </plurals>
     <string name="game_already_signed">Already signed today</string>
     <string name="game_sign_success">Sign-in successful</string>
     <string name="game_sign_captcha_triggered">Captcha triggered</string>
     <string name="game_sign_failed">Sign-in failed: %s</string>
     <string name="game_sign_failed_rate_limit">Sign-in failed: too many requests (429)</string>
-    <string name="game_consecutive_days">Signed for %d consecutive days</string>
+    <plurals name="game_consecutive_days">
+        <item quantity="one">Signed for %d consecutive day</item>
+        <item quantity="other">Signed for %d consecutive days</item>
+    </plurals>
     <string name="game_today_reward">Today\'s reward: %1$s×%2$s</string>
 
     <!-- SklandDaily additional -->
@@ -512,6 +514,4 @@
     <!-- BBSGameDaily additional -->
     <string name="game_thread_error">Thread error: %s</string>
 
-    <!-- Footer: unified brand line at bottom of each page -->
-    <string name="app_footer">Venus · check-in tool for MiYouShe</string>
 </resources>

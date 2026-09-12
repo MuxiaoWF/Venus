@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 云游戏获取页：独立 Activity 承载 WebView，登录云游戏后自动捕获抽卡链接 -->
+<!-- 不在根节点设置背景：applyAppTheme 已将主题切为 Theme_Venus，其 windowBackground
+     即为 colorBackground，重复着色会触发 Lint Overdraw（全屏多画一遍）。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:attr/colorBackground"
     android:orientation="vertical">
 
     <!-- 页眉（紧凑单行）：返回 + 标题。长提示由下方提示行与捕获 Snackbar 承担 -->

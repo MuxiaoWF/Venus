@@ -199,7 +199,7 @@ public class BBSDaily {
             notification.sendErrorNotification(context.getString(R.string.bbs_task_list_failed), errorMsg);
             throw new RuntimeException(errorMsg);
         }
-        JsonObject payload = JsonAccess.object(data, "data");
+        JsonObject payload = JsonAccess.data(data);
         if (payload == null) throw new RuntimeException(context.getString(R.string.bbs_task_list_failed));
         // can_get_points 缺失时按 0 处理：接口语义为「今日无可获取米游币」，即任务已全部完成
         this.todayEarnableCoins = JsonAccess.optInt(payload, "can_get_points", 0);
@@ -222,11 +222,12 @@ public class BBSDaily {
                         ? stateElement.getAsJsonObject() : null;
                 if (state == null) continue;
                 if (JsonAccess.optInt(state, "mission_id", -1) != MISSION_ID_COMMUNITY_SIGN_IN) continue;
-                if (JsonAccess.optBoolean(state, "is_get_award", false)) this.signCompleted = true;
+                if (JsonAccess.optIsGetAward(state)) this.signCompleted = true;
                 break;
             }
         }
-        notifier.notifyListeners(context.getString(R.string.bbs_earnable_today, this.todayEarnableCoins));
+        notifier.notifyListeners(context.getResources().getQuantityString(
+                R.plurals.bbs_earnable_today, this.todayEarnableCoins, this.todayEarnableCoins));
     }
 
     /**

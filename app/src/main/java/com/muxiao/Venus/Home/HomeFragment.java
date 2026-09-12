@@ -31,7 +31,6 @@ import com.geetest.sdk.views.GT3GeetestButton;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
-import com.google.android.material.textfield.TextInputLayout;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
@@ -53,7 +52,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 /**
@@ -75,7 +73,6 @@ public class HomeFragment extends Fragment {
 
     private UserManager userManager;
     @Inject AppExecutors appExecutors;
-    private ExecutorService executorService;
     private LinearLayout geetestContainer;
     private static volatile Future<?> currentTaskFuture;
     private MaterialAutoCompleteTextView user_dropdown;
@@ -166,7 +163,7 @@ public class HomeFragment extends Fragment {
             return gt3GeetestUtils;
         }
 
-        @Override
+        /** 销毁验证码工具（destroyButton 内部调用，无需经接口暴露）。 */
         public void destroyUtils() {
             if (gt3GeetestUtils != null) {
                 gt3GeetestUtils.destory();
@@ -212,15 +209,13 @@ public class HomeFragment extends Fragment {
         // 页眉日期 chip：MM/dd 周几
         android.widget.TextView dateChip = view.findViewById(R.id.home_date_chip);
         if (dateChip != null) {
-            String pattern = android.text.format.DateFormat.is24HourFormat(requireContext())
-                    ? "MM/dd E" : "MM/dd E";
+            String pattern = "MM/dd E";
             dateChip.setText(new java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
                     .format(new java.util.Date()));
         }
 
         // 初始化
         userManager = new UserManager(requireContext());
-        executorService = appExecutors.io();
         controller.createUtils();
         tools.cleanOldLogs(requireContext());
         logFile = tools.getTodayLogFile(requireContext());
@@ -281,7 +276,7 @@ public class HomeFragment extends Fragment {
             // 单一状态切换取代原先 4 处 setVisibility：可见性由 TaskUiState 派生
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
 
-            currentTaskFuture = executorService.submit(() -> {
+            currentTaskFuture = appExecutors.submit(() -> {
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(requireContext());
                     if (settings.hasAnyTaskDisabled()) {
@@ -431,7 +426,7 @@ public class HomeFragment extends Fragment {
         final android.app.Activity activity = getActivity();
         if (activity == null) return;
         // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
-        AppExecutors.get().io().execute(() -> {
+        AppExecutors.get().execute(() -> {
             try {
                 // 优先使用后台任务保存的 headers（含 Cookie），确保 API2 二次验证能正确绑定会话
                 Map<String, String> headers = BackgroundGeetestController.consumePendingHeaders();
@@ -461,7 +456,7 @@ public class HomeFragment extends Fragment {
                     public void onVerificationFailed(String error) {
                         Logger.debug("VenusCaptcha", "Verification FAILED: " + error);
                         controller.destroyButton();
-                        BackgroundGeetestController.notifyVerificationFailure(error);
+                        BackgroundGeetestController.notifyVerificationFailure();
                         notification.sendErrorNotification(activity.getString(R.string.notif_captcha_failed), error, true);
                     }
                 };
@@ -477,7 +472,7 @@ public class HomeFragment extends Fragment {
             } catch (Exception e) {
                 Logger.e("Exception in performBackgroundCaptchaVerification", e);
                 try {
-                    BackgroundGeetestController.notifyVerificationFailure(e.getMessage());
+                    BackgroundGeetestController.notifyVerificationFailure();
                 } catch (Exception ignored) {}
             }
         });
@@ -491,7 +486,21 @@ public class HomeFragment extends Fragment {
     private void render(HomeViewModel.TaskUiState state) {
         if (state == null) return;
 
-        if (!tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null)
+        // 先计算目标可见性：仅当有可见性真正变化时才启动 Fade 过渡。
+        // 任务状态每次更新都会走 render，无条件 beginDelayedTransition 会反复
+        // 取消/重建上一个未完成的 Fade——运行期间高频刷新时既闪烁又浪费性能。
+        boolean userVisible = state.userDropdownVisible();
+        boolean cancelVisible = state.cancelButtonVisible();
+        boolean startVisible = state.startButtonVisible();
+        boolean bgVisible = state.bgButtonVisible();
+        boolean emptyVisible = state.items.isEmpty();
+        boolean visibilityChanged =
+                (userSection != null && userSection.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
+                        || (cancel_daily_btn != null && cancel_daily_btn.getVisibility() != (cancelVisible ? View.VISIBLE : View.GONE))
+                        || (start_daily_btn != null && start_daily_btn.getVisibility() != (startVisible ? View.VISIBLE : View.GONE))
+                        || (start_daily_bg_btn != null && start_daily_bg_btn.getVisibility() != (bgVisible ? View.VISIBLE : View.GONE))
+                        || (taskListEmptyView != null && taskListEmptyView.getVisibility() != (emptyVisible ? View.VISIBLE : View.GONE));
+        if (visibilityChanged && !tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null)
             TransitionManager.beginDelayedTransition(homeContentContainer, new Fade());
 
         // 任务列表
@@ -499,7 +508,7 @@ public class HomeFragment extends Fragment {
             taskList.clear();
             taskList.addAll(state.items);
             if (taskListEmptyView != null)
-                taskListEmptyView.setVisibility(state.items.isEmpty() ? View.VISIBLE : View.GONE);
+                taskListEmptyView.setVisibility(emptyVisible ? View.VISIBLE : View.GONE);
             if (taskAdapter != null) {
                 // 数据整体替换：用 notifyDataSetChanged 一次性刷新。
                 // 不能用 notifyItemRangeRemoved + notifyItemRangeInserted——后者会触发
@@ -511,21 +520,22 @@ public class HomeFragment extends Fragment {
             }
         }
 
-        // 可见性一律由 UiState 派生
+        // 应用可见性（一律由 UiState 派生）
         if (userSection != null)
-            userSection.setVisibility(state.userDropdownVisible() ? View.VISIBLE : View.GONE);
+            userSection.setVisibility(userVisible ? View.VISIBLE : View.GONE);
         if (cancel_daily_btn != null)
-            cancel_daily_btn.setVisibility(state.cancelButtonVisible() ? View.VISIBLE : View.GONE);
+            cancel_daily_btn.setVisibility(cancelVisible ? View.VISIBLE : View.GONE);
         if (start_daily_btn != null)
-            start_daily_btn.setVisibility(state.startButtonVisible() ? View.VISIBLE : View.GONE);
+            start_daily_btn.setVisibility(startVisible ? View.VISIBLE : View.GONE);
         if (start_daily_bg_btn != null)
-            start_daily_bg_btn.setVisibility(state.bgButtonVisible() ? View.VISIBLE : View.GONE);
+            start_daily_bg_btn.setVisibility(bgVisible ? View.VISIBLE : View.GONE);
         if (start_daily_bg_text != null)
             start_daily_bg_text.setText(state.bgButtonShowsCancel()
                     ? getString(R.string.cancel_task)
                     : getString(R.string.background_running));
         if (start_daily_hint != null)
-            start_daily_hint.setText(getString(R.string.run_remaining, taskList.size()));
+            start_daily_hint.setText(getResources().getQuantityString(
+                    R.plurals.run_remaining, taskList.size(), taskList.size()));
 
         // 页眉副标题与任务列表头 DONE 计数（已完成 = 已签 + 已签过）
         int total = taskList.size();
@@ -536,8 +546,10 @@ public class HomeFragment extends Fragment {
                 done++;
         }
         if (homeSubtitle != null)
-            homeSubtitle.setText(getString(R.string.home_subtitle)
-                    + " · " + getString(R.string.home_done_fmt, done, total));
+            homeSubtitle.setText(getString(R.string.home_subtitle_with_done,
+                    getString(R.string.home_subtitle),
+                    getResources().getQuantityString(
+                            R.plurals.home_done_fmt, done, done, total)));
         if (taskDoneLabel != null)
             taskDoneLabel.setText(getString(R.string.task_done_fmt, done, total));
     }
@@ -704,7 +716,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // 注意：executorService 现为 AppExecutors 共享线程池，禁止 shutdown。
+        // 注意：AppExecutors 为进程级共享线程池，禁止在生命周期回调中 shutdown。
 
         // 清理GT相关资源
         controller.destroyButton();

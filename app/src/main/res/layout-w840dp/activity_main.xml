@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 根节点显式着主题背景色（换肤 overlay 的 colorBackground）：
+     闪屏库会在首帧前后重置主题，导致窗口背景回落到系统动态色（偏蓝），
+     这里显式着色保证主题淡色底；背景图片 ImageView 叠加在其上，功能不受影响。
+     （与 layout/activity_main.xml 保持成对同步，勿单侧修改） -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    tools:ignore="InconsistentLayouts,Overdraw">
 
     <!-- 背景图片 -->
     <ImageView
@@ -16,8 +23,9 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 背景遮罩 -->
+    <!-- 背景遮罩（MainActivity.setupBackground 会 findViewById，id 不可省） -->
     <View
+        android:id="@+id/background_mask"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:alpha="0.08"

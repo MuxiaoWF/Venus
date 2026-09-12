@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews 场景必须四向 padding 写法：paddingHorizontal/Vertical 为 API 26+ 属性，
+     minSdk 23（Android 7.x）上会静默丢失（与 widget_task_status 同口径） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_task_item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingVertical="@dimen/widget_space_1">
+    android:paddingTop="@dimen/space_1"
+    android:paddingBottom="@dimen/space_1">
 
     <!-- 状态图标 -->
     <TextView
         android:id="@+id/widget_task_status_icon"
-        android:layout_width="@dimen/widget_icon"
+        android:layout_width="@dimen/icon_inline"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:textColor="@color/widget_text_secondary"
@@ -21,7 +24,7 @@
         android:id="@+id/widget_task_name"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/widget_space_2"
+        android:layout_marginStart="@dimen/space_2"
         android:layout_weight="1"
         android:ellipsize="end"
         android:maxLines="1"

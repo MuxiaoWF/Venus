@@ -24,6 +24,11 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
     private final Context context;
     private final List<ImageItem> imageItems;
     private final FullscreenImageActivity fullscreenActivity;
+    /** 共享元素转场用的初始页位置与首图就绪回调（首图成功/失败时各通知一次）。 */
+    private final int initialPosition;
+    private final Runnable onFirstImageReady;
+    private final java.util.concurrent.atomic.AtomicBoolean firstImageNotified =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public static class ImageItem {
         private final String imageUrl;
@@ -43,9 +48,12 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
         }
     }
 
-    public ImagePagerAdapter(Context context, List<Map<String, Object>> imageDataList) {
+    public ImagePagerAdapter(Context context, List<Map<String, Object>> imageDataList,
+                             int initialPosition, Runnable onFirstImageReady) {
         this.context = context;
         this.fullscreenActivity = (FullscreenImageActivity) context;
+        this.initialPosition = initialPosition;
+        this.onFirstImageReady = onFirstImageReady;
         this.imageItems = new ArrayList<>();
         // 为每个图片URL创建一个ImageItem
         for (Map<String, Object> imageData : imageDataList) {
@@ -68,6 +76,12 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
         return new ImageViewHolder(view);
     }
 
+    /** 首图（initialPosition 页）就绪时通知宿主解除推迟的进入转场（幂等）。 */
+    private void notifyFirstImageReady() {
+        if (firstImageNotified.compareAndSet(false, true) && onFirstImageReady != null)
+            onFirstImageReady.run();
+    }
+
     @Override
     public void onBindViewHolder(@NonNull ImageViewHolder holder, int position) {
         ImageItem imageItem = imageItems.get(position);
@@ -83,7 +97,7 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
             // 获取屏幕尺寸作为最大限制，以避免图片过大导致内存泄漏
             int maxWidth = context.getResources().getDisplayMetrics().widthPixels;
             int maxHeight = context.getResources().getDisplayMetrics().heightPixels;
-            
+
             Glide.with(context)
                     .load(imageUrl)
                     .override(maxWidth, maxHeight)
@@ -95,6 +109,11 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
                             // 加载成功，隐藏进度条并设置图片
                             holder.progressBar.setVisibility(View.GONE);
                             holder.imageView.setImageDrawable(resource);
+                            // 首图就绪：解除推迟的共享元素进入转场
+                            // 注：position 在异步回调中可能已过期（holder 被重绑定），
+                            // 改用 ImageItem 引用比较判定是否首图（imageItems 构造后不可变，引用稳定）
+                            if (imageItem == imageItems.get(initialPosition))
+                                notifyFirstImageReady();
                             // 设置缩放监听器
                             holder.imageView.setOnTouchImageViewListener(() -> {
                                 // 当图片缩放或移动时，根据缩放级别决定是否隐藏底部信息栏
@@ -120,12 +139,17 @@ public class ImagePagerAdapter extends RecyclerView.Adapter<ImagePagerAdapter.Im
                             holder.progressBar.setVisibility(View.GONE);
                             // 设置错误图片
                             holder.imageView.setImageResource(R.drawable.ic_error);
+                            // 首图失败也算就绪：转场不能被一次加载失败卡死（同上，用引用比较代替过期 position）
+                            if (imageItem == imageItems.get(initialPosition))
+                                notifyFirstImageReady();
                         }
                     });
         } else {
             // 如果没有图片URL，隐藏进度条并设置默认错误图片
             holder.progressBar.setVisibility(View.GONE);
             holder.imageView.setImageResource(R.drawable.ic_error);
+            if (imageItem == imageItems.get(initialPosition))
+                notifyFirstImageReady();
         }
     }
 

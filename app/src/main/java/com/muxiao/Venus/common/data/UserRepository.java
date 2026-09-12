@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
  * 用户数据仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
@@ -49,6 +50,11 @@ public class UserRepository {
     private static final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
     // 已同步预热的 userId 集合（避免每次读取都扫一遍旧 SP）
     private static final ConcurrentHashMap<String, Boolean> seeded = new ConcurrentHashMap<>();
+    /**
+     * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
+     * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
+     */
+    private static final CompositeDisposable persistentDisposables = new CompositeDisposable();
 
     public UserRepository(Context context) {
         this.context = context.getApplicationContext();
@@ -69,13 +75,13 @@ public class UserRepository {
                     // 与旧 SP（user_{userId}.xml）一一对应，便于理解迁移关系。
                     ds = new RxPreferenceDataStoreBuilder(context, "user_" + userId).build();
                     // DataStore 数据变化（含后续写入）同步回写缓存
-                    ds.data().subscribe(prefs -> {
+                    persistentDisposables.add(ds.data().subscribe(prefs -> {
                         for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
                             if (e.getValue() instanceof String) {
                                 cache.put(e.getKey().getName(), (String) e.getValue());
                             }
                         }
-                    });
+                    }));
                     stores.put(userId, ds);
                 }
             }
@@ -86,7 +92,8 @@ public class UserRepository {
 
     // 首次访问某 userId 时，从旧 SP 同步灌入缓存（保证 getString 立即可用，与原行为一致）
     private void seedCacheFromLegacy(String userId) {
-        if (seeded.putIfAbsent(userId, Boolean.TRUE) == null) {
+        // putIfAbsent 需 API 24；CHM.put 是原子操作且返回旧值，返回 null 即表示此前不存在
+        if (seeded.put(userId, Boolean.TRUE) == null) {
             SharedPreferences sp = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
             for (Map.Entry<String, ?> e : sp.getAll().entrySet()) {
                 if (e.getValue() instanceof String) {
@@ -104,7 +111,11 @@ public class UserRepository {
                         if (e.getValue() instanceof String) {
                             // 仅填充缓存缺失的键：旧 SP / 本次 putString 已写入的键优先，
                             // 避免 re-login 等场景被 DataStore 磁盘上的旧值覆盖回退。
-                            cache.putIfAbsent(e.getKey().getName(), (String) e.getValue());
+                            // （putIfAbsent 需 API 24，改用 containsKey 判断）
+                            String keyName = e.getKey().getName();
+                            if (!cache.containsKey(keyName)) {
+                                cache.put(keyName, (String) e.getValue());
+                            }
                         }
                     }
                 } catch (Exception ignored) {
@@ -122,35 +133,17 @@ public class UserRepository {
         // 双写后 seedCacheFromLegacy 总能同步拿到最新值，恢复原 SP 的同步读语义。
         context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE)
                 .edit().putString(key, value).apply();
-        storeFor(userId).updateDataAsync(prefs -> {
+        persistentDisposables.add(storeFor(userId).updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.set(PreferencesKeys.stringKey(composite(userId, key)), value);
             return Single.just(m);
-        }).subscribe();
+        }).subscribe());
     }
 
     @Nullable
     public String getString(String userId, String key) {
         storeFor(userId); // 触发预热 + DataStore 初始化
         return cache.get(composite(userId, key));
-    }
-
-    public void remove(String userId, String key) {
-        cache.remove(composite(userId, key));
-        // 同步从 legacy SP 移除，保持与缓存/DataStore 三者一致
-        context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE)
-                .edit().remove(key).apply();
-        storeFor(userId).updateDataAsync(prefs -> {
-            MutablePreferences m = prefs.toMutablePreferences();
-            m.remove(PreferencesKeys.stringKey(composite(userId, key)));
-            return Single.just(m);
-        }).subscribe();
-    }
-
-    // 判断缓存中是否存在该键；先调用 storeFor 触发旧 SP 预热与 DataStore 初始化（有副作用）。
-    public boolean contains(String userId, String key) {
-        storeFor(userId);
-        return cache.containsKey(composite(userId, key));
     }
 
     /**
@@ -173,11 +166,11 @@ public class UserRepository {
         }
         context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE).edit().clear().apply();
         // DataStore 文件本身按用户隔离（user_{userId}），整体清空即等价于清空该用户
-        storeFor(userId).updateDataAsync(prefs -> {
+        persistentDisposables.add(storeFor(userId).updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.clear();
             return Single.just(m);
-        }).subscribe();
+        }).subscribe());
     }
 
     /**
@@ -204,8 +197,8 @@ public class UserRepository {
         }
         for (Map.Entry<String, ?> e : context.getSharedPreferences("user_" + oldUserId, Context.MODE_PRIVATE)
                 .getAll().entrySet()) {
-            if (e.getValue() instanceof String)
-                moved.putIfAbsent(e.getKey(), (String) e.getValue());
+            if (e.getValue() instanceof String && !moved.containsKey(e.getKey()))
+                moved.put(e.getKey(), (String) e.getValue());
         }
 
         clear(oldUserId);

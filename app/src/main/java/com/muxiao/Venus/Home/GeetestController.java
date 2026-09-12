@@ -4,7 +4,7 @@ import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3GeetestUtils;
 
 /**
- * 创建流程：createUtils -> createButton -> destroyButton( -> destroyUtils)
+ * 创建流程：createUtils -> createButton -> destroyButton
  */
 public interface GeetestController {
     /**
@@ -27,14 +27,9 @@ public interface GeetestController {
     GT3GeetestUtils getGeetestUtils();
 
     /**
-     * 销毁验证码按钮（内含destroyUtils）
+     * 销毁验证码按钮
      */
     void destroyButton();
-
-    /**
-     * 销毁验证码Utils
-     */
-    void destroyUtils();
 
     /**
      * 更新任务状态为警告

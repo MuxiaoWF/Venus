@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_widget"
     android:orientation="vertical"
-    android:padding="@dimen/widget_space_3">
+    android:padding="@dimen/space_3">
 
     <!-- 标题栏：应用名 + 统计 -->
     <LinearLayout
@@ -26,8 +26,10 @@
             android:id="@+id/widget_summary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/widget_space_2"
+            android:layout_marginStart="@dimen/space_2"
             android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:textColor="@color/widget_text_secondary"
             android:textSize="@dimen/widget_text_small" />
     </LinearLayout>
@@ -36,8 +38,8 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="@dimen/divider_height"
-        android:layout_marginTop="@dimen/widget_space_2"
-        android:layout_marginBottom="@dimen/widget_space_1"
+        android:layout_marginTop="@dimen/space_2"
+        android:layout_marginBottom="@dimen/space_1"
         android:background="@color/widget_divider" />
 
     <!-- 任务列表 -->
@@ -46,14 +48,14 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:divider="@android:color/transparent"
-        android:dividerHeight="0dp" />
+        android:divider="@color/widget_divider"
+        android:dividerHeight="@dimen/divider_height" />
 
     <!-- 底部操作栏：日期 + 按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/widget_space_1"
+        android:layout_marginTop="@dimen/space_1"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -62,6 +64,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:textColor="@color/widget_text_secondary"
             android:textSize="@dimen/widget_text_mini" />
 
@@ -82,7 +86,7 @@
             android:id="@+id/btn_refresh"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/widget_space_2"
+            android:layout_marginStart="@dimen/space_2"
             android:background="@drawable/bg_widget_button"
             android:paddingLeft="@dimen/widget_button_padding_horizontal"
             android:paddingRight="@dimen/widget_button_padding_horizontal"

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
  * 米游社配置仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
@@ -44,6 +45,11 @@ public class ConfigRepository {
     /** 同步热读缓存：值类型为 String 或 Boolean。 */
     private static final ConcurrentHashMap<String, Object> cache = new ConcurrentHashMap<>();
     private static final Object initLock = new Object();
+    /**
+     * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
+     * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
+     */
+    private static final CompositeDisposable persistentDisposables = new CompositeDisposable();
 
     private final Context context;
 
@@ -57,7 +63,7 @@ public class ConfigRepository {
                     // 必须显式消费 onError：RxJava 对未处理错误会抛 OnErrorNotImplementedException，
                     // 在 DataStore 读取失败（文件损坏/IO 异常）时直接把异常抛到订阅线程。
                     // 此处降级为「保留既有缓存 + 旧 SP 兜底」，配置读取不因持久层故障而中断。
-                    store.data().subscribe(
+                    persistentDisposables.add(store.data().subscribe(
                             prefs -> {
                                 for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
                                     Object v = e.getValue();
@@ -66,7 +72,7 @@ public class ConfigRepository {
                                     }
                                 }
                             },
-                            error -> Logger.debug("VenusConfig", "DataStore observe failed: " + error));
+                            error -> Logger.debug("VenusConfig", "DataStore observe failed: " + error)));
                     // 同步预灌一次，保证首次冷启动 get() 立即可用（订阅为异步，首帧可能来不及）
                     try {
                         Map<Preferences.Key<?>, Object> initial = store.data().firstOrError().blockingGet().asMap();
@@ -112,21 +118,21 @@ public class ConfigRepository {
     // 写穿（Write-Through）：先更新内存缓存（写入立即可见），再异步提交 DataStore 持久化。
     public void putString(String key, String value) {
         cache.put(key, value);
-        store.updateDataAsync(prefs -> {
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.set(PreferencesKeys.stringKey(key), value);
             return Single.just(m);
-        }).subscribe();
+        }).subscribe());
     }
 
     // 写穿（Write-Through）：先更新内存缓存（写入立即可见），再异步提交 DataStore 持久化。
     public void putBoolean(String key, boolean value) {
         cache.put(key, value);
-        store.updateDataAsync(prefs -> {
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.set(PreferencesKeys.booleanKey(key), value);
             return Single.just(m);
-        }).subscribe();
+        }).subscribe());
     }
 
     /**
@@ -140,10 +146,10 @@ public class ConfigRepository {
         cache.clear();
         context.getSharedPreferences(Constants.Prefs.CONFIG_PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().apply();
-        store.updateDataAsync(prefs -> {
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.clear();
             return Single.just(m);
-        }).subscribe();
+        }).subscribe());
     }
 }

@@ -38,7 +38,7 @@ public class DefaultCaptchaCoordinator implements CaptchaCoordinator {
     }
 
     @Override
-    public void notifyVerificationFailure(String error) {
+    public void notifyVerificationFailure() {
         verificationResult = null;
         latch.countDown();
     }

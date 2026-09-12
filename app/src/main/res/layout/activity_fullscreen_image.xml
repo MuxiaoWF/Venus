@@ -23,7 +23,7 @@
             app:icon="?attr/homeAsUpIndicator"
             app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
             android:backgroundTint="?attr/colorSurfaceContainer"
-            app:elevation="6dp"
+            app:elevation="@dimen/elevation_level3"
             android:layout_gravity="top|start" />
 
     <!-- 底部信息卡（毛玻璃浮层：半透明 surface + 柔光阴影 + 大圆角） -->
@@ -36,7 +36,7 @@
         app:cardElevation="@dimen/card_elevation_image"
         app:cardBackgroundColor="?attr/colorSurfaceContainer"
         app:strokeColor="?attr/colorOutlineVariant"
-        app:strokeWidth="1dp"
+        app:strokeWidth="@dimen/stroke_width_hairline"
         app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
         app:cardCornerRadius="@dimen/shape_corner_lg"
         app:cardUseCompatPadding="false">

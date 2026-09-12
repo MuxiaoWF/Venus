@@ -185,12 +185,10 @@ public class tools {
      * 用于需要读取响应头的接口（如 loginByPassword 的 x-rpc-aigis）。
      */
     public static class HttpResponse {
-        public final int code;
         public final String body;
         private final okhttp3.Headers headers;
 
-        HttpResponse(int code, String body, okhttp3.Headers headers) {
-            this.code = code;
+        HttpResponse(String body, okhttp3.Headers headers) {
             this.body = body;
             this.headers = headers;
         }
@@ -217,7 +215,7 @@ public class tools {
         Request.Builder requestBuilder = new Request.Builder().url(urlStr).post(requestBody);
         applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
-            return new HttpResponse(response.code(), readResponseBody(response), response.headers());
+            return new HttpResponse(readResponseBody(response), response.headers());
         } catch (Exception e) {
             throw normalizeRequestError(e);
         }
@@ -454,13 +452,6 @@ public class tools {
     }
 
     // ========== 新增公共工具方法 ==========
-
-    /**
-     * 读取用户 SharedPreferences 中指定 key 的值
-     */
-    public static String readUserPref(Context context, String userId, String key) {
-        return new UserRepository(context).getString(userId, key);
-    }
 
     /**
      * 读取用户 token 相关字段，构建认证 Cookie

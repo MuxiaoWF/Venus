@@ -21,7 +21,6 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/settings_eyebrow"
             style="@style/TextAppearance.Venus.Eyebrow"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -35,7 +34,6 @@
             android:orientation="horizontal">
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/settings_title"
                 style="@style/TextAppearance.Venus.HeaderTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -53,7 +51,6 @@
         </LinearLayout>
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/settings_subtitle"
             style="@style/TextAppearance.Venus.HeaderSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -78,7 +75,6 @@
 
             <!-- ===== 分组：签到 ===== -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/sec_sign_in"
                 style="@style/Widget.Venus.SectionLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -109,7 +105,6 @@
 
             <!-- ===== 分组：配置 ===== -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/sec_config"
                 style="@style/Widget.Venus.SectionLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -141,7 +136,6 @@
 
             <!-- ===== 分组：应用 ===== -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/sec_app"
                 style="@style/Widget.Venus.SectionLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -217,7 +211,6 @@
 
             <!-- ===== 分组：其他 ===== -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/sec_other"
                 style="@style/Widget.Venus.SectionLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -255,7 +248,6 @@
                 app:iconTint="?attr/colorOnSurfaceVariant" />
 
             <View
-                android:id="@+id/bottom_padding_view"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/space_bottom_fab" />
 

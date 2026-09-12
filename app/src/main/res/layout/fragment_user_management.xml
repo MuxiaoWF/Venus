@@ -12,7 +12,6 @@
         android:orientation="vertical">
 
         <LinearLayout
-            android:id="@+id/users_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -22,7 +21,6 @@
             android:paddingBottom="@dimen/space_3">
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/users_eyebrow"
                 style="@style/TextAppearance.Venus.Eyebrow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -36,7 +34,6 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/users_title"
                     style="@style/TextAppearance.Venus.HeaderTitle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"

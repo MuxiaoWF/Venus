@@ -4,7 +4,6 @@ import dagger.hilt.android.AndroidEntryPoint;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -97,7 +96,8 @@ public class UserManagementFragment extends Fragment {
         // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
         MaterialTextView subtitle = pageRootView.findViewById(R.id.users_subtitle);
         if (subtitle != null)
-            subtitle.setText(getString(R.string.user_count_fmt, users.size()));
+            subtitle.setText(getResources().getQuantityString(
+                    R.plurals.user_count_fmt, users.size(), users.size()));
         // 如果没有用户，显示提示信息（隐藏区块标签）
         View sectionLabel = pageRootView.findViewById(R.id.users_section_label);
         if (users.isEmpty()) {
@@ -129,9 +129,9 @@ public class UserManagementFragment extends Fragment {
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
             MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
 
-            // 显示用户名和服务器类型
-            String serverType = isOversea ? " [" + getString(R.string.server_os) + "]" : " [" + getString(R.string.server_cn) + "]";
-            userName.setText(username + serverType);
+            // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
+            String serverType = getString(isOversea ? R.string.server_os : R.string.server_cn);
+            userName.setText(getString(R.string.user_label_with_server, username, serverType));
             // 当前用户标注「默认」chip（设计稿语义）
             defaultChip.setVisibility(username.equals(currentUsername) ? View.VISIBLE : View.GONE);
 

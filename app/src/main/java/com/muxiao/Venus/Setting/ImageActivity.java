@@ -942,7 +942,8 @@ public class ImageActivity extends BaseActivity {
             if (selectedItems.isEmpty())
                 exitSelectionMode();
             else if (getSupportActionBar() != null)
-                getSupportActionBar().setTitle(getString(R.string.toolbar_items_selected, selectedItems.size()));
+                getSupportActionBar().setTitle(getResources().getQuantityString(
+                        R.plurals.toolbar_items_selected, selectedItems.size(), selectedItems.size()));
         }
     }
 }

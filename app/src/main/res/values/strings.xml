@@ -23,24 +23,15 @@
     <string name="clear_background">清除背景</string>
     <string name="clear_cache">清理缓存</string>
     <string name="close_webpage">关闭网页</string>
-    <string name="cloud_config_update_time">云端参数更新时间: 加载中…</string>
-    <string name="cloud_config_update_time_fmt">云端参数更新时间: %s</string>
     <string name="cloud_gaming">云游戏获取</string>
     <string name="config_info">配置信息</string>
-    <string name="copy_link">复制链接</string>
-    <string name="show_more">展开全部</string>
-    <string name="show_less">收起</string>
     <string name="current_cache_size">当前缓存大小: 计算中…</string>
     <string name="current_cache_size_error">当前缓存大小: 计算失败</string>
     <string name="current_cache_size_fmt">当前缓存大小: %s</string>
     <string name="current_cache_size_zero">当前缓存大小: 0 B</string>
     <string name="current_config_value">当前配置值：</string>
     <string name="dabieye">大别野</string>
-    <string name="daily">日常</string>
-    <string name="daily_settings_info">有关的更详细的详细设置可以去底部设置里看。</string>
-    <string name="daily_sign_in_info">米游社有关的日常一键签到，需要先去底部用户管理添加用户再使用该功能。</string>
     <string name="daily_tasks_title">日常任务</string>
-    <string name="daily_update_hint">如果遇到一些问题，可以尝试在设置里更新配置。（不用经常更新）</string>
     <string name="default_description">详细介绍内容</string>
     <string name="default_title">标题</string>
 
@@ -53,7 +44,6 @@
     <string name="gacha_link_subtitle">点击游戏行获取链接</string>
     <string name="gacha_link_title">抽卡链接</string>
     <string name="gacha_login_prompt">请在网页中登录并打开抽卡记录页面</string>
-    <string name="gacha_login_tip">提示：登录后请打开一次抽卡记录页面，将自动捕获链接。\n获取完记得退出游戏哦</string>
     <string name="miyoushe_coin_sign_in">米游币签到</string>
     <string name="game_sign_in">游戏签到</string>
     <string name="genshin_impact">原神</string>
@@ -68,18 +58,10 @@
     <string name="image">图片</string>
     <string name="image_title">图片标题</string>
     <string name="image_type">图片类型</string>
-    <string name="k2_value">K2: 加载中…</string>
-    <string name="k2_value_fmt">K2: %s</string>
-    <string name="lk2_value">LK2: 加载中…</string>
-    <string name="lk2_value_fmt">LK2: %s</string>
-    <string name="local_config_update_time">本机参数更新时间: 加载中…</string>
-    <string name="local_config_update_time_fmt">本机参数更新时间: %s</string>
     <string name="login">登录</string>
     <string name="login_log">登录日志</string>
     <string name="login_qr_code">登录二维码</string>
 
-    <string name="miyoushe_version">米游社版本: 加载中…</string>
-    <string name="miyoushe_version_fmt">米游社版本: %s</string>
     <string name="my_blog">俺的Blog(啥都没有)</string>
     <string name="nav_gacha_link">抽卡链接</string>
     <string name="nav_home">主页</string>
@@ -90,10 +72,6 @@
     <string name="refresh_tip">建议不要经常刷新</string>
     <string name="rename">重命名</string>
     <string name="run_sign_in">运行签到</string>
-    <string name="salt_4x_value">SALT_4X: 加载中…</string>
-    <string name="salt_4x_value_fmt">SALT_4X: %s</string>
-    <string name="salt_6x_value">SALT_6X: 加载中…</string>
-    <string name="salt_6x_value_fmt">SALT_6X: %s</string>
     <string name="save_skland_settings">保存森空岛设置</string>
     <string name="section_app">应用 · APP</string>
     <string name="section_config">配置 · CONFIG</string>
@@ -103,7 +81,6 @@
     <string name="select_background_image">选择背景图片：</string>
     <string name="select_image">选择图片</string>
     <string name="select_image_source">选择图片来源</string>
-    <string name="select_theme">选择主题</string>
     <string name="select_user">选择用户</string>
     <string name="settings_title">设置</string>
     <string name="settings_subtitle">个性化与应用偏好</string>
@@ -119,12 +96,18 @@
     <string name="gacha_fetching">获取中…</string>
     <string name="gacha_chip_pending">待获取</string>
     <string name="cloud_open_hint">打开云游戏页面 · 自动捕获链接</string>
-    <string name="run_remaining">剩余 %1$d 项</string>
+    <plurals name="run_remaining">
+        <item quantity="other">剩余 %1$d 项</item>
+    </plurals>
     <string name="bg_hint_notify">通知栏可控</string>
     <!-- 命令台设计稿：行内值 / 状态 chip 文案 -->
-    <string name="home_done_fmt">已完成 %1$d/%2$d</string>
+    <plurals name="home_done_fmt">
+        <item quantity="other">已完成 %1$d/%2$d</item>
+    </plurals>
     <string name="task_done_fmt">%1$d/%2$d DONE</string>
-    <string name="user_count_fmt">管理登录账号 · 共 %1$d 个账号</string>
+    <plurals name="user_count_fmt">
+        <item quantity="other">管理登录账号 · 共 %1$d 个账号</item>
+    </plurals>
     <string name="user_logged_in_status">已登录</string>
     <string name="user_chip_default">默认</string>
     <string name="task_chip_done">已签</string>
@@ -140,6 +123,15 @@
     <string name="config_key_local_time">本机参数更新时间</string>
     <string name="config_key_cloud_time">云端配置更新时间</string>
     <string name="config_key_bbs_version">米游社版本</string>
+    <!-- 以下为配置键名（技术标识符），不参与翻译 -->
+    <string name="config_key_salt_6x" translatable="false">SALT_6X</string>
+    <string name="config_key_salt_4x" translatable="false">SALT_4X</string>
+    <string name="config_key_lk2" translatable="false">LK2</string>
+    <string name="config_key_k2" translatable="false">K2</string>
+    <!-- 以下为纯占位符格式串（拼接文案改写为 getString 占位符用），不参与翻译 -->
+    <string name="app_version_fmt" translatable="false">v%1$s</string>
+    <string name="user_label_with_server" translatable="false">%1$s [%2$s]</string>
+    <string name="home_subtitle_with_done" translatable="false">%1$s · %2$s</string>
     <string name="update_value_auto">自动检查</string>
     <string name="update_value_manual">手动检查</string>
     <string name="background_value_custom">自定义图片</string>
@@ -186,7 +178,6 @@
     <string name="server_type">服务器类型</string>
     <string name="server_cn">国服</string>
     <string name="server_os">国际服</string>
-    <string name="select_server">选择服务器：</string>
     <string name="oauth_login_title">HoYoLAB登录</string>
     <string name="oauth_set_username">请设置一个用户名（推荐使用UID）</string>
     <string name="cookie_login">Cookie 登录</string>
@@ -278,7 +269,6 @@
     <!-- 错误对话框消息 -->
     <string name="err_no_background_permission">没有权限访问背景图片，清除背景设置</string>
     <string name="err_background_setup_error">设置背景图片出错，隐藏背景图片</string>
-    <string name="err_get_drawable_error">从Uri获取Drawable出错</string>
     <string name="err_crop_failed">图片裁剪失败: %s</string>
     <string name="err_save_background_failed">保存背景图片失败: %s</string>
     <string name="err_delete_background_error">删除背景图片出错：%s</string>
@@ -293,7 +283,9 @@
     <!-- 工具栏标题 -->
     <string name="toolbar_image_browse">图片浏览</string>
     <string name="toolbar_crop_image">裁剪图片</string>
-    <string name="toolbar_items_selected">%d 项已选择</string>
+    <plurals name="toolbar_items_selected">
+        <item quantity="other">%d 项已选择</item>
+    </plurals>
 
     <!-- 设置页主题 -->
     <string name="theme_system">系统</string>
@@ -303,8 +295,6 @@
     <string name="theme_yellow">黄色</string>
     <string name="theme_cyan">青色</string>
     <string name="theme_purple">紫色</string>
-    <string name="theme_light_name">浅色</string>
-    <string name="theme_dark_name">深色</string>
     <string name="config_not_fetched">未获取</string>
 
     <!-- 更新检查 -->
@@ -322,11 +312,12 @@
     <string name="image_author_prefix">作者: </string>
     <string name="image_time_prefix">时间: </string>
     <string name="image_unknown_author">未知作者</string>
-    <string name="image_user_label">用户: </string>
 
     <!-- Widget -->
     <string name="widget_description">显示今日任务完成状态</string>
-    <string name="widget_task_summary">%1$d/%2$d 已完成</string>
+    <plurals name="widget_task_summary">
+        <item quantity="other">%1$d/%2$d 已完成</item>
+    </plurals>
     <string name="widget_run">运行</string>
     <string name="widget_running">运行中…</string>
     <string name="widget_no_user">请先在应用中登录账号</string>
@@ -420,7 +411,9 @@
     <string name="bbs_task_list_failed">米游币签到 任务获取失败</string>
     <string name="bbs_stoken_null">stoken/mid/stuid为null，请尝试重新登陆</string>
     <string name="bbs_login_error">登录错误</string>
-    <string name="bbs_earnable_today">米游币签到 今日还可获得%d个米游币</string>
+    <plurals name="bbs_earnable_today">
+        <item quantity="other">米游币签到 今日还可获得%d个米游币</item>
+    </plurals>
     <string name="bbs_forum_sign_done">米游币签到 讨论区每日签到已完成</string>
     <string name="bbs_forum_signing">米游币签到 正在执行讨论区签到…</string>
 
@@ -440,7 +433,9 @@
     <string name="skland_content_not_set">森空岛content未设置</string>
     <string name="skland_start">森空岛签到 开始执行</string>
     <string name="skland_cred_success">森空岛签到 获取认证信息成功</string>
-    <string name="skland_roles_found">森空岛签到 获取角色列表成功，共找到 %d 个角色</string>
+    <plurals name="skland_roles_found">
+        <item quantity="other">森空岛签到 获取角色列表成功，共找到 %d 个角色</item>
+    </plurals>
     <string name="skland_no_roles">森空岛签到 未找到可签到的角色</string>
     <string name="skland_signing_role">森空岛签到 正在为角色 [%1$s] (%2$d/%3$d) 执行签到…</string>
     <string name="skland_all_done">森空岛签到 全部角色签到完成</string>
@@ -475,18 +470,24 @@
 
     <!-- BBSGameDaily 补充 -->
     <string name="game_cookie_token_refreshed">签到 CookieToken刷新成功</string>
-    <string name="game_accounts_found">签到 已获取到%d个账号</string>
+    <plurals name="game_accounts_found">
+        <item quantity="other">签到 已获取到%d个账号</item>
+    </plurals>
     <string name="game_getting_rewards">签到 正在获取签到奖励列表…</string>
     <string name="game_rewards_retry">签到 获取签到奖励列表失败，第%d次重试</string>
     <string name="game_rewards_max_retry">签到 获取签到奖励列表失败，重试次数已达上限</string>
-    <string name="game_start_with_accounts">签到 开始执行，共%d个账号</string>
+    <plurals name="game_start_with_accounts">
+        <item quantity="other">签到 开始执行，共%d个账号</item>
+    </plurals>
     <string name="game_already_signed">今日已签到</string>
     <string name="game_sign_success">签到成功</string>
     <string name="game_sign_captcha_triggered">触发验证码</string>
     <string name="game_thread_error">线程异常: %s</string>
     <string name="game_sign_failed">签到失败: %s</string>
     <string name="game_sign_failed_rate_limit">签到失败: 请求过于频繁(429)</string>
-    <string name="game_consecutive_days">已连续签到%d天</string>
+    <plurals name="game_consecutive_days">
+        <item quantity="other">已连续签到%d天</item>
+    </plurals>
     <string name="game_today_reward">签到 今日奖励: %1$s×%2$s</string>
 
     <!-- SklandDaily 补充 -->
@@ -510,6 +511,4 @@
     <!-- 通知标题格式 -->
     <string name="notif_title_game_sign">%s 游戏签到</string>
 
-    <!-- 页脚：各页滚动底部统一品牌行 -->
-    <string name="app_footer">Venus · 启明星　米游社签到工具</string>
 </resources>

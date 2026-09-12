@@ -95,7 +95,8 @@ public class SklandDaily {
             notifier.notifyListeners(context.getString(R.string.skland_no_roles));
             return;
         }
-        notifier.notifyListeners(context.getString(R.string.skland_roles_found, roles.size()));
+        notifier.notifyListeners(context.getResources().getQuantityString(
+                R.plurals.skland_roles_found, roles.size(), roles.size()));
         int currentRoleIndex = 0;
         for (Role r : roles) {
             currentRoleIndex++;

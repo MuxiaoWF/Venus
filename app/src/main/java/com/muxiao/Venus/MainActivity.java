@@ -228,13 +228,6 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 设置 ViewPager2 是否允许用户滑动切换
-     */
-    public void setViewPagerSwipeEnabled(boolean enabled) {
-        viewPager.setUserInputEnabled(enabled);
-    }
-
-    /**
      * ViewPager2 页面变换：当前页 100% 不透明/满尺寸，两侧页轻微淡出并缩小，
      * 形成柔和的纵深感。系统关闭动画时直接复位属性。
      */
@@ -331,6 +324,8 @@ public class MainActivity extends BaseActivity {
 
     /**
      * 加载用户设定的背景图并按设置不透明度显示；权限不足或解码失败时回退隐藏并提示。
+     * 解码放在后台线程执行：原图在主线程 decode 会卡住启动首帧（大图时肉眼可见的顿挫），
+     * 结果统一回主线程应用，期间用 isFinishing/isDestroyed 拦截过期回调。
      */
     private void setupBackground() {
         ImageView backgroundImage = findViewById(R.id.background_image);
@@ -338,41 +333,51 @@ public class MainActivity extends BaseActivity {
         Uri backgroundImageUri = SettingsFragment.getBackgroundImageUri(this);
         float backgroundAlpha = SettingsFragment.getBackgroundAlpha(this);
 
-        // 遮罩仅用于压暗背景图；无图时隐藏，让页面保持纯主题底色
-        Runnable hideMask = () -> backgroundMask.setVisibility(android.view.View.GONE);
-        Runnable showMask = () -> backgroundMask.setVisibility(android.view.View.VISIBLE);
+        // 无图：直接隐藏，无需异步处理
+        if (backgroundImageUri == null) {
+            backgroundImage.setVisibility(android.view.View.GONE);
+            backgroundMask.setVisibility(android.view.View.GONE);
+            return;
+        }
 
-        if (backgroundImageUri != null) {
+        com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
+            String error = null;
+            Drawable drawable = null;
             try {
-                Drawable drawable = getDrawableFromUri(backgroundImageUri);
-                if (drawable != null) {
-                    backgroundImage.setImageDrawable(drawable);
-                    backgroundImage.setAlpha(backgroundAlpha);
-                    backgroundImage.setVisibility(android.view.View.VISIBLE);
-                    showMask.run();
-                } else {
-                    backgroundImage.setVisibility(android.view.View.GONE);
-                    hideMask.run();
-                }
+                drawable = getDrawableFromUri(backgroundImageUri);
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
-                show_error_dialog(this, getString(R.string.err_no_background_permission) + e.getMessage());
                 getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                         .edit()
                         .remove("background_image_uri")
                         .apply();
-                backgroundImage.setVisibility(android.view.View.GONE);
-                hideMask.run();
+                error = getString(R.string.err_no_background_permission) + e.getMessage();
             } catch (Exception e) {
-                // 出现其他异常时隐藏背景图片
-                backgroundImage.setVisibility(android.view.View.GONE);
-                hideMask.run();
-                show_error_dialog(this, getString(R.string.err_background_setup_error) + e.getMessage());
+                error = getString(R.string.err_background_setup_error) + e.getMessage();
             }
-        } else {
-            backgroundImage.setVisibility(android.view.View.GONE);
-            hideMask.run();
-        }
+            final Drawable result = drawable;
+            final String errorMsg = error;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                // 直接复用方法开头 findViewById 的结果：同一 Activity 实例内视图引用不变，
+                // 且已用 isFinishing/isDestroyed 拦截过期回调（重复查找会触发 Lint DuplicateIdLookup）
+                if (errorMsg != null) {
+                    backgroundImage.setVisibility(android.view.View.GONE);
+                    backgroundMask.setVisibility(android.view.View.GONE);
+                    show_error_dialog(MainActivity.this, errorMsg);
+                    return;
+                }
+                if (result != null) {
+                    backgroundImage.setImageDrawable(result);
+                    backgroundImage.setAlpha(backgroundAlpha);
+                    backgroundImage.setVisibility(android.view.View.VISIBLE);
+                    backgroundMask.setVisibility(android.view.View.VISIBLE);
+                } else {
+                    backgroundImage.setVisibility(android.view.View.GONE);
+                    backgroundMask.setVisibility(android.view.View.GONE);
+                }
+            });
+        });
     }
 
     /**
@@ -422,30 +427,26 @@ public class MainActivity extends BaseActivity {
 
     /**
      * 按系统版本从 Uri 解码背景 Drawable（Android P+ 用 ImageDecoder，否则 BitmapFactory）。
+     * 失败时抛出异常，由调用方（后台线程）统一收集并回主线程提示——
+     * 原实现在方法内部直接弹对话框，改为后台解码后对话框不能在后台线程创建。
      */
-    private Drawable getDrawableFromUri(Uri uri) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                // Android 9.0及以上版本使用ImageDecoder
-                return ImageDecoder.decodeDrawable(
-                        ImageDecoder.createSource(getContentResolver(), uri),
-                        (decoder, info, source) -> {
-                        }
-                );
-            } else {
-                // Android 9.0以下版本使用BitmapFactory
-                InputStream inputStream = getContentResolver().openInputStream(uri);
-                if (inputStream == null) return null;
-                Bitmap bitmap;
-                try (InputStream is = inputStream) {
-                    bitmap = BitmapFactory.decodeStream(is);
-                }
-                return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
-            }
-        } catch (Exception e) {
-            show_error_dialog(this, getString(R.string.err_get_drawable_error) + e.getMessage());
-            return null;
+    private Drawable getDrawableFromUri(Uri uri) throws Exception {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Android 9.0及以上版本使用ImageDecoder
+            return ImageDecoder.decodeDrawable(
+                    ImageDecoder.createSource(getContentResolver(), uri),
+                    (decoder, info, source) -> {
+                    }
+            );
         }
+        // Android 9.0以下版本使用BitmapFactory
+        InputStream inputStream = getContentResolver().openInputStream(uri);
+        if (inputStream == null) return null;
+        Bitmap bitmap;
+        try (InputStream is = inputStream) {
+            bitmap = BitmapFactory.decodeStream(is);
+        }
+        return bitmap != null ? new android.graphics.drawable.BitmapDrawable(getResources(), bitmap) : null;
     }
 
     /**

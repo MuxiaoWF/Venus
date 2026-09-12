@@ -65,3 +65,7 @@ scripts/
 # design
 .design-review/
 .superdesign/
+
+# docs
+docs/
+AGENTS.md

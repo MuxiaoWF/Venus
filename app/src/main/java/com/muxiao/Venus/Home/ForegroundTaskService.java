@@ -51,19 +51,10 @@ public class ForegroundTaskService extends Service {
     private TaskStatusManager statusManager;
 
     private static volatile ForegroundTaskService instance;
-    /** 后台任务已变更任务状态但尚未被 UI 消费的脏标记（onResume 据此决定是否重建列表）。 */
-    private static volatile boolean sStatusDirty = false;
 
     /** 是否有前台任务 Service 实例在运行（用于判断是否可取消后台任务）。 */
     public static boolean isRunning() {
         return instance != null;
-    }
-
-    /** 消费「状态已变更」脏标记：返回当前值并复位，供 onResume 决定是否重建任务列表。 */
-    public static boolean consumeStatusDirty() {
-        boolean dirty = sStatusDirty;
-        sStatusDirty = false;
-        return dirty;
     }
 
     /** 包裹 Context 以应用当前语言地区设置，确保 Service 内文案本地化。 */
@@ -152,7 +143,7 @@ public class ForegroundTaskService extends Service {
         statusManager.setCurrentUser(userId != null ? userId : "");
 
         try {
-        currentTaskFuture = AppExecutors.get().io().submit(() -> {
+        currentTaskFuture = AppExecutors.get().submit(() -> {
             try {
                 TaskSettings settings = TaskSettings.fromPreferences(this);
                 int totalTasks = settings.getTaskNames(ForegroundTaskService.this).size();
@@ -220,8 +211,7 @@ public class ForegroundTaskService extends Service {
         statusManager.applyStatus(taskName, status);
         // 通知 Widget 刷新
         TaskWidgetProvider.refreshAllWidgets(this);
-        // 标记本机 UI 脏位并向应用内广播单条任务状态，供 HomeFragment 实时/恢复刷新列表图标
-        sStatusDirty = true;
+        // 向应用内广播单条任务状态，供 HomeFragment 实时/恢复刷新列表图标
         broadcastTaskStatus(taskName, status);
     }
 

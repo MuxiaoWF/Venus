@@ -65,12 +65,8 @@ public final class PasswordLogin {
 
     /** 需要极验验证时抛出，便于调用方给出针对性提示 */
     public static class AigisRequiredException extends RuntimeException {
-        /** 服务端下发的 aigis 挑战数据（Base64 JSON），完成极验后需回填到 x-rpc-aigis */
-        public final String aigisChallenge;
-
-        AigisRequiredException(String message, String aigisChallenge) {
+        AigisRequiredException(String message) {
             super(message);
-            this.aigisChallenge = aigisChallenge;
         }
     }
 
@@ -104,7 +100,7 @@ public final class PasswordLogin {
             String aigisChallenge = response.header("x-rpc-aigis");
             if (retcode == RETCODE_NEED_AIGIS || (aigisChallenge != null && !aigisChallenge.isEmpty()))
                 throw new AigisRequiredException(
-                        context.getString(R.string.login_password_need_captcha), aigisChallenge);
+                        context.getString(R.string.login_password_need_captcha));
             throw new RuntimeException(context.getString(
                     R.string.login_password_failed, retcode,
                     message.isEmpty() ? response.body : message));

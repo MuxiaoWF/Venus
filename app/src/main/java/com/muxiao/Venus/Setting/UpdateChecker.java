@@ -62,7 +62,7 @@ public class UpdateChecker {
                 // 保存检查时间
                 sharedPreferences.edit().putLong(LAST_CHECK_TIME, System.currentTimeMillis()).apply();
                 // 获取当前应用版本
-                String currentVersion = getCurrentVersion();
+                String currentVersion = BuildConfig.VERSION_NAME;
                 // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
@@ -93,19 +93,12 @@ public class UpdateChecker {
     }
 
     /**
-     * 获取当前应用版本
-     */
-    private String getCurrentVersion() {
-        return BuildConfig.VERSION_NAME;
-    }
-
-    /**
      * 从GitHub获取最新发布信息
      */
     private JsonObject getLatestReleaseInfo() {
         try {
             Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "Venus-Android/" + getCurrentVersion());
+            headers.put("User-Agent", "Venus-Android/" + BuildConfig.VERSION_NAME);
             String response = com.muxiao.Venus.common.tools.sendGetRequest(Constants.Urls.MUXIAO_MINE_UPDATE_URL, headers, null);
             if (!response.isEmpty()) {
                 return JsonParser.parseString(response).getAsJsonObject();

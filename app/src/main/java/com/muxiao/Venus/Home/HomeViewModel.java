@@ -19,7 +19,6 @@ import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -61,7 +60,7 @@ public class HomeViewModel extends AndroidViewModel {
         public final boolean bgFeatureEnabled;
 
         TaskUiState(List<TaskItem> items, RunMode runMode, boolean bgFeatureEnabled) {
-            this.items = Collections.unmodifiableList(new ArrayList<>(items));
+            this.items = List.copyOf(items);
             this.runMode = runMode;
             this.bgFeatureEnabled = bgFeatureEnabled;
         }
@@ -210,7 +209,21 @@ public class HomeViewModel extends AndroidViewModel {
 
     /** 依据给定设置重建任务列表（主线程）。 */
     public void refreshTaskItems(TaskSettings settings) {
-        publish(current().withItems(buildTaskItems(settings)));
+        List<TaskItem> newItems = buildTaskItems(settings);
+        // 与当前快照完全一致时跳过发布：onResume/切页返回等时机不再引发
+        // 无谓的整列 notifyDataSetChanged 重绑（重绑虽安静，但属纯浪费的闪烁隐患）
+        if (itemsEqual(current().items, newItems)) return;
+        publish(current().withItems(newItems));
+    }
+
+    private static boolean itemsEqual(List<TaskItem> a, List<TaskItem> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (!a.get(i).getName().equals(b.get(i).getName())
+                    || a.get(i).getStatus() != b.get(i).getStatus())
+                return false;
+        }
+        return true;
     }
 
     /**

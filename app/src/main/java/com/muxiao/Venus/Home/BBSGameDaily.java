@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 游戏每日签到（原神/星铁/绝区零/崩坏3等）。
@@ -213,7 +214,7 @@ public class BBSGameDaily {
         }
         // 原实现直接对 data.cookie_token 调用 getAsString()，字段缺失时以 NPE 收场；
         // 此处改为显式判空并给出可读错误。
-        String cookieToken = JsonAccess.optString(JsonAccess.object(res, "data"), "cookie_token", null);
+        String cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
         if (cookieToken == null) {
             notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_cookie_token_failed));
             throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
@@ -256,7 +257,7 @@ public class BBSGameDaily {
         if (retcode != RETCODE_OK) { //获取账号列表失败
             return reportAccountsFailed();
         }
-        JsonObject payload = JsonAccess.object(data, "data");
+        JsonObject payload = JsonAccess.data(data);
         JsonArray list = payload == null ? null : JsonAccess.array(payload, "list");
         if (list == null) { //结构异常同样按「未获取到账号」处理，避免 NPE
             return reportAccountsFailed();
@@ -273,7 +274,8 @@ public class BBSGameDaily {
             accountList.add(accountInfo);
         }
         tools.write(context, userId, gameId + "_user", new Gson().toJson(accountList));
-        report("", context.getString(R.string.game_accounts_found, accountList.size()));
+        report("", context.getResources().getQuantityString(
+                R.plurals.game_accounts_found, accountList.size(), accountList.size()));
         return accountList;
     }
 
@@ -304,7 +306,7 @@ public class BBSGameDaily {
             String response = sendGetRequest(rewards_api, getGameLoginHeaders(), Map.of("lang", lang, "act_id", actId));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             if (JsonAccess.retcode(data) == RETCODE_OK) {
-                JsonArray awardsArray = JsonAccess.array(JsonAccess.object(data, "data"), "awards");
+                JsonArray awardsArray = JsonAccess.array(JsonAccess.data(data), "awards");
                 // 奖励数组缺失时按「本次获取失败」处理，继续重试而不是抛 NPE
                 if (awardsArray != null) {
                     List<Map<String, Object>> rewards = new ArrayList<>();
@@ -381,10 +383,10 @@ public class BBSGameDaily {
             throw new RuntimeException(context.getString(R.string.game_sign_info_failed) + response);
         }
         Map<String, Object> resultMap = new HashMap<>();
-        JsonObject dataObject = JsonAccess.object(data, "data");
+        JsonObject dataObject = JsonAccess.data(data);
         Boolean isSign = JsonAccess.optBooleanOrNull(dataObject, "is_sign");
         Boolean firstBind = JsonAccess.optBooleanOrNull(dataObject, "first_bind");
-        Integer totalSignDay = JsonAccess.optIntOrNull(dataObject, "total_sign_day");
+        Integer totalSignDay = JsonAccess.optTotalSignDay(dataObject);
         // 仅在字段确实存在且非 JsonNull 时写入，保持「缺字段 = 调用方读到 null」的语义
         if (isSign != null) resultMap.put("is_sign", isSign);
         if (totalSignDay != null) resultMap.put("total_sign_day", totalSignDay);
@@ -403,7 +405,8 @@ public class BBSGameDaily {
      * 国服带「角色名+昵称」主体，国际服传空串。奖励表越界时只报天数。
      */
     private void reportSignProgress(String subject, int signDays) {
-        report(subject, context.getString(R.string.game_consecutive_days, signDays));
+        report(subject, context.getResources().getQuantityString(
+                R.plurals.game_consecutive_days, signDays, signDays));
         if (signDays > 0 && signDays <= checkinRewards.size()) {
             Map<String, Object> reward = checkinRewards.get(signDays - 1);
             report("", context.getString(R.string.game_today_reward, reward.get("name"), reward.get("cnt")));
@@ -438,8 +441,8 @@ public class BBSGameDaily {
             if (captchaHelper.getGeetCode() != null)
                 gameLoginHeader.putAll(captchaHelper.getGeetCode());
             response = sendPostRequest(signApi, gameLoginHeader, Map.of("act_id", actId,
-                    "region", account.getOrDefault("region", ""),
-                    "uid", account.getOrDefault("game_uid", "")));
+                    "region", account.containsKey("region") ? Objects.requireNonNull(account.get("region")) : "",
+                    "uid", account.containsKey("game_uid") ? Objects.requireNonNull(account.get("game_uid")) : ""));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             int retcode = JsonAccess.retcode(data);
             if (retcode == RETCODE_RATE_LIMITED) {
@@ -449,7 +452,7 @@ public class BBSGameDaily {
                 continue;
             }
             // 触发验证码：retcode=0 但 data.success=1
-            if (retcode == RETCODE_OK && JsonAccess.optInt(JsonAccess.object(data, "data"), "success", 0) == 1) {
+            if (retcode == RETCODE_OK && JsonAccess.optInt(JsonAccess.data(data), "success", 0) == 1) {
                 Map<String, String> recordHeaders = headerManager.get_record_headers();
                 String stuid = tools.read(context, userId, "stuid");
                 String stoken = tools.read(context, userId, "stoken");
@@ -533,7 +536,8 @@ public class BBSGameDaily {
             return;
         }
         String playerName = MiHoYoBBSConstants.game_to_role(gameName);
-        report("", context.getString(R.string.game_start_with_accounts, accountList.size()));
+        report("", context.getResources().getQuantityString(
+                R.plurals.game_start_with_accounts, accountList.size(), accountList.size()));
         for (Map<String, String> account : accountList) {
             tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
             String subject = playerName + account.get("nickname");
@@ -555,7 +559,7 @@ public class BBSGameDaily {
                     report(subject, context.getString(R.string.game_sign_failed_rate_limit));
                     continue;
                 }
-                if (retcode == RETCODE_OK && JsonAccess.optInt(JsonAccess.object(data, "data"), "success", 0) == 0) {
+                if (retcode == RETCODE_OK && JsonAccess.optInt(JsonAccess.data(data), "success", 0) == 0) {
                     report(subject, context.getString(R.string.game_sign_success));
                     signDays += 2;
                 } else if (retcode == RETCODE_ALREADY_SIGNED) {
@@ -563,7 +567,7 @@ public class BBSGameDaily {
                     signDays += 1;
                 } else {
                     String message = JsonAccess.message(data, context.getString(R.string.bbs_unknown_error));
-                    boolean needCaptcha = JsonAccess.optInt(JsonAccess.object(data, "data"), "success", 0) != 0;
+                    boolean needCaptcha = JsonAccess.optInt(JsonAccess.data(data), "success", 0) != 0;
                     String reason = needCaptcha ? context.getString(R.string.game_sign_captcha_triggered)
                             : message + " (retcode=" + retcode + ")";
                     report(subject, context.getString(R.string.game_sign_failed, reason));

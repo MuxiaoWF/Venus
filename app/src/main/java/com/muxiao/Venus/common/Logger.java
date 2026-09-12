@@ -23,28 +23,12 @@ public final class Logger {
         if (BuildConfig.DEBUG) Log.d(tag, msg);
     }
 
-    public static void debug(String msg) {
-        if (BuildConfig.DEBUG) Log.d(DEFAULT_TAG, msg);
-    }
-
-    public static void d(String msg) {
-        if (BuildConfig.DEBUG) Log.d(DEFAULT_TAG, msg);
-    }
-
-    public static void i(String msg) {
-        if (BuildConfig.DEBUG) Log.i(DEFAULT_TAG, msg);
-    }
-
     /** 警告：始终保留。 */
     public static void w(String msg) {
         Log.w(DEFAULT_TAG, msg);
     }
 
     /** 错误：始终保留（仅用于真实异常）。 */
-    public static void e(String msg) {
-        Log.e(DEFAULT_TAG, msg);
-    }
-
     public static void e(String msg, Throwable t) {
         Log.e(DEFAULT_TAG, msg, t);
     }

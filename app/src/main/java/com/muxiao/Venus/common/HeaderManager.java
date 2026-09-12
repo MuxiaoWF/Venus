@@ -158,27 +158,6 @@ public class HeaderManager {
     }
 
     /**
-     * 用 stoken 换取凭证类接口（如 getTokenByGameToken）请求头，DS 使用 LK2 salt。
-     */
-    public Map<String, String> get_token_by_stoken_headers() {
-        Map<String, String> h = new HashMap<>();
-        h.put("Accept", "application/json; utf-8");
-        h.put("x-rpc-channel", Build.MANUFACTURER);
-        h.put("Origin", currentWebBaseUrl);
-        h.put("x-rpc-app_version", BBSconstants.bbs_version);
-        h.put("User-Agent", user_agent);
-        h.put("x-rpc-client_type", "5");
-        h.put("Referer", "");
-        h.put("Accept-Language", isOversea ? "en-US" : "zh-CN,en-US;q=0.8");
-        h.put("X-Requested-With", currentPackageName);
-        h.put("Cookie", "");
-        h.put("x-rpc-device_id", getDeviceId());
-        h.put("x-rpc-app_id", currentAppId);
-        h.put("DS", getDS(BBSconstants.LK2));
-        return h;
-    }
-
-    /**
      * getTokenByGameToken 登录态转换接口请求头（无 DS，依赖 app_id / client_type 等标识）。
      */
     public Map<String, String> get_game_token_headers() {
@@ -195,26 +174,6 @@ public class HeaderManager {
         h.put("x-rpc-app_id", currentAppId);
         h.put("x-rpc-client_type", "4");
         h.put("User-Agent", user_agent);
-        return h;
-    }
-
-    /**
-     * 极验人机验证相关接口请求头，DS 使用 K2 salt，含 account/sdk 版本号与 device_fp。
-     */
-    public Map<String, String> get_captcha_headers() {
-        Map<String, String> h = new HashMap<>();
-        h.put("x-rpc-account_version", "2.20.1");
-        h.put("x-rpc-app_id", currentAppId);
-        h.put("x-rpc-device_name", Build.DEVICE);
-        h.put("x-rpc-device_fp", "");
-        h.put("x-rpc-app_version", BBSconstants.bbs_version);
-        h.put("x-rpc-client_type", "2");
-        h.put("x-rpc-device_id", getDeviceId());
-        h.put("x-rpc-sdk_version", "2.20.1");
-        h.put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-        h.put("x-rpc-game_biz", isOversea ? "bbs_os" : "bbs_cn");
-        h.put("Content-Type", "application/json; utf-8");
-        h.put("DS", getDS(BBSconstants.K2));
         return h;
     }
 
@@ -240,30 +199,6 @@ public class HeaderManager {
         h.put("accept", "*/*");
         h.put("accept-language", isOversea ? "en-US" : "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
         h.put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-        return h;
-    }
-
-    /**
-     * 小组件（widget）相关接口请求头，DS 使用 K2 salt，csm_source=home。
-     */
-    public Map<String, String> get_widget_headers() {
-        Map<String, String> h = new HashMap<>();
-        h.put("x-rpc-client_type", "2");
-        h.put("x-rpc-app_version", BBSconstants.bbs_version);
-        h.put("x-rpc-device_id", getDeviceId());
-        h.put("x-rpc-sys_version", String.valueOf(Build.VERSION.SDK_INT));
-        h.put("x-rpc-device_name", Build.DEVICE);
-        h.put("x-rpc-device_model", Build.MODEL);
-        h.put("x-rpc-device_fp", getFp());
-        h.put("x-rpc-channel", Build.MANUFACTURER);
-        h.put("Referer", currentAppBaseUrl);
-        h.put("cookie", "");
-        h.put("x-rpc-h256_supported", "1");
-        h.put("x-rpc-verify_key", currentAppId);
-        h.put("x-rpc-csm_source", "home");
-        h.put("User-Agent", user_agent);
-        h.put("Connection", "Keep-Alive");
-        h.put("DS", getDS(BBSconstants.K2));
         return h;
     }
 

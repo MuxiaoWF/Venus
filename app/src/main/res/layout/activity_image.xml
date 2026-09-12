@@ -12,8 +12,8 @@
         android:layout_height="wrap_content"
         android:background="?attr/colorSurfaceContainer"
         android:outlineSpotShadowColor="?attr/colorOutline"
-        app:elevation="4dp"
-        tools:ignore="NewApi">
+        app:elevation="@dimen/elevation_level3"
+        tools:ignore="NewApi,UnusedAttribute">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
@@ -43,8 +43,8 @@
                     android:layout_marginBottom="@dimen/space_2"
                     android:layout_weight="3"
                     android:hint="@string/select_image_source"
-                    app:boxStrokeWidth="1dp"
-                    app:boxStrokeWidthFocused="1.5dp">
+                    app:boxStrokeWidth="@dimen/stroke_width_hairline"
+                    app:boxStrokeWidthFocused="@dimen/stroke_width_focused">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/forumSelector"
@@ -63,8 +63,8 @@
                     android:layout_marginBottom="@dimen/space_2"
                     android:layout_weight="3"
                     android:hint="@string/type"
-                    app:boxStrokeWidth="1dp"
-                    app:boxStrokeWidthFocused="1.5dp">
+                    app:boxStrokeWidth="@dimen/stroke_width_hairline"
+                    app:boxStrokeWidthFocused="@dimen/stroke_width_focused">
 
                     <com.google.android.material.textfield.MaterialAutoCompleteTextView
                         android:id="@+id/cateIdSelector"

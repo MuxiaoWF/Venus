@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
+import androidx.core.content.ContextCompat;
+
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.common.TaskSettings;
@@ -88,27 +90,33 @@ public class TaskWidgetService extends RemoteViewsService {
 
             views.setTextViewText(R.id.widget_task_name, name);
 
-            // 状态图标和颜色
+            // 状态图标和颜色：与主 app 的状态语义色同源（status_* / M3 语义色，
+            // RemoteViews 不解析 ?attr，故用 ContextCompat 解析 plain color，昼夜自动切换）
             switch (status) {
                 case TaskStatusManager.STATUS_COMPLETED:
                     views.setTextViewText(R.id.widget_task_status_icon, "✓");
-                    views.setTextColor(R.id.widget_task_status_icon, 0xFF4CAF50); // green
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.status_success));
                     break;
                 case TaskStatusManager.STATUS_IN_PROGRESS:
                     views.setTextViewText(R.id.widget_task_status_icon, "○");
-                    views.setTextColor(R.id.widget_task_status_icon, 0xFF2196F3); // blue
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.widget_status_in_progress));
                     break;
                 case TaskStatusManager.STATUS_ERROR:
                     views.setTextViewText(R.id.widget_task_status_icon, "✗");
-                    views.setTextColor(R.id.widget_task_status_icon, 0xFFF44336); // red
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.blue_theme_error));
                     break;
                 case TaskStatusManager.STATUS_WARNING:
                     views.setTextViewText(R.id.widget_task_status_icon, "◆");
-                    views.setTextColor(R.id.widget_task_status_icon, 0xFFFF9800); // orange
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.status_warning));
                     break;
                 default: // PENDING
                     views.setTextViewText(R.id.widget_task_status_icon, "○");
-                    views.setTextColor(R.id.widget_task_status_icon, 0xFF9E9E9E); // grey
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.widget_text_secondary));
                     break;
             }
 

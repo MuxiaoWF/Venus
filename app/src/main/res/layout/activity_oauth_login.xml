@@ -61,7 +61,8 @@
                             android:contentDescription="@null"
                             android:padding="@dimen/space_2"
                             android:src="@drawable/ic_link"
-                            app:tint="?attr/colorOnPrimaryContainer" />
+                            app:tint="?attr/colorPrimary" />
+                            <!-- tint 统一为 colorPrimary（原 colorOnPrimaryContainer 对比度不可控） -->
 
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="wrap_content"
@@ -98,7 +99,6 @@
                 android:id="@+id/oauth_webview_card">
 
                 <FrameLayout
-                    android:id="@+id/oauth_webview_container"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/oauth_webview_height"
                     android:clipToPadding="false">
@@ -108,9 +108,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent" />
 
-                    <ProgressBar
+                    <!-- M3 线性进度条替代 framework 老式水平条；
+                         Java 侧字段类型为 ProgressBar（LinearProgressIndicator 是其子类），
+                         仅用 setVisibility 控制，替换无兼容影响。页面未上报实际进度，
+                         故用 indeterminate 加载动画。 -->
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
                         android:id="@+id/oauth_webview_progress"
-                        style="?android:attr/progressBarStyleHorizontal"
+                        android:indeterminate="true"
+                        app:trackThickness="@dimen/progress_track_thickness"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_gravity="top" />

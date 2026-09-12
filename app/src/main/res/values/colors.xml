@@ -11,7 +11,12 @@
          渲染，不解析 ?attr 主题属性，故走与 widget_text_* 同口径的 widget 专用语义色，
          昼夜各一套（night 见 values-night/colors.xml）。 -->
     <color name="widget_button_surface">#14415F91</color>
-    <color name="widget_button_ripple">#20000000</color>
+    <color name="widget_button_text">#FF415F91</color>
+    <!-- Widget 状态图标色：RemoteViews 不解析 ?attr。
+         error 复用 blue_theme_error（已有昼夜对）；in_progress 为固定蓝基准值；
+         pending 复用 widget_text_secondary；success/warning 直接复用 status_* 语义色。 -->
+    <color name="widget_status_in_progress">#FF415F91</color>
+    <!-- 注：按钮按压色已随按钮背景 ripple→shape 的修复一并删除（死 token） -->
 
     <color name="icon_background">#E3FDFD</color>
     <color name="icon_foreground">#71C9C1</color>
@@ -283,13 +288,9 @@
     <!-- 与 colorError / colorOnError / colorErrorContainer 同级的语义状态色；明/暗各一套，
          由 colors-night.xml 覆盖。用于任务状态（完成=success、警告=warning）、表单校验、提示等。 -->
     <color name="status_success">#146511</color>
-    <color name="status_on_success">#FFFFFF</color>
     <color name="status_success_container">#A3F390</color>
     <color name="status_on_success_container">#002100</color>
     <color name="status_warning">#615300</color>
-    <color name="status_on_warning">#FFFFFF</color>
-    <color name="status_warning_container">#FFE08A</color>
-    <color name="status_on_warning_container">#1E1A00</color>
 
     <!-- 毛玻璃底栏描边。填充色不在此定义 —— 它必须随 ThemeOverlay 换肤，
          故由 bg_bottom_nav_rounded 直接引用 ?attr/colorSurfaceContainer。 -->

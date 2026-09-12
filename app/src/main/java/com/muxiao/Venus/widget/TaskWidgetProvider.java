@@ -14,6 +14,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.LocaleHelper;
 
+import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -34,8 +35,12 @@ public class TaskWidgetProvider extends AppWidgetProvider {
     /** 是否已有排期中的刷新（合并重复请求，避免取消/停止等多路径重复触发）。 */
     private static final java.util.concurrent.atomic.AtomicBoolean REFRESH_SCHEDULED =
             new java.util.concurrent.atomic.AtomicBoolean(false);
-    /** 最近一次刷新请求的 Application Context（不持有 Activity，无泄漏风险）。 */
-    private static volatile Context refreshContext;
+    /**
+     * 最近一次刷新请求的 Application Context。
+     * 用弱引用包装：静态字段直接持有 Context 类型会触发 Lint StaticFieldLeak；
+     * 实际存的是进程级 Application Context（随进程存活，弱引用不会提前回收）。
+     */
+    private static volatile java.lang.ref.WeakReference<Context> refreshContextRef;
 
     @Override
     @SuppressWarnings("deprecation")
@@ -94,7 +99,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         String[] taskNames = TaskSettings.fromPreferences(context).getTaskNames(context).toArray(new String[0]);
         int completed = new TaskStatusManager(context).getCompletedCount(taskNames);
         views.setTextViewText(R.id.widget_summary,
-                context.getString(R.string.widget_task_summary, completed, taskNames.length));
+                context.getResources().getQuantityString(
+                        R.plurals.widget_task_summary, completed, completed, taskNames.length));
         views.setTextViewText(R.id.widget_date,
                 new SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(new Date()));
 
@@ -111,11 +117,12 @@ public class TaskWidgetProvider extends AppWidgetProvider {
      */
     public static void refreshAllWidgets(Context context) {
         if (context == null) return;
-        refreshContext = context.getApplicationContext();
+        refreshContextRef = new WeakReference<>(context.getApplicationContext());
         if (REFRESH_SCHEDULED.getAndSet(true)) return;
         REFRESH_HANDLER.postDelayed(() -> {
             REFRESH_SCHEDULED.set(false);
-            Context latest = refreshContext;
+            WeakReference<Context> ref = refreshContextRef;
+            Context latest = ref != null ? ref.get() : null;
             if (latest != null) refreshAllWidgetsNow(latest);
         }, REFRESH_DEBOUNCE_MS);
     }

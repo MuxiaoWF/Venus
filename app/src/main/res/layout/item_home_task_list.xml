@@ -17,12 +17,10 @@
         android:visibility="gone" />
 
     <com.google.android.material.listitem.ListItemLayout
-        android:id="@+id/task_list_item"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <com.google.android.material.listitem.ListItemCardView
-            android:id="@+id/task_list_card"
             style="@style/Widget.Venus.ListItemCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">

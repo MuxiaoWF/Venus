@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 持久化每日任务完成状态，按日期自动重置。
@@ -20,7 +21,7 @@ import java.util.Map;
  *
  * <p>状态由两条键共同表达，且二者必须满足单一真相不变量：
  * <ul>
- *   <li>{@code status_<name>}：任务当前状态字符串（pending/in_progress/completed/error/warning/cancelled）；</li>
+ *   <li>{@code status_<name>}：任务当前状态字符串（pending/in_progress/completed/error/warning/canceled）；</li>
  *   <li>{@code done_<name>}：布尔，恒等于 {@code status == completed} 的镜像，仅供
  *       {@link #isCompleted(String)} / {@link #getCompletedCount(String[])} 这样的「是否完成」聚合查询使用。</li>
  * </ul>
@@ -54,9 +55,17 @@ public class TaskStatusManager {
     private static volatile String lastEnsuredDate;
     private static final Object ENSURE_LOCK = new Object();
 
-    /** 日期格式化器：SimpleDateFormat 非线程安全，按线程复用避免高频 new。 */
+    /**
+     * 日期格式化器：SimpleDateFormat 非线程安全，按线程复用避免高频 new。
+     * 注：ThreadLocal.withInitial 需 API 26，此处用匿名子类兼容 minSdk 23。
+     */
     private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT =
-            ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd", Locale.US));
+        new ThreadLocal<>() {
+            @Override
+            protected SimpleDateFormat initialValue() {
+                return new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            }
+        };
 
     public TaskStatusManager(Context context) {
         this.context = context.getApplicationContext();
@@ -65,7 +74,7 @@ public class TaskStatusManager {
     }
 
     private static String todayString() {
-        return DATE_FORMAT.get().format(new Date());
+        return Objects.requireNonNull(DATE_FORMAT.get()).format(new Date());
     }
 
     private void ensureToday() {

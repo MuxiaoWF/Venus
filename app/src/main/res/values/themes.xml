@@ -46,6 +46,11 @@
          primary 是 #FFFAFF 近白），若 on* 共用一份，就会出现"近白底 + 白字"的对比度失效。
          全部反色实测对比度 ≥ 7:1（WCAG AA 需 4.5:1）。 -->
 
+    <!-- UCrop 裁剪页：第三方 Activity 未经 applyAppTheme（无运行时配色 overlay），
+         直接挂 Theme.Venus 使其跟随昼夜与品牌语义色；
+         修正原先固定 Theme.AppCompat.Light 导致的夜间闪白。 -->
+    <style name="Theme.Venus.UCrop" parent="Theme.Venus" />
+
     <!-- 蓝色主题 -->
     <style name="ThemeOverlay.Venus.Blue" parent="Theme.Venus">
         <item name="colorPrimary">@color/blue_theme_primary</item>

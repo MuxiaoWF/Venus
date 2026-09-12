@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
  * 任务状态仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
@@ -33,6 +34,11 @@ public class TaskStatusRepository {
     private static volatile RxDataStore<Preferences> store;
     private static final ConcurrentHashMap<String, Object> cache = new ConcurrentHashMap<>();
     private static final Object initLock = new Object();
+    /**
+     * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
+     * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
+     */
+    private static final CompositeDisposable persistentDisposables = new CompositeDisposable();
 
     /** 应用级 Context：clear() 需要它来同步清理旧 SP。 */
     private final Context context;
@@ -46,11 +52,11 @@ public class TaskStatusRepository {
                     RxDataStore<Preferences> created = new RxPreferenceDataStoreBuilder(appContext, PREFS_NAME).build();
                     store = created;
                     // DataStore 数据变化（含后续写入）同步回写缓存
-                    created.data().subscribe(prefs -> {
+                    persistentDisposables.add(created.data().subscribe(prefs -> {
                         for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
                             cache.put(e.getKey().getName(), e.getValue());
                         }
-                    });
+                    }));
                     seedCacheFromDataStore(created);
                     seedCacheFromLegacy(appContext);
                 }
@@ -61,7 +67,7 @@ public class TaskStatusRepository {
     /**
      * 同步读取 DataStore 首帧并灌入缓存。
      * <p>
-     * 必要性：DataStore 是任务状态的唯一写入源（{@link #putString}/{@link #putBoolean} 均不写旧 SP），
+     * 必要性：DataStore 是任务状态的唯一写入源（{@link #putString}/ 均不写旧 SP），
      * 而订阅回写缓存是异步的。若此处不同步灌入，进程冷启动后首次 {@code getString("status_date")}
      * 可能返回默认空串，被 {@code TaskStatusManager.ensureToday()} 误判为「跨天」而触发 clear()，
      * 把当天已持久化的任务状态清空——表现为「杀掉应用重进，今天已签的任务又变回未完成」。
@@ -87,7 +93,9 @@ public class TaskStatusRepository {
     private static void seedCacheFromLegacy(Context context) {
         SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         for (Map.Entry<String, ?> e : sp.getAll().entrySet()) {
-            cache.putIfAbsent(e.getKey(), e.getValue());
+            // putIfAbsent 需 API 24，改用 containsKey 判断
+            if (!cache.containsKey(e.getKey()))
+                cache.put(e.getKey(), e.getValue());
         }
     }
 
@@ -113,11 +121,6 @@ public class TaskStatusRepository {
         putAll(java.util.Collections.singletonMap(key, (Object) value));
     }
 
-    // 写穿（Write-Through）：先更新内存缓存（写入立即可见），再异步提交 DataStore 持久化。
-    public void putBoolean(String key, boolean value) {
-        putAll(java.util.Collections.singletonMap(key, (Object) value));
-    }
-
     /**
      * 批量写穿：一次事务写入多个键（String / Boolean）。
      * <p>
@@ -131,7 +134,7 @@ public class TaskStatusRepository {
             Object v = e.getValue();
             if (v instanceof String || v instanceof Boolean) cache.put(e.getKey(), v);
         }
-        store.updateDataAsync(prefs -> {
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             for (Map.Entry<String, ?> e : values.entrySet()) {
                 Object v = e.getValue();
@@ -139,7 +142,7 @@ public class TaskStatusRepository {
                 else if (v instanceof Boolean) m.set(PreferencesKeys.booleanKey(e.getKey()), (Boolean) v);
             }
             return Single.just(m);
-        }).subscribe(ignored -> { }, this::logPersistFailure);
+        }).subscribe(ignored -> { }, this::logPersistFailure));
     }
 
     /**
@@ -162,10 +165,10 @@ public class TaskStatusRepository {
     public void clear() {
         cache.clear();
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply();
-        store.updateDataAsync(prefs -> {
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.clear();
             return Single.just(m);
-        }).subscribe(ignored -> { }, this::logPersistFailure);
+        }).subscribe(ignored -> { }, this::logPersistFailure));
     }
 }

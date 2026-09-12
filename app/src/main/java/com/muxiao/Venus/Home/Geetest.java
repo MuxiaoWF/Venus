@@ -54,7 +54,7 @@ public class Geetest {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_api) + response);
             return;
         }
-        JsonObject payload = JsonAccess.object(data, "data");
+        JsonObject payload = JsonAccess.data(data);
         String gt = JsonAccess.optString(payload, "gt", null);
         String challenge = JsonAccess.optString(payload, "challenge", null);
         if (JsonAccess.retcode(data) != 0 || gt == null || challenge == null) {
@@ -134,7 +134,7 @@ public class Geetest {
                 body.put("geetest_challenge", geetestChallenge);
                 body.put("geetest_seccode", geetestSeccode);
                 body.put("geetest_validate", geetestValidate);
-                AppExecutors.get().io().execute(() -> {
+                AppExecutors.get().execute(() -> {
                     try {
                         String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, headers, body);
                         if (checkResponse == null) {
@@ -142,7 +142,7 @@ public class Geetest {
                             return;
                         }
                         JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
-                        JsonObject dataObj = JsonAccess.object(check, "data");
+                        JsonObject dataObj = JsonAccess.data(check);
                         String challengeValue = JsonAccess.optString(dataObj, "challenge", null);
                         if (JsonAccess.retcode(check) == 0 && challengeValue != null) {
                             Map<String, String> geetCode = new HashMap<>();

@@ -119,7 +119,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SALT_6X"
+            android:text="@string/config_key_salt_6x"
             android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.textview.MaterialTextView
@@ -147,7 +147,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SALT_4X"
+            android:text="@string/config_key_salt_4x"
             android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.textview.MaterialTextView
@@ -175,7 +175,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="LK2"
+            android:text="@string/config_key_lk2"
             android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.textview.MaterialTextView
@@ -203,7 +203,7 @@
         <com.google.android.material.textview.MaterialTextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="K2"
+            android:text="@string/config_key_k2"
             android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
 
         <com.google.android.material.textview.MaterialTextView

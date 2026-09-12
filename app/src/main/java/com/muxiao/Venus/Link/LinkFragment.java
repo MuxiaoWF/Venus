@@ -28,8 +28,6 @@ import com.muxiao.Venus.common.tools;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -48,7 +46,6 @@ public class LinkFragment extends Fragment {
     }
 
     private String currentUserId;
-    private ExecutorService executor;
     private UserManager userManager;
     private com.google.android.material.textfield.MaterialAutoCompleteTextView userDropdown;
 
@@ -107,7 +104,7 @@ public class LinkFragment extends Fragment {
         final android.content.Context appContext = requireContext().getApplicationContext();
         final android.app.Activity activity = getActivity();
         final String userId = currentUserId;
-        executor.execute(() -> {
+        com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
             Map<Integer, String> result;
             GachaLink gachaLink = new GachaLink(appContext, userId);
             try {
@@ -123,8 +120,12 @@ public class LinkFragment extends Fragment {
             if (activity == null) return;
             final Map<Integer, String> fetched = result;
             activity.runOnUiThread(() -> {
-                Map<String, Map<Integer, String>> perUser =
-                        tabResults.computeIfAbsent(gameType, k -> new HashMap<>());
+                // computeIfAbsent 需 API 24，这里手动 get + put（调用处在 UI 线程，无并发问题）
+                Map<String, Map<Integer, String>> perUser = tabResults.get(gameType);
+                if (perUser == null) {
+                    perUser = new HashMap<>();
+                    tabResults.put(gameType, perUser);
+                }
                 perUser.put(userId, new HashMap<>(fetched));
                 View root = getView();
                 if (root == null) return;
@@ -305,18 +306,16 @@ public class LinkFragment extends Fragment {
         );
         userDropdown.setAdapter(dropdownAdapter);
         // 行内展示带服务器后缀（如「t [国服]」，与设计稿一致）
-        boolean finalIsOversea = isOversea;
-        java.util.function.Function<String, String> label = u ->
-                u + " [" + getString(finalIsOversea ? R.string.server_os : R.string.server_cn) + "]";
+        // 注：java.util.function.Function 需 API 24，改用下面的私有方法代替
         // 设置当前用户为默认选中项
         String currentUser = userManager.getCurrentUser();
         if (currentUser != null && !currentUser.isEmpty() && usernames.contains(currentUser)) {
-            userDropdown.setText(label.apply(currentUser), false);
+            userDropdown.setText(userLabel(currentUser, isOversea), false);
             currentUserId = currentUser;
         } else if (!usernames.isEmpty()) {
             // 如果没有设置当前用户但有用户存在，默认选择第一个
             String firstUser = usernames.get(0);
-            userDropdown.setText(label.apply(firstUser), false);
+            userDropdown.setText(userLabel(firstUser, isOversea), false);
             userManager.setCurrentUser(firstUser);
             currentUserId = firstUser;
         } else {
@@ -326,16 +325,9 @@ public class LinkFragment extends Fragment {
         }
     }
 
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (executor != null && !executor.isShutdown())
-            executor.shutdown();
+    /** 生成带服务器后缀的用户展示名（如「t [国服]」）。java.util.function.Function 需 API 24，故用普通方法代替。 */
+    private String userLabel(String username, boolean isOversea) {
+        return username + " [" + getString(isOversea ? R.string.server_os : R.string.server_cn) + "]";
     }
 
     @Override
