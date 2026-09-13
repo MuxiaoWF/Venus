@@ -12,7 +12,8 @@
     tools:context=".MainActivity"
     tools:ignore="InconsistentLayouts,Overdraw">
 
-    <!-- 背景图片 -->
+    <!-- 背景图片。原均匀白蒙版已移除：淡化改为 MainActivity 解码时的
+         图像预处理（降饱和+按昼夜提亮/压暗），避免「白上加白」的整体发灰。 -->
     <ImageView
         android:contentDescription="@string/background_image"
         android:id="@+id/background_image"
@@ -24,25 +25,30 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 背景遮罩：仅设置背景图时用于压暗图片（无图时由 MainActivity 隐藏，保持纯主题底色） -->
-    <View
-        android:id="@+id/background_mask"
+    <!-- 底栏毛玻璃的"透镜"：显示背景图中位于底栏正后方的一小块区域
+         （MainActivity 负责降采样模糊 + 矩阵取景对齐），无背景图时保持 GONE，
+         玻璃透出的就是滚动到栏下的页面内容。
+         圆角裁剪与 bg_bottom_nav_rounded 一致，避免方角从半透明玻璃的圆角处露出。 -->
+    <ImageView
+        android:id="@+id/bottom_nav_blur"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:alpha="0.08"
-        android:background="?attr/colorSurface"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:importantForAccessibility="no"
+        android:scaleType="matrix"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="@id/bottom_navigation"
+        app:layout_constraintBottom_toBottomOf="@id/bottom_navigation"
+        app:layout_constraintStart_toStartOf="@id/bottom_navigation"
+        app:layout_constraintEnd_toEndOf="@id/bottom_navigation" />
 
-    <!-- ViewPager2用于滑动切换Fragment -->
+    <!-- ViewPager2：底部直通屏幕底，让页面内容能滚动到悬浮底栏之下（毛玻璃透感的前提）；
+         底部安全避让由 MainActivity 按「导航栏 inset + 底栏高度」动态做内边距 -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -52,7 +58,6 @@
         style="@style/Widget.Venus.BottomNavigationView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
         android:layout_marginStart="@dimen/space_5"
         android:layout_marginEnd="@dimen/space_5"
         android:layout_marginBottom="@dimen/space_4"

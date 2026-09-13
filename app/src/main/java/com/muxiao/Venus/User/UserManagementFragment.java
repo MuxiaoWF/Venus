@@ -5,11 +5,16 @@ import dagger.hilt.android.AndroidEntryPoint;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
@@ -20,6 +25,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
@@ -44,10 +50,22 @@ public class UserManagementFragment extends Fragment {
     private MaterialTextView noUserPrompt;
     /** 页面根视图：onCreateView 阶段 requireView() 尚不可用，列表刷新统一走此引用。 */
     private View pageRootView;
+    /** 待保存头像的用户名：照片选择器是页面级 launcher，结果返回时凭此定位目标用户。 */
+    private String pendingAvatarUser;
+    /** 系统照片选择器（Photo Picker，无需存储权限）：仅选图片。 */
+    private final ActivityResultLauncher<PickVisualMediaRequest> avatarPicker =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                String username = pendingAvatarUser;
+                pendingAvatarUser = null;
+                if (username == null || uri == null) return;
+                handleAvatarPicked(username, uri);
+            });
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
+        // 背景图玻璃感收口：标记 glass 的日期 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
+        com.muxiao.Venus.common.tools.applyGlassAlpha(requireContext(), rootView);
         pageRootView = rootView;
 
         userManager = new UserManager(requireContext());
@@ -128,6 +146,11 @@ public class UserManagementFragment extends Fragment {
             View infoRow = userItemView.findViewById(R.id.user_info_row);
             MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
             MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
+            ImageView avatar = userItemView.findViewById(R.id.user_avatar);
+
+            // 头像：有自定义图则圆形加载；点击头像更换/重置（信息行点击仍是重命名，互不干扰）
+            AvatarStore.loadInto(requireContext(), username, avatar);
+            avatar.setOnClickListener(v -> showAvatarActions(username));
 
             // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
             String serverType = getString(isOversea ? R.string.server_os : R.string.server_cn);
@@ -203,6 +226,8 @@ public class UserManagementFragment extends Fragment {
      */
     private void renameUser(String oldUsername, String newUsername) {
         new com.muxiao.Venus.common.data.UserRepository(requireContext()).migrate(oldUsername, newUsername);
+        // 头像文件按 md5(用户名) 键存储，随重命名一并迁移
+        AvatarStore.renameAvatar(requireContext(), oldUsername, newUsername);
 
         // 添加新用户并删除旧用户
         userManager.addUser(newUsername);
@@ -211,6 +236,46 @@ public class UserManagementFragment extends Fragment {
         userManager.removeUser(oldUsername);
         refreshUserList();
         showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_renamed, newUsername));
+    }
+
+    /** 头像操作入口：更换（拉起系统照片选择器）或恢复默认图标。 */
+    private void showAvatarActions(String username) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.avatar_action_title))
+                .setItems(new CharSequence[]{
+                        getString(R.string.avatar_change),
+                        getString(R.string.avatar_reset)
+                }, (dialog, which) -> {
+                    if (which == 0) {
+                        pendingAvatarUser = username;
+                        avatarPicker.launch(new PickVisualMediaRequest.Builder()
+                                // Kotlin object 的 Java 互斥写法：取其单例 INSTANCE（与 SettingsFragment 同款）
+                                .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
+                                .build());
+                    } else {
+                        AvatarStore.deleteAvatar(requireContext(), username);
+                        refreshUserList();
+                    }
+                })
+                .setNegativeButton(getString(R.string.btn_cancel), null)
+                .show();
+    }
+
+    /** 照片选择器回调：后台线程解码落盘，完成后回主线程刷新列表并提示。 */
+    private void handleAvatarPicked(String username, Uri uri) {
+        android.content.Context appContext = requireContext().getApplicationContext();
+        AppExecutors.get().execute(() -> {
+            boolean saved = AvatarStore.saveFromUri(appContext, username, uri);
+            android.app.Activity activity = getActivity();
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                if (getView() == null) return;
+                refreshUserList();
+                showCustomSnackbar(getView(), requireContext(), getString(saved
+                        ? R.string.snack_avatar_saved
+                        : R.string.err_avatar_save_failed));
+            });
+        });
     }
 
     /**
@@ -228,6 +293,8 @@ public class UserManagementFragment extends Fragment {
                 .setMessage(getString(R.string.msg_delete_user_confirm, username))
                 .setPositiveButton(getString(R.string.btn_delete), (dialog, which) -> {
                     userManager.removeUser(username);
+                    // 头像文件随用户一并清除，避免残留
+                    AvatarStore.deleteAvatar(requireContext(), username);
                     refreshUserList();
                     showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_deleted, username));
                 }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> dialog.cancel())

@@ -156,7 +156,7 @@ public class Geetest {
                             callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed, checkResponse));
                         }
                     } catch (Exception e) {
-                        callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, e.getMessage()));
+                        callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, com.muxiao.Venus.common.tools.describeError(e)));
                     }
                 });
             }

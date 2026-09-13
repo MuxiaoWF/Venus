@@ -437,7 +437,7 @@ public class ImageActivity extends BaseActivity {
                         isLoading = false;
                         return;
                     }
-                    show_error_dialog(ImageActivity.this, getString(R.string.err_load_failed, e.getMessage()));
+                    show_error_dialog(ImageActivity.this, getString(R.string.err_load_failed, tools.describeError(e)));
                     isLoading = false;
                 });
             }
@@ -610,7 +610,7 @@ public class ImageActivity extends BaseActivity {
             tools.saveBitmapToGallery(this, bitmap, fileName);
         } catch (IOException e) {
             if (mDestroyed) return;
-            show_error_dialog(this, getString(R.string.err_save_image_failed, e.getMessage()));
+            show_error_dialog(this, getString(R.string.err_save_image_failed, tools.describeError(e)));
         }
     }
 

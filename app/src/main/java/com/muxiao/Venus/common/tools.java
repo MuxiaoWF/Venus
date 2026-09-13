@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
@@ -16,6 +17,7 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.VenusApplication;
 import com.muxiao.Venus.common.data.UserRepository;
 
 import android.os.Build;
@@ -34,6 +36,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
@@ -42,6 +46,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import javax.net.ssl.SSLException;
 
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -103,19 +109,55 @@ public class tools {
     private static final String JSON_MEDIA_TYPE = "application/json; charset=utf-8";
 
     /**
-     * 统一网络异常出口（所有请求方法共用）：
+     * 统一网络异常出口（所有请求方法共用）：按异常类型映射为用户可理解的提示，
+     * 全部走 strings.xml 本地化（经全局 Application Context，跟随应用语言设置）。
      * <ul>
-     *   <li>DNS/连接类失败 → 统一提示「请检查网络连接」并保留 cause；</li>
-     *   <li>已是业务异常（如「请求失败，状态码：403」）→ 原样抛出，避免出现「请求失败：请求失败…」的嵌套文案；</li>
-     *   <li>其余（IO、解析等）→ 统一包装为「请求失败：…」并保留 cause。</li>
+     *   <li>已是业务异常（如「请求失败，状态码：403」）→ 原样抛出，避免嵌套文案；</li>
+     *   <li>无法解析主机（DNS 失败/断网）→ 提示无法解析服务器地址；</li>
+     *   <li>连接超时 / 连接被拒 / 安全连接失败 / 连接中断 → 分别给出对应提示；</li>
+     *   <li>其余（解析、非 HTTP 的 IO 等）→ 统一包装为「请求失败：…」。</li>
      * </ul>
+     * 各类异常均保留 cause 供日志与「复制错误信息」使用。
      */
     private static RuntimeException normalizeRequestError(Exception e) {
-        if (e instanceof UnknownHostException)
-            return new RuntimeException("请检查网络连接：" + e.getMessage(), e);
         if (e instanceof RuntimeException)
             return (RuntimeException) e;
-        return new RuntimeException("请求失败：" + e.getMessage(), e);
+        if (e instanceof UnknownHostException)
+            return new RuntimeException(str("无法解析服务器地址：%s，请检查网络连接", R.string.err_network_host_unresolved, describeError(e)), e);
+        if (e instanceof SocketTimeoutException)
+            return new RuntimeException(str("网络请求超时，请检查网络后重试", R.string.err_network_timeout), e);
+        if (e instanceof ConnectException)
+            return new RuntimeException(str("无法连接到服务器，请检查网络连接", R.string.err_network_connect_failed), e);
+        if (e instanceof SSLException)
+            return new RuntimeException(str("安全连接失败，请检查系统时间或网络环境", R.string.err_network_ssl_failed), e);
+        if (e instanceof IOException)
+            return new RuntimeException(str("网络连接中断，请检查网络后重试", R.string.err_network_interrupted), e);
+        return new RuntimeException(str("请求失败：%s", R.string.err_request_failed_generic, describeError(e)), e);
+    }
+
+    /**
+     * 底层工具类的本地化文案入口：经全局 Application Context 读取 strings.xml
+     * （Application 在 attachBaseContext 已按用户语言包装，故返回语言正确的文案）。
+     * 仅在 Application 尚未创建（理论上不会发生）时退回中文兜底串，保证不因提示文案而崩溃。
+     *
+     * @param fallback 兜底文案（与 values/strings.xml 的默认文案保持一致）
+     * @param resId    字符串资源 id
+     * @param args     格式化参数
+     */
+    private static String str(String fallback, int resId, Object... args) {
+        Context app = VenusApplication.getAppContext();
+        if (app == null)
+            return args.length == 0 ? fallback : String.format(Locale.ROOT, fallback, args);
+        return app.getString(resId, args);
+    }
+
+    /**
+     * 异常原因兜底：getMessage() 可能为 null（如部分 IO/NPE 异常），回退为类名，
+     * 避免弹窗出现「请求失败：null」「加载失败: null」之类残缺提示。
+     * 供各处把异常消息拼进用户可见文案时统一调用。
+     */
+    public static String describeError(Throwable e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     /** 统一的 Header 写入：跳过 null 键值（OkHttp 对 null 名/值会抛 NPE）。 */
@@ -134,7 +176,8 @@ public class tools {
     private static String buildGetUrl(String urlStr, Map<String, String> params) {
         if (params == null || params.isEmpty()) return urlStr;
         HttpUrl base = HttpUrl.parse(urlStr);
-        if (base == null) throw new RuntimeException("非法的请求地址：" + urlStr);
+        if (base == null)
+            throw new RuntimeException(str("非法的请求地址：%s", R.string.err_invalid_url, urlStr));
         HttpUrl.Builder builder = base.newBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
             if (entry.getKey() == null) continue;
@@ -151,7 +194,7 @@ public class tools {
         applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
-                throw new RuntimeException("请求失败，状态码：" + response.code());
+                throw new RuntimeException(str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
             return readResponseBody(response);
         } catch (Exception e) {
             throw normalizeRequestError(e);
@@ -173,7 +216,7 @@ public class tools {
         applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
-                throw new RuntimeException("请求失败，状态码：" + response.code());
+                throw new RuntimeException(str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
             return readResponseBody(response);
         } catch (Exception e) {
             throw normalizeRequestError(e);
@@ -302,10 +345,21 @@ public class tools {
      * @param error_message 错误信息
      */
     public static void show_error_dialog(Context context, String error_message) {
-        // 使用ContextThemeWrapper包装context，确保MaterialAlertDialogBuilder能正常工作
-        Context themedContext = new android.view.ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar);
-        new MaterialAlertDialogBuilder(themedContext)
-                .setTitle(context.getString(R.string.dialog_error))
+        show_error_dialog(context, context.getString(R.string.dialog_error), error_message);
+    }
+
+    /**
+     * 弹出指定标题的错误对话框，并提供「复制错误」按钮。
+     *
+     * @param title         对话框标题（如通用「错误」或「检查更新失败」等场景化标题）
+     * @param error_message 错误信息
+     */
+    public static void show_error_dialog(Context context, String title, String error_message) {
+        // 直接使用调用方的 Activity 上下文：与全应用其它 MaterialAlertDialogBuilder 用法一致，
+        // 保留主题（含动态取色）的对话框样式。此前的 ContextThemeWrapper 强制套用
+        // Material3_DayNight_NoActionBar，会丢掉动态取色与品牌对话框样式。
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(title)
                 .setMessage(error_message)
                 .setPositiveButton(context.getString(R.string.btn_copy_error), (dialog, which) -> {
                     ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -317,6 +371,21 @@ public class tools {
                     }
                 })
                 .setNegativeButton(context.getString(R.string.btn_close), null)
+                .show();
+    }
+
+    /**
+     * 弹出提示（警告）对话框：标题「提示」，仅确认按钮，不带「复制错误」。
+     * 用于需要用户知晓但并非故障的引导/约束信息（如「请先设置任务」「请先选择用户」），
+     * 与 {@link #show_error_dialog}（真正的故障，含复制排障入口）区分开。
+     *
+     * @param message 提示信息
+     */
+    public static void show_warning_dialog(Context context, String message) {
+        new MaterialAlertDialogBuilder(context)
+                .setTitle(context.getString(R.string.dialog_hint))
+                .setMessage(message)
+                .setPositiveButton(context.getString(R.string.btn_close), null)
                 .show();
     }
 
@@ -542,6 +611,35 @@ public class tools {
             return animatorScale == 0f || transitionScale == 0f;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    /**
+     * 背景图玻璃感收口：设置了背景图片时，把布局中标记 android:tag="glass" 的视图
+     * （如「后台运行」行按钮、日期/版本 chip——均为 100% 不透明表面色）背景降为
+     * 无背景图时恢复 255 保持原生质感。各 Fragment 在 inflate 后调用一次。
+     * 注意：同一 drawable 资源在各视图间共享 ConstantState，必须 mutate() 后再 setAlpha。
+     */
+    public static void applyGlassAlpha(Context context, View root) {
+        boolean hasBackground = context.getSharedPreferences(
+                        Constants.Prefs.BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
+                .contains(Constants.Prefs.BACKGROUND_IMAGE_URI);
+        int alpha = hasBackground
+                ? context.getResources().getInteger(R.integer.surface_glass_alpha)
+                : 255;
+        applyGlassAlphaRecursive(root, alpha);
+    }
+
+    private static void applyGlassAlphaRecursive(View view, int alpha) {
+        if ("glass".equals(view.getTag())) {
+            android.graphics.drawable.Drawable bg = view.getBackground();
+            if (bg != null) bg.mutate().setAlpha(alpha);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyGlassAlphaRecursive(group.getChildAt(i), alpha);
+            }
         }
     }
 

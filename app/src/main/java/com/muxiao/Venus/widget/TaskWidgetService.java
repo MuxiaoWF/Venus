@@ -13,6 +13,7 @@ import com.muxiao.Venus.common.TaskSettings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 为 Widget 的 ListView 提供任务列表数据。
@@ -58,11 +59,14 @@ public class TaskWidgetService extends RemoteViewsService {
         private void loadData() {
             TaskSettings settings = TaskSettings.fromPreferences(context);
             List<String> names = settings.getTaskNames(context);
-            TaskStatusManager statusManager = new TaskStatusManager(context);
+            // 状态按用户分桶：展示小组件目标用户（当前选中，兜底最后运行）的完成情况
+            Map<String, String> statuses = new TaskStatusManager(context)
+                    .getAllStatuses(TaskWidgetReceiver.resolveTargetUser(context));
 
             for (String name : names) {
                 taskNames.add(name);
-                taskStatuses.add(statusManager.getStatus(name));
+                String status = statuses.get(name);
+                taskStatuses.add(status != null ? status : TaskStatusManager.STATUS_PENDING);
             }
         }
 

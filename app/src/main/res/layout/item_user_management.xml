@@ -28,10 +28,11 @@
             android:paddingVertical="@dimen/gap_row">
 
             <ImageView
+                android:id="@+id/user_avatar"
                 android:layout_width="@dimen/icon_avatar_md"
                 android:layout_height="@dimen/icon_avatar_md"
                 android:background="@drawable/bg_icon_circle"
-                android:contentDescription="@null"
+                android:contentDescription="@string/avatar_action_title"
                 android:padding="@dimen/space_2"
                 android:src="@drawable/ic_user"
                 app:tint="?attr/colorPrimary" />

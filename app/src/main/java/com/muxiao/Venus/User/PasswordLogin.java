@@ -150,7 +150,7 @@ public final class PasswordLogin {
             return Base64.encodeToString(encrypted, Base64.NO_WRAP);
         } catch (Exception e) {
             throw new RuntimeException(context.getString(
-                    R.string.login_password_encrypt_failed, String.valueOf(e.getMessage())), e);
+                    R.string.login_password_encrypt_failed, tools.describeError(e)), e);
         }
     }
 }

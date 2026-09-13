@@ -142,6 +142,8 @@ public class Constants {
         public static final String BACKGROUND_PREFS_NAME = "background_prefs";
         public static final String BACKGROUND_IMAGE_URI = "background_image_uri";
         public static final String BACKGROUND_ALPHA = "background_alpha";
+        // 背景淡化风格预设档（0=轻盈 1=标准 2=浓郁），控制图像预处理的饱和度/亮度参数
+        public static final String BACKGROUND_PRESET = "background_preset";
 
         // Venus应用信息
         public static final String APP_INFO_PREFS_NAME = "app_info";

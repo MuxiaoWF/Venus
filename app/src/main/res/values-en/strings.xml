@@ -12,6 +12,11 @@
     <string name="background">Background</string>
     <string name="background_image">Background Image</string>
     <string name="background_opacity">Background Opacity:</string>
+    <string name="background_style">Fade Style:</string>
+    <string name="bg_preset_light">Light</string>
+    <string name="bg_preset_standard">Standard</string>
+    <string name="bg_preset_rich">Rich</string>
+    <string name="home_no_user_hint">No users yet · Tap to add one</string>
     <string name="background_running">Background Running</string>
     <string name="background_running_desc">Shows a background running button for signing in and sending notifications while the app is in the background (limited utility)</string>
     <string name="bbs_daily_tip">Select one community shared by all accounts (e.g., Da Bieye), or have each account follow the same community first</string>
@@ -197,6 +202,7 @@
 
     <!-- Dialog titles -->
     <string name="dialog_error">Error</string>
+    <string name="dialog_hint">Notice</string>
     <string name="dialog_rename_user">Rename User</string>
     <string name="dialog_delete_user">Delete User</string>
     <string name="dialog_need_notification_permission">Notification Permission Required</string>
@@ -205,7 +211,7 @@
     <string name="dialog_skland_content_settings">Skland Content Settings</string>
     <string name="dialog_new_version_found">New Version Found</string>
     <string name="dialog_no_update">No Update</string>
-    <string name="dialog_no_update_question">No Update?</string>
+    <string name="dialog_update_check_failed">Update Check Failed</string>
     <string name="dialog_confirm_cancel">Confirm Cancel</string>
     <string name="dialog_log_title">Log (%s)</string>
     <string name="dialog_need_battery_optimization">Battery Optimization Required</string>
@@ -240,9 +246,10 @@
     <string name="snack_user_renamed">User renamed to: %s</string>
     <string name="snack_user_deleted">User deleted: %s</string>
     <string name="snack_skland_content_saved">Skland content saved</string>
-    <string name="snack_background_set">Background image set, will take effect on next launch</string>
-    <string name="snack_background_cleared">Background image cleared, will take effect on next launch</string>
-    <string name="snack_opacity_set">Opacity set to %d%%, will take effect on next launch</string>
+    <string name="snack_background_set">Background image set</string>
+    <string name="snack_background_cleared">Background image cleared</string>
+    <string name="snack_no_background_to_clear">No background image is currently set</string>
+    <string name="snack_opacity_set">Opacity set to %d%%</string>
     <string name="snack_switched_to_cn">Switched to China server, restart to apply</string>
     <string name="snack_switched_to_os">Switched to Global server, restart to apply</string>
     <string name="snack_theme_saved">Theme saved, please restart the app to apply</string>
@@ -261,8 +268,8 @@
     <string name="snack_set_dark_mode">Set to dark mode</string>
 
     <!-- Error dialog messages -->
-    <string name="err_no_background_permission">No permission to access background image, clearing background settings</string>
-    <string name="err_background_setup_error">Error setting background image, hiding background image</string>
+    <string name="err_no_background_permission">No permission to access the background image, background settings cleared\nCause: %s</string>
+    <string name="err_background_setup_error">Error loading the background image, it has been hidden\nCause: %s</string>
     <string name="err_crop_failed">Image crop failed: %s</string>
     <string name="err_save_background_failed">Failed to save background image: %s</string>
     <string name="err_delete_background_error">Error deleting background image: %s</string>
@@ -273,6 +280,16 @@
     <string name="err_clear_log_failed">Failed to clear log file</string>
     <string name="err_set_task_first">Please set up tasks in Settings first</string>
     <string name="err_read_log_failed">Failed to read log file: %s</string>
+
+    <!-- Network error messages (used by the unified network error exit in tools) -->
+    <string name="err_network_host_unresolved">Cannot resolve server address: %s, please check your network connection</string>
+    <string name="err_network_timeout">Network request timed out, please check your connection and try again</string>
+    <string name="err_network_connect_failed">Cannot connect to the server, please check your network connection</string>
+    <string name="err_network_ssl_failed">Secure connection failed, please check system time or network environment</string>
+    <string name="err_network_interrupted">Network connection interrupted, please check your connection and try again</string>
+    <string name="err_request_failed_generic">Request failed: %s</string>
+    <string name="err_http_status_code">Request failed, status code: %d</string>
+    <string name="err_invalid_url">Invalid request URL: %s</string>
 
     <!-- Toolbar titles -->
     <string name="toolbar_image_browse">Image Gallery</string>
@@ -296,6 +313,7 @@
     <string name="update_fetch_failed">Failed to fetch GitHub update, please go to the download page manually\nCurrent version: %s</string>
     <string name="update_rate_limited">GitHub API rate limited, please try again later</string>
     <string name="update_fetch_release_failed">Failed to fetch GitHub release info: %s</string>
+    <string name="update_empty_response">Response body is empty</string>
     <string name="update_new_version_msg">New version %1$s found, please go to GitHub to download</string>
     <string name="update_release_notes">Release notes:</string>
 
@@ -513,5 +531,12 @@
 
     <!-- BBSGameDaily additional -->
     <string name="game_thread_error">Thread error: %s</string>
+
+    <!-- User avatar -->
+    <string name="avatar_action_title">Set avatar</string>
+    <string name="avatar_change">Change avatar</string>
+    <string name="avatar_reset">Reset to default</string>
+    <string name="snack_avatar_saved">Avatar updated</string>
+    <string name="err_avatar_save_failed">Failed to save avatar, please try again</string>
 
 </resources>

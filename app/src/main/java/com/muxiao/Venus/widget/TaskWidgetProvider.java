@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.widget.RemoteViews;
 
 import com.muxiao.Venus.Home.ForegroundTaskService;
+import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.TaskSettings;
@@ -81,7 +82,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
                 .setAction(TaskWidgetReceiver.ACTION_RUN_TASKS);
         views.setOnClickPendingIntent(R.id.btn_run, PendingIntent.getBroadcast(context, 0, runIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        boolean isRunning = ForegroundTaskService.isRunning();
+        // 与 TaskWidgetReceiver 的并发防护同口径：App 内前台任务不走 Service，需一并探测
+        boolean isRunning = ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning();
         views.setTextViewText(R.id.btn_run, context.getString(
                 isRunning ? R.string.widget_running : R.string.widget_run));
         views.setBoolean(R.id.btn_run, "setEnabled", !isRunning);
@@ -95,14 +97,20 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         views.setRemoteAdapter(R.id.widget_task_list, new Intent(context, TaskWidgetService.class)
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId));
 
-        // 底部统计信息
+        // 底部统计信息（状态按用户分桶：展示目标用户——当前选中，兜底最后运行——的完成情况）
+        String targetUser = TaskWidgetReceiver.resolveTargetUser(context);
+        TaskStatusManager statusManager = new TaskStatusManager(context);
         String[] taskNames = TaskSettings.fromPreferences(context).getTaskNames(context).toArray(new String[0]);
-        int completed = new TaskStatusManager(context).getCompletedCount(taskNames);
+        int completed = statusManager.getCompletedCount(targetUser, taskNames);
         views.setTextViewText(R.id.widget_summary,
                 context.getResources().getQuantityString(
                         R.plurals.widget_task_summary, completed, completed, taskNames.length));
-        views.setTextViewText(R.id.widget_date,
-                new SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(new Date()));
+        // 日期 chip 显示状态归属日（status_date）而非渲染时刻：任务状态按日重置，
+        // 归属日才是这组 ✓/✗ 的语义日期。status_date 格式固定 yyyy-MM-dd，直接截取 MM/dd 段
+        String statusDate = statusManager.getStatusDate(targetUser);
+        views.setTextViewText(R.id.widget_date, statusDate.length() >= 10
+                ? statusDate.substring(5).replace('-', '/')
+                : new SimpleDateFormat("MM/dd", Locale.getDefault()).format(new Date()));
 
         manager.updateAppWidget(widgetId, views);
     }

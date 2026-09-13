@@ -18,6 +18,14 @@ import javax.inject.Inject;
 
 @HiltAndroidApp
 public class VenusApplication extends Application {
+    /** 全局应用上下文（onCreate 时赋值）。供无 Context 参数的底层工具（如 tools 的网络异常文案）取本地化字符串。 */
+    private static volatile Context sAppContext;
+
+    /** 返回全局应用上下文；仅 Application 创建后可用（应用生命周期内必然已创建）。 */
+    public static Context getAppContext() {
+        return sAppContext;
+    }
+
     // 触发 Hilt 内置 @ApplicationContext 绑定被依赖图实际使用，从而消除 Dagger 生成的
     // applicationContextModule(ApplicationContextModule) 弃用告警（dagger issue #3601，
     // Hilt 2.56 仍存在；该绑定未被任何注入点使用时 Dagger 会将其裁剪并标记弃用）。
@@ -42,6 +50,7 @@ public class VenusApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        sAppContext = this;
         // 应用选定的主题深浅色（使用 Hilt 注入的 ApplicationContext，确保该绑定被使用）
         SettingsFragment.applyThemeVariant(appContext);
         // 启用material动态颜色

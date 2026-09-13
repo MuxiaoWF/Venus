@@ -48,6 +48,9 @@ public class LinkFragment extends Fragment {
     private String currentUserId;
     private UserManager userManager;
     private com.google.android.material.textfield.MaterialAutoCompleteTextView userDropdown;
+    /** 当前服务器可用用户列表，供无用户空态引导判断（updateDropdown 维护）。 */
+    private List<String> currentUsers;
+    private View userSection;
 
     // 按 gameType -> userId -> (uid -> link) 存储（0=原神, 1=绝区零）
     private final Map<Integer, Map<String, Map<Integer, String>>> tabResults = new HashMap<>();
@@ -56,15 +59,18 @@ public class LinkFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_link, container, false);
 
+        // 背景图玻璃感收口：标记 glass 的表面行/chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
+        tools.applyGlassAlpha(requireContext(), view);
+
         userDropdown = view.findViewById(R.id.user_dropdown);
 
         userManager = new UserManager(requireContext());
 
         updateDropdown();
 
-        // 点击整行（含图标）展开用户下拉
-        View userSection = view.findViewById(R.id.user_section);
-        userSection.setOnClickListener(v -> userDropdown.showDropDown());
+        // 点击整行（含图标）展开用户下拉；无用户时由 updateUserGuideState 改为跳转用户管理页
+        userSection = view.findViewById(R.id.user_section);
+        updateUserGuideState();
         userDropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
@@ -112,7 +118,7 @@ public class LinkFragment extends Fragment {
             } catch (Exception e) {
                 if (activity == null) return;
                 activity.runOnUiThread(() -> {
-                    showInlineError(gameType, e.getMessage());
+                    showInlineError(gameType, tools.describeError(e));
                     setChipState(gameType, ChipState.PENDING);
                 });
                 return;
@@ -299,6 +305,7 @@ public class LinkFragment extends Fragment {
     private void updateDropdown() {
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
         List<String> usernames = userManager.getUsernamesByServerType(isOversea);
+        currentUsers = usernames;
         android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
@@ -322,6 +329,39 @@ public class LinkFragment extends Fragment {
             // 当前服务器没有用户，清空选择
             userDropdown.setText("", false);
             currentUserId = null;
+        }
+        // 同步无用户空态引导（账号行提示 + 点击跳转用户管理页）
+        updateUserGuideState();
+    }
+
+    /** 默认 hint 颜色（首次调用时缓存），空态结束后恢复。 */
+    private android.content.res.ColorStateList defaultHintColors;
+
+    /**
+     * 无用户空态引导：当前服务器没有用户时，账号行显示「尚未添加用户 · 点击前往添加」，
+     * 点击跳转用户管理页（而非弹空下拉）；有用户时恢复正常下拉行为。
+     * onCreateView 与 updateDropdown（onResume 刷新）共用。
+     */
+    private void updateUserGuideState() {
+        if (userDropdown == null || userSection == null) return;
+        if (defaultHintColors == null)
+            defaultHintColors = userDropdown.getHintTextColors();
+        if (currentUsers != null && !currentUsers.isEmpty()) {
+            userDropdown.setHint(null);
+            userDropdown.setHintTextColor(defaultHintColors);
+            userSection.setOnClickListener(v -> userDropdown.showDropDown());
+            userDropdown.setOnClickListener(v -> userDropdown.showDropDown());
+        } else {
+            userDropdown.setHint(R.string.home_no_user_hint);
+            // 主题默认 hint 色是低透明度变体，压在背景图上几乎看不清——空态提示改用全强度前景色
+            userDropdown.setHintTextColor(com.google.android.material.color.MaterialColors
+                    .getColor(userDropdown, com.google.android.material.R.attr.colorOnSurface));
+            View.OnClickListener jumpToUsers = v -> {
+                if (getActivity() instanceof com.muxiao.Venus.MainActivity)
+                    ((com.muxiao.Venus.MainActivity) getActivity()).navigateToPage(1);
+            };
+            userSection.setOnClickListener(jumpToUsers);
+            userDropdown.setOnClickListener(jumpToUsers);
         }
     }
 

@@ -6,6 +6,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_ALPHA;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PRESET;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
@@ -153,6 +154,9 @@ public class SettingsFragment extends Fragment {
         // 加载布局
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
 
+        // 背景图玻璃感收口：标记 glass 的版本 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
+        tools.applyGlassAlpha(requireContext(), view);
+
         // 页眉版本 chip（设计稿：v2.4.0 形式）
         android.widget.TextView versionChip = view.findViewById(R.id.settings_version_chip);
         if (versionChip != null)
@@ -221,7 +225,12 @@ public class SettingsFragment extends Fragment {
 
         // 初始化图片选择启动器
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), this::startCropActivity);
+            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                // 用户在系统照片选择器中取消/未选择时返回 null：静默忽略，
+                // 不能把 null 传给裁剪页，否则 UCrop 会以「图片裁剪失败: null」报错收场
+                if (uri != null)
+                    startCropActivity(uri);
+            });
         else
             selectImageLauncher = registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
@@ -592,7 +601,7 @@ public class SettingsFragment extends Fragment {
             if (view != null)
                 showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_set));
         } catch (Exception e) {
-            show_error_dialog(requireContext(), getString(R.string.err_save_background_failed, e.getMessage()));
+            show_error_dialog(requireContext(), getString(R.string.err_save_background_failed, tools.describeError(e)));
         }
     }
 
@@ -627,25 +636,50 @@ public class SettingsFragment extends Fragment {
         clearBackgroundButton.setOnClickListener(v -> {
             // 清除之前先释放权限
             String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
-            if (uriString != null) {
-                try {
-                    Uri backgroundUri = Uri.parse(uriString);
-                    if ("file".equals(backgroundUri.getScheme())) {
-                        File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
-                        if (backgroundFile.exists()) backgroundFile.delete();
-                    } else {
-                        requireContext().getContentResolver().delete(backgroundUri, null, null);
-                    }
-                } catch (Exception e) {
-                    show_error_dialog(requireContext(), getString(R.string.err_delete_background_error, e.toString()));
+            if (uriString == null) {
+                // 从未设置过背景时点「清除」：如实提示，不再谎报「已清除」
+                showCustomSnackbar(view, requireContext(), getString(R.string.snack_no_background_to_clear));
+                return;
+            }
+            try {
+                Uri backgroundUri = Uri.parse(uriString);
+                if ("file".equals(backgroundUri.getScheme())) {
+                    File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
+                    if (backgroundFile.exists()) backgroundFile.delete();
+                } else {
+                    requireContext().getContentResolver().delete(backgroundUri, null, null);
                 }
+            } catch (Exception e) {
+                show_error_dialog(requireContext(), getString(R.string.err_delete_background_error, e.toString()));
             }
             backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
             showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_cleared));
         });
 
+        // 设置淡化风格预设档（0=轻盈 1=标准 2=浓郁）：控制解码时的图像预处理强度，
+        // 与不透明度滑条正交——风格管质感，滑条管浓度。仅写 prefs，
+        // MainActivity 通过背景 prefs 监听（300ms 防抖）即时重新预合成，无需重启。
+        com.google.android.material.button.MaterialButtonToggleGroup presetGroup =
+                view.findViewById(R.id.background_preset_group);
+        if (presetGroup != null) {
+            int preset = backgroundPreferences.getInt(BACKGROUND_PRESET, 1);
+            int presetButtonId;
+            if (preset == 0) presetButtonId = R.id.bg_preset_light;
+            else if (preset == 2) presetButtonId = R.id.bg_preset_rich;
+            else presetButtonId = R.id.bg_preset_standard;
+            presetGroup.check(presetButtonId);
+            presetGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                if (!isChecked) return;
+                int newPreset;
+                if (checkedId == R.id.bg_preset_light) newPreset = 0;
+                else if (checkedId == R.id.bg_preset_rich) newPreset = 2;
+                else newPreset = 1;
+                backgroundPreferences.edit().putInt(BACKGROUND_PRESET, newPreset).apply();
+            });
+        }
+
         // 设置不透明度滑块
-        float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
+        float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.45f);
         backgroundAlphaSlider.setValue(currentAlpha * 100);
         backgroundAlphaSlider.setLabelFormatter(value -> (int) value + "%");
         backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
@@ -935,11 +969,22 @@ public class SettingsFragment extends Fragment {
      * 获取背景不透明度
      *
      * @param context 上下文
-     * @return 背景不透明度，范围0.0-0.8，默认为0.3
+     * @return 背景不透明度，范围0.0-0.8，默认为0.45
      */
     public static float getBackgroundAlpha(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
-        return backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.3f);
+        return backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.45f);
+    }
+
+    /**
+     * 获取背景淡化风格预设档
+     *
+     * @param context 上下文
+     * @return 预设档索引（0=轻盈 1=标准 2=浓郁），默认为1（标准）
+     */
+    public static int getBackgroundPreset(Context context) {
+        SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
+        return backgroundPreferences.getInt(BACKGROUND_PRESET, 1);
     }
 
     /**

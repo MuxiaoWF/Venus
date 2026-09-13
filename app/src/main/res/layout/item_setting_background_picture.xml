@@ -41,6 +41,50 @@
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_3"
+        android:text="@string/background_style"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+    <!-- 淡化风格三档：控制解码时的图像预处理强度（降饱和+按昼夜提亮/压暗），
+         与下方「背景不透明度」滑条正交：风格管质感、滑条管浓度。 -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/background_preset_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_1"
+        android:orientation="horizontal"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/bg_preset_light"
+            style="@style/Widget.Venus.SegmentedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/bg_preset_light" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/bg_preset_standard"
+            style="@style/Widget.Venus.SegmentedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/bg_preset_standard" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/bg_preset_rich"
+            style="@style/Widget.Venus.SegmentedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/bg_preset_rich" />
+
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_2"
         android:text="@string/background_opacity"
         android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
@@ -52,9 +96,9 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/space_1"
         android:stepSize="5"
-        android:value="30"
+        android:value="45"
         android:valueFrom="0"
-        android:valueTo="80"
+        android:valueTo="90"
         app:labelBehavior="floating"
         app:haloColor="?attr/colorPrimary"
         app:thumbColor="?attr/colorPrimary"

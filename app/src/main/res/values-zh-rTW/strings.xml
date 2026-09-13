@@ -12,6 +12,11 @@
     <string name="background">背景</string>
     <string name="background_image">背景圖片</string>
     <string name="background_opacity">背景不透明度：</string>
+    <string name="background_style">淡化風格：</string>
+    <string name="bg_preset_light">輕盈</string>
+    <string name="bg_preset_standard">標準</string>
+    <string name="bg_preset_rich">濃郁</string>
+    <string name="home_no_user_hint">尚未新增使用者 · 點擊前往新增</string>
     <string name="background_running">背景執行</string>
     <string name="background_running_desc">顯示背景執行按鈕，可在背景執行簽到任務並傳送通知（較為雞肋的功能）</string>
     <string name="bbs_daily_tip">建議只勾選所有帳號均存在的一個（例如大別墅），或將每個帳號都先關注相同社群</string>
@@ -194,6 +199,7 @@
 
     <!-- 對話框標題 -->
     <string name="dialog_error">錯誤</string>
+    <string name="dialog_hint">提示</string>
     <string name="dialog_rename_user">重新命名使用者</string>
     <string name="dialog_delete_user">刪除使用者</string>
     <string name="dialog_need_notification_permission">需要通知權限</string>
@@ -202,7 +208,7 @@
     <string name="dialog_skland_content_settings">森空島content設定</string>
     <string name="dialog_new_version_found">發現新版本</string>
     <string name="dialog_no_update">無更新</string>
-    <string name="dialog_no_update_question">無更新？</string>
+    <string name="dialog_update_check_failed">檢查更新失敗</string>
     <string name="dialog_confirm_cancel">確認取消</string>
     <string name="dialog_log_title">日誌 (%s)</string>
     <string name="dialog_need_battery_optimization">需要關閉電池最佳化</string>
@@ -237,9 +243,10 @@
     <string name="snack_user_renamed">使用者已重新命名為：%s</string>
     <string name="snack_user_deleted">使用者已刪除：%s</string>
     <string name="snack_skland_content_saved">森空島content已儲存</string>
-    <string name="snack_background_set">背景圖片已設定，將在下次啟動時生效</string>
-    <string name="snack_background_cleared">背景圖片已清除，將在下次啟動時生效</string>
-    <string name="snack_opacity_set">不透明度已設為 %d%%，將在下次啟動時生效</string>
+    <string name="snack_background_set">背景圖片已設定</string>
+    <string name="snack_background_cleared">背景圖片已清除</string>
+    <string name="snack_no_background_to_clear">目前未設定背景圖片</string>
+    <string name="snack_opacity_set">不透明度已設為 %d%%</string>
     <string name="snack_switched_to_cn">已切換到國服，重新啟動後生效</string>
     <string name="snack_switched_to_os">已切換到國際服，重新啟動後生效</string>
     <string name="snack_theme_saved">主題已儲存，請重新啟動應用以套用新主題</string>
@@ -258,8 +265,8 @@
     <string name="snack_set_dark_mode">已設為深色模式</string>
 
     <!-- 錯誤對話框訊息 -->
-    <string name="err_no_background_permission">沒有權限存取背景圖片，清除背景設定</string>
-    <string name="err_background_setup_error">設定背景圖片出錯，隱藏背景圖片</string>
+    <string name="err_no_background_permission">沒有權限存取背景圖片，已清除背景設定\n原因：%s</string>
+    <string name="err_background_setup_error">設定背景圖片出錯，已隱藏背景圖片\n原因：%s</string>
     <string name="err_crop_failed">圖片裁剪失敗：%s</string>
     <string name="err_save_background_failed">儲存背景圖片失敗：%s</string>
     <string name="err_delete_background_error">刪除背景圖片出錯：%s</string>
@@ -270,6 +277,16 @@
     <string name="err_clear_log_failed">清除日誌檔案失敗</string>
     <string name="err_set_task_first">請先去設定裡設定任務</string>
     <string name="err_read_log_failed">讀取日誌檔案失敗：%s</string>
+
+    <!-- 網路異常提示（tools 統一網路異常出口使用） -->
+    <string name="err_network_host_unresolved">無法解析伺服器位址：%s，請檢查網路連線</string>
+    <string name="err_network_timeout">網路請求逾時，請檢查網路後重試</string>
+    <string name="err_network_connect_failed">無法連線到伺服器，請檢查網路連線</string>
+    <string name="err_network_ssl_failed">安全連線失敗，請檢查系統時間或網路環境</string>
+    <string name="err_network_interrupted">網路連線中斷，請檢查網路後重試</string>
+    <string name="err_request_failed_generic">請求失敗：%s</string>
+    <string name="err_http_status_code">請求失敗，狀態碼：%d</string>
+    <string name="err_invalid_url">無效的請求位址：%s</string>
 
     <!-- 工具列標題 -->
     <string name="toolbar_image_browse">圖片瀏覽</string>
@@ -292,6 +309,7 @@
     <string name="update_fetch_failed">未能成功取得GitHub更新，請手動前往下載頁面\n當前版本：%s</string>
     <string name="update_rate_limited">GitHub API 請求被限流，請稍後再試</string>
     <string name="update_fetch_release_failed">取得GitHub發布資訊失敗：%s</string>
+    <string name="update_empty_response">回應內容為空</string>
     <string name="update_new_version_msg">發現新版本 %1$s，請前往 GitHub 下載安裝</string>
     <string name="update_release_notes">更新內容：</string>
 
@@ -503,5 +521,12 @@
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_thread_error">執行緒異常: %s</string>
+
+    <!-- 使用者頭像 -->
+    <string name="avatar_action_title">設定頭像</string>
+    <string name="avatar_change">更換頭像</string>
+    <string name="avatar_reset">恢復預設頭像</string>
+    <string name="snack_avatar_saved">頭像已更新</string>
+    <string name="err_avatar_save_failed">頭像儲存失敗，請重試</string>
 
 </resources>

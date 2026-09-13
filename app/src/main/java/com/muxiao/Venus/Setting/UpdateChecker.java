@@ -66,8 +66,10 @@ public class UpdateChecker {
                 // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
+                    // 失败只报一次错：错误文案已由 getLatestReleaseInfo 记入 lastFetchError；
+                    // 自动检查（每 3 天随启动触发）失败保持静默，下次启动会再试，不打扰用户。
                     if (isManual)
-                        showNoUpdateDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
+                        showErrorDialog(lastFetchError);
                     return;
                 }
 
@@ -76,7 +78,7 @@ public class UpdateChecker {
                         ? releaseInfo.get("tag_name").getAsString() : null;
                 if (latestVersion == null) {
                     if (isManual)
-                        showNoUpdateDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
+                        showErrorDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
                     return;
                 }
 
@@ -84,16 +86,20 @@ public class UpdateChecker {
                 if (isUpdateAvailable(currentVersion, latestVersion))
                     showUpdateDialog(latestVersion, releaseInfo);
                 else if (isManual)
-                    showNoUpdateDialog("");
+                    showNoUpdateDialog();
             } catch (Exception e) {
-                if (isManual)
-                    showNoUpdateDialog(e.toString());
+                // JSON 解析等意外异常：仅手动检查时给出含原因的错误框，自动检查保持静默
+                if (isManual) {
+                    String cause = e.getMessage() != null ? e.getMessage() : e.toString();
+                    showErrorDialog(context.getString(R.string.update_fetch_release_failed, cause));
+                }
             }
         }).start();
     }
 
     /**
-     * 从GitHub获取最新发布信息
+     * 从GitHub获取最新发布信息；失败时把友好错误文案记入 {@link #lastFetchError} 并返回 null。
+     * 不在此处直接弹窗：是否提示、何时提示由调用方按「手动/自动检查」决定，避免一次失败弹两个对话框。
      */
     private JsonObject getLatestReleaseInfo() {
         try {
@@ -103,22 +109,30 @@ public class UpdateChecker {
             if (!response.isEmpty()) {
                 return JsonParser.parseString(response).getAsJsonObject();
             }
+            lastFetchError = context.getString(R.string.update_fetch_release_failed,
+                    context.getString(R.string.update_empty_response));
         } catch (RuntimeException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.contains("403")) {
-                postErrorToMainThread(context.getString(R.string.update_rate_limited));
+                lastFetchError = context.getString(R.string.update_rate_limited);
             } else {
-                postErrorToMainThread(context.getString(R.string.update_fetch_release_failed, msg));
+                lastFetchError = context.getString(R.string.update_fetch_release_failed, msg);
             }
         } catch (Exception e) {
-            postErrorToMainThread(context.getString(R.string.update_fetch_release_failed, e.toString()));
+            lastFetchError = context.getString(R.string.update_fetch_release_failed, e.toString());
         }
         return null;
     }
 
-    /** 在主线程弹出错误对话框。 */
-    private void postErrorToMainThread(String message) {
-        new Handler(Looper.getMainLooper()).post(() -> show_error_dialog(context, message));
+    /** 最近一次获取发布信息的友好错误文案（线程内先后读写，无跨线程共享问题）。 */
+    private String lastFetchError = "";
+
+    /** 在主线程弹出「检查更新失败」错误对话框（含复制错误入口）。 */
+    private void showErrorDialog(String message) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (context instanceof android.app.Activity && !((android.app.Activity) context).isFinishing())
+                show_error_dialog(context, context.getString(R.string.dialog_update_check_failed), message);
+        });
     }
 
     /**
@@ -190,21 +204,13 @@ public class UpdateChecker {
         });
     }
 
-    /** 弹“已是最新”对话框；message 非空时改作展示错误详情。 */
-    private void showNoUpdateDialog(String message) {
-        new Handler(Looper.getMainLooper()).post(() -> {
-            if (message == null || message.isEmpty())
+    /** 弹「已是最新版本」对话框（仅手动检查到达该分支时出现）。 */
+    private void showNoUpdateDialog() {
+        new Handler(Looper.getMainLooper()).post(() ->
                 new MaterialAlertDialogBuilder(context)
                         .setTitle(context.getString(R.string.dialog_no_update))
                         .setMessage(context.getString(R.string.msg_already_latest_version))
                         .setPositiveButton(android.R.string.ok, null)
-                        .show();
-            else
-                new MaterialAlertDialogBuilder(context)
-                        .setTitle(context.getString(R.string.dialog_no_update_question))
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show();
-        });
+                        .show());
     }
 }

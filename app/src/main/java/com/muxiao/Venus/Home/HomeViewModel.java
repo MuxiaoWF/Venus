@@ -227,13 +227,15 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 开始新一轮任务前调用：复位临时状态（保留当日已完成）并重建列表，
-     * 避免上次取消/失败/进行中的状态在重新运行时被短暂显示。
+     * 开始新一轮任务前调用：将全部任务状态（含当日已完成）复位为未完成并重建列表，
+     * 使「点击运行 = 开启新一轮」，旧一轮的完成/失败/取消图标不会在重跑时短暂显示。
+     * 语义以 {@link TaskStatusManager#resetTransientStatuses} 为准；后台按钮与小组件入口的
+     * 复位由 ForegroundTaskService 在任务启动时统一执行，本方法覆盖本页前台运行。
      */
     public void resetForNewRun() {
         TaskSettings settings = TaskSettings.fromPreferences(getApplication());
         new TaskStatusManager(getApplication())
-                .resetTransientStatuses(settings.getTaskNames(getApplication()));
+                .resetTransientStatuses(currentUser, settings.getTaskNames(getApplication()));
         refreshTaskItems(settings);
     }
 
@@ -241,9 +243,10 @@ public class HomeViewModel extends AndroidViewModel {
         Context context = getApplication();
         TaskStatusManager statusManager = new TaskStatusManager(context);
         List<TaskItem> items = new ArrayList<>();
+        // 状态按用户分桶：列表始终反映当前选中用户自己的完成情况
         for (String taskName : settings.getTaskNames(context)) {
             TaskItem item = new TaskItem(taskName);
-            item.setStatus(TaskStatusManager.toTaskStatus(statusManager.getStatus(taskName)));
+            item.setStatus(TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, taskName)));
             items.add(item);
         }
         return items;
@@ -256,7 +259,7 @@ public class HomeViewModel extends AndroidViewModel {
      */
     public void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         persistTaskStatus(taskName, status);
-        applyExternalTaskStatus(taskName, status);
+        applyExternalTaskStatus(currentUser, taskName, status);
         TaskWidgetProvider.refreshAllWidgets(getApplication());
     }
 
@@ -264,11 +267,18 @@ public class HomeViewModel extends AndroidViewModel {
      * 仅更新 UI 快照，不做任何持久化、不刷新小组件。
      * <p>
      * 用于「后台服务 → 广播 → 本页」的场景：{@code ForegroundTaskService} 已经在写入方
-     * 完成了持久化与小组件刷新，本页只负责把图标刷新成最新状态。原实现复用
-     * {@link #updateTaskStatus}，导致同一条状态被写两遍 DataStore（每遍含 current_user
-     * 与成对的 status_/done_）、小组件也被全量刷新两遍。
+     * 完成按运行用户的分桶持久化与小组件刷新，本页只负责把图标刷新成最新状态。
+     * 原实现复用 {@link #updateTaskStatus}，导致同一条状态被写两遍 DataStore、
+     * 小组件也被全量刷新两遍。
+     *
+     * @param userId 状态归属的运行用户：后台运行 A 期间用户切到 B 时，
+     *               A 的进度不改写 B 的列表（持久化无影响）；切回 A 时
+     *               {@link #refreshTaskItems()} 会从 A 的桶重新渲染实时进度
      */
-    public void applyExternalTaskStatus(String taskName, TaskItem.TaskStatus status) {
+    public void applyExternalTaskStatus(String userId, String taskName, TaskItem.TaskStatus status) {
+        // 展示用户 ≠ 运行用户时跳过：避免后台运行中切换用户后，A 的进度按任务名混入 B 的列表
+        String owner = userId == null ? "" : userId;
+        if (!owner.equals(currentUser)) return;
         // 基于旧快照复制出新列表，保持 UiState 不可变语义
         TaskUiState snapshot = current();
         List<TaskItem> updated = new ArrayList<>(snapshot.items.size());
@@ -292,6 +302,6 @@ public class HomeViewModel extends AndroidViewModel {
      * 于运行开始时写入一次，运行期间恒定；逐条重写只会让 DataStore 多背一条无意义的事务。
      */
     private void persistTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        new TaskStatusManager(getApplication()).applyStatus(taskName, status);
+        new TaskStatusManager(getApplication()).applyStatus(currentUser, taskName, status);
     }
 }

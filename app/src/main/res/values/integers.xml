@@ -7,6 +7,11 @@
 
     <!-- ===== 不透明度 Token ===== -->
     <!-- 底部导航毛玻璃不透明度（0-255）。颜色走 ?attr/colorSurfaceContainer，
-         透明度无法由主题属性表达，故单独成 token 供 MainActivity 施加。 -->
-    <integer name="bottom_nav_glass_alpha">153</integer>
+         透明度无法由主题属性表达，故单独成 token 供 MainActivity 施加。
+         磨砂质感由 bottom_nav_blur 透镜层（模糊背景/栏下内容）提供，
+         本色层只需压低到能保证对比度即可——过高会变回"实心色块"。 -->
+    <integer name="bottom_nav_glass_alpha">100</integer>
+    <!-- 标记 tag="glass" 的表面行/chip（如「后台运行」按钮、日期 chip）在
+         设置背景图时的降透明度值；无背景图时恢复 255。由 tools.applyGlassAlpha 施加。 -->
+    <integer name="surface_glass_alpha">168</integer>
 </resources>

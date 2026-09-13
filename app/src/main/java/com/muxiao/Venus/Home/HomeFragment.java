@@ -4,6 +4,7 @@ import dagger.hilt.android.AndroidEntryPoint;
 import javax.inject.Inject;
 
 import static com.muxiao.Venus.common.tools.show_error_dialog;
+import static com.muxiao.Venus.common.tools.show_warning_dialog;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
@@ -31,9 +32,11 @@ import com.geetest.sdk.views.GT3GeetestButton;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.HeaderManager;
@@ -87,6 +90,8 @@ public class HomeFragment extends Fragment {
     private android.widget.TextView taskDoneLabel;
     /** 账号上下文区块（标签 + 下拉行整体），运行期间按 UiState 隐藏。 */
     private View userSection;
+    /** 当前用户头像：有自定义图则圆形加载，否则显示默认人像图标。 */
+    private android.widget.ImageView homeUserAvatar;
     private TaskAdapter taskAdapter;
     private View taskListEmptyView;
     private ViewGroup homeContentContainer;
@@ -188,6 +193,9 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
+        // 背景图玻璃感收口：标记 glass 的表面行/chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
+        tools.applyGlassAlpha(requireContext(), view);
+
         // ViewModel 作为 UI 状态单一可信数据源（P0-2）
         viewModel = new ViewModelProvider(this).get(HomeViewModel.class);
 
@@ -204,6 +212,7 @@ public class HomeFragment extends Fragment {
         taskListEmptyView = view.findViewById(R.id.task_list_empty_view);
         geetestContainer = view.findViewById(R.id.geetest_container);
         userSection = view.findViewById(R.id.user_section);
+        homeUserAvatar = view.findViewById(R.id.home_user_avatar);
         homeContentContainer = view.findViewById(R.id.home_content_container);
 
         // 页眉日期 chip：MM/dd 周几
@@ -219,8 +228,6 @@ public class HomeFragment extends Fragment {
         controller.createUtils();
         tools.cleanOldLogs(requireContext());
         logFile = tools.getTodayLogFile(requireContext());
-        // 初始化任务列表（经 ViewModel 单向数据流，数据访问已下沉到 VM）
-        viewModel.refreshTaskItems();
 
         // 输出文本监听器
         tools.StatusNotifier notifier = new tools.StatusNotifier();
@@ -233,8 +240,7 @@ public class HomeFragment extends Fragment {
                 requireContext(),
                 android.R.layout.simple_dropdown_item_1line,
                 usernames
-        ));
-        // 设置当前用户为默认选中项（当前用户由 ViewModel 持有，避免 Fragment 与 VM 双份真相）
+        ));        // 设置当前用户为默认选中项（当前用户由 ViewModel 持有，避免 Fragment 与 VM 双份真相）
         String initialUser = userManager.getCurrentUser();
         if (!initialUser.isEmpty() && usernames.contains(initialUser)) {
             viewModel.setCurrentUser(initialUser);
@@ -246,14 +252,21 @@ public class HomeFragment extends Fragment {
         } else {
             viewModel.setCurrentUser("");
         }
+        // 无用户空态引导：账号行显示「尚未添加用户」并点击跳转用户管理页；
+        // 有用户时恢复整行展开下拉的常规行为
+        updateUserGuideState(usernames);
+        // 状态按用户分桶、头像按用户读取：必须先确定当前用户再重建列表，
+        // 否则读到空桶导致任务全部显示 pending（原实现刷新先于用户初始化，分桶后不成立）
+        loadUserAvatar();
+        viewModel.refreshTaskItems();
         user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
             String picked = (String) parent.getItemAtPosition(position);
             viewModel.setCurrentUser(picked);
             userManager.setCurrentUser(picked);
+            // 切换账号：按新用户重建任务状态与头像
+            loadUserAvatar();
+            viewModel.refreshTaskItems();
         });
-        // 点击整行展开用户下拉（命令台无框行，无内置 endIcon）
-        userSection.setOnClickListener(v -> user_dropdown.showDropDown());
-        user_dropdown.setOnClickListener(v -> user_dropdown.showDropDown());
 
         // 设置任务列表RecyclerView
         tasksRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -265,8 +278,11 @@ public class HomeFragment extends Fragment {
 
         // 启动任务按钮
         start_daily_btn.setOnClickListener(v -> {
-            // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）
-            if (!clearLogFile()) show_error_dialog(requireContext(), getString(R.string.err_clear_log_failed));
+            // 无用户时引导添加而非运行后报错
+            if (interceptIfNoUser()) return;
+            // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）；属轻微故障，用 Snackbar 而非错误弹窗
+            if (!clearLogFile())
+                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
             tools.writeLogSeparator(requireContext());
             // 新一轮运行：复位全部任务状态（含已完成）为未完成，避免重跑时先显示旧状态图标
             viewModel.resetForNewRun();
@@ -280,7 +296,8 @@ public class HomeFragment extends Fragment {
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(requireContext());
                     if (settings.hasAnyTaskDisabled()) {
-                        runOnUi(() -> show_error_dialog(requireContext(), getString(R.string.err_set_task_first)));
+                        // 引导性约束而非故障：用「提示」弹窗，不带「复制错误」入口
+                        runOnUi(() -> show_warning_dialog(requireContext(), getString(R.string.err_set_task_first)));
                         return;
                     }
                     android.app.Activity taskActivity = getActivity();
@@ -402,14 +419,14 @@ public class HomeFragment extends Fragment {
                                 if (clearLogFile())
                                     tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_log_cleared));
                                 else
-                                    tools.show_error_dialog(requireContext(), getString(R.string.err_clear_log_failed));
+                                    tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
                             })
                             .show();
                 } else {
                     tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_no_log));
                 }
             } catch (IOException e) {
-                tools.show_error_dialog(requireContext(), getString(R.string.err_read_log_failed, e.getMessage()));
+                tools.show_error_dialog(requireContext(), getString(R.string.err_read_log_failed, tools.describeError(e)));
             }
         });
         return view;
@@ -537,12 +554,12 @@ public class HomeFragment extends Fragment {
             start_daily_hint.setText(getResources().getQuantityString(
                     R.plurals.run_remaining, taskList.size(), taskList.size()));
 
-        // 页眉副标题与任务列表头 DONE 计数（已完成 = 已签 + 已签过）
+        // 页眉副标题与任务列表头 DONE 计数：与小组件 done_ 口径一致，仅统计 COMPLETED。
+        // 「已签过」由服务端返回后任务正常走 COMPLETED；WARNING 是等待人机验证的中间态，不计入
         int total = taskList.size();
         int done = 0;
         for (TaskItem item : taskList) {
-            TaskItem.TaskStatus s = item.getStatus();
-            if (s == TaskItem.TaskStatus.COMPLETED || s == TaskItem.TaskStatus.WARNING)
+            if (item.getStatus() == TaskItem.TaskStatus.COMPLETED)
                 done++;
         }
         if (homeSubtitle != null)
@@ -564,6 +581,12 @@ public class HomeFragment extends Fragment {
         viewModel.updateTaskStatus(taskName, status);
     }
 
+    /** 渲染当前选中用户的头像：有自定义图则圆形加载，否则恢复默认人像图标。 */
+    private void loadUserAvatar() {
+        if (homeUserAvatar != null)
+            AvatarStore.loadInto(requireContext(), viewModel.getCurrentUser(), homeUserAvatar);
+    }
+
     /**
      * 账号上下文行显示文案：用户名 + 服务器后缀（如「t [国服]」，与设计稿一致）。
      */
@@ -572,15 +595,61 @@ public class HomeFragment extends Fragment {
         return username + " [" + serverName + "]";
     }
 
+    /** 默认 hint 颜色（首次调用时缓存），空态结束后恢复。 */
+    private android.content.res.ColorStateList defaultHintColors;
+
+    /**
+     * 无用户空态引导：当前服务器没有任何用户时，账号行显示「尚未添加用户 · 点击前往添加」，
+     * 点击整行跳转用户管理页（而非弹出一个空下拉——旧交互在这里是指引断链）；
+     * 有用户时恢复正常下拉行为。onCreateView 与 onResume 共用。
+     */
+    private void updateUserGuideState(List<String> usernames) {
+        if (user_dropdown == null || userSection == null) return;
+        if (defaultHintColors == null)
+            defaultHintColors = user_dropdown.getHintTextColors();
+        if (usernames != null && !usernames.isEmpty()) {
+            user_dropdown.setHint(null);
+            user_dropdown.setHintTextColor(defaultHintColors);
+            userSection.setOnClickListener(v -> user_dropdown.showDropDown());
+            user_dropdown.setOnClickListener(v -> user_dropdown.showDropDown());
+        } else {
+            user_dropdown.setHint(R.string.home_no_user_hint);
+            // 主题默认 hint 色是低透明度变体，压在背景图上几乎看不清——
+            // 空态提示必须显眼，改用全强度 onSurface 前景色
+            user_dropdown.setHintTextColor(com.google.android.material.color.MaterialColors
+                    .getColor(user_dropdown, com.google.android.material.R.attr.colorOnSurface));
+            View.OnClickListener jumpToUsers = v -> {
+                if (getActivity() instanceof MainActivity)
+                    ((MainActivity) getActivity()).navigateToPage(1);
+            };
+            userSection.setOnClickListener(jumpToUsers);
+            user_dropdown.setOnClickListener(jumpToUsers);
+        }
+    }
+
+    /**
+     * 无用户守卫：前台/后台运行签到入口共用。无用户时提示并跳转用户管理页，
+     * 返回 true 表示已拦截（调用方不再继续执行）。
+     */
+    private boolean interceptIfNoUser() {
+        if (!viewModel.getCurrentUser().isEmpty()) return false;
+        View root = getView();
+        if (root != null)
+            tools.showCustomSnackbar(root, requireContext(), getString(R.string.home_no_user_hint));
+        if (getActivity() instanceof MainActivity)
+            ((MainActivity) getActivity()).navigateToPage(1);
+        return true;
+    }
+
     /** 启动后台任务前校验：任务已配置、已选用户、通知权限、电池优化豁免，全部通过才拉起 Service。 */
     private void checkAndStartTask(String userId) {
         TaskSettings settings = TaskSettings.fromPreferences(requireContext());
         if (settings.hasAnyTaskDisabled()) {
-            show_error_dialog(requireContext(), getString(R.string.err_set_task_first));
+            show_warning_dialog(requireContext(), getString(R.string.err_set_task_first));
             return;
         }
         if (userId == null || userId.isEmpty()) {
-            show_error_dialog(requireContext(), getString(R.string.msg_select_user_first));
+            show_warning_dialog(requireContext(), getString(R.string.msg_select_user_first));
             return;
         }
 
@@ -651,8 +720,10 @@ public class HomeFragment extends Fragment {
                 if (name == null || statusName == null) return;
                 try {
                     TaskItem.TaskStatus status = TaskItem.TaskStatus.valueOf(statusName);
-                    // 后台服务是这条状态的写入方：已持久化并刷新过小组件，本页只同步 UI 快照
-                    viewModel.applyExternalTaskStatus(name, status);
+                    // 后台服务是这条状态的写入方：已按运行用户持久化并刷新过小组件，本页只同步 UI 快照
+                    // （广播携带运行用户，展示用户不一致时 ViewModel 内部会跳过，防串显）
+                    String user = intent.getStringExtra(ForegroundTaskService.EXTRA_TASK_USER_ID);
+                    viewModel.applyExternalTaskStatus(user, name, status);
                 } catch (IllegalArgumentException ignored) {
                 }
             }
@@ -665,6 +736,7 @@ public class HomeFragment extends Fragment {
         // 更新下拉框中的用户列表（当前用户单一来源为 ViewModel）
         if (userManager != null && user_dropdown != null) {
             viewModel.setCurrentUser(userManager.getCurrentUser());
+            loadUserAvatar();
             String currentUser = viewModel.getCurrentUser();
             boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
             List<String> usernames = userManager.getUsernamesByServerType(isOversea);
@@ -682,6 +754,9 @@ public class HomeFragment extends Fragment {
                 user_dropdown.setText(formatUserLabel(usernames.get(0), isOversea), false);
             else
                 user_dropdown.setText("", false);
+
+            // 从用户管理页添加/删除用户回来后，同步空态引导状态
+            updateUserGuideState(usernames);
         }
 
         // 刷新小组件

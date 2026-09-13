@@ -11,25 +11,14 @@
     android:background="?android:attr/colorBackground"
     tools:ignore="InconsistentLayouts,Overdraw">
 
-    <!-- 背景图片 -->
+    <!-- 背景图片。原均匀白蒙版已移除（与 layout/activity_main.xml 保持成对同步）：
+         淡化改为 MainActivity 解码时的图像预处理（降饱和+按昼夜提亮/压暗）。 -->
     <ImageView
         android:id="@+id/background_image"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:contentDescription="@string/background_image"
         android:scaleType="centerCrop"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- 背景遮罩（MainActivity.setupBackground 会 findViewById，id 不可省） -->
-    <View
-        android:id="@+id/background_mask"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:alpha="0.08"
-        android:background="?attr/colorSurface"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"

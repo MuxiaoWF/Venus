@@ -305,7 +305,7 @@ public class FullscreenImageActivity extends BaseActivity {
             com.muxiao.Venus.common.tools.saveBitmapToGallery(this, bitmap, fileName);
             showCustomSnackbar(rootview, this, getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName));
         } catch (IOException e) {
-            show_error_dialog(this, getString(R.string.err_save_image_failed, e.getMessage()));
+            show_error_dialog(this, getString(R.string.err_save_image_failed, com.muxiao.Venus.common.tools.describeError(e)));
         }
     }
 

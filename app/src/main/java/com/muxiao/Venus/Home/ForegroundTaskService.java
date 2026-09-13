@@ -41,6 +41,8 @@ public class ForegroundTaskService extends Service {
     public static final String ACTION_TASK_STATUS_UPDATED = "com.muxiao.Venus.TASK_STATUS_UPDATED";
     public static final String EXTRA_TASK_NAME = "task_name";
     public static final String EXTRA_TASK_STATUS = "task_status";
+    /** 状态归属的运行用户：后台运行期间切换用户时，HomeFragment 凭此过滤非当前展示用户的状态。 */
+    public static final String EXTRA_TASK_USER_ID = "task_user_id";
 
     private Future<?> currentTaskFuture;
     private NotificationCompat.Builder notificationBuilder;
@@ -49,6 +51,8 @@ public class ForegroundTaskService extends Service {
     private PowerManager.WakeLock wakeLock;
     /** 任务状态写入器：构造含跨日校验，运行期间复用单一实例，避免每条状态重建。 */
     private TaskStatusManager statusManager;
+    /** 本次运行的用户：任务状态按用户分桶，逐条状态写入时按此定位桶。 */
+    private volatile String runningUserId = "";
 
     private static volatile ForegroundTaskService instance;
 
@@ -71,10 +75,11 @@ public class ForegroundTaskService extends Service {
         sendBroadcast(intent);
     }
 
-    /** 向应用内广播单条任务状态变更（task_name + status 枚举名），供 HomeFragment 实时更新列表图标。 */
+    /** 向应用内广播单条任务状态变更（运行用户 + task_name + status 枚举名），供 HomeFragment 实时更新列表图标。 */
     private void broadcastTaskStatus(String taskName, TaskItem.TaskStatus status) {
         Intent intent = new Intent(ACTION_TASK_STATUS_UPDATED);
         intent.setPackage(getPackageName());
+        intent.putExtra(EXTRA_TASK_USER_ID, runningUserId);
         intent.putExtra(EXTRA_TASK_NAME, taskName);
         intent.putExtra(EXTRA_TASK_STATUS, status.name());
         sendBroadcast(intent);
@@ -139,8 +144,17 @@ public class ForegroundTaskService extends Service {
         // 最长10分钟，超时自动释放防止泄漏
         wakeLock.acquire(10 * 60 * 1000L);
 
-        // 记录当前用户供 Widget 显示
-        statusManager.setCurrentUser(userId != null ? userId : "");
+        runningUserId = userId != null ? userId : "";
+        // 新一轮运行：复位该用户桶内全部任务状态（含当日已完成）为未完成。
+        // App 内「开始任务」已由 resetForNewRun 复位过（此处重复复位无副作用），
+        // 但小组件入口（TaskWidgetReceiver）没有对应调用，统一由服务侧复位保证三条入口一致。
+        statusManager.resetTransientStatuses(runningUserId,
+                TaskSettings.fromPreferences(this).getTaskNames(this));
+        // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
+        TaskWidgetProvider.refreshAllWidgets(this);
+
+        // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
+        statusManager.setCurrentUser(runningUserId);
 
         try {
         currentTaskFuture = AppExecutors.get().submit(() -> {
@@ -206,9 +220,9 @@ public class ForegroundTaskService extends Service {
         stopSelf();
     }
 
-    /** 将任务状态持久化到 TaskStatusManager 并刷新小组件。 */
+    /** 将任务状态持久化到运行用户的桶并刷新小组件。 */
     private void saveTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        statusManager.applyStatus(taskName, status);
+        statusManager.applyStatus(runningUserId, taskName, status);
         // 通知 Widget 刷新
         TaskWidgetProvider.refreshAllWidgets(this);
         // 向应用内广播单条任务状态，供 HomeFragment 实时/恢复刷新列表图标
