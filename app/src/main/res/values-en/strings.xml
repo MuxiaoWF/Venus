@@ -104,6 +104,18 @@
     <string name="gacha_fetching">Fetching…</string>
     <string name="gacha_chip_pending">Pending</string>
     <string name="cloud_open_hint">Open cloud page · link captured automatically</string>
+    <!-- VPN capture fetch (HSR gacha link, ported from SRGachaLink) -->
+    <string name="vpn_capture_title">VPN Capture Fetch</string>
+    <string name="vpn_capture_hint">Start local VPN · open gacha records in game to capture</string>
+    <string name="vpn_capture_running_hint">Capturing · tap row to stop</string>
+    <string name="vpn_capture_channel_name">Capture service</string>
+    <string name="vpn_capture_notification_title">Capture service running</string>
+    <string name="vpn_capture_notification_text">Open gacha records page in Star Rail to capture the link</string>
+    <string name="vpn_capture_started">Local VPN started, open the gacha records page in Star Rail</string>
+    <string name="vpn_capture_stopped">Capture stopped</string>
+    <string name="vpn_capture_permission_denied">VPN permission not granted, capture unavailable</string>
+    <string name="vpn_authkey_captured">HSR gacha link captured (%s), copied to clipboard</string>
+    <string name="capture_channel_bili">Bilibili</string>
     <plurals name="run_remaining">
         <item quantity="one">%1$d remaining</item>
         <item quantity="other">%1$d remaining</item>
@@ -143,6 +155,7 @@
     <string name="theme_value_fmt">%1$s · %2$s</string>
     <string name="theme_dynamic">Dynamic</string>
     <string name="skland_403_tip">A 403 error means the game has already been signed in and cannot be signed in again</string>
+    <string name="skland_midnight_tip">Do not run sign–in between 0:00–0:03 (right after midnight); it will fail during this period</string>
     <string name="skland_content_tip">Fill in the content inside the braces from above</string>
     <string name="skland_sign_in">Skland Sign-In</string>
     <string name="star_rail">Star Rail</string>

@@ -7,6 +7,16 @@ android {
     namespace = 'com.muxiao.Venus'
     compileSdk = 37
 
+    // netguard 用户态协议栈（VPN 抓包链路）所需 NDK
+    ndkVersion = "28.2.13676358"
+
+    externalNativeBuild {
+        cmake {
+            path = file('src/main/cpp/CMakeLists.txt')
+            version = '3.22.1'
+        }
+    }
+
     buildFeatures {
         buildConfig = true
     }

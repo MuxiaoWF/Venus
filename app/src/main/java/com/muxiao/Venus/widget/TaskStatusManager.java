@@ -139,8 +139,10 @@ public class TaskStatusManager {
             if (legacy.date.equals(today) && !owner.isEmpty()) {
                 // 当日数据并入用户桶：升级不丢「今天已运行」的完成记录
                 Bucket target = bucketOf(buckets, owner, today);
-                for (Map.Entry<String, String> e : legacy.statuses.entrySet())
-                    target.statuses.putIfAbsent(e.getKey(), e.getValue());
+                for (Map.Entry<String, String> e : legacy.statuses.entrySet()) {
+                    if (!target.statuses.containsKey(e.getKey()))
+                        target.statuses.put(e.getKey(), e.getValue());
+                }
             } else {
                 appendLogSection(logs, owner, legacy);
             }
@@ -252,16 +254,25 @@ public class TaskStatusManager {
     }
 
     /**
-     * 新一轮任务开始前复位指定用户桶：全部任务（含当日已完成）一律复位为 {@link #STATUS_PENDING}，
-     * 使「点击运行 = 开启新一轮」。整桶重建：配置中已去掉的旧任务名随 clear 一并清除。
-     * 当日已完成态仅在「未运行重新进入」时保留；跨天由 {@link #ensureToday()} 另行自动复位。
+     * 新一轮任务开始前复位指定用户桶：仅把「瞬态」复位为 {@link #STATUS_PENDING}——
+     * 进行中（可能来自被杀进程的残留）、已取消（上一轮终止的痕迹）一律归零；
+     * 当日「终态结果」（已完成 / 已签过 / 失败）保留，直到该任务在本轮被真正重跑
+     * （置 IN_PROGRESS）才被覆盖——因此重跑中途终止不会抹掉之前已取得的完成记录。
+     * 逐名重建映射：配置中已去掉的旧任务名随重建一并清除，归属日期刷新为今天。
+     * 跨天由 {@link #ensureToday()} 另行自动复位。
      */
     public void resetTransientStatuses(String userId, java.util.Collection<String> taskNames) {
         ensureToday();
         synchronized (BUCKET_WRITE_LOCK) {
             Bucket b = loadBucket(userId);
-            b.statuses.clear();
-            for (String name : taskNames) b.statuses.put(name, STATUS_PENDING);
+            LinkedHashMap<String, String> next = new LinkedHashMap<>(taskNames.size());
+            for (String name : taskNames) {
+                String prev = b.statuses.get(name);
+                boolean terminal = STATUS_COMPLETED.equals(prev) || STATUS_ERROR.equals(prev)
+                        || STATUS_WARNING.equals(prev);
+                next.put(name, terminal ? prev : STATUS_PENDING);
+            }
+            b.statuses = next;
             b.date = todayString();
             storeBucket(userId, b);
         }
@@ -346,7 +357,11 @@ public class TaskStatusManager {
     /** 归并一段用户的历史日志：同一天的所有用户写进同一个文件，按 "## user=" 分节区分。 */
     private static void appendLogSection(TreeMap<String, StringBuilder> logs, String userId, Bucket b) {
         if (b.statuses.isEmpty() || b.date.isEmpty()) return;
-        StringBuilder sb = logs.computeIfAbsent(b.date, d -> new StringBuilder());
+        StringBuilder sb = logs.get(b.date);
+        if (sb == null) {
+            sb = new StringBuilder();
+            logs.put(b.date, sb);
+        }
         sb.append("## user=").append(userId.isEmpty() ? "(unknown)" : userId).append('\n');
         for (Map.Entry<String, String> e : b.statuses.entrySet())
             sb.append(e.getValue()).append('\t').append(e.getKey()).append('\n');

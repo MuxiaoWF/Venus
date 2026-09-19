@@ -148,6 +148,7 @@ public final class AvatarStore {
 
     private static int exifRotation(Context context, Uri uri) {
         try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            assert in != null;
             int orientation = new ExifInterface(in).getAttributeInt(
                     ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
             switch (orientation) {

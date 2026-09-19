@@ -82,6 +82,15 @@
         android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
+    <!-- 运行时段提醒：新一天刚开启时森空岛签到接口会出错（详见 skland_midnight_tip） -->
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_2"
+        android:text="@string/skland_midnight_tip"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -284,7 +284,8 @@ public class HomeFragment extends Fragment {
             if (!clearLogFile())
                 tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
             tools.writeLogSeparator(requireContext());
-            // 新一轮运行：复位全部任务状态（含已完成）为未完成，避免重跑时先显示旧状态图标
+            // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（已完成/已签过/失败）——
+            // 重跑中各任务被真正执行到时才逐个切回进行中，中途终止不丢之前已完成的记录
             viewModel.resetForNewRun();
             // 记录当前用户供 Widget 显示
             viewModel.persistCurrentUserForWidget();
@@ -683,7 +684,7 @@ public class HomeFragment extends Fragment {
         serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
         serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
         androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
-        // 新一轮运行：复位全部任务状态（含已完成）为未完成，避免重跑时先显示旧状态图标
+        // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（与前台启动口径一致）
         viewModel.resetForNewRun();
         // 单一状态切换取代原 updateBgButtonState(true)：后台按钮文案/可见性由 UiState 派生
         viewModel.setRunMode(HomeViewModel.RunMode.BACKGROUND);

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 任务状态 · 已取消：待执行灰点之上的错误色「×」（旧版为单斜线删除线，× 形更易辨认
+     且与失败态的叉形呼应，仍保留「划掉待执行点」的语义）。
+     覆盖在 status_icon（灰点）之上显示；颜色跟随 ?attr/colorError。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M5,5 L19,19"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="?attr/colorError"
+        android:fillColor="@android:color/transparent" />
+    <path
+        android:pathData="M19,5 L5,19"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="?attr/colorError"
+        android:fillColor="@android:color/transparent" />
+</vector>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 任务状态圈 · 已完成：语义绿容器（@color/status_success_container，昼/夜各一套见 colors(-night).xml）。
+     独立于主题主色——主色同时被「进行中」使用，完成态沿用主色时不易一眼区分，故改用固定语义绿。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/status_success_container" />
+</shape>

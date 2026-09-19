@@ -56,7 +56,7 @@
                         android:layout_height="@dimen/status_icon_size"
                         android:layout_gravity="center"
                         android:contentDescription="@null"
-                        android:src="@drawable/ic_strike_diagonal"
+                        android:src="@drawable/ic_strike_cross"
                         android:visibility="gone" />
                 </FrameLayout>
 

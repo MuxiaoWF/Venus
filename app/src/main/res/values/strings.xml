@@ -101,6 +101,18 @@
     <string name="gacha_fetching">获取中…</string>
     <string name="gacha_chip_pending">待获取</string>
     <string name="cloud_open_hint">打开云游戏页面 · 自动捕获链接</string>
+    <!-- VPN 抓包获取（星铁抽卡链接，复刻 SRGachaLink 链路） -->
+    <string name="vpn_capture_title">VPN 抓包获取</string>
+    <string name="vpn_capture_hint">启动本地 VPN · 游戏内打开抽卡记录页自动捕获</string>
+    <string name="vpn_capture_running_hint">抓包中 · 点击行停止</string>
+    <string name="vpn_capture_channel_name">抓包服务</string>
+    <string name="vpn_capture_notification_title">抓包服务运行中</string>
+    <string name="vpn_capture_notification_text">在星铁中打开抽卡记录页即可捕获链接</string>
+    <string name="vpn_capture_started">已启动本地 VPN，请在星铁内打开抽卡记录页</string>
+    <string name="vpn_capture_stopped">已停止抓包</string>
+    <string name="vpn_capture_permission_denied">未授予 VPN 权限，无法启动抓包</string>
+    <string name="vpn_authkey_captured">已捕获星铁抽卡链接（%s），已复制到剪贴板</string>
+    <string name="capture_channel_bili">B服</string>
     <plurals name="run_remaining">
         <item quantity="other">剩余 %1$d 项</item>
     </plurals>
@@ -146,6 +158,7 @@
     <string name="theme_value_fmt">%1$s · %2$s</string>
     <string name="theme_dynamic">动态取色</string>
     <string name="skland_403_tip">若签到中提示403说明有游戏已经签到过了，无法重复签到</string>
+    <string name="skland_midnight_tip">请勿在 0:00–0:03（新一天刚开始）运行签到，此时签到会出错</string>
     <string name="skland_content_tip">下面填的是上面content大括号里面的东西</string>
     <string name="skland_sign_in">森空岛签到</string>
     <string name="star_rail">星铁</string>

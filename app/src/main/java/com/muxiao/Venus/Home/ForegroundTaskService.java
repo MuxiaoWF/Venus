@@ -145,7 +145,8 @@ public class ForegroundTaskService extends Service {
         wakeLock.acquire(10 * 60 * 1000L);
 
         runningUserId = userId != null ? userId : "";
-        // 新一轮运行：复位该用户桶内全部任务状态（含当日已完成）为未完成。
+        // 新一轮运行：仅复位该用户桶内的「瞬态」（进行中/已取消），保留当日终态
+        // （已完成/已签过/失败）——重跑中途终止不会抹掉之前已完成的记录。
         // App 内「开始任务」已由 resetForNewRun 复位过（此处重复复位无副作用），
         // 但小组件入口（TaskWidgetReceiver）没有对应调用，统一由服务侧复位保证三条入口一致。
         statusManager.resetTransientStatuses(runningUserId,

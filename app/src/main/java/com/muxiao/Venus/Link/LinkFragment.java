@@ -5,7 +5,12 @@ import dagger.hilt.android.AndroidEntryPoint;
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Typeface;
+import android.net.VpnService;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -34,15 +39,62 @@ import android.widget.LinearLayout;
 
 /**
  * 抽卡链接页（命令台来源列表）：原神/绝区零为「点行即获取」，结果与复制长在行下；
- * 云游戏获取为导航行，打开内置 WebView 访问米游社抽卡记录页面，自动拦截含 authkey 的 URL。
+ * 云游戏获取为导航行，打开内置 WebView 访问米游社抽卡记录页面，自动拦截含 authkey 的 URL；
+ * VPN 抓包获取为导航行，启动本地 VPN 后在星铁内打开抽卡记录页，旁路解密 KCP 流量捕获 authkey。
  */
 @AndroidEntryPoint
 public class LinkFragment extends Fragment {
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        tools.setupFragmentTransitions(this);
+    /** VPN 抓包服务授权回调 */
+    private final androidx.activity.result.ActivityResultLauncher<android.content.Intent> vpnLauncher =
+            registerForActivityResult(
+                    new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() == androidx.fragment.app.FragmentActivity.RESULT_OK) {
+                            CaptureService.start(requireContext().getApplicationContext());
+                            View root = getView();
+                            if (root != null)
+                                tools.showCustomSnackbar(root, requireContext().getApplicationContext(),
+                                        getString(R.string.vpn_capture_started));
+                        } else {
+                            View root = getView();
+                            if (root != null)
+                                tools.showCustomSnackbar(root, requireContext().getApplicationContext(),
+                                        getString(R.string.vpn_capture_permission_denied));
+                        }
+                    });
+
+    /** 捕获到 authkey 的广播接收器（CaptureService 发出）：按判定渠道拼对应服务器的抽卡记录 URL */
+    private final BroadcastReceiver authkeyReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!CaptureService.ACTION_GET_AUTHKEY.equals(intent.getAction())) return;
+            String authkey = intent.getStringExtra("authkey");
+            if (authkey == null || authkey.isEmpty()) return;
+            String channel = intent.getStringExtra("channel");
+            View root = getView();
+            if (root == null) return;
+            copyToClipboard(root, context.getApplicationContext(), buildHsrUrl(authkey, channel));
+            tools.showCustomSnackbar(root, context.getApplicationContext(),
+                    getString(R.string.vpn_authkey_captured, channelLabel(channel)));
+        }
+    };
+
+    /** 按渠道拼星铁抽卡记录 URL：B服与国服同 host（game_biz 区分），国际服换 hoyoverse host + 英文 */
+    private String buildHsrUrl(String authkey, String channel) {
+        boolean global = CaptureService.CHANNEL_GLOBAL.equals(channel);
+        String base = global ? com.muxiao.Venus.common.Constants.Urls.HSR_GACHA_URL_GLOBAL
+                : com.muxiao.Venus.common.Constants.Urls.HSR_GACHA_URL_CN;
+        String biz = CaptureService.CHANNEL_BILI.equals(channel) ? "hkrpg_bilibili"
+                : global ? "hkrpg_global" : "hkrpg_cn";
+        return base + android.net.Uri.encode(authkey)
+                + "&game_biz=" + biz + "&page=1&size=20&gacha_type=11&end_id=0";
+    }
+
+    private String channelLabel(String channel) {
+        if (CaptureService.CHANNEL_BILI.equals(channel)) return getString(R.string.capture_channel_bili);
+        if (CaptureService.CHANNEL_GLOBAL.equals(channel)) return getString(R.string.server_os);
+        return getString(R.string.server_cn);
     }
 
     private String currentUserId;
@@ -92,7 +144,48 @@ public class LinkFragment extends Fragment {
         view.findViewById(R.id.src_cloud).setOnClickListener(v ->
                 startActivity(new android.content.Intent(requireContext(), CloudGachaActivity.class)));
 
+        // VPN 抓包获取：启动/停止本地 VPN 抓包服务（导航行，点击切换）
+        view.findViewById(R.id.src_vpn).setOnClickListener(v -> toggleVpnCapture());
+
         return view;
+    }
+
+    /** VPN 抓包导航行：运行中点击停止并恢复提示文案；未运行先申请 VPN 权限再启动服务。 */
+    private void toggleVpnCapture() {
+        android.content.Context appContext =
+                requireContext().getApplicationContext();
+        View root = requireView();
+        android.widget.TextView statusVpn = root.findViewById(R.id.status_vpn);
+        if (CaptureService.running) {
+            CaptureService.stop(appContext);
+            statusVpn.setText(R.string.vpn_capture_hint);
+            tools.showCustomSnackbar(root, appContext, getString(R.string.vpn_capture_stopped));
+        } else {
+            android.content.Intent prepare = VpnService.prepare(appContext);
+            if (prepare == null) {
+                // 已授权过：直接启动
+                CaptureService.start(appContext);
+                statusVpn.setText(R.string.vpn_capture_running_hint);
+                tools.showCustomSnackbar(root, appContext, getString(R.string.vpn_capture_started));
+            } else {
+                vpnLauncher.launch(prepare);
+            }
+        }
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        tools.setupFragmentTransitions(this);
+        // 注册 authkey 广播（应用内广播，not exported）
+        ContextCompat.registerReceiver(requireContext().getApplicationContext(), authkeyReceiver,
+                new IntentFilter(CaptureService.ACTION_GET_AUTHKEY), ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
+    @Override
+    public void onDestroy() {
+        requireContext().getApplicationContext().unregisterReceiver(authkeyReceiver);
+        super.onDestroy();
     }
 
     /** 按 gameType（0=原神, 1=绝区零）拉取抽卡链接：成功行内展示结果，失败则在同一行内就地报错。 */
@@ -375,6 +468,12 @@ public class LinkFragment extends Fragment {
         super.onResume();
         // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
         updateDropdown();
+        // 同步 VPN 抓包行状态（服务可能在其他界面被停止）
+        View root = getView();
+        if (root != null) {
+            ((android.widget.TextView) root.findViewById(R.id.status_vpn)).setText(
+                    CaptureService.running ? R.string.vpn_capture_running_hint : R.string.vpn_capture_hint);
+        }
         if (getView() != null) {
             // 恢复后按当前用户重绘行内结果
             renderGameResult(0);

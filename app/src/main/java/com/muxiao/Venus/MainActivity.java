@@ -576,7 +576,8 @@ public class MainActivity extends BaseActivity {
 
         // 先铺满主题底色，再按图片权重叠上预处理图：out = 预处理图 × w + 底色 × (1-w)。
         // 单次掺合、全不透明输出——不再有第二层 alpha 叠加。
-        Bitmap src = source.getConfig() == Bitmap.Config.HARDWARE
+        Bitmap src = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && source.getConfig() == Bitmap.Config.HARDWARE)
                 ? source.copy(Bitmap.Config.ARGB_8888, false) : source;
         if (src == null) return source;
         Bitmap out = src.copy(Bitmap.Config.ARGB_8888, true);

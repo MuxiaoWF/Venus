@@ -364,6 +364,59 @@
                 app:tint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
+        <!-- VPN 抓包获取：导航行，启动本地 VPN 后在游戏内打开抽卡记录页自动捕获（复刻 SRGachaLink 链路） -->
+        <LinearLayout
+            android:id="@+id/src_vpn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/gap_row">
+
+            <ImageView
+                android:id="@+id/icon_vpn"
+                android:layout_width="@dimen/icon_badge_circle"
+                android:layout_height="@dimen/icon_badge_circle"
+                android:background="@drawable/bg_surface_circle"
+                android:contentDescription="@null"
+                android:padding="@dimen/space_2"
+                android:src="@drawable/ic_link"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_3"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/vpn_capture_title"
+                    android:textAppearance="@style/TextAppearance.Venus.RowTitle" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/status_vpn"
+                    style="@style/TextAppearance.Venus.MonoValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/space_hairline"
+                    android:text="@string/vpn_capture_hint" />
+            </LinearLayout>
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/vpn_capture_title"
+                android:rotation="270"
+                android:src="@drawable/ic_chevron"
+                app:tint="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
         <!-- 错误态不单独立块：无角色 / 获取失败时，由 Java 把错误行直接渲染进
              触发它的那条来源行的结果区（result_genshin / result_zzz），
              就地替换该行的结果内容。如此错误长在出事的那一行下面，

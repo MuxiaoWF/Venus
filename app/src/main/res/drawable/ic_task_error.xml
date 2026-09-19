@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 任务状态 · 失败：大号「×」（仅两条圆头斜线，不含圆）。
+     通用错误图标 ic_error 自带小圆 + 小叉，在 12dp 状态位上叉形过小、且与外层
+     bg_status_circle_pending 描边圈叠成双圈；任务列表改用本图标（外圈独立提供）。
+     strokeColor 为占位色，实际颜色由 TaskAdapter 的 setImageTintList(colorError) 染色。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M6.5,6.5 L17.5,17.5"
+        android:strokeWidth="2"
+        android:strokeColor="@color/selector"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M17.5,6.5 L6.5,17.5"
+        android:strokeWidth="2"
+        android:strokeColor="@color/selector"
+        android:strokeLineCap="round" />
+</vector>

@@ -10,6 +10,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.color.MaterialColors;
@@ -50,6 +51,11 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         int colorPrimary = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0xFF1B6FE0);
         int colorError = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorError, 0xFFB3261E);
         int colorGray = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575);
+        // 完成/警告专用语义绿：独立于主题主色（主色同时被「进行中」使用），
+        // 昼夜两套色值见 colors.xml / values-night/colors.xml 的 status_success 组
+        int colorSuccess = ContextCompat.getColor(context, R.color.status_success);
+        int colorSuccessContainer = ContextCompat.getColor(context, R.color.status_success_container);
+        int colorOnSuccessContainer = ContextCompat.getColor(context, R.color.status_on_success_container);
 
         // 默认隐藏删除线覆盖层，仅 CANCELLED 态显示
         holder.statusIconStrike.setVisibility(View.GONE);
@@ -70,21 +76,20 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 break;
             case COMPLETED:
             case WARNING:
-                // 主题主色容器圈 + 主色 check；右侧「已签」chip（WARNING=已签过，同归已签语义）。
-                // 完成态改用主题主色（colorPrimaryContainer/colorPrimary），替代原独立语义绿：
-                // 绿色语义色饱和度过高在首页过于扎眼，改后随四套主题与动态取色自然融合。
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_primary);
+                // 语义绿容器圈 + 绿色 check；右侧「已签」chip（WARNING=已签过，同归已签语义）。
+                // 完成态用固定语义绿而非主题主色：主色与「进行中」态同源导致完成不显眼，
+                // 且绿=成功的语义与桌面小组件（✓ 用 status_success）保持一致，昼夜自动适配。
+                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_success);
                 holder.statusIcon.setImageResource(R.drawable.ic_check);
-                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorPrimary));
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorSuccess));
                 holder.taskProgress.setVisibility(View.GONE);
                 showChip(holder, R.string.task_chip_done,
-                        MaterialColors.getColor(context, com.google.android.material.R.attr.colorPrimaryContainer, 0xFFEADDFF),
-                        MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnPrimaryContainer, 0xFF21005D));
+                        colorSuccessContainer, colorOnSuccessContainer);
                 break;
             case ERROR:
-                // 描边圈 + 错误色图形；右侧「失败」chip（错误容器底）
+                // 描边圈 + 大号「×」；右侧「失败」chip（错误容器底）
                 holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
-                holder.statusIcon.setImageResource(R.drawable.ic_error);
+                holder.statusIcon.setImageResource(R.drawable.ic_task_error);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorError));
                 holder.taskProgress.setVisibility(View.GONE);
                 showChip(holder, R.string.task_chip_failed,
@@ -92,7 +97,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                         MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnErrorContainer, 0xFF410E0B));
                 break;
             case CANCELLED:
-                // 灰色点 + 高对比删除线（colorError 斜线覆盖，明显可辨）；右侧 mono 已取消
+                // 灰色点 + 错误色「×」覆盖（划掉待执行点，明显可辨）；右侧 mono 已取消
                 holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
                 holder.statusIcon.setImageResource(R.drawable.ic_dot);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorGray));

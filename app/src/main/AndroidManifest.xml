@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 星铁抽卡链接 VPN 抓包（specialUse 前台服务） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!--移除第三方库声明的不需要的权限-->
     <uses-permission
@@ -85,6 +87,21 @@
             android:name=".Home.ForegroundTaskService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 星铁抽卡链接抓包：本地 VPN 旁路镜像 KCP 流量（复刻自 SRGachaLink） -->
+        <service
+            android:name=".Link.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            tools:ignore="VpnServicePolicy">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="tun" />
+        </service>
 
         <!-- 任务状态小组件 -->
         <receiver
