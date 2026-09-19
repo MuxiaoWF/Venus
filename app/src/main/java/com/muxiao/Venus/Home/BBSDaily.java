@@ -94,7 +94,8 @@ public class BBSDaily {
     private void handleCaptchaRequired() {
         Logger.debug("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
         notifier.notifyListeners(context.getString(R.string.bbs_captcha_waiting));
-        notification.sendErrorNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
+        // 点击直达验证流程（后台不再主动拉起 Activity，见 Notification.sendCaptchaNotification）
+        notification.sendCaptchaNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
 
         Map<String, String> headers = getBbsHeaders();
         Map<String, String> geetCode = captchaHelper.getGeetCode();

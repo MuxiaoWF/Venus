@@ -59,6 +59,8 @@ public class CaptchaVerificationHelper {
             @Override
             public void onVerificationFailed(String error) {
                 notifier.notifyListeners(context.getString(R.string.geetest_failed, error));
+                // 上报验证码失败任务名（后台定时链路据此排除出同日重试，见 BackgroundGeetestController）
+                gt3Controller.onCaptchaFailed(taskName);
                 gt3Controller.destroyButton();
                 setGeetCodeAndComplete(null);
             }

@@ -197,6 +197,51 @@
                     android:visibility="gone"
                     app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Venus.Rounded8" />
 
+                <!-- 重试失败任务：仅当日存在 ERROR 状态任务且空闲时显示（可见性由 TaskUiState 派生），
+                     点击只重跑失败任务，不重复执行已完成项 -->
+                <LinearLayout
+                    android:id="@+id/retry_failed"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/touch_target_min"
+                    android:layout_marginTop="@dimen/space_2"
+                    android:background="@drawable/bg_surface_button"
+                    android:tag="glass"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="@dimen/space_4"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:layout_width="@dimen/icon_inline"
+                        android:layout_height="@dimen/icon_inline"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_task_error"
+                        app:tint="@color/status_warning" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_3"
+                        android:text="@string/retry_failed_tasks"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textAppearance="@style/TextAppearance.Venus.Label.Large" />
+
+                    <Space
+                        android:layout_width="0dp"
+                        android:layout_height="@dimen/space_hairline"
+                        android:layout_weight="1" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/retry_failed_count"
+                        style="@style/TextAppearance.Venus.MonoValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/status_warning" />
+                </LinearLayout>
+
                 <LinearLayout
                     android:id="@+id/start_daily_bg"
                     android:layout_width="match_parent"

@@ -194,7 +194,7 @@ public class tools {
         applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
-                throw new RuntimeException(str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
+                throw new HttpStatusCodeException(response.code(), str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
             return readResponseBody(response);
         } catch (Exception e) {
             throw normalizeRequestError(e);
@@ -216,7 +216,7 @@ public class tools {
         applyHeaders(requestBuilder, headers);
         try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
-                throw new RuntimeException(str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
+                throw new HttpStatusCodeException(response.code(), str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
             return readResponseBody(response);
         } catch (Exception e) {
             throw normalizeRequestError(e);

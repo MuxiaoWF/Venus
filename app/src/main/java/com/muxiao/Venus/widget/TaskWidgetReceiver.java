@@ -3,14 +3,17 @@ package com.muxiao.Venus.widget;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 
+import com.muxiao.Venus.Home.DailyTaskWorker;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.common.TaskSettings;
 
@@ -38,10 +41,20 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (!ACTION_RUN_TASKS.equals(intent.getAction())) return;
         // 并发防护：后台服务在跑时 isRunning() 为真；但 App 内「前台任务」不走 Service，
-        // 必须一并检查 HomeFragment.isTaskRunning()，否则前台运行中点小组件会双重并发执行
-        if (ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning()) return;
+        // 必须一并检查 HomeFragment.isTaskRunning()，否则前台运行中点小组件会双重并发执行；
+        // 定时签到执行器同理（无 Service 宿主），三者互斥
+        if (ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning()
+                || DailyTaskWorker.isRunning()) return;
 
         Context localized = LocaleHelper.wrap(context);
+        // 后台任务开关校验：小组件触发与首页「后台运行」走同一条 Service 链路，
+        // 开关关闭时一并拦下，保证「关闭后台任务 = 停止所有 Service 自动化」口径一致
+        SharedPreferences prefs = context.getSharedPreferences(
+                Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(Constants.Prefs.BACKGROUND_TASK_ENABLED, false)) {
+            Toast.makeText(context, localized.getString(R.string.widget_bg_disabled), Toast.LENGTH_SHORT).show();
+            return;
+        }
         // 任务配置校验：与 App 内两条入口的 hasAnyTaskDisabled 检查对齐，避免全部任务关闭时空跑一轮
         if (TaskSettings.fromPreferences(context).hasAnyTaskDisabled()) {
             Toast.makeText(context, localized.getString(R.string.err_set_task_first), Toast.LENGTH_SHORT).show();

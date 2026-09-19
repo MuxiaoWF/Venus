@@ -36,6 +36,8 @@ import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME;
 import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME_VARIANT;
 import static com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
+import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_TIME;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ARKNIGHTS_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENABLED;
@@ -80,11 +82,15 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.google.android.material.slider.Slider;
+import com.google.android.material.timepicker.MaterialTimePicker;
+import com.google.android.material.timepicker.TimeFormat;
+import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
+import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.CollapsibleCardView;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -372,6 +378,56 @@ public class SettingsFragment extends Fragment {
             // 后台运行开启时同步开启通知，关闭时同步关闭
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
             updateNotificationCardValue(isChecked);
+        });
+
+        // 定时签到：开关排程/取消 + 时间行弹出选择器（WorkManager 自链式每日调度）
+        SwitchMaterial scheduledTaskSwitch = notificationView.findViewById(R.id.scheduled_task_switch);
+        MaterialTextView scheduledTimeRow = notificationView.findViewById(R.id.scheduled_task_time_row);
+        boolean scheduledEnabled = sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false);
+        scheduledTaskSwitch.setChecked(scheduledEnabled);
+        scheduledTimeRow.setVisibility(scheduledEnabled ? View.VISIBLE : View.GONE);
+        updateScheduledTimeLabel(scheduledTimeRow);
+        scheduledTaskSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (blockIfTaskRunning(buttonView, isChecked)) return;
+            sharedPreferences.edit().putBoolean(SCHEDULED_TASK_ENABLED, isChecked).apply();
+            // 与后台运行开关同口径：验证码提示通知受通知开关控制，开启定时必须连带开启通知，
+            // 否则定时运行遇到人机验证时用户将收不到任何可点击的入口
+            sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
+            scheduledTimeRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            if (isChecked) {
+                DailyTaskScheduler.applySchedule(requireContext());
+                // 厂商省电是定时任务失准的头号原因：未豁免电池优化时引导一次（不阻断开启）
+                if (!BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
+                    new MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(getString(R.string.dialog_need_battery_optimization))
+                            .setMessage(getString(R.string.msg_scheduled_battery_hint))
+                            .setPositiveButton(getString(R.string.btn_go_to_settings),
+                                    (d, w) -> BatteryHelper.openVendorBatterySettings(requireContext()))
+                            .setNegativeButton(getString(R.string.btn_ignore), null)
+                            .show();
+                }
+            } else {
+                DailyTaskScheduler.cancel(requireContext());
+            }
+        });
+        scheduledTimeRow.setOnClickListener(v -> {
+            int[] time = DailyTaskScheduler.getConfiguredTime(requireContext());
+            MaterialTimePicker picker = new MaterialTimePicker.Builder()
+                    .setTimeFormat(android.text.format.DateFormat.is24HourFormat(requireContext())
+                            ? TimeFormat.CLOCK_24H : TimeFormat.CLOCK_12H)
+                    .setHour(time[0])
+                    .setMinute(time[1])
+                    .setTitleText(getString(R.string.scheduled_time_picker_title))
+                    .build();
+            picker.addOnPositiveButtonClickListener(p -> {
+                String timeStr = String.format(Locale.US, "%02d:%02d", picker.getHour(), picker.getMinute());
+                sharedPreferences.edit().putString(SCHEDULED_TASK_TIME, timeStr).apply();
+                updateScheduledTimeLabel(scheduledTimeRow);
+                // 已开启状态下改时间：立即重排到新时刻
+                if (sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false))
+                    DailyTaskScheduler.applySchedule(requireContext());
+            });
+            picker.show(getChildFragmentManager(), "scheduled_time_picker");
         });
 
         // 关于
@@ -1191,6 +1247,13 @@ public class SettingsFragment extends Fragment {
 
     private void updateNotificationCardValue(boolean enabled) {
         setCardValue(notificationCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+    }
+
+    /** 刷新定时签到时间行文案（每天 HH:mm，值取自 settings_prefs）。 */
+    private void updateScheduledTimeLabel(MaterialTextView row) {
+        int[] time = DailyTaskScheduler.getConfiguredTime(requireContext());
+        row.setText(getString(R.string.scheduled_task_time_fmt,
+                String.format(Locale.US, "%02d:%02d", time[0], time[1])));
     }
 
     private void updateSklandCardValue(boolean enabled) {

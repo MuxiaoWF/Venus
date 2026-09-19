@@ -92,6 +92,18 @@ public class HomeViewModel extends AndroidViewModel {
             return runMode == RunMode.IDLE;
         }
 
+        /**
+         * 重试失败任务按钮：空闲且当日列表中存在失败任务时出现。
+         * 由 items 派生（状态更新发布新快照后自动出现/消失），空闲约束与启动按钮一致，
+         * 避免运行中重入。
+         */
+        public boolean retryButtonVisible() {
+            if (runMode != RunMode.IDLE) return false;
+            for (TaskItem item : items)
+                if (item.getStatus() == TaskItem.TaskStatus.ERROR) return true;
+            return false;
+        }
+
         /** 后台按钮：设置开启且非前台运行时出现。 */
         public boolean bgButtonVisible() {
             return bgFeatureEnabled && runMode != RunMode.FOREGROUND;

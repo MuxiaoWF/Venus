@@ -23,4 +23,42 @@
         android:textAppearance="@style/TextAppearance.Venus.Body.Small"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
+    <!-- 定时签到：开关 + 每日执行时间（开启后显示时间行，点击弹出时间选择器） -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/scheduled_task_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_3"
+        android:checked="false"
+        android:text="@string/enable_scheduled_task"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_1"
+        android:text="@string/scheduled_task_desc"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_1"
+        android:text="@string/scheduled_task_captcha_hint"
+        android:textAppearance="@style/TextAppearance.Venus.Body.Small"
+        android:textColor="@color/status_warning" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/scheduled_task_time_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_1"
+        android:paddingTop="@dimen/space_1"
+        android:paddingBottom="@dimen/space_1"
+        android:clickable="true"
+        android:focusable="true"
+        android:text="@string/scheduled_task_time_placeholder"
+        android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
 </LinearLayout>

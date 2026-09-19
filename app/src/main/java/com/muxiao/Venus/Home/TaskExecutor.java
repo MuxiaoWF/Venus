@@ -30,6 +30,14 @@ public class TaskExecutor {
         void onAllTasksCompleted();
         void onError(String message);
         boolean isCancelled();
+
+        /**
+         * 单任务失败回调（带原始异常）：默认退化为 {@link #onError(String)}。
+         * 需要按失败类别定制重试策略的调用方（定时链路）覆写本方法。
+         */
+        default void onTaskError(String taskName, String message, Throwable cause) {
+            onError(message);
+        }
     }
 
     private final Context context;
@@ -69,25 +77,69 @@ public class TaskExecutor {
      * 全部结束后若未被取消则回调 onAllTasksCompleted()。
      */
     public void executeAll(TaskSettings settings) {
+        executeAll(settings, null);
+    }
+
+    /**
+     * 同 {@link #executeAll(TaskSettings)}，但 onlyNames 非空时只执行名称命中的任务
+     * （「重试失败任务」的部分执行入口）。
+     *
+     * <p>onlyNames 为本地化任务名，与 {@link TaskSettings#getTaskNames(Context)} /
+     * {@code TaskStatusManager} 持久化键同源（同一 getString 口径），因此按名称匹配即可
+     * 精确定位失败项；游戏签到按「单游戏名」粒度过滤，命中的游戏子集交由原有并发逻辑执行。
+     * 候选任务全部被过滤掉时视为无事可做，直接回调完成而非空跑一轮。
+     */
+    public void executeAll(TaskSettings settings, java.util.Set<String> onlyNames) {
+        boolean runAll = onlyNames == null || onlyNames.isEmpty();
         notifier.notifyListeners(context.getString(R.string.task_mgr_start, userId));
         List<Future<?>> futures = new ArrayList<>();
         // 统一线程池（AppExecutors）：米游币签到、游戏签到、森空岛签到可并行。
         // 注意：共享线程池不可 shutdown，取消时改为 future.cancel(true)。
         // 经 AppExecutors.submit() 门面提交：不暴露 ExecutorService（AutoCloseable），
         // 从源头避免 Lint「AutoCloseable used without try-with-resources」误报。
-        if (settings.isDailyEnabled())
+        if (settings.isDailyEnabled()
+                && (runAll || onlyNames.contains(context.getString(R.string.task_name_bbs_daily))))
             futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums())));
-        if (settings.isGameDailyEnabled())
-            futures.add(AppExecutors.get().submit(() -> executeGameDaily(settings.getGameDailyGames())));
-        if (settings.isSklandArknightsEnabled())
+        if (settings.isGameDailyEnabled()) {
+            List<String> games = filterGames(settings.getGameDailyGames(), onlyNames, runAll);
+            if (!games.isEmpty())
+                futures.add(AppExecutors.get().submit(() -> executeGameDaily(games)));
+        }
+        if (settings.isSklandArknightsEnabled() && (runAll
+                || onlyNames.contains(context.getString(R.string.task_name_skland_arknights))))
             futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
-        if (settings.isSklandEndfieldEnabled())
+        if (settings.isSklandEndfieldEnabled() && (runAll
+                || onlyNames.contains(context.getString(R.string.task_name_skland_endfield))))
             futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
 
+        // 过滤后无任何可执行目标（如失败任务已被用户改配置移除）：不空跑，直接走完成回调
+        if (futures.isEmpty()) {
+            if (!callback.isCancelled()) callback.onAllTasksCompleted();
+            return;
+        }
         if (!awaitAll(futures)) return;
         if (!callback.isCancelled()) {
             callback.onAllTasksCompleted();
         }
+    }
+
+    /**
+     * 游戏签到按名称过滤：runAll 时原样返回全部游戏；部分执行时只保留
+     * 「本地化任务名命中 onlyNames」的游戏（返回列表可能为空，由调用方跳过提交）。
+     */
+    private List<String> filterGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
+        List<String> result = new ArrayList<>();
+        if (games == null) return result;
+        for (String game : games) {
+            if (runAll) {
+                result.add(game);
+                continue;
+            }
+            String displayName = MiHoYoBBSConstants.game_to_display_name(context, game);
+            if (onlyNames.contains(context.getString(R.string.task_name_game_sign_in, displayName)))
+                result.add(game);
+        }
+        return result;
     }
 
     /** 取消全部子任务，用于等待过程中被中断/取消时的收尾。 */
@@ -153,7 +205,9 @@ public class TaskExecutor {
                 return;
             }
             callback.onTaskStatusChanged(name, TaskItem.TaskStatus.ERROR);
-            callback.onError(context.getString(R.string.task_failed_format, name, e.getMessage() != null ? e.getMessage() : e.toString()));
+            callback.onTaskError(name,
+                    context.getString(R.string.task_failed_format, name, e.getMessage() != null ? e.getMessage() : e.toString()),
+                    e);
         }
     }
 
@@ -185,12 +239,12 @@ public class TaskExecutor {
      * 请求密度、不改变单游戏节奏；429 限流仍由 {@code BBSGameDaily} 的冷却逻辑兜底。
      * 等待方式与 {@link #executeAll} 一致：任一游戏抛错仅提示不中断其余游戏。
      */
-    private void executeGameDaily(String[] games) {
-        if (games == null || games.length == 0) {
+    private void executeGameDaily(List<String> games) {
+        if (games == null || games.isEmpty()) {
             reportEmptyTargets(R.string.task_game_sign_in, R.string.task_game_sign_in_no_game);
             return;
         }
-        List<Future<?>> futures = new ArrayList<>(games.length);
+        List<Future<?>> futures = new ArrayList<>(games.size());
         for (String gameName : games) {
             if (callback.isCancelled()) break;
             futures.add(GAME_SIGN_POOL.submit(() -> {

@@ -7,7 +7,9 @@ import android.content.res.Configuration;
 import androidx.annotation.NonNull;
 
 import com.google.android.material.color.DynamicColors;
+import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Setting.SettingsFragment;
+import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.LocaleHelper;
 
@@ -73,5 +75,10 @@ public class VenusApplication extends Application {
                 // 预热失败不应影响启动；UI 路径仍有超时回退兜底
             }
         }, "HeaderManager-Prewarm").start();
+
+        // 每日定时签到：进程冷启动时修复调度链。自链式调度（Worker 执行完 APPEND 下一次）
+        // 在进程死亡/清除数据后可能断链，这里以 KEEP 幂等兜底：已有待执行调度则不动作，
+        // 断链则按「当天必跑一次」口径重建（见 DailyTaskScheduler）。
+        AppExecutors.get().execute(() -> DailyTaskScheduler.ensureScheduled(this));
     }
 }

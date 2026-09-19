@@ -118,6 +118,42 @@ public class Notification {
     }
 
     /**
+     * 发送人机验证提示通知（受设置中的通知开关控制），点击直达验证流程：
+     * 内容 Intent 携带 {@link Constants#ACTION_HANDLE_CAPTCHA} 打开 MainActivity，
+     * 由其置位 captcha_pending 标记并自动弹出验证框。
+     * 后台任务已不再主动拉起 Activity（屏幕熄灭时拉起无感知且受系统限制），本通知是
+     * 用户进入验证的唯一入口，因此自动附加强调可点击的提示行。
+     * 复用错误通知 ID：多任务先后触发验证时互相覆盖，不在通知栏堆积。
+     */
+    public void sendCaptchaNotification(String title, String content) {
+        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(NOTIFICATION, false)) return;
+
+        ensureChannels();
+        NotificationManager nm = notificationManager();
+        if (nm == null) return;
+
+        Intent intent = new Intent(context, com.muxiao.Venus.MainActivity.class);
+        intent.setAction(Constants.ACTION_HANDLE_CAPTCHA);
+        intent.putExtra("navigate_to", "home");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent contentIntent = PendingIntent.getActivity(context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ERROR)
+                .setContentTitle(title)
+                .setContentText(content + "\n" + context.getString(R.string.notif_captcha_tap_hint))
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText(content + "\n" + context.getString(R.string.notif_captcha_tap_hint)))
+                .setAutoCancel(true)
+                .setContentIntent(contentIntent)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setSmallIcon(R.drawable.ic_error)
+                .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
+        nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
+    }
+
+    /**
      * 取消并移除错误通知（NOTIFICATION_ID_ERROR）。
      */
     public void dismissErrorNotification() {
@@ -168,6 +204,12 @@ public class Notification {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
         nm.notify(Constants.NOTIFICATION_ID_PROGRESS, completed.build());
+    }
+
+    /** 撤销进度通知（NOTIFICATION_ID_PROGRESS）：定时任务被取消/异常收尾时兜底，避免常驻。 */
+    public void cancelProgressNotification() {
+        NotificationManager nm = notificationManager();
+        if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
     }
 
     /**

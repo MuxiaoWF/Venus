@@ -116,6 +116,8 @@ public class Constants {
         public static final String GAME_DAILY_WEIDING = "game_daily_checkbox_weiding";
         public static final String NOTIFICATION = "notification_switch"; // 通知
         public static final String BACKGROUND_TASK_ENABLED = "background_task_enabled"; // 后台运行
+        public static final String SCHEDULED_TASK_ENABLED = "scheduled_task_enabled"; // 定时签到
+        public static final String SCHEDULED_TASK_TIME = "scheduled_task_time"; // 定时签到执行时间 HH:mm
         public static final String AUTO_UPDATE_ENABLED = "auto_update_enabled"; // 自动更新
         public static final String SKLAND_ENABLED = "skland_enabled";
         public static final String SKLAND_ARKNIGHTS_ENABLED = "skland_arknights_enabled";

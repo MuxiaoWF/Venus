@@ -465,8 +465,8 @@ public class BBSGameDaily {
                         + ";account_id_v2=" + stuid
                         + ";account_mid_v2=" + mid + ";cookie_token=" + cookieToken
                         + ";cookie_token_v2=" + cookieToken + ";mi18nLang=zh-cn;login_ticket=" + loginTicket);
-                // 触发验证码验证
-                notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_captcha_needed));
+                // 触发验证码验证：通知点击直达验证流程（后台不再主动拉起 Activity）
+                notification.sendCaptchaNotification(notifTitle(), context.getString(R.string.game_captcha_needed));
                 report("", context.getString(R.string.game_captcha_needed));
                 captchaHelper.performVerificationWithCallback(recordHeaders, taskName());
                 captchaHelper.waitForCompletion();

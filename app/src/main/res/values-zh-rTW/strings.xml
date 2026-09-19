@@ -23,6 +23,8 @@
     <string name="bengyuanling">崩壞：因緣精靈</string>
     <string name="cache">快取</string>
     <string name="cancel_task">取消任務</string>
+    <string name="retry_failed_tasks">重試失敗任務</string>
+    <string name="retry_failed_count_fmt">失敗 %d 項</string>
     <string name="check_update_github">檢查更新 - Github</string>
     <string name="check_update_pan">網碟更新 密碼mxwf</string>
     <string name="clear_background">清除背景</string>
@@ -43,6 +45,15 @@
     <string name="download">下載</string>
     <string name="download_image">下載圖片</string>
     <string name="enable_background_running">啟用背景執行</string>
+    <!-- 定時簽到 -->
+    <string name="enable_scheduled_task">定時簽到</string>
+    <string name="scheduled_task_desc">每天在設定時間自動於背景執行簽到任務並傳送通知；遇到人機驗證時需回到應用完成驗證</string>
+    <string name="scheduled_task_captcha_hint">建議自動執行不要勾選米遊幣簽到，可以減少被驗證碼中斷的風險</string>
+    <string name="scheduled_task_time_placeholder">每天 07:30</string>
+    <string name="scheduled_task_time_fmt">每天 %s</string>
+    <string name="scheduled_time_picker_title">選擇每天執行時間</string>
+    <string name="msg_scheduled_battery_hint">系統電池最佳化可能延遲或吞掉定時任務。建議在電池設定中將本應用設為「不受限制」，以確保定時任務準點執行。\n\n如看到廠商設定頁面，請將本應用加入不限制名單。</string>
+    <string name="err_scheduled_task_running">定時任務正在執行，請稍後再試</string>
     <string name="enable_feature">啟用功能</string>
     <string name="expand_collapse">展開/收合</string>
     <string name="fullscreen_image">全螢幕圖片</string>
@@ -343,6 +354,7 @@
     <string name="widget_run">執行</string>
     <string name="widget_running">執行中…</string>
     <string name="widget_no_user">請先在應用中登入帳號</string>
+    <string name="widget_bg_disabled">背景執行已關閉，請先在設定中啟用背景執行</string>
     <string name="widget_refresh">重新整理</string>
 
     <!-- Link頁 -->
@@ -368,6 +380,9 @@
     <string name="notif_preparing">準備中…</string>
     <string name="notif_task_failed">任務失敗</string>
     <string name="notif_captcha_failed">人機驗證失敗</string>
+    <string name="notif_captcha_tap_hint">點擊此通知完成人機驗證</string>
+    <string name="notif_captcha_no_retry_title">驗證碼未通過，已停止自動重試</string>
+    <string name="notif_captcha_no_retry_fmt">以下任務需人工驗證後手動重試：%s</string>
 
     <!-- 任務執行器 -->
     <string name="task_mgr_start">任務管理器 開始執行，使用者：%s</string>

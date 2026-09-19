@@ -26,6 +26,7 @@ hilt = "2.60.1"
 
 datastoreRx = "1.2.1"
 rxjava3 = "3.1.12"
+work = "2.11.2"
 
 [libraries]
 ads-identifier = { module = "com.huawei.hms:ads-identifier", version.ref = "adsIdentifier" }
@@ -54,6 +55,7 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 datastore-preferences-rxjava3 = { group = "androidx.datastore", name = "datastore-preferences-rxjava3", version.ref = "datastoreRx" }
 rxjava3 = { group = "io.reactivex.rxjava3", name = "rxjava", version.ref = "rxjava3" }
+androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -23,6 +23,8 @@
     <string name="bengyuanling">Honkai: Twine Anima</string>
     <string name="cache">Cache</string>
     <string name="cancel_task">Cancel Task</string>
+    <string name="retry_failed_tasks">Retry Failed Tasks</string>
+    <string name="retry_failed_count_fmt">%d failed</string>
     <string name="check_update_github">Check Updates - Github</string>
     <string name="check_update_pan">Cloud Update Password: mxwf</string>
     <string name="clear_background">Clear Background</string>
@@ -43,6 +45,15 @@
     <string name="download">Download</string>
     <string name="download_image">Download Image</string>
     <string name="enable_background_running">Enable Background Running</string>
+    <!-- Scheduled sign-in -->
+    <string name="enable_scheduled_task">Scheduled Sign-in</string>
+    <string name="scheduled_task_desc">Runs sign-in tasks automatically in the background at the set time every day and posts notifications; if a captcha appears, you need to return to the app to complete it</string>
+    <string name="scheduled_task_captcha_hint">Tip: leave BBS coin sign-in unchecked for scheduled runs to reduce the risk of captcha interruptions</string>
+    <string name="scheduled_task_time_placeholder">Daily at 07:30</string>
+    <string name="scheduled_task_time_fmt">Daily at %s</string>
+    <string name="scheduled_time_picker_title">Set daily time</string>
+    <string name="msg_scheduled_battery_hint">Battery optimization may delay or drop scheduled tasks. It is recommended to set this app to \"Unrestricted\" in battery settings so scheduled tasks run on time.\n\nIf a vendor settings page shows up, add this app to the unrestricted list.</string>
+    <string name="err_scheduled_task_running">A scheduled task is running, please try again later</string>
     <string name="enable_feature">Enable Feature</string>
     <string name="expand_collapse">Expand/Collapse</string>
     <string name="fullscreen_image">Fullscreen Image</string>
@@ -348,6 +359,7 @@
     <string name="widget_run">Run</string>
     <string name="widget_running">Running…</string>
     <string name="widget_no_user">Please log in to the app first</string>
+    <string name="widget_bg_disabled">Background tasks are disabled. Enable Background Running in Settings first.</string>
     <string name="widget_refresh">Refresh</string>
 
     <!-- Link page -->
@@ -373,6 +385,9 @@
     <string name="notif_preparing">Preparing…</string>
     <string name="notif_task_failed">Task Failed</string>
     <string name="notif_captcha_failed">Captcha verification failed</string>
+    <string name="notif_captcha_tap_hint">Tap this notification to complete the captcha verification</string>
+    <string name="notif_captcha_no_retry_title">Captcha not passed, auto-retry stopped</string>
+    <string name="notif_captcha_no_retry_fmt">Tasks requiring manual retry: %s</string>
 
     <!-- Task executor -->
     <string name="task_mgr_start">Task manager started, user: %s</string>

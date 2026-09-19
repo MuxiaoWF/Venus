@@ -45,6 +45,7 @@ import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import java.io.BufferedReader;
@@ -53,8 +54,10 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 
 /**
@@ -82,6 +85,9 @@ public class HomeFragment extends Fragment {
     private View start_daily_btn;
     private View start_daily_bg_btn;
     private MaterialButton cancel_daily_btn;
+    /** 重试失败任务行：当日存在 ERROR 任务且空闲时显示，点击只重跑失败任务。 */
+    private View retry_failed_btn;
+    private android.widget.TextView retry_failed_count;
     /** 后台运行行内文字（运行中切换为「取消任务」）。 */
     private android.widget.TextView start_daily_bg_text;
     private android.widget.TextView start_daily_hint;
@@ -202,6 +208,8 @@ public class HomeFragment extends Fragment {
         user_dropdown = view.findViewById(R.id.user_dropdown);
         start_daily_btn = view.findViewById(R.id.start_daily);
         cancel_daily_btn = view.findViewById(R.id.cancel_daily);
+        retry_failed_btn = view.findViewById(R.id.retry_failed);
+        retry_failed_count = view.findViewById(R.id.retry_failed_count);
         start_daily_bg_btn = view.findViewById(R.id.start_daily_bg);
         start_daily_bg_text = view.findViewById(R.id.start_daily_bg_text);
         start_daily_hint = view.findViewById(R.id.start_daily_hint);
@@ -280,6 +288,11 @@ public class HomeFragment extends Fragment {
         start_daily_btn.setOnClickListener(v -> {
             // 无用户时引导添加而非运行后报错
             if (interceptIfNoUser()) return;
+            // 定时任务执行中不允许叠加手动运行：两路 TaskExecutor 的状态写入会互相覆盖
+            if (DailyTaskWorker.isRunning()) {
+                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+                return;
+            }
             // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）；属轻微故障，用 Snackbar 而非错误弹窗
             if (!clearLogFile())
                 tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
@@ -328,6 +341,68 @@ public class HomeFragment extends Fragment {
                     taskExecutor.executeAll(settings);
                 } finally {
                     // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复
+                    runOnUi(() -> {
+                        controller.destroyButton();
+                        controller.createUtils();
+                        viewModel.refreshBgFeatureEnabled();
+                        viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                    });
+                }
+            });
+        });
+
+        // 重试失败任务：只重跑当日 ERROR 状态的任务，已完成项不重复执行
+        retry_failed_btn.setOnClickListener(v -> {
+            // 无用户时引导添加（与启动按钮同口径）
+            if (interceptIfNoUser()) return;
+            // 定时任务执行中不允许叠加（两路 TaskExecutor 的状态写入会互相覆盖）
+            if (DailyTaskWorker.isRunning()) {
+                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+                return;
+            }
+            Set<String> failedNames = collectFailedTaskNames();
+            // 按钮可见性由 ERROR 状态派生，正常不会为空；切用户/改配置等竞态下兜底
+            if (failedNames.isEmpty()) return;
+            tools.writeLogSeparator(requireContext());
+
+            // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖为新结果
+            viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
+
+            currentTaskFuture = appExecutors.submit(() -> {
+                try {
+                    TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+                    if (settings.hasAnyTaskDisabled()) {
+                        runOnUi(() -> show_warning_dialog(requireContext(), getString(R.string.err_set_task_first)));
+                        return;
+                    }
+                    android.app.Activity taskActivity = getActivity();
+                    if (taskActivity == null) return;
+                    TaskExecutor taskExecutor = new TaskExecutor(
+                            taskActivity, viewModel.getCurrentUser(), notifier, controller,
+                            new TaskExecutor.Callback() {
+                                @Override
+                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
+                                    updateTaskStatus(taskName, status);
+                                }
+                                @Override
+                                public void onAllTasksCompleted() {
+                                    notifier.notifyListeners(getString(R.string.task_completed));
+                                }
+                                @Override
+                                public void onError(String message) {
+                                    // 捕获时判空：避免 Fragment 已 detach 时 requireContext() 抛异常
+                                    android.app.Activity a = getActivity();
+                                    if (a != null) a.runOnUiThread(() -> show_error_dialog(a, message));
+                                }
+                                @Override
+                                public boolean isCancelled() {
+                                    return isTaskCancelled();
+                                }
+                            });
+                    // 部分执行：TaskExecutor 只提交名称命中的任务（含单游戏粒度）
+                    taskExecutor.executeAll(settings, failedNames);
+                } finally {
+                    // 回到空闲态：可见性由 UiState 派生，重试按钮随 ERROR 清零自动隐藏
                     runOnUi(() -> {
                         controller.destroyButton();
                         controller.createUtils();
@@ -511,12 +586,14 @@ public class HomeFragment extends Fragment {
         boolean cancelVisible = state.cancelButtonVisible();
         boolean startVisible = state.startButtonVisible();
         boolean bgVisible = state.bgButtonVisible();
+        boolean retryVisible = state.retryButtonVisible();
         boolean emptyVisible = state.items.isEmpty();
         boolean visibilityChanged =
                 (userSection != null && userSection.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
                         || (cancel_daily_btn != null && cancel_daily_btn.getVisibility() != (cancelVisible ? View.VISIBLE : View.GONE))
                         || (start_daily_btn != null && start_daily_btn.getVisibility() != (startVisible ? View.VISIBLE : View.GONE))
                         || (start_daily_bg_btn != null && start_daily_bg_btn.getVisibility() != (bgVisible ? View.VISIBLE : View.GONE))
+                        || (retry_failed_btn != null && retry_failed_btn.getVisibility() != (retryVisible ? View.VISIBLE : View.GONE))
                         || (taskListEmptyView != null && taskListEmptyView.getVisibility() != (emptyVisible ? View.VISIBLE : View.GONE));
         if (visibilityChanged && !tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null)
             TransitionManager.beginDelayedTransition(homeContentContainer, new Fade());
@@ -547,6 +624,8 @@ public class HomeFragment extends Fragment {
             start_daily_btn.setVisibility(startVisible ? View.VISIBLE : View.GONE);
         if (start_daily_bg_btn != null)
             start_daily_bg_btn.setVisibility(bgVisible ? View.VISIBLE : View.GONE);
+        if (retry_failed_btn != null)
+            retry_failed_btn.setVisibility(retryVisible ? View.VISIBLE : View.GONE);
         if (start_daily_bg_text != null)
             start_daily_bg_text.setText(state.bgButtonShowsCancel()
                     ? getString(R.string.cancel_task)
@@ -559,10 +638,15 @@ public class HomeFragment extends Fragment {
         // 「已签过」由服务端返回后任务正常走 COMPLETED；WARNING 是等待人机验证的中间态，不计入
         int total = taskList.size();
         int done = 0;
+        int failed = 0;
         for (TaskItem item : taskList) {
             if (item.getStatus() == TaskItem.TaskStatus.COMPLETED)
                 done++;
+            if (item.getStatus() == TaskItem.TaskStatus.ERROR)
+                failed++;
         }
+        if (retry_failed_count != null && retryVisible)
+            retry_failed_count.setText(getString(R.string.retry_failed_count_fmt, failed));
         if (homeSubtitle != null)
             homeSubtitle.setText(getString(R.string.home_subtitle_with_done,
                     getString(R.string.home_subtitle),
@@ -644,6 +728,11 @@ public class HomeFragment extends Fragment {
 
     /** 启动后台任务前校验：任务已配置、已选用户、通知权限、电池优化豁免，全部通过才拉起 Service。 */
     private void checkAndStartTask(String userId) {
+        // 定时任务执行中不允许叠加后台运行：两路 TaskExecutor 的状态写入会互相覆盖
+        if (DailyTaskWorker.isRunning()) {
+            tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+            return;
+        }
         TaskSettings settings = TaskSettings.fromPreferences(requireContext());
         if (settings.hasAnyTaskDisabled()) {
             show_warning_dialog(requireContext(), getString(R.string.err_set_task_first));
@@ -803,6 +892,20 @@ public class HomeFragment extends Fragment {
      */
     public static boolean isTaskRunning() {
         return currentTaskFuture != null && !currentTaskFuture.isDone();
+    }
+
+    /**
+     * 收集当前用户当日 ERROR 状态的任务名（TaskStatusManager 持久化键同源），
+     * 供「重试失败任务」的部分执行入口按名过滤。
+     */
+    private Set<String> collectFailedTaskNames() {
+        String user = viewModel.getCurrentUser();
+        if (user == null || user.isEmpty()) return java.util.Collections.emptySet();
+        Map<String, String> statuses = new TaskStatusManager(requireContext()).getAllStatuses(user);
+        Set<String> failed = new HashSet<>();
+        for (Map.Entry<String, String> e : statuses.entrySet())
+            if (TaskStatusManager.STATUS_ERROR.equals(e.getValue())) failed.add(e.getKey());
+        return failed;
     }
 
     /** 在宿主 Activity 的主线程执行；Fragment 已 detach 时静默忽略（后台线程回传 UI 的统一出口）。 */

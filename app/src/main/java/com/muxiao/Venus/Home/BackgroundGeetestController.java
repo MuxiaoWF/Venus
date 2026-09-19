@@ -1,22 +1,23 @@
 package com.muxiao.Venus.Home;
 
 import android.content.Context;
-import android.content.Intent;
 
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3GeetestUtils;
-import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * 后台人机验证控制器。
- * 遇到验证时直接拉起 MainActivity 完成前台验证，
- * 后台线程阻塞等待验证结果，完成后继续执行任务。
+ * 遇到验证时不再主动拉起 MainActivity（后台/定时运行时屏幕多半是熄的，拉起
+ * 既受 Android 10+ 后台启动 Activity 限制、用户也感知不到）：改为发送可点击的
+ * 验证码通知（见 {@link com.muxiao.Venus.common.Notification#sendCaptchaNotification}，
+ * 点击直达验证流程），后台线程阻塞等待验证结果，完成后继续执行任务。
  * 全局验证状态已收敛到 CaptchaCoordinator 单一协调者（P0-4 解耦）。
  */
 public class BackgroundGeetestController implements GeetestController {
@@ -24,6 +25,12 @@ public class BackgroundGeetestController implements GeetestController {
     private final Context context;
     private final tools.StatusNotifier notifier;
     private GT3GeetestUtils gt3Utils;
+
+    /**
+     * 本次运行中因验证码未通过而失败的任务名（与任务状态持久化键同源）。
+     * 定时链路据此把验证码失败项排除出同日重试名单（改为通知用户手动处理）。
+     */
+    private final Set<String> captchaFailedTasks = new CopyOnWriteArraySet<>();
 
     // 全局验证状态收敛到单一协调者实例（取代原静态 CountDownLatch / pending 状态）
     private static final CaptchaCoordinator coordinator = new DefaultCaptchaCoordinator();
@@ -34,12 +41,22 @@ public class BackgroundGeetestController implements GeetestController {
     }
 
     @Override
+    public void onCaptchaFailed(String taskName) {
+        if (taskName != null) captchaFailedTasks.add(taskName);
+    }
+
+    /** 本次运行中因验证码失败的任务名集合（只读视图语义，调用方勿修改）。 */
+    public Set<String> getCaptchaFailedTasks() {
+        return captchaFailedTasks;
+    }
+
+    @Override
     public void createUtils() {
         gt3Utils = new GT3GeetestUtils(context);
     }
 
     /**
-     * 遇到人机验证时，拉起前台 Activity 完成验证，后台线程阻塞等待结果。
+     * 遇到人机验证时，等待用户经通知进入前台完成验证，后台线程阻塞等待结果。
      * Geetest.geetest() 会同步调用此方法，因此阻塞不会影响其他线程。
      */
     @Override
@@ -48,13 +65,7 @@ public class BackgroundGeetestController implements GeetestController {
         notifier.notifyListeners(context.getString(R.string.geetest_need_verification));
         coordinator.reset();
 
-        // 拉起前台 Activity 进行验证
-        Intent intent = new Intent(context, MainActivity.class);
-        intent.setAction(Constants.ACTION_HANDLE_CAPTCHA);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        context.startActivity(intent);
-
-        // 阻塞后台线程，等待前台验证完成（最多 5 分钟）
+        // 阻塞后台线程，等待用户完成前台验证（最多 5 分钟）
         try {
             Logger.debug("VenusCaptcha", "Background: waiting on latch...");
             coordinator.await();

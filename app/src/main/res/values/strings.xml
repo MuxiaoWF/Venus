@@ -23,6 +23,8 @@
     <string name="bengyuanling">崩缘灵</string>
     <string name="cache">缓存</string>
     <string name="cancel_task">取消任务</string>
+    <string name="retry_failed_tasks">重试失败任务</string>
+    <string name="retry_failed_count_fmt">失败 %d 项</string>
     <string name="check_update_github">检查更新 - Github</string>
     <string name="check_update_pan">网盘更新 密码mxwf</string>
     <string name="clear_background">清除背景</string>
@@ -43,6 +45,15 @@
     <string name="download">下载</string>
     <string name="download_image">下载图片</string>
     <string name="enable_background_running">启用后台运行</string>
+    <!-- 定时签到 -->
+    <string name="enable_scheduled_task">定时签到</string>
+    <string name="scheduled_task_desc">每天在设定时间自动于后台执行签到任务并发送通知；遇到人机验证时需回到应用完成验证</string>
+    <string name="scheduled_task_captcha_hint">建议自动运行不要勾选米游币签到，可以减少被验证码中断的风险</string>
+    <string name="scheduled_task_time_placeholder">每天 07:30</string>
+    <string name="scheduled_task_time_fmt">每天 %s</string>
+    <string name="scheduled_time_picker_title">选择每天执行时间</string>
+    <string name="msg_scheduled_battery_hint">系统电池优化可能延迟或吞掉定时任务。建议在电池设置中将本应用设为\"不受限制\"，以确保定时任务准点执行。\n\n如看到厂商设置页面，请将本应用加入不限制名单。</string>
+    <string name="err_scheduled_task_running">定时任务正在运行，请稍后再试</string>
     <string name="enable_feature">启用功能</string>
     <string name="expand_collapse">展开/收起</string>
     <string name="fullscreen_image">全屏图片</string>
@@ -352,6 +363,7 @@
     <string name="widget_run">运行</string>
     <string name="widget_running">运行中…</string>
     <string name="widget_no_user">请先在应用中登录账号</string>
+    <string name="widget_bg_disabled">后台任务已关闭，请先在设置中启用后台运行</string>
     <string name="widget_refresh">刷新</string>
 
     <!-- Link页 -->
@@ -377,6 +389,9 @@
     <string name="notif_preparing">准备中…</string>
     <string name="notif_task_failed">任务失败</string>
     <string name="notif_captcha_failed">人机验证失败</string>
+    <string name="notif_captcha_tap_hint">点击此通知完成人机验证</string>
+    <string name="notif_captcha_no_retry_title">验证码未通过，已停止自动重试</string>
+    <string name="notif_captcha_no_retry_fmt">以下任务需人工验证后手动重试：%s</string>
 
     <!-- 任务执行器 -->
     <string name="task_mgr_start">任务管理器 开始执行，用户: %s</string>

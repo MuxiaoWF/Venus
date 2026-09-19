@@ -113,3 +113,10 @@
 # Hilt 自带 consumer-rules 已保留大部分生成类；R8 fullMode 下补充 Fragment 上下文包装类，
 # 避免 Hilt 注入的 Fragment 在 release 构建里被误删导致运行时崩溃。
 -keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper
+
+# ---------- WorkManager ----------
+# 库自带 consumer rules 已覆盖 androidx.work 内部类；Worker 实例由 WorkManager 按类名反射创建，
+# 显式保留本项目 Worker 的构造器，防 R8 裁剪/混淆后反射实例化失败。
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
