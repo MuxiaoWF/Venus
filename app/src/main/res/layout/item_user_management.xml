@@ -5,7 +5,7 @@
      重命名入口收敛到信息行点击（保持原 rename_user_dialog 能力）。 -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="@style/Widget.Venus.Card.Outlined"
+    style="@style/Widget.Venus.Card.Glass"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 

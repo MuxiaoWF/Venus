@@ -41,18 +41,23 @@ public class CaptchaVerificationHelper {
      * 先重置 verificationComplete，验证成功时写入 geetCode 并唤醒等待线程；
      * 失败时将 geetCode 置为 null 同样唤醒；结果供 waitForCompletion() 阻塞消费。
      *
+     * <p>等待验证码期间<b>不切换任务状态</b>：任务自 TaskExecutor 起就是 IN_PROGRESS，
+     * 「等待人机验证」属于运行中的一部分，应始终保持 RUNNING 展示
+     * （原实现切 WARNING，而列表将 WARNING 渲染为绿色「已签」，造成
+     * 「遇到验证码即显示完成」的观感错误）。这里仅向日志通知等待/恢复事件。
+     *
      * @param headers  含 Cookie 的请求头，供 API2 二次验证绑定会话
      * @param taskName 任务名，用于状态提示
      */
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
-        gt3Controller.updateTaskStatusWaring(taskName);
+        notifier.notifyListeners(taskName + context.getString(R.string.geetest_waiting));
         Geetest.geetest(context, headers, new GeetestVerificationCallback() {
             @Override
             public void onVerificationSuccess(Map<String, String> code) {
                 notification.dismissErrorNotification();
                 gt3Controller.destroyButton();
-                gt3Controller.updateTaskStatusInProgress(taskName);
+                notifier.notifyListeners(taskName + context.getString(R.string.geetest_done));
                 setGeetCodeAndComplete(code);
             }
 

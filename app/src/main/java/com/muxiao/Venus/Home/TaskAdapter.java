@@ -17,6 +17,7 @@ import com.google.android.material.color.MaterialColors;
 import com.google.android.material.listitem.ListItemViewHolder;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 
 import java.util.HashSet;
@@ -60,6 +61,17 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         // 默认隐藏删除线覆盖层，仅 CANCELLED 态显示
         holder.statusIconStrike.setVisibility(View.GONE);
 
+        // 状态圆液态玻璃化（「玻璃底 + 语义色描边」方案）：玻璃恒为玻璃，
+        // 状态由语义色描边 + 图标 tint 承载，不再整块换填充色。
+        // 回退底固定为描边圈（无背景图时保留圈形），语义描边在玻璃/回退两模式下都绘制。
+        if (holder.statusLens == null) {
+            holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+            LensGlassDrawable.apply(holder.statusCircle, -1f);
+            holder.statusLens = (LensGlassDrawable) holder.statusCircle.getBackground();
+        }
+        int colorOutlineVariant = MaterialColors.getColor(context,
+                com.google.android.material.R.attr.colorOutlineVariant, 0xFFE0E0E0);
+
         // 状态圈圈底 + 状态图形 + 右侧状态（终态=chip，过程态=mono 文案），对齐设计稿状态语义
         holder.taskProgress.setVisibility(View.VISIBLE);
         holder.taskProgress.setBackground(null);
@@ -67,19 +79,32 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         holder.taskStatusChip.setVisibility(View.GONE);
         switch (task.getStatus()) {
             case IN_PROGRESS:
-                // 主色环 + 主色点；右侧 mono RUNNING（设计稿活状态）
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_running);
+            case WARNING:
+                // 主色环 + 主色点；右侧 mono RUNNING（设计稿活状态）。
+                // WARNING 仅来自旧版本残留的持久化数据（等待验证码曾短暂写入 warning，
+                // 现已改为全程保持 IN_PROGRESS），按进行中渲染以避免误显示为已完成。
+                holder.statusLens.setSemanticStrokeColor(colorPrimary);
                 holder.statusIcon.setImageResource(R.drawable.ic_dot);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorPrimary));
                 holder.taskProgress.setText(R.string.task_status_running);
                 holder.taskProgress.setTextColor(colorPrimary);
                 break;
+            case RETAINED:
+                // 「沿用上次结果」展示态：描边圈 + 绿色 check +「沿用」chip。
+                // 与 COMPLETED 的语义绿描边区分——表示当日已完成，但本轮运行尚未执行到，
+                // 绿色结果系沿用上一次；执行到时会先切 RUNNING 再恢复语义绿描边。
+                holder.statusLens.setSemanticStrokeColor(colorOutlineVariant);
+                holder.statusIcon.setImageResource(R.drawable.ic_check);
+                holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorSuccess));
+                holder.taskProgress.setVisibility(View.GONE);
+                showChip(holder, R.string.task_chip_retained,
+                        colorSuccessContainer, colorOnSuccessContainer);
+                break;
             case COMPLETED:
-            case WARNING:
-                // 语义绿容器圈 + 绿色 check；右侧「已签」chip（WARNING=已签过，同归已签语义）。
+                // 语义绿描边 + 绿色 check；右侧「已签」chip。
                 // 完成态用固定语义绿而非主题主色：主色与「进行中」态同源导致完成不显眼，
                 // 且绿=成功的语义与桌面小组件（✓ 用 status_success）保持一致，昼夜自动适配。
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_success);
+                holder.statusLens.setSemanticStrokeColor(colorSuccess);
                 holder.statusIcon.setImageResource(R.drawable.ic_check);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorSuccess));
                 holder.taskProgress.setVisibility(View.GONE);
@@ -87,8 +112,8 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                         colorSuccessContainer, colorOnSuccessContainer);
                 break;
             case ERROR:
-                // 描边圈 + 大号「×」；右侧「失败」chip（错误容器底）
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+                // 错误红描边 + 大号「×」；右侧「失败」chip（错误容器底）
+                holder.statusLens.setSemanticStrokeColor(colorError);
                 holder.statusIcon.setImageResource(R.drawable.ic_task_error);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorError));
                 holder.taskProgress.setVisibility(View.GONE);
@@ -97,8 +122,8 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                         MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnErrorContainer, 0xFF410E0B));
                 break;
             case CANCELLED:
-                // 灰色点 + 错误色「×」覆盖（划掉待执行点，明显可辨）；右侧 mono 已取消
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+                // 灰点 + 错误色「×」覆盖（划掉待执行点，明显可辨）；右侧 mono 已取消
+                holder.statusLens.setSemanticStrokeColor(colorOutlineVariant);
                 holder.statusIcon.setImageResource(R.drawable.ic_dot);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorGray));
                 holder.statusIconStrike.setVisibility(View.VISIBLE);
@@ -107,7 +132,7 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 break;
             default: // PENDING
                 // 描边圈 + 灰点；右侧 mono PENDING
-                holder.statusCircle.setBackgroundResource(R.drawable.bg_status_circle_pending);
+                holder.statusLens.setSemanticStrokeColor(colorOutlineVariant);
                 holder.statusIcon.setImageResource(R.drawable.ic_dot);
                 holder.statusIcon.setImageTintList(ColorStateList.valueOf(colorGray));
                 holder.taskProgress.setText(R.string.task_status_pending);
@@ -120,7 +145,43 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         // M3 List-Item 位置状态：首/中/尾/单 自动应用 M3 圆角与选中背景
         holder.bind(position, getItemCount());
 
+        // 状态切换强调动效：同一 holder 上一次绑定的任务与状态均已知、且状态发生变化时，
+        // 状态图标做轻微 scale-in（M3：进入元素 emphasized-decelerate），
+        // 让 RUNNING → 已签/失败 的状态跃迁可被感知。
+        // 滚动复用（onViewRecycled 后重绑）与首次入场不重放；尊重「减少动态效果」。
+        boolean statusChanged = task.getName().equals(holder.boundTaskName)
+                && holder.boundStatus != null && holder.boundStatus != task.getStatus();
+        holder.boundTaskName = task.getName();
+        holder.boundStatus = task.getStatus();
+        if (statusChanged && !tools.isReducedMotionEnabled(context)) {
+            holder.statusIcon.setAlpha(0f);
+            holder.statusIcon.setScaleX(0.6f);
+            holder.statusIcon.setScaleY(0.6f);
+            holder.statusIcon.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(context.getResources().getInteger(R.integer.motion_duration_medium))
+                    .setInterpolator(AnimationUtils.loadInterpolator(context, R.anim.emphasized_decelerate))
+                    .start();
+        }
+
         animateEnter(holder, position, context);
+    }
+
+    /**
+     * 回收回池前重置绑定踪迹与图标变换残留，防止复用后：
+     * 1) 残留 scale/alpha 动画中间态；
+     * 2) boundTaskName 记账过期导致新位置误触发状态切换动效。
+     */
+    @Override
+    public void onViewRecycled(@NonNull TaskViewHolder holder) {
+        holder.boundTaskName = null;
+        holder.boundStatus = null;
+        holder.statusIcon.setAlpha(1f);
+        holder.statusIcon.setScaleX(1f);
+        holder.statusIcon.setScaleY(1f);
+        super.onViewRecycled(holder);
     }
 
     /** 终态右侧 chip：设置文案、底色与文字色后显示。
@@ -153,7 +214,12 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
                 .translationY(0f)
                 .setDuration(context.getResources().getInteger(R.integer.motion_duration_medium))
                 .setInterpolator(AnimationUtils.loadInterpolator(context, R.anim.emphasized_decelerate))
-                .withEndAction(() -> animated.add(position))
+                // 结束回调里经 holder 反查当前位置记账（不捕获绑定期的 position：
+                // 数据刷新后旧位置即失效，RecyclerAdapter 检查亦要求动态反查）
+                .withEndAction(() -> {
+                    int animatedPosition = holder.getBindingAdapterPosition();
+                    if (animatedPosition != RecyclerView.NO_POSITION) animated.add(animatedPosition);
+                })
                 .start();
     }
 
@@ -170,6 +236,13 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         private final ImageView statusIconStrike;
         private final FrameLayout statusCircle;
         private final View itemDivider;
+        /** 状态圆的透镜（首次绑定时安装，复用期间只换语义描边色）。 */
+        LensGlassDrawable statusLens;
+        // 状态切换动效记账：上次绑定的任务名与状态（onViewRecycled 时重置）。
+        // 用任务名而非 position 做条目身份：position 在数据刷新后会漂移，
+        // 存入 holder 跨绑定使用属「把 position 当固定值」的反模式（lint RecyclerView）。
+        String boundTaskName = null;
+        TaskItem.TaskStatus boundStatus = null;
 
         public TaskViewHolder(@NonNull View itemView) {
             super(itemView);

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ViewStub 展开目标：云游戏页 WebView。
+     单独成文件以便由 ViewStub 延迟展开（见 activity_cloud_gacha.xml 注释）。 -->
+<WebView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/webView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />

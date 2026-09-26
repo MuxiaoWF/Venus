@@ -19,12 +19,14 @@ import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * HomeFragment 的 UI 状态持有者（Now in Android：ViewModel + 不可变 UiState + 单向数据流，P0-2）。
+ * HomeFragment 的 UI 状态持有者（Now in Android：ViewModel + 不可变 UiState + 单向数据流）。
  *
- * <p>本轮（P0-2 阶段 2）把原先散落在 Fragment 的三类职责收进 ViewModel：
+ * <p>本类把原先散落在 Fragment 的三类职责收进 ViewModel：
  * <ol>
  *   <li><b>数据访问</b>：任务列表构建（TaskSettings + TaskStatusManager）与任务状态持久化，
  *       Fragment 不再直接 new TaskStatusManager / 读 SharedPreferences；</li>
@@ -128,6 +130,14 @@ public class HomeViewModel extends AndroidViewModel {
     /** 当前选中用户（单一可信来源，供任务状态持久化使用）。 */
     private volatile String currentUser = "";
 
+    /**
+     * 本轮运行中已收到过状态回调的任务名（收到任意状态回调即视为「本轮已执行到」）。
+     * 运行期间凡 COMPLETED 且不在本集合中的任务，按 {@code RETAINED} 展示——
+     * 绿色结果沿用上一次运行，与本轮重签成功的实心绿区分（见 TaskItem.TaskStatus.RETAINED）。
+     * 由 {@link #beginRun()} 在每轮开始时清空，跨轮不残留。
+     */
+    private final Set<String> touchedTasks = new HashSet<>();
+
     public HomeViewModel(@NonNull Application application) {
         super(application);
         state = new TaskUiState(new ArrayList<>(), RunMode.IDLE, readBgFeatureEnabled());
@@ -163,6 +173,23 @@ public class HomeViewModel extends AndroidViewModel {
         return currentUser;
     }
 
+    /** 新一轮运行开始（前台启动/重试失败/后台启动）时调用：清空触达集合。 */
+    public void beginRun() {
+        touchedTasks.clear();
+    }
+
+    /**
+     * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本轮未触达的任务，以 RETAINED 展示。
+     * RETAINED 仅为展示态——持久化与回调链路始终使用原始状态，回到 IDLE 后自然还原为绿色。
+     */
+    private TaskItem.TaskStatus deriveDisplayStatus(String taskName, TaskItem.TaskStatus status) {
+        if (status == TaskItem.TaskStatus.COMPLETED
+                && current().runMode != RunMode.IDLE
+                && !touchedTasks.contains(taskName))
+            return TaskItem.TaskStatus.RETAINED;
+        return status;
+    }
+
     public void setCurrentUser(String user) {
         currentUser = user != null ? user : "";
     }
@@ -184,7 +211,13 @@ public class HomeViewModel extends AndroidViewModel {
     public void applyBackgroundRunning(boolean backgroundRunning) {
         RunMode mode = current().runMode;
         if (mode == RunMode.FOREGROUND) return;
+        // IDLE → BACKGROUND 意味着页面外（如小组件）启动了新一轮运行，
+        // 与手动入口的 beginRun 同口径清空触达集合
+        if (backgroundRunning && mode == RunMode.IDLE) touchedTasks.clear();
         setRunMode(backgroundRunning ? RunMode.BACKGROUND : RunMode.IDLE);
+        // 形态切换后重建列表：进入 BACKGROUND 时把未触达的已完成项派生为 RETAINED，
+        // 回到 IDLE 时清除 RETAINED、恢复持久层原状（itemsEqual 保证无变化时不发布）
+        refreshTaskItems();
     }
 
     /**
@@ -199,6 +232,9 @@ public class HomeViewModel extends AndroidViewModel {
         publish(current()
                 .withRunMode(mode)
                 .withBgFeatureEnabled(readBgFeatureEnabled()));
+        // onResume 对齐运行形态后重建列表：运行中回到本页时，
+        // 未触达的已完成任务按 RETAINED 展示（触达集合随 ViewModel 实例存活，进程内存活期内准确）
+        refreshTaskItems();
     }
 
     /** 重新读取「后台任务」设置项（设置页可能已变更）。 */
@@ -259,7 +295,8 @@ public class HomeViewModel extends AndroidViewModel {
         // 状态按用户分桶：列表始终反映当前选中用户自己的完成情况
         for (String taskName : settings.getTaskNames(context)) {
             TaskItem item = new TaskItem(taskName);
-            item.setStatus(TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, taskName)));
+            item.setStatus(deriveDisplayStatus(taskName,
+                    TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, taskName))));
             items.add(item);
         }
         return items;
@@ -271,6 +308,8 @@ public class HomeViewModel extends AndroidViewModel {
      * 可从任意线程调用（内部用 postValue）。
      */
     public void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
+        // 收到回调即视为本轮已触达：该任务此后恢复原始状态展示（不再 RETAINED）
+        touchedTasks.add(taskName);
         persistTaskStatus(taskName, status);
         applyExternalTaskStatus(currentUser, taskName, status);
         TaskWidgetProvider.refreshAllWidgets(getApplication());
@@ -289,6 +328,9 @@ public class HomeViewModel extends AndroidViewModel {
      *               {@link #refreshTaskItems()} 会从 A 的桶重新渲染实时进度
      */
     public void applyExternalTaskStatus(String userId, String taskName, TaskItem.TaskStatus status) {
+        // 任何状态回调都意味着本轮已执行到该任务：先于展示用户判断打点，
+        // 保证后台运行 A 期间切到 B 再切回时，A 已重跑过的任务不会被误标 RETAINED
+        touchedTasks.add(taskName);
         // 展示用户 ≠ 运行用户时跳过：避免后台运行中切换用户后，A 的进度按任务名混入 B 的列表
         String owner = userId == null ? "" : userId;
         if (!owner.equals(currentUser)) return;
@@ -297,7 +339,8 @@ public class HomeViewModel extends AndroidViewModel {
         List<TaskItem> updated = new ArrayList<>(snapshot.items.size());
         for (TaskItem old : snapshot.items) {
             TaskItem copy = new TaskItem(old.getName());
-            copy.setStatus(old.getName().equals(taskName) ? status : old.getStatus());
+            copy.setStatus(old.getName().equals(taskName)
+                    ? deriveDisplayStatus(taskName, status) : old.getStatus());
             updated.add(copy);
         }
         publishAsync(snapshot.withItems(updated));

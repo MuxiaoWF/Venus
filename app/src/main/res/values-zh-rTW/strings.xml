@@ -49,7 +49,7 @@
     <string name="enable_scheduled_task">定時簽到</string>
     <string name="scheduled_task_desc">每天在設定時間自動於背景執行簽到任務並傳送通知；遇到人機驗證時需回到應用完成驗證</string>
     <string name="scheduled_task_captcha_hint">建議自動執行不要勾選米遊幣簽到，可以減少被驗證碼中斷的風險</string>
-    <string name="scheduled_task_time_placeholder">每天 07:30</string>
+    <string name="scheduled_task_time_label">執行時刻</string>
     <string name="scheduled_task_time_fmt">每天 %s</string>
     <string name="scheduled_time_picker_title">選擇每天執行時間</string>
     <string name="msg_scheduled_battery_hint">系統電池最佳化可能延遲或吞掉定時任務。建議在電池設定中將本應用設為「不受限制」，以確保定時任務準點執行。\n\n如看到廠商設定頁面，請將本應用加入不限制名單。</string>
@@ -60,6 +60,8 @@
     <string name="gacha_link_subtitle">點擊遊戲行取得連結</string>
     <string name="gacha_link_title">抽卡連結</string>
     <string name="gacha_login_prompt">請在網頁中登入並開啟抽卡紀錄頁面</string>
+    <string name="cloud_load_failed">網頁載入失敗，請檢查網路後重試</string>
+    <string name="cloud_retry">重試</string>
     <string name="miyoushe_coin_sign_in">米遊幣簽到</string>
     <string name="game_sign_in">遊戲簽到</string>
     <string name="genshin_impact">原神</string>
@@ -116,15 +118,17 @@
     <string name="gacha_chip_pending">待獲取</string>
     <string name="cloud_open_hint">打開雲遊戲頁面 · 自動捕獲連結</string>
     <!-- VPN 擷取（星鐵抽卡連結，復刻 SRGachaLink 鏈路） -->
-    <string name="vpn_capture_title">VPN 擷取</string>
-    <string name="vpn_capture_hint">啟動本機 VPN · 遊戲內開啟抽卡記錄頁自動捕獲</string>
+    <string name="vpn_capture_title">VPN 擷取（星鐵）</string>
+    <string name="vpn_capture_hint">僅星鐵：先開啟擷取，再重新啟動遊戲並開啟抽卡記錄頁</string>
     <string name="vpn_capture_running_hint">擷取中 · 點擊行停止</string>
     <string name="vpn_capture_channel_name">擷取服務</string>
     <string name="vpn_capture_notification_title">擷取服務執行中</string>
     <string name="vpn_capture_notification_text">在星鐵中開啟抽卡記錄頁即可捕獲連結</string>
-    <string name="vpn_capture_started">本機 VPN 已啟動，請在星鐵內開啟抽卡記錄頁</string>
+    <string name="vpn_capture_started">本機 VPN 已啟動，請重新啟動星鐵後開啟抽卡記錄頁</string>
     <string name="vpn_capture_stopped">已停止擷取</string>
     <string name="vpn_capture_permission_denied">未授予 VPN 權限，無法啟動擷取</string>
+    <string name="vpn_capture_updating">初始金鑰缺失，正在從雲端更新金鑰表，擷取繼續…</string>
+    <string name="vpn_capture_failed_key">未捕獲：雲端金鑰表暫未收錄當前遊戲版本，請稍後重試</string>
     <string name="vpn_authkey_captured">已捕獲星鐵抽卡連結（%s），已複製到剪貼簿</string>
     <string name="capture_channel_bili">B服</string>
     <plurals name="run_remaining">
@@ -143,6 +147,7 @@
     <string name="user_chip_default">預設</string>
     <string name="task_chip_done">已簽</string>
     <string name="task_chip_failed">失敗</string>
+    <string name="task_chip_retained">沿用</string>
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">已取消</string>

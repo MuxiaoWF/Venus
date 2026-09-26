@@ -16,9 +16,11 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.transition.ChangeBounds;
 import android.transition.Fade;
 import android.transition.TransitionManager;
-import android.widget.ArrayAdapter;
+import android.transition.TransitionSet;
+import android.view.animation.AnimationUtils;
 import android.widget.LinearLayout;
 
 import androidx.fragment.app.Fragment;
@@ -40,10 +42,13 @@ import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.HeaderManager;
+import com.muxiao.Venus.common.BottomBarOverlay;
+import com.muxiao.Venus.common.LensGlassDrawable;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.common.UserDropdownAdapter;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
@@ -96,6 +101,9 @@ public class HomeFragment extends Fragment {
     private android.widget.TextView taskDoneLabel;
     /** 账号上下文区块（标签 + 下拉行整体），运行期间按 UiState 隐藏。 */
     private View userSection;
+    /** 账号小标题与区块下分割线：随 user_section 一起隐藏（否则运行中残留孤儿标题/悬空线）。 */
+    private View accountSectionLabel;
+    private View userSectionDivider;
     /** 当前用户头像：有自定义图则圆形加载，否则显示默认人像图标。 */
     private android.widget.ImageView homeUserAvatar;
     private TaskAdapter taskAdapter;
@@ -181,16 +189,6 @@ public class HomeFragment extends Fragment {
                 gt3GeetestUtils = null;
             }
         }
-
-        @Override
-        public void updateTaskStatusWaring(String taskName) {
-            updateTaskStatus(taskName, TaskItem.TaskStatus.WARNING);
-        }
-
-        @Override
-        public void updateTaskStatusInProgress(String taskName) {
-            updateTaskStatus(taskName, TaskItem.TaskStatus.IN_PROGRESS);
-        }
     };
 
     /** 构建主页 UI：绑定视图、初始化下拉框/任务列表、注册按钮与日志查看；并以 ViewModel 单向数据流渲染。 */
@@ -199,13 +197,24 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
+        // 液态玻璃透镜接管（模仿 AndroidLiquidGlass）：有背景图时 chip/行显示真实模糊底衬
+        // + 高光光边（无图回退原渐变蒙版）；须在 applyGlassAlpha 之前，透镜视图跳过降透明
+        LensGlassDrawable.apply(view.findViewById(R.id.home_date_chip),
+                getResources().getDimension(R.dimen.shape_corner_xxs));
+        LensGlassDrawable.apply(view.findViewById(R.id.start_daily_bg),
+                getResources().getDimension(R.dimen.shape_corner_xs));
+        LensGlassDrawable.apply(view.findViewById(R.id.retry_failed),
+                getResources().getDimension(R.dimen.shape_corner_xs));
+
         // 背景图玻璃感收口：标记 glass 的表面行/chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
         tools.applyGlassAlpha(requireContext(), view);
 
-        // ViewModel 作为 UI 状态单一可信数据源（P0-2）
+        // ViewModel 作为 UI 状态单一可信数据源
         viewModel = new ViewModelProvider(this).get(HomeViewModel.class);
 
         user_dropdown = view.findViewById(R.id.user_dropdown);
+        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        BottomBarOverlay.attachClearance(view.findViewById(R.id.home_scroll));
         start_daily_btn = view.findViewById(R.id.start_daily);
         cancel_daily_btn = view.findViewById(R.id.cancel_daily);
         retry_failed_btn = view.findViewById(R.id.retry_failed);
@@ -220,6 +229,8 @@ public class HomeFragment extends Fragment {
         taskListEmptyView = view.findViewById(R.id.task_list_empty_view);
         geetestContainer = view.findViewById(R.id.geetest_container);
         userSection = view.findViewById(R.id.user_section);
+        accountSectionLabel = view.findViewById(R.id.account_section_label);
+        userSectionDivider = view.findViewById(R.id.user_section_divider);
         homeUserAvatar = view.findViewById(R.id.home_user_avatar);
         homeContentContainer = view.findViewById(R.id.home_content_container);
 
@@ -244,11 +255,8 @@ public class HomeFragment extends Fragment {
         // 初始化下拉框
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
         List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-        user_dropdown.setAdapter(new ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
-                usernames
-        ));        // 设置当前用户为默认选中项（当前用户由 ViewModel 持有，避免 Fragment 与 VM 双份真相）
+        // 下拉展开列表每项带头像：复用账号体系 AvatarStore（与账号行/抽卡页同一套）
+        user_dropdown.setAdapter(new UserDropdownAdapter(requireContext(), usernames));        // 设置当前用户为默认选中项（当前用户由 ViewModel 持有，避免 Fragment 与 VM 双份真相）
         String initialUser = userManager.getCurrentUser();
         if (!initialUser.isEmpty() && usernames.contains(initialUser)) {
             viewModel.setCurrentUser(initialUser);
@@ -303,8 +311,11 @@ public class HomeFragment extends Fragment {
             // 记录当前用户供 Widget 显示
             viewModel.persistCurrentUserForWidget();
 
-            // 单一状态切换取代原先 4 处 setVisibility：可见性由 TaskUiState 派生
+            // 新一轮运行：清空触达集合后切 FOREGROUND 并重建列表，
+            // 未触达的已完成任务派生为「沿用上次结果」展示态（RETAINED）
+            viewModel.beginRun();
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
+            viewModel.refreshTaskItems();
 
             currentTaskFuture = appExecutors.submit(() -> {
                 try {
@@ -339,13 +350,15 @@ public class HomeFragment extends Fragment {
                                 }
                             });
                     taskExecutor.executeAll(settings);
-                } finally {
-                    // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复
+                }                 finally {
+                    // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复；
+                    // 重建列表清除 RETAINED 展示态，恢复持久层原状
                     runOnUi(() -> {
                         controller.destroyButton();
                         controller.createUtils();
                         viewModel.refreshBgFeatureEnabled();
                         viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                        viewModel.refreshTaskItems();
                     });
                 }
             });
@@ -365,8 +378,11 @@ public class HomeFragment extends Fragment {
             if (failedNames.isEmpty()) return;
             tools.writeLogSeparator(requireContext());
 
-            // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖为新结果
+            // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖为新结果。
+            // 清空触达集合后重建列表：未触达的已完成任务在重试期间按「沿用上次结果」展示
+            viewModel.beginRun();
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
+            viewModel.refreshTaskItems();
 
             currentTaskFuture = appExecutors.submit(() -> {
                 try {
@@ -401,13 +417,15 @@ public class HomeFragment extends Fragment {
                             });
                     // 部分执行：TaskExecutor 只提交名称命中的任务（含单游戏粒度）
                     taskExecutor.executeAll(settings, failedNames);
-                } finally {
-                    // 回到空闲态：可见性由 UiState 派生，重试按钮随 ERROR 清零自动隐藏
+                }                 finally {
+                    // 回到空闲态：可见性由 UiState 派生，重试按钮随 ERROR 清零自动隐藏；
+                    // 重建列表清除 RETAINED 展示态，恢复持久层原状
                     runOnUi(() -> {
                         controller.destroyButton();
                         controller.createUtils();
                         viewModel.refreshBgFeatureEnabled();
                         viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                        viewModel.refreshTaskItems();
                     });
                 }
             });
@@ -590,13 +608,41 @@ public class HomeFragment extends Fragment {
         boolean emptyVisible = state.items.isEmpty();
         boolean visibilityChanged =
                 (userSection != null && userSection.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
+                        || (accountSectionLabel != null && accountSectionLabel.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
+                        || (userSectionDivider != null && userSectionDivider.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
                         || (cancel_daily_btn != null && cancel_daily_btn.getVisibility() != (cancelVisible ? View.VISIBLE : View.GONE))
                         || (start_daily_btn != null && start_daily_btn.getVisibility() != (startVisible ? View.VISIBLE : View.GONE))
                         || (start_daily_bg_btn != null && start_daily_bg_btn.getVisibility() != (bgVisible ? View.VISIBLE : View.GONE))
                         || (retry_failed_btn != null && retry_failed_btn.getVisibility() != (retryVisible ? View.VISIBLE : View.GONE))
                         || (taskListEmptyView != null && taskListEmptyView.getVisibility() != (emptyVisible ? View.VISIBLE : View.GONE));
-        if (visibilityChanged && !tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null)
-            TransitionManager.beginDelayedTransition(homeContentContainer, new Fade());
+        if (visibilityChanged && !tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null) {
+            // M3 方向性缓动：退出的视图用 short + emphasized-accelerate（快出），
+            // 进入的视图用 medium + emphasized-decelerate（缓入），位置变化（ChangeBounds）
+            // 属持久容器用 emphasized 缓动。三个 Transition 并行组合。
+            // 单用 Fade 时 androidx/platform Visibility 会在淡出期间把 GONE 视图强制回
+            // VISIBLE 画残影并抑制父布局，导致「下方内容瞬间跳位 + 残影慢淡」两段脱节，
+            // 观感即是组件分两次消失——ChangeBounds 并行塌缩/上滑解决此问题。
+            ChangeBounds move = new ChangeBounds();
+            move.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_medium));
+            move.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized));
+            // XML 里 visibility="gone" 的视图从未参与过布局，捕获到的起始 bounds 是 (0,0,0,0)，
+            // 参与 ChangeBounds 会在出现时从容器原点"生长"，故排除、只保留 Fade
+            move.excludeTarget(R.id.cancel_daily, true);
+            move.excludeTarget(R.id.retry_failed, true);
+            move.excludeTarget(R.id.task_list_empty_view, true);
+            Fade fadeOut = new Fade(Fade.OUT);
+            fadeOut.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_short));
+            fadeOut.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_accelerate));
+            Fade fadeIn = new Fade(Fade.IN);
+            fadeIn.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_medium));
+            fadeIn.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate));
+            TransitionSet transition = new TransitionSet()
+                    .setOrdering(TransitionSet.ORDERING_TOGETHER)
+                    .addTransition(move)
+                    .addTransition(fadeOut)
+                    .addTransition(fadeIn);
+            TransitionManager.beginDelayedTransition(homeContentContainer, transition);
+        }
 
         // 任务列表
         synchronized (taskList) {
@@ -618,6 +664,11 @@ public class HomeFragment extends Fragment {
         // 应用可见性（一律由 UiState 派生）
         if (userSection != null)
             userSection.setVisibility(userVisible ? View.VISIBLE : View.GONE);
+        // 账号小标题与分割线跟随账号行整体显隐：只藏下拉行会留下孤儿标题与悬空分割线
+        if (accountSectionLabel != null)
+            accountSectionLabel.setVisibility(userVisible ? View.VISIBLE : View.GONE);
+        if (userSectionDivider != null)
+            userSectionDivider.setVisibility(userVisible ? View.VISIBLE : View.GONE);
         if (cancel_daily_btn != null)
             cancel_daily_btn.setVisibility(cancelVisible ? View.VISIBLE : View.GONE);
         if (start_daily_btn != null)
@@ -635,12 +686,14 @@ public class HomeFragment extends Fragment {
                     R.plurals.run_remaining, taskList.size(), taskList.size()));
 
         // 页眉副标题与任务列表头 DONE 计数：与小组件 done_ 口径一致，仅统计 COMPLETED。
-        // 「已签过」由服务端返回后任务正常走 COMPLETED；WARNING 是等待人机验证的中间态，不计入
+        // 「已签过」由服务端返回后任务正常走 COMPLETED；等待人机验证期间任务保持 IN_PROGRESS，不计入。
+        // RETAINED（沿用上次结果）本质是当日已完成，计入 done，避免运行期间计数回落
         int total = taskList.size();
         int done = 0;
         int failed = 0;
         for (TaskItem item : taskList) {
-            if (item.getStatus() == TaskItem.TaskStatus.COMPLETED)
+            if (item.getStatus() == TaskItem.TaskStatus.COMPLETED
+                    || item.getStatus() == TaskItem.TaskStatus.RETAINED)
                 done++;
             if (item.getStatus() == TaskItem.TaskStatus.ERROR)
                 failed++;
@@ -775,8 +828,11 @@ public class HomeFragment extends Fragment {
         androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
         // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（与前台启动口径一致）
         viewModel.resetForNewRun();
+        // 清空触达集合后切 BACKGROUND 并重建列表：未触达的已完成任务按「沿用上次结果」展示
+        viewModel.beginRun();
         // 单一状态切换取代原 updateBgButtonState(true)：后台按钮文案/可见性由 UiState 派生
         viewModel.setRunMode(HomeViewModel.RunMode.BACKGROUND);
+        viewModel.refreshTaskItems();
         tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_bg_task_started));
     }
 
@@ -830,12 +886,7 @@ public class HomeFragment extends Fragment {
             String currentUser = viewModel.getCurrentUser();
             boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
             List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                    requireContext(),
-                    android.R.layout.simple_dropdown_item_1line,
-                    usernames
-            );
-            user_dropdown.setAdapter(adapter);
+            user_dropdown.setAdapter(new UserDropdownAdapter(requireContext(), usernames));
 
             // 恢复之前选中的用户（如果仍然存在于列表中）
             if (!currentUser.isEmpty() && usernames.contains(currentUser))

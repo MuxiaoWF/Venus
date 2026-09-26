@@ -60,6 +60,7 @@
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/settings_scroll"
         style="@style/Widget.Venus.ScreenScaffold"
         android:layout_width="0dp"
         android:layout_height="0dp"

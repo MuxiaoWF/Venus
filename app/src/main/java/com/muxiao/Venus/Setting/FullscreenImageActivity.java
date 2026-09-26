@@ -338,12 +338,13 @@ public class FullscreenImageActivity extends BaseActivity {
             bottomInfoCard.setTranslationY(bottomInfoCard.getHeight());
             return;
         }
+        // M3：退出元素用 emphasized-accelerate，时长取 motion token（250ms）
         bottomInfoCard.animate()
                 .translationY(bottomInfoCard.getHeight())
                 .alpha(0f)
-                .setDuration(300)
+                .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
                 .setInterpolator(AnimationUtils.loadInterpolator(this,
-                        android.R.interpolator.fast_out_linear_in))
+                        R.anim.emphasized_accelerate))
                 .start();
     }
 
@@ -358,12 +359,13 @@ public class FullscreenImageActivity extends BaseActivity {
             return;
         }
         bottomInfoCard.setAlpha(0f);
+        // M3：进入元素用 emphasized-decelerate，时长取 motion token（250ms）
         bottomInfoCard.animate()
                 .translationY(0)
                 .alpha(1f)
-                .setDuration(350)
+                .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
                 .setInterpolator(AnimationUtils.loadInterpolator(this,
-                        android.R.interpolator.fast_out_slow_in))
+                        R.anim.emphasized_decelerate))
                 .start();
     }
 }

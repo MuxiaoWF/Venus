@@ -64,7 +64,7 @@ import okio.Okio;
  * Snackbar/错误对话框、剪贴板、日志文件读写、键盘收起。
  */
 public class tools {
-    // 共享 OkHttpClient 实例已集中到 ApiClient（P1-3），此处 getSharedClient() 转发到 ApiClient.get()
+    // 共享 OkHttpClient 实例已集中到 ApiClient，此处 getSharedClient() 转发到 ApiClient.get()
 
     /**
      * 返回应用共享的 OkHttpClient（转发到 {@link ApiClient#get()}，复用连接池）。
@@ -190,9 +190,19 @@ public class tools {
      * 发送 GET 请求：params 安全编码后拼接到 query，自动 gzip 解压；非 2xx 或异常统一抛 RuntimeException。
      */
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params) {
+        return sendGetRequest(urlStr, headers, params, false);
+    }
+
+    /**
+     * 同上，fastTimeout=true 时改用 {@link ApiClient#getFast()} 短超时客户端（connect/read 各 4s）。
+     * 用于「主源 + 兜底源」拉取链路：主源不可达（如 GitHub raw 被墙）时快速失败让位兜底源。
+     */
+    public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params,
+                                        boolean fastTimeout) {
         Request.Builder requestBuilder = new Request.Builder().url(buildGetUrl(urlStr, params)).get();
         applyHeaders(requestBuilder, headers);
-        try (Response response = getSharedClient().newCall(requestBuilder.build()).execute()) {
+        try (Response response = (fastTimeout ? ApiClient.getFast() : getSharedClient())
+                .newCall(requestBuilder.build()).execute()) {
             if (!response.isSuccessful())
                 throw new HttpStatusCodeException(response.code(), str("请求失败，状态码：%d", R.string.err_http_status_code, response.code()));
             return readResponseBody(response);
@@ -279,7 +289,7 @@ public class tools {
     }
 
     /**
-     * 将用户数据写入SharedPreferences（经 UserRepository 单一入口，P0-1）
+     * 将用户数据写入SharedPreferences（经 UserRepository 单一入口）
      *
      * @param userId 用户标识
      * @param key    数据键名
@@ -290,7 +300,7 @@ public class tools {
     }
 
     /**
-     * 从SharedPreferences中读取用户数据（经 UserRepository 单一入口，P0-1）
+     * 从SharedPreferences中读取用户数据（经 UserRepository 单一入口）
      *
      * @param userId 用户标识
      * @param key    数据键名
@@ -616,9 +626,14 @@ public class tools {
 
     /**
      * 背景图玻璃感收口：设置了背景图片时，把布局中标记 android:tag="glass" 的视图
-     * （如「后台运行」行按钮、日期/版本 chip——均为 100% 不透明表面色）背景降为
-     * 无背景图时恢复 255 保持原生质感。各 Fragment 在 inflate 后调用一次。
-     * 注意：同一 drawable 资源在各视图间共享 ConstantState，必须 mutate() 后再 setAlpha。
+     * （液态玻璃 chip/表面行——自带 rim/高光半透明层）背景整体再降一档透明度，
+     * 让背景图透出更多、玻璃感更强；无背景图时恢复 255 保持原生质感。
+     * 各 Fragment 在 inflate 后调用一次。
+     * 注意：① 同一 drawable 资源在各视图间共享 ConstantState，必须 mutate() 后再 setAlpha；
+     * 液态玻璃 drawable 为多层 LayerDrawable，部分实现的整体 setAlpha 不向子层传播，
+     * 故逐层施加保证 rim/填充/高光同步衰减。
+     * ② 背景已被 {@link LensGlassDrawable} 接管的视图直接跳过——透镜的模糊底衬 +
+     * 光边即最终观感，叠加透明度会双重淡化。
      */
     public static void applyGlassAlpha(Context context, View root) {
         boolean hasBackground = context.getSharedPreferences(
@@ -633,7 +648,19 @@ public class tools {
     private static void applyGlassAlphaRecursive(View view, int alpha) {
         if ("glass".equals(view.getTag())) {
             android.graphics.drawable.Drawable bg = view.getBackground();
-            if (bg != null) bg.mutate().setAlpha(alpha);
+            if (bg != null && !(bg instanceof LensGlassDrawable)) {
+                bg = bg.mutate();
+                if (bg instanceof android.graphics.drawable.LayerDrawable) {
+                    android.graphics.drawable.LayerDrawable ld =
+                            (android.graphics.drawable.LayerDrawable) bg;
+                    for (int i = 0; i < ld.getNumberOfLayers(); i++) {
+                        android.graphics.drawable.Drawable layer = ld.getDrawable(i);
+                        if (layer != null) layer.setAlpha(alpha);
+                    }
+                } else {
+                    bg.setAlpha(alpha);
+                }
+            }
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -651,10 +678,24 @@ public class tools {
         if (isReducedMotionEnabled(fragment.requireContext()))
             return;
         int duration = fragment.getResources().getInteger(R.integer.motion_duration_long);
+        // M3 方向性缓动：进入（enter/reenter）用 emphasized-decelerate，
+        // 退出（exit/return）用 emphasized-accelerate
         MaterialSharedAxis enterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        enterTransition.setInterpolator(
+                android.view.animation.AnimationUtils.loadInterpolator(
+                        fragment.requireContext(), R.anim.emphasized_decelerate));
         MaterialSharedAxis exitTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        exitTransition.setInterpolator(
+                android.view.animation.AnimationUtils.loadInterpolator(
+                        fragment.requireContext(), R.anim.emphasized_accelerate));
         MaterialSharedAxis reenterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        reenterTransition.setInterpolator(
+                android.view.animation.AnimationUtils.loadInterpolator(
+                        fragment.requireContext(), R.anim.emphasized_decelerate));
         MaterialSharedAxis returnTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
+        returnTransition.setInterpolator(
+                android.view.animation.AnimationUtils.loadInterpolator(
+                        fragment.requireContext(), R.anim.emphasized_accelerate));
         enterTransition.setDuration(duration);
         exitTransition.setDuration(duration);
         reenterTransition.setDuration(duration);

@@ -73,7 +73,9 @@
                 android:orientation="horizontal"
                 android:paddingVertical="@dimen/space_2">
 
+                <!-- 账号行头像：Java 侧经 AvatarStore.loadInto 复用账号体系自定义头像（无图回落 ic_user） -->
                 <ImageView
+                    android:id="@+id/link_user_avatar"
                     android:layout_width="@dimen/icon_badge_md"
                     android:layout_height="@dimen/icon_badge_md"
                     android:background="@drawable/bg_icon_circle"
@@ -326,6 +328,7 @@
             <!-- 导航行中性化：bg_icon_circle+primary 是"已获取点亮"专属视觉，
                  导航行不是状态载体，与"未获取"行区分靠右侧 chevron -->
             <ImageView
+                android:id="@+id/icon_nav_cloud"
                 android:layout_width="@dimen/icon_badge_circle"
                 android:layout_height="@dimen/icon_badge_circle"
                 android:background="@drawable/bg_surface_circle"

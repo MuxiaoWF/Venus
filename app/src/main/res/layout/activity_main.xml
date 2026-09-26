@@ -25,24 +25,10 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 底栏毛玻璃的"透镜"：显示背景图中位于底栏正后方的一小块区域
-         （MainActivity 负责降采样模糊 + 矩阵取景对齐），无背景图时保持 GONE，
-         玻璃透出的就是滚动到栏下的页面内容。
-         圆角裁剪与 bg_bottom_nav_rounded 一致，避免方角从半透明玻璃的圆角处露出。 -->
-    <ImageView
-        android:id="@+id/bottom_nav_blur"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:importantForAccessibility="no"
-        android:scaleType="matrix"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="@id/bottom_navigation"
-        app:layout_constraintBottom_toBottomOf="@id/bottom_navigation"
-        app:layout_constraintStart_toStartOf="@id/bottom_navigation"
-        app:layout_constraintEnd_toEndOf="@id/bottom_navigation" />
-
-    <!-- ViewPager2：底部直通屏幕底，让页面内容能滚动到悬浮底栏之下（毛玻璃透感的前提）；
-         底部安全避让由 MainActivity 按「导航栏 inset + 底栏高度」动态做内边距 -->
+    <!-- ViewPager2：底部直通屏幕底，页面内容可滚动到悬浮底栏玻璃之下；
+         玻璃身后的真实内容经 ContentStripSampler 条带采样进透镜采样源（壁纸 +
+         内容条带合成），折射的是真实的身后层；各页滚动容器经 BottomBarOverlay
+         留出列表尾部避让（末项可完整滚出玻璃区） -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="0dp"
@@ -52,7 +38,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 底部导航栏（Apple 风毛玻璃：半透明 + 柔光阴影 + 大圆角，blur 由 MainActivity 代码叠加） -->
+    <!-- 底部导航栏：液态玻璃（LensGlassDrawable 接管背景，对背景图轻模糊底衬取景折射；
+         blur 条方案已删除）。无背景图时回退原 colorSurfaceContainer 半透明表面。 -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         style="@style/Widget.Venus.BottomNavigationView"

@@ -7,22 +7,19 @@ import android.content.Intent;
 import android.util.Base64;
 import android.util.Log;
 
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 
 /**
  * 抓包分析器（复刻自 SRGachaLink）：
  * 从 VPN 旁路镜像的 IP 包中过滤星铁 KCP 流量（UDP:23301），解密 proto 包，
  * 提取含 authkey 的抽卡记录 URL 并广播（ACTION_GET_AUTHKEY）。
  * 密钥两阶段：
- * 1. 初始密钥：包首 4 字节 XOR magic head 得 key ID，查 assets/hsr.json（社区逆向的各版本初始密钥表）；
+ * 1. 初始密钥：包首 4 字节 XOR magic head 得 key ID，查 HsrKeyStore（assets/hsr.json 内置表，
+ *    云端更新见 HsrKeyStore 注释）；缺键时缓存待解包并触发即时补拉，拿到密钥后按到达顺序重放；
  * 2. 会话密钥：解出 PlayerGetTokenScRsp 后取 seed，MT19937-64 生成 4096 字节新 XOR pad。
- * 注：初始密钥表随游戏版本更新可能失效，本版为本地静态表（暂无云端更新机制）。
  */
 public class PacketAnalyzer {
     private static final String TAG = "PacketAnalyzer";
@@ -36,7 +33,25 @@ public class PacketAnalyzer {
     private final byte[] buffer = new byte[1024 * 100];
     private byte[] key;
     private boolean isInitKey = true;
-    private JSONObject keyStore;
+    /** 「更新中」提示只上报一次：缺版本时每个 KCP 包都会走到该分支，重复广播会刷爆 UI */
+    private boolean updatingNotified = false;
+    /** 最近一次缺失的版本号：补拉落定回调据此判断云端是否已收录该版本 */
+    private volatile long lastMissingVersion = -1;
+
+    /** 缺键期间缓存的待解包（payload 已是独立数组；拿到初始密钥后按到达顺序重放） */
+    private static final class Pending {
+        final byte[] payload;
+        final int clientPort;
+
+        Pending(byte[] payload, int clientPort) {
+            this.payload = payload;
+            this.clientPort = clientPort;
+        }
+    }
+
+    /** 待解包上限：重放只需覆盖补拉耗时（秒级）内的连接期流量，超限丢最旧 */
+    private static final int PENDING_LIMIT = 512;
+    private final ArrayDeque<Pending> pending = new ArrayDeque<>();
 
     public PacketAnalyzer(Context context) {
         this.context = context.getApplicationContext();
@@ -85,26 +100,47 @@ public class PacketAnalyzer {
     }
 
     private void handleKcpPacket(KcpPacket packet, int clientPort) {
-        System.arraycopy(packet.payload, 0, buffer, 0, packet.payload.length);
-        int len = packet.payload.length;
         if (packet.frg != 0) // 分片包无法独立解密，丢弃（见 buffer 注释）
             return;
         // 首包：从加密 magic head 反解 key ID，查初始密钥表
         if (key == null) {
-            int mhEnc = ((buffer[0] & 0xFF) << 24) | ((buffer[1] & 0xFF) << 16)
-                    | ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF);
+            if (packet.payload.length < 4)
+                return;
+            int mhEnc = ((packet.payload[0] & 0xFF) << 24) | ((packet.payload[1] & 0xFF) << 16)
+                    | ((packet.payload[2] & 0xFF) << 8) | (packet.payload[3] & 0xFF);
             long version = (mhEnc ^ ProtoPacket.MAGIC_HEAD) & 0xFFFFFFFFL;
-            try {
-                String keyB64 = loadInitKey(version + "");
-                key = Base64.decode(keyB64, Base64.DEFAULT);
-                Log.i(TAG, "get init key: " + version);
-            } catch (Exception e) {
-                Log.e(TAG, "no match key for version " + version);
+            String keyB64 = HsrKeyStore.getKey(context, version + "");
+            if (keyB64 == null) {
+                // 缺键：先缓存待解包再触发即时补拉。seed 包在连接后毫秒级到达、补拉来不及，
+                // 若直接丢弃则本次会话永远解不开；缓存到拿到密钥后按到达顺序重放即可衔接
+                // （补拉 10min 节流 + 单飞闸在 HsrKeyStore 内部，重复 miss 不会刷请求）
+                if (pending.size() >= PENDING_LIMIT)
+                    pending.pollFirst();
+                pending.addLast(new Pending(packet.payload, clientPort));
+                lastMissingVersion = version;
+                notifyCaptureUpdating();
+                HsrKeyStore.checkForUpdateAsync(context, true, this::notifyCaptureFailedIfStillMissing);
+                Log.e(TAG, "no match key for version " + version + ", pending=" + pending.size());
                 return;
             }
+            key = Base64.decode(keyB64, Base64.DEFAULT);
+            Log.i(TAG, "get init key: " + version);
+            drainPending();
         }
+        processKcpPayload(packet.payload, clientPort);
+    }
+
+    /** 按到达顺序重放缺键期间缓存的包；重放途中解出 seed 切到会话密钥后，余下包自然衔接 */
+    private void drainPending() {
+        Pending p;
+        while ((p = pending.pollFirst()) != null)
+            processKcpPayload(p.payload, p.clientPort);
+    }
+
+    private void processKcpPayload(byte[] payload, int clientPort) {
+        System.arraycopy(payload, 0, buffer, 0, payload.length);
         // XOR 解密并校验魔数
-        byte[] plain = xor(slice(buffer, 0, len), key);
+        byte[] plain = xor(slice(buffer, 0, payload.length), key);
         ProtoPacket protoPacket = new ProtoPacket(plain);
         if (protoPacket.mh != ProtoPacket.MAGIC_HEAD || protoPacket.mt != ProtoPacket.MAGIC_TAIL)
             return;
@@ -112,9 +148,7 @@ public class PacketAnalyzer {
         // 会话密钥更新：header 为空的首个 token 应答携带 seed
         if (isInitKey && protoPacket.header.length == 0) {
             byte[][] pair = parsePlayerGetTokenScRsp(protoPacket.proto);
-            long uid = decodeVarint(pair[0]);
             long seed = decodeVarint(pair[1]);
-            Log.i(TAG, "uid = " + uid + ", seed = " + seed);
             key = createXorPad(seed);
             isInitKey = false;
         }
@@ -126,6 +160,8 @@ public class PacketAnalyzer {
         if (s.contains("webview_gacha") && !s.contains("https") && s.length() > AUTHKEY_LEN) {
             String authkey = s.substring(s.length() - AUTHKEY_LEN);
             String channel = detectChannel(s, clientPort);
+            // 写入静态状态：触发时用户多半在游戏里，Snackbar 早已消失，切回应用靠行内回显确认
+            CaptureService.capturedChannel = channel;
             Intent intent = new Intent(ACTION_GET_AUTHKEY);
             intent.setPackage(context.getPackageName());
             intent.putExtra("authkey", authkey);
@@ -153,6 +189,33 @@ public class PacketAnalyzer {
         if (pkg == null)
             pkg = CaptureService.soleInstalledApp(context);
         return packageToChannel(pkg);
+    }
+
+    /**
+     * 缺键时广播「更新中」（每分析器实例仅一次），让 UI 给出可见的等待反馈而不是静默；
+     * 抓包不中断，拿到键重放衔接后由成功广播覆盖此状态。
+     */
+    private void notifyCaptureUpdating() {
+        if (updatingNotified) return;
+        updatingNotified = true;
+        Intent intent = new Intent(CaptureService.ACTION_CAPTURE_UPDATING);
+        intent.setPackage(context.getPackageName());
+        context.sendBroadcast(intent);
+        Log.i(TAG, "key table updating");
+    }
+
+    /**
+     * 补拉落定后仍缺键（网络失败或服务端未收录该版本）才广播失败事件（reason=key_missing）。
+     * 在后台线程执行：查密钥表而非分析器的 key 字段——拉取成功到下一个包到达之间 key 尚未
+     * 刷新，查表才能避免误报。
+     */
+    private void notifyCaptureFailedIfStillMissing() {
+        if (HsrKeyStore.getKey(context, lastMissingVersion + "") != null) return;
+        Intent intent = new Intent(CaptureService.ACTION_CAPTURE_FAILED);
+        intent.setPackage(context.getPackageName());
+        intent.putExtra("reason", "key_missing");
+        context.sendBroadcast(intent);
+        Log.e(TAG, "key still missing after update: " + lastMissingVersion);
     }
 
     private static String packageToChannel(String pkg) {
@@ -228,21 +291,6 @@ public class PacketAnalyzer {
             shift += 7;
         }
         return result;
-    }
-
-    /** 从 assets/hsr.json（社区逆向的版本 → 初始密钥表）按 key ID 查初始密钥 */
-    private String loadInitKey(String version) throws Exception {
-        if (keyStore == null) {
-            StringBuilder sb = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(context.getAssets().open("hsr.json"), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null)
-                    sb.append(line);
-            }
-            keyStore = new JSONObject(sb.toString());
-        }
-        return keyStore.getString(version);
     }
 
     private static byte[] slice(byte[] src, int offset, int length) {

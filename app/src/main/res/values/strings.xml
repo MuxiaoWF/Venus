@@ -49,7 +49,7 @@
     <string name="enable_scheduled_task">定时签到</string>
     <string name="scheduled_task_desc">每天在设定时间自动于后台执行签到任务并发送通知；遇到人机验证时需回到应用完成验证</string>
     <string name="scheduled_task_captcha_hint">建议自动运行不要勾选米游币签到，可以减少被验证码中断的风险</string>
-    <string name="scheduled_task_time_placeholder">每天 07:30</string>
+    <string name="scheduled_task_time_label">执行时刻</string>
     <string name="scheduled_task_time_fmt">每天 %s</string>
     <string name="scheduled_time_picker_title">选择每天执行时间</string>
     <string name="msg_scheduled_battery_hint">系统电池优化可能延迟或吞掉定时任务。建议在电池设置中将本应用设为\"不受限制\"，以确保定时任务准点执行。\n\n如看到厂商设置页面，请将本应用加入不限制名单。</string>
@@ -60,6 +60,8 @@
     <string name="gacha_link_subtitle">点击游戏行获取链接</string>
     <string name="gacha_link_title">抽卡链接</string>
     <string name="gacha_login_prompt">请在网页中登录并打开抽卡记录页面</string>
+    <string name="cloud_load_failed">网页加载失败，请检查网络后重试</string>
+    <string name="cloud_retry">重试</string>
     <string name="miyoushe_coin_sign_in">米游币签到</string>
     <string name="game_sign_in">游戏签到</string>
     <string name="genshin_impact">原神</string>
@@ -113,15 +115,17 @@
     <string name="gacha_chip_pending">待获取</string>
     <string name="cloud_open_hint">打开云游戏页面 · 自动捕获链接</string>
     <!-- VPN 抓包获取（星铁抽卡链接，复刻 SRGachaLink 链路） -->
-    <string name="vpn_capture_title">VPN 抓包获取</string>
-    <string name="vpn_capture_hint">启动本地 VPN · 游戏内打开抽卡记录页自动捕获</string>
+    <string name="vpn_capture_title">VPN 抓包获取（星铁）</string>
+    <string name="vpn_capture_hint">仅星铁：先开启抓包，再重启游戏并打开抽卡记录页</string>
     <string name="vpn_capture_running_hint">抓包中 · 点击行停止</string>
     <string name="vpn_capture_channel_name">抓包服务</string>
     <string name="vpn_capture_notification_title">抓包服务运行中</string>
     <string name="vpn_capture_notification_text">在星铁中打开抽卡记录页即可捕获链接</string>
-    <string name="vpn_capture_started">已启动本地 VPN，请在星铁内打开抽卡记录页</string>
+    <string name="vpn_capture_started">已启动本地 VPN，请重启星铁后打开抽卡记录页</string>
     <string name="vpn_capture_stopped">已停止抓包</string>
     <string name="vpn_capture_permission_denied">未授予 VPN 权限，无法启动抓包</string>
+    <string name="vpn_capture_updating">初始密钥缺失，正在从云端更新密钥表，抓包继续…</string>
+    <string name="vpn_capture_failed_key">未捕获：云端密钥表暂未收录当前游戏版本，请稍后重试</string>
     <string name="vpn_authkey_captured">已捕获星铁抽卡链接（%s），已复制到剪贴板</string>
     <string name="capture_channel_bili">B服</string>
     <plurals name="run_remaining">
@@ -140,6 +144,7 @@
     <string name="user_chip_default">默认</string>
     <string name="task_chip_done">已签</string>
     <string name="task_chip_failed">失败</string>
+    <string name="task_chip_retained">沿用</string>
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">已取消</string>

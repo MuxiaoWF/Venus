@@ -88,7 +88,7 @@ public class OAuthLoginActivity extends BaseActivity {
         WebSettings settings = oauth_webview.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        // P1-6 安全：WebView 仅允许 https，禁止加载混合内容（http 子资源），避免明文流量被注入。
+        // 安全：WebView 仅允许 https，禁止加载混合内容（http 子资源），避免明文流量被注入。
         // 如真机验证发现 HoYoLAB 登录页依赖混合内容导致加载异常，可降级为 MIXED_CONTENT_COMPATIBILITY。
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setUserAgentString("Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");

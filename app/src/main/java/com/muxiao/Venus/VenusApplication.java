@@ -57,8 +57,6 @@ public class VenusApplication extends Application {
         SettingsFragment.applyThemeVariant(appContext);
         // 启用material动态颜色
         DynamicColors.applyToActivitiesIfAvailable(this);
-        // 注册设备标识（gzu.liyujiang.android.cn.oaid库）
-        // DeviceIdentifier.register(this);
 
         // 预热 HeaderManager 的设备标识（OAID / device_fp）。
         // HeaderManager 构造会同步阻塞等待设备标识就绪（waitForDeviceId 最多 ~5s，

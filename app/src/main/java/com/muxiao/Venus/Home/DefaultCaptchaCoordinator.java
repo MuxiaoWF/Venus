@@ -1,12 +1,14 @@
 package com.muxiao.Venus.Home;
 
+import com.muxiao.Venus.common.Logger;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * CaptchaCoordinator 的默认实现：以实例状态取代全局静态字段（P0-4）。
+ * CaptchaCoordinator 的默认实现：以实例状态取代全局静态字段。
  * 行为与原 BackgroundGeetestController 的静态字段完全一致，状态收敛到单一协调者。
  */
 public class DefaultCaptchaCoordinator implements CaptchaCoordinator {
@@ -23,7 +25,10 @@ public class DefaultCaptchaCoordinator implements CaptchaCoordinator {
 
     @Override
     public void await() throws InterruptedException {
-        latch.await(5, TimeUnit.MINUTES);
+        if (!latch.await(5, TimeUnit.MINUTES)) {
+            // 超时未等到验证结果：向上层返回后由 verificationResult==null 走失败分支
+            Logger.w("DefaultCaptchaCoordinator: 等待人机验证超时（5 分钟）");
+        }
     }
 
     @Override

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M3 Emphasized：双向/持久容器转场（如 ChangeBounds）的官方缓动曲线 -->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.2"
+    android:controlY1="0.0"
+    android:controlX2="0.0"
+    android:controlY2="1.0" />

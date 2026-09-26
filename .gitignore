@@ -69,3 +69,4 @@ scripts/
 # docs
 docs/
 AGENTS.md
+.zcodeignore

@@ -96,6 +96,8 @@ import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.data.ConfigRepository;
+import com.muxiao.Venus.common.BottomBarOverlay;
+import com.muxiao.Venus.common.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 
@@ -117,7 +119,7 @@ public class SettingsFragment extends Fragment {
     }
 
     private SharedPreferences sharedPreferences;
-    // P0-1 收口：config_prefs 不再直接访问 SharedPreferences，统一走仓储（底层为 DataStore）。
+    // 收口：config_prefs 不再直接访问 SharedPreferences，统一走仓储（底层为 DataStore）。
     // 否则 MiHoYoBBSConstants 写入 DataStore 后，本页仍读旧 xml，会显示过期配置值。
     private ConfigRepository configRepository;
     private static final int THEME_DEFAULT = 0;
@@ -159,6 +161,14 @@ public class SettingsFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         // 加载布局
         View view = inflater.inflate(R.layout.fragment_settings, container, false);
+
+        // 液态玻璃透镜接管：版本 chip + 查看榜单图按钮（有背景图时真实模糊底衬，无图回退渐变）
+        LensGlassDrawable.apply(view.findViewById(R.id.settings_version_chip),
+                getResources().getDimension(R.dimen.shape_corner_xxs));
+        LensGlassDrawable.apply(view.findViewById(R.id.image_button),
+                getResources().getDimension(R.dimen.shape_corner_xs));
+        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        BottomBarOverlay.attachClearance(view.findViewById(R.id.settings_scroll));
 
         // 背景图玻璃感收口：标记 glass 的版本 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
         tools.applyGlassAlpha(requireContext(), view);
@@ -382,7 +392,7 @@ public class SettingsFragment extends Fragment {
 
         // 定时签到：开关排程/取消 + 时间行弹出选择器（WorkManager 自链式每日调度）
         SwitchMaterial scheduledTaskSwitch = notificationView.findViewById(R.id.scheduled_task_switch);
-        MaterialTextView scheduledTimeRow = notificationView.findViewById(R.id.scheduled_task_time_row);
+        View scheduledTimeRow = notificationView.findViewById(R.id.scheduled_task_time_row);
         boolean scheduledEnabled = sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false);
         scheduledTaskSwitch.setChecked(scheduledEnabled);
         scheduledTimeRow.setVisibility(scheduledEnabled ? View.VISIBLE : View.GONE);
@@ -394,6 +404,9 @@ public class SettingsFragment extends Fragment {
             // 否则定时运行遇到人机验证时用户将收不到任何可点击的入口
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
             scheduledTimeRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            // 时间行出现/消失改变卡片内容高度：通知宿主重算并同步当前高度，
+            // 否则新行被钉死的旧内容区高度裁剪在可视区外（关闭后则底部留白）
+            notificationCardView.notifyContentChanged();
             if (isChecked) {
                 DailyTaskScheduler.applySchedule(requireContext());
                 // 厂商省电是定时任务失准的头号原因：未豁免电池优化时引导一次（不阻断开启）
@@ -1249,10 +1262,11 @@ public class SettingsFragment extends Fragment {
         setCardValue(notificationCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 
-    /** 刷新定时签到时间行文案（每天 HH:mm，值取自 settings_prefs）。 */
-    private void updateScheduledTimeLabel(MaterialTextView row) {
+    /** 刷新定时签到时间行的时间值（每天 HH:mm，值取自 settings_prefs；行内含图标/标签/箭头）。 */
+    private void updateScheduledTimeLabel(View row) {
+        MaterialTextView value = row.findViewById(R.id.scheduled_task_time_value);
         int[] time = DailyTaskScheduler.getConfiguredTime(requireContext());
-        row.setText(getString(R.string.scheduled_task_time_fmt,
+        value.setText(getString(R.string.scheduled_task_time_fmt,
                 String.format(Locale.US, "%02d:%02d", time[0], time[1])));
     }
 

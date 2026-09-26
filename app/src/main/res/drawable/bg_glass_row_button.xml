@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MaterialButton 专用液态玻璃底（Widget.Venus.RowButton）。
+     MaterialButton 的 backgroundTint 只吃单色（且默认 SrcIn 会打平渐变），
+     故改为自定义 background + backgroundTint=@null；涟漪内嵌在 drawable 中
+     （自定义背景会替换 MaterialShapeDrawable，style 的 rippleColor 不再生效）。
+     「一块玻璃」口径（连贯性优先）：
+     1. 内层为单一 2-stop 均匀渐变——sheen→fill 的 3-stop 渐变 centerColor 固定
+        落在正中点，两段衰减速率突变会形成「上亮板 + 下暗板」的水平分界；
+     2. 外层 1px 光边用 glass_rim_soft_*（= 内层填充 + 恒定 ~6% alpha），沿整圈
+        与填充落差一致，读作玻璃轮廓本身；原 glass_rim_* 顶部落差 40 个点、
+        底部仅 4 个点，亮环会被读作独立高光环（边缘一圈与中间割裂）。 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorOutlineVariant">
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:startColor="@color/glass_rim_soft_top"
+                        android:endColor="@color/glass_rim_soft_bottom" />
+                    <corners android:radius="@dimen/shape_corner_xs" />
+                </shape>
+            </item>
+            <item
+                android:left="1px"
+                android:top="1px"
+                android:right="1px"
+                android:bottom="1px">
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="270"
+                        android:startColor="@color/glass_fill_top"
+                        android:endColor="@color/glass_fill_bottom" />
+                    <corners android:radius="@dimen/shape_corner_xs" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

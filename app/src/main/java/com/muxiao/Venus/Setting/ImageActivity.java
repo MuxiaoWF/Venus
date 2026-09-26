@@ -85,7 +85,7 @@ public class ImageActivity extends BaseActivity {
 
     // 线程管理
     private ExecutorService executorService; // 线程池
-    private CustomTarget<Bitmap> downloadTarget; // 当前下载用的 Glide 目标，便于 onDestroy 清理（P2-5）
+    private CustomTarget<Bitmap> downloadTarget; // 当前下载用的 Glide 目标，便于 onDestroy 清理
     private final Handler mainHandler = new Handler(Looper.getMainLooper()); // 主线程处理器
     private boolean mDestroyed = false; // onDestroy 后置位，阻止向已关闭的线程池提交任务
 

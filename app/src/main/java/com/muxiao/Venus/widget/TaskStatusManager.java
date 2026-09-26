@@ -234,6 +234,9 @@ public class TaskStatusManager {
             case CANCELLED:
                 markStatus(userId, taskName, STATUS_CANCELLED);
                 break;
+            case RETAINED:
+                // 仅 UI 展示态（本轮未触达的已完成任务），不持久化、不改变已存状态
+                break;
             default:
                 break;
         }
@@ -255,8 +258,9 @@ public class TaskStatusManager {
 
     /**
      * 新一轮任务开始前复位指定用户桶：仅把「瞬态」复位为 {@link #STATUS_PENDING}——
-     * 进行中（可能来自被杀进程的残留）、已取消（上一轮终止的痕迹）一律归零；
-     * 当日「终态结果」（已完成 / 已签过 / 失败）保留，直到该任务在本轮被真正重跑
+     * 进行中（可能来自被杀进程的残留）、已取消（上一轮终止的痕迹）、warning（旧版本
+     * 等待验证码时写入的残留）一律归零；
+     * 当日「终态结果」（已完成 / 失败）保留，直到该任务在本轮被真正重跑
      * （置 IN_PROGRESS）才被覆盖——因此重跑中途终止不会抹掉之前已取得的完成记录。
      * 逐名重建映射：配置中已去掉的旧任务名随重建一并清除，归属日期刷新为今天。
      * 跨天由 {@link #ensureToday()} 另行自动复位。
@@ -268,8 +272,7 @@ public class TaskStatusManager {
             LinkedHashMap<String, String> next = new LinkedHashMap<>(taskNames.size());
             for (String name : taskNames) {
                 String prev = b.statuses.get(name);
-                boolean terminal = STATUS_COMPLETED.equals(prev) || STATUS_ERROR.equals(prev)
-                        || STATUS_WARNING.equals(prev);
+                boolean terminal = STATUS_COMPLETED.equals(prev) || STATUS_ERROR.equals(prev);
                 next.put(name, terminal ? prev : STATUS_PENDING);
             }
             b.statuses = next;
@@ -291,11 +294,6 @@ public class TaskStatusManager {
     public Map<String, String> getAllStatuses(String userId) {
         ensureToday();
         return new LinkedHashMap<>(loadBucket(userId).statuses);
-    }
-
-    /** 任务是否已完成（推导自 status==completed）。仅用于聚合查询，与逐条展示同源。 */
-    public boolean isCompleted(String userId, String taskName) {
-        return STATUS_COMPLETED.equals(getStatus(userId, taskName));
     }
 
     /** 统计给定任务名集合中「已完成」的数量。 */
@@ -331,7 +329,9 @@ public class TaskStatusManager {
 
     // ========== UI 层状态（TaskItem.TaskStatus）与持久化状态的映射 ==========
 
-    /** 将持久化状态字符串映射为 UI 层任务状态；未知/缺失一律按 {@code PENDING}。 */
+    /** 将持久化状态字符串映射为 UI 层任务状态；未知/缺失一律按 {@code PENDING}。
+     *  旧版本的 warning（等待验证码时短暂写入，现已不再产生）按进行中展示，
+     *  避免当日残留数据被渲染成绿色「已完成」。 */
     public static TaskItem.TaskStatus toTaskStatus(String status) {
         if (status == null) return TaskItem.TaskStatus.PENDING;
         switch (status) {
@@ -340,9 +340,8 @@ public class TaskStatusManager {
             case STATUS_ERROR:
                 return TaskItem.TaskStatus.ERROR;
             case STATUS_IN_PROGRESS:
-                return TaskItem.TaskStatus.IN_PROGRESS;
             case STATUS_WARNING:
-                return TaskItem.TaskStatus.WARNING;
+                return TaskItem.TaskStatus.IN_PROGRESS;
             case STATUS_CANCELLED:
                 return TaskItem.TaskStatus.CANCELLED;
             default:

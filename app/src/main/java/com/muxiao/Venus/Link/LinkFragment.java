@@ -2,6 +2,8 @@ package com.muxiao.Venus.Link;
 
 import dagger.hilt.android.AndroidEntryPoint;
 
+import android.animation.ObjectAnimator;
+
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
@@ -26,8 +28,11 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.UserDropdownAdapter;
+import com.muxiao.Venus.common.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 
 import java.util.HashMap;
@@ -64,19 +69,44 @@ public class LinkFragment extends Fragment {
                         }
                     });
 
-    /** 捕获到 authkey 的广播接收器（CaptureService 发出）：按判定渠道拼对应服务器的抽卡记录 URL */
+    /**
+     * 捕获结果广播接收器（CaptureService/PacketAnalyzer 发出，均带包名限制）：
+     * UPDATING = 缺键、云端密钥表更新中（抓包继续，重放机制衔接）；
+     * GET_AUTHKEY = 捕获成功，按判定渠道拼抽卡记录 URL 复制并提示；
+     * CAPTURE_FAILED = 补拉落定后仍缺键（网络失败或服务端未收录），行内提示原因。
+     * 三条路径都同步 status_vpn 行文案——触发时用户多半在游戏里、Snackbar 一闪即逝，
+     * 行内持久状态是切回应用后唯一可见的反馈（onResume 也会兜底回显）。
+     */
     private final BroadcastReceiver authkeyReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            View root = getView();
+            if (CaptureService.ACTION_CAPTURE_UPDATING.equals(intent.getAction())) {
+                if (root == null) return;
+                ((android.widget.TextView) root.findViewById(R.id.status_vpn))
+                        .setText(R.string.vpn_capture_updating);
+                tools.showCustomSnackbar(root, context.getApplicationContext(),
+                        getString(R.string.vpn_capture_updating));
+                return;
+            }
+            if (CaptureService.ACTION_CAPTURE_FAILED.equals(intent.getAction())) {
+                if (root == null) return;
+                ((android.widget.TextView) root.findViewById(R.id.status_vpn))
+                        .setText(R.string.vpn_capture_failed_key);
+                tools.showCustomSnackbar(root, context.getApplicationContext(),
+                        getString(R.string.vpn_capture_failed_key));
+                return;
+            }
             if (!CaptureService.ACTION_GET_AUTHKEY.equals(intent.getAction())) return;
             String authkey = intent.getStringExtra("authkey");
             if (authkey == null || authkey.isEmpty()) return;
             String channel = intent.getStringExtra("channel");
-            View root = getView();
             if (root == null) return;
             copyToClipboard(root, context.getApplicationContext(), buildHsrUrl(authkey, channel));
             tools.showCustomSnackbar(root, context.getApplicationContext(),
                     getString(R.string.vpn_authkey_captured, channelLabel(channel)));
+            ((android.widget.TextView) root.findViewById(R.id.status_vpn))
+                    .setText(getString(R.string.vpn_authkey_captured, channelLabel(channel)));
         }
     };
 
@@ -107,9 +137,43 @@ public class LinkFragment extends Fragment {
     // 按 gameType -> userId -> (uid -> link) 存储（0=原神, 1=绝区零）
     private final Map<Integer, Map<String, Map<Integer, String>>> tabResults = new HashMap<>();
 
+    /** 获取中动效：行尾刷新图标的无限旋转（按 gameType 缓存，onDestroyView 取消）。 */
+    private final ObjectAnimator[] refreshSpinners = new ObjectAnimator[2];
+
+    /** chip 上一次渲染的状态：状态未变不重放淡入（onResume 重渲染时避免闪动），视图重建时按 XML 初始态复位。 */
+    private final ChipState[] lastChipStates = {ChipState.PENDING, ChipState.PENDING};
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_link, container, false);
+        // 视图重建：chip 回到 XML 初始态 PENDING，状态记忆同步复位（重建后首次渲染不重放淡入）
+        lastChipStates[0] = ChipState.PENDING;
+        lastChipStates[1] = ChipState.PENDING;
+
+        // 液态玻璃透镜接管：VPN 说明圆 / 云游戏导航圆 / 动态复制按钮 / 状态圆（icon_genshin/zzz）
+        // / 刷新圆（refresh_genshin/zzz）——有背景图时真实模糊底衬折射，无图回退原表面。
+        // 状态圆的状态切换不再整块换背景（会顶掉玻璃）：setChipState 经 setFallbackDrawable
+        // 只换透镜的回退底，玻璃保持；刷新圆旋转时圆内壁纸随视图旋转（圆形取景下观感自然）。
+        LensGlassDrawable.apply(view.findViewById(R.id.icon_vpn), -1f);
+        LensGlassDrawable.apply(view.findViewById(R.id.icon_nav_cloud), -1f);
+        LensGlassDrawable.apply(view.findViewById(R.id.icon_genshin), -1f);
+        LensGlassDrawable.apply(view.findViewById(R.id.icon_zzz), -1f);
+        LensGlassDrawable.apply(view.findViewById(R.id.refresh_genshin), -1f);
+        LensGlassDrawable.apply(view.findViewById(R.id.refresh_zzz), -1f);
+        // 状态 chip 药丸透镜（「玻璃底 + 语义色描边」）：圆角取实际高度一半（真药丸形），
+        // 需布局完成后安装；状态填充改描边的逻辑见 setChipState。
+        View chipGenshin = view.findViewById(R.id.chip_genshin);
+        View chipZzz = view.findViewById(R.id.chip_zzz);
+        View[] stateChips = {chipGenshin, chipZzz};
+        for (View chip : stateChips) {
+            if (chip == null) continue;
+            chip.post(() -> {
+                if (chip.getHeight() > 0
+                        && !(chip.getBackground() instanceof LensGlassDrawable)) {
+                    LensGlassDrawable.apply(chip, chip.getHeight() / 2f);
+                }
+            });
+        }
 
         // 背景图玻璃感收口：标记 glass 的表面行/chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
         tools.applyGlassAlpha(requireContext(), view);
@@ -127,9 +191,10 @@ public class LinkFragment extends Fragment {
             String selectedUser = (String) parent.getItemAtPosition(position);
             userManager.setCurrentUser(selectedUser);
             currentUserId = selectedUser;
-            // 切换用户后按新用户重绘两游戏的行内结果；结果区重建时，上一次的行内错误随之清除
+            // 切换用户后按新用户重绘两游戏的行内结果与账号行头像；结果区重建时，上一次的行内错误随之清除
             renderGameResult(0);
             renderGameResult(1);
+            loadUserAvatar();
         });
 
         // 原神 / 绝区零：点行或刷新图标即获取
@@ -177,15 +242,31 @@ public class LinkFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         tools.setupFragmentTransitions(this);
-        // 注册 authkey 广播（应用内广播，not exported）
+        // 注册捕获结果广播（应用内广播，not exported；成功 + 失败两个 action）
+        // 注册捕获结果广播（应用内广播，not exported；更新中 + 失败 + 成功三个 action）
+        IntentFilter captureFilter = new IntentFilter(CaptureService.ACTION_GET_AUTHKEY);
+        captureFilter.addAction(CaptureService.ACTION_CAPTURE_UPDATING);
+        captureFilter.addAction(CaptureService.ACTION_CAPTURE_FAILED);
         ContextCompat.registerReceiver(requireContext().getApplicationContext(), authkeyReceiver,
-                new IntentFilter(CaptureService.ACTION_GET_AUTHKEY), ContextCompat.RECEIVER_NOT_EXPORTED);
+                captureFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     @Override
     public void onDestroy() {
         requireContext().getApplicationContext().unregisterReceiver(authkeyReceiver);
         super.onDestroy();
+    }
+
+    @Override
+    public void onDestroyView() {
+        // 视图销毁时停掉刷新图标旋转（持有旧 View 的动画不能跨视图重建复用）
+        for (int i = 0; i < refreshSpinners.length; i++) {
+            if (refreshSpinners[i] != null) {
+                refreshSpinners[i].cancel();
+                refreshSpinners[i] = null;
+            }
+        }
+        super.onDestroyView();
     }
 
     /** 按 gameType（0=原神, 1=绝区零）拉取抽卡链接：成功行内展示结果，失败则在同一行内就地报错。 */
@@ -260,7 +341,21 @@ public class LinkFragment extends Fragment {
         }
         for (Map.Entry<Integer, String> e : links.entrySet())
             container.addView(buildLinkRow(e.getKey(), e.getValue()));
+        // 结果区出现动效：淡入 + 轻微上滑，与 chip 的"已获取"点亮同步；
+        // 仅从隐藏态转可见时播（onResume 同内容重渲染不重放）
+        boolean wasHidden = container.getVisibility() != View.VISIBLE;
         container.setVisibility(View.VISIBLE);
+        if (wasHidden && !tools.isReducedMotionEnabled(requireContext())) {
+            float slide = container.getResources().getDisplayMetrics().density * 8;
+            container.setAlpha(0f);
+            container.setTranslationY(slide);
+            // M3：进入元素用 emphasized-decelerate，时长取 motion token（250ms）
+            container.animate().alpha(1f).translationY(0f)
+                    .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
+                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                            requireContext(), R.anim.emphasized_decelerate))
+                    .start();
+        }
         setChipState(gameType, ChipState.FETCHED);
         refresh.setVisibility(View.VISIBLE);
     }
@@ -303,6 +398,8 @@ public class LinkFragment extends Fragment {
         ImageView copyBtn = new ImageView(ctx);
         copyBtn.setImageResource(R.drawable.ic_copy);
         copyBtn.setBackground(AppCompatResources.getDrawable(ctx, R.drawable.bg_surface_button));
+        LensGlassDrawable.apply(copyBtn,
+                ctx.getResources().getDimension(R.dimen.shape_corner_xs));
         // 图标着次要色：ic_copy 原始为白色，浅色表面上不彩色会与底融为一体（视觉上像透明）
         copyBtn.setImageTintList(android.content.res.ColorStateList.valueOf(
                 MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575)));
@@ -320,6 +417,29 @@ public class LinkFragment extends Fragment {
     /** 来源行状态（对齐设计稿 chip 语义：待获取/获取中 = 中性 chip，已获取 = 语义成功 chip）。 */
     private enum ChipState {PENDING, FETCHING, FETCHED}
 
+    /** 获取中动效：行尾刷新图标无限旋转（线性插值，速度均匀更像加载指示器）。 */
+    private void setRefreshSpinning(int gameType, boolean spinning) {
+        View root = getView();
+        if (root == null) return;
+        ImageView refresh = root.findViewById(gameType == 0 ? R.id.refresh_genshin : R.id.refresh_zzz);
+        if (refresh == null) return;
+        ObjectAnimator spinner = refreshSpinners[gameType];
+        if (spinning) {
+            if (spinner == null) {
+                spinner = ObjectAnimator.ofFloat(refresh, View.ROTATION, 0f, 360f);
+                spinner.setDuration(1000);
+                spinner.setInterpolator(new android.view.animation.LinearInterpolator());
+                spinner.setRepeatCount(ObjectAnimator.INFINITE);
+                refreshSpinners[gameType] = spinner;
+            }
+            if (!spinner.isRunning()) spinner.start();
+        } else if (spinner != null) {
+            spinner.cancel();
+            refreshSpinners[gameType] = null;
+            refresh.setRotation(0f);
+        }
+    }
+
     /** 同步某游戏行的状态 chip（文案/底色/文字色）与头像圈（未获取=表面圆灰图标，已获取=主色圆主色图标）。 */
     private void setChipState(int gameType, ChipState state) {
         View root = requireView();
@@ -329,43 +449,81 @@ public class LinkFragment extends Fragment {
         android.content.Context ctx = requireContext();
         int gray = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF757575);
         int primary = MaterialColors.getColor(ctx, androidx.appcompat.R.attr.colorPrimary, 0xFF415F91);
-        // chip 合并后唯一底图 bg_chip，填充色由 tint 按状态给定（中性=凸面，成功=语义成功容器）
-        int chipNeutral = MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFFF3F3FA);
-        int chipSuccess = ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success_container);
+        int outlineVariant = MaterialColors.getColor(ctx,
+                com.google.android.material.R.attr.colorOutlineVariant, 0xFFE0E0E0);
+        int success = ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success);
+        // chip 液态玻璃化（「玻璃底 + 语义色描边」）：玻璃恒为玻璃，
+        // 状态由语义色描边 + 文字色承载，不再整块换填充色；透镜未就绪（布局前）时静默跳过
+        LensGlassDrawable chipLens = chip.getBackground() instanceof LensGlassDrawable
+                ? (LensGlassDrawable) chip.getBackground() : null;
         switch (state) {
             case FETCHING:
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_fetching);
-                chip.setBackgroundResource(R.drawable.bg_chip);
-                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipNeutral));
+                chip.setBackgroundTintList(null);
+                if (chipLens != null) chipLens.setSemanticStrokeColor(primary);
                 chip.setTextColor(primary);
                 status.setText(R.string.gacha_fetching);
                 status.setTextColor(primary);
-                icon.setBackgroundResource(R.drawable.bg_surface_circle);
+                setIconCircleBackground(icon, R.drawable.bg_surface_circle);
                 icon.setImageTintList(android.content.res.ColorStateList.valueOf(gray));
+                setRefreshSpinning(gameType, true);
                 break;
             case FETCHED:
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_fetched);
-                chip.setBackgroundResource(R.drawable.bg_chip);
-                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipSuccess));
-                chip.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_on_success_container));
+                chip.setBackgroundTintList(null);
+                if (chipLens != null) chipLens.setSemanticStrokeColor(success);
+                // 玻璃底上直接用语义绿文字（原 on_success_container 是给实色容器底配的反色）
+                chip.setTextColor(success);
                 status.setText(R.string.gacha_fetched);
-                status.setTextColor(ContextCompat.getColor(ctx, com.muxiao.Venus.R.color.status_success));
-                icon.setBackgroundResource(R.drawable.bg_icon_circle);
+                status.setTextColor(success);
+                setIconCircleBackground(icon, R.drawable.bg_icon_circle);
                 icon.setImageTintList(android.content.res.ColorStateList.valueOf(primary));
+                setRefreshSpinning(gameType, false);
                 break;
             default: // PENDING
                 chip.setVisibility(View.VISIBLE);
                 chip.setText(R.string.gacha_chip_pending);
-                chip.setBackgroundResource(R.drawable.bg_chip);
-                chip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(chipNeutral));
+                chip.setBackgroundTintList(null);
+                if (chipLens != null) chipLens.setSemanticStrokeColor(outlineVariant);
                 chip.setTextColor(gray);
                 status.setText(R.string.gacha_not_fetched);
                 status.setTextColor(gray);
-                icon.setBackgroundResource(R.drawable.bg_surface_circle);
+                setIconCircleBackground(icon, R.drawable.bg_surface_circle);
                 icon.setImageTintList(android.content.res.ColorStateList.valueOf(gray));
+                setRefreshSpinning(gameType, false);
                 break;
+        }
+        // chip 状态切换淡入：仅在状态真正变化时重放，onResume 同态重渲染不闪动；
+        // M3 短时长 token + emphasized-decelerate，尊重「减少动态效果」
+        if (lastChipStates[gameType] != state) {
+            lastChipStates[gameType] = state;
+            if (tools.isReducedMotionEnabled(requireContext())) {
+                chip.setAlpha(1f);
+            } else {
+                chip.setAlpha(0f);
+                chip.animate().alpha(1f)
+                        .setDuration(getResources().getInteger(R.integer.motion_duration_short))
+                        .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                                requireContext(), R.anim.emphasized_decelerate))
+                        .start();
+            }
+        }
+    }
+
+    /**
+     * 状态圆换底：玻璃接管后不能整块 setBackgroundResource（会顶掉透镜），
+     * 改为只替换透镜的回退底（无背景图时的静态观感），有背景图时玻璃恒定、
+     * 状态差异由图标 tint（灰/主色）表达。
+     */
+    private void setIconCircleBackground(ImageView icon, int backgroundRes) {
+        if (icon == null) return;
+        if (icon.getBackground() instanceof LensGlassDrawable) {
+            ((LensGlassDrawable) icon.getBackground())
+                    .setFallbackDrawable(AppCompatResources.getDrawable(requireContext(), backgroundRes));
+        } else {
+            icon.setBackgroundResource(backgroundRes);
         }
     }
 
@@ -383,6 +541,17 @@ public class LinkFragment extends Fragment {
                 ? message
                 : getString(R.string.msg_no_game_role_or_error));
         errorView.setVisibility(View.VISIBLE);
+        // 错误出现动效：淡入 + 轻微上滑，与结果区出现动效一致（M3 emphasized-decelerate + token 时长）
+        if (!tools.isReducedMotionEnabled(requireContext())) {
+            float slide = errorView.getResources().getDisplayMetrics().density * 8;
+            errorView.setAlpha(0f);
+            errorView.setTranslationY(slide);
+            errorView.animate().alpha(1f).translationY(0f)
+                    .setDuration(getResources().getInteger(R.integer.motion_duration_medium))
+                    .setInterpolator(android.view.animation.AnimationUtils.loadInterpolator(
+                            requireContext(), R.anim.emphasized_decelerate))
+                    .start();
+        }
     }
 
     /** 收起某来源行的就地错误（重绘结果时调用）。 */
@@ -399,12 +568,8 @@ public class LinkFragment extends Fragment {
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
         List<String> usernames = userManager.getUsernamesByServerType(isOversea);
         currentUsers = usernames;
-        android.widget.ArrayAdapter<String> dropdownAdapter = new android.widget.ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_dropdown_item_1line,
-                usernames
-        );
-        userDropdown.setAdapter(dropdownAdapter);
+        // 下拉展开列表每项带头像：复用账号体系 AvatarStore（与账号行/首页同一套）
+        userDropdown.setAdapter(new UserDropdownAdapter(requireContext(), usernames));
         // 行内展示带服务器后缀（如「t [国服]」，与设计稿一致）
         // 注：java.util.function.Function 需 API 24，改用下面的私有方法代替
         // 设置当前用户为默认选中项
@@ -425,6 +590,17 @@ public class LinkFragment extends Fragment {
         }
         // 同步无用户空态引导（账号行提示 + 点击跳转用户管理页）
         updateUserGuideState();
+        // 账号行头像随当前用户刷新（复用账号体系自定义头像，见 AvatarStore）
+        loadUserAvatar();
+    }
+
+    /** 账号行头像：有自定义图则圆形加载，否则恢复默认人像图标（与 HomeFragment 账号行同一套）。 */
+    private void loadUserAvatar() {
+        View root = getView();
+        if (root == null) return;
+        ImageView avatar = root.findViewById(R.id.link_user_avatar);
+        if (avatar == null) return;
+        AvatarStore.loadInto(requireContext(), currentUserId, avatar);
     }
 
     /** 默认 hint 颜色（首次调用时缓存），空态结束后恢复。 */
@@ -468,11 +644,18 @@ public class LinkFragment extends Fragment {
         super.onResume();
         // 每次恢复 Fragment 时更新下拉框（并保持当前选择）
         updateDropdown();
-        // 同步 VPN 抓包行状态（服务可能在其他界面被停止）
+        // 同步 VPN 抓包行状态（服务可能在其他界面被停止；已捕获时回显最近结果）
         View root = getView();
         if (root != null) {
-            ((android.widget.TextView) root.findViewById(R.id.status_vpn)).setText(
-                    CaptureService.running ? R.string.vpn_capture_running_hint : R.string.vpn_capture_hint);
+            android.widget.TextView statusVpn = root.findViewById(R.id.status_vpn);
+            if (CaptureService.capturedChannel != null) {
+                // 成功反馈发生在游戏后台、Snackbar 早已消失，切回应用时靠这行确认已复制
+                statusVpn.setText(getString(R.string.vpn_authkey_captured,
+                        channelLabel(CaptureService.capturedChannel)));
+            } else {
+                statusVpn.setText(CaptureService.running
+                        ? R.string.vpn_capture_running_hint : R.string.vpn_capture_hint);
+            }
         }
         if (getView() != null) {
             // 恢复后按当前用户重绘行内结果

@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 
 /**
- * 应用级共享 HTTP 客户端（Now in Android：集中式网络源，P1-3）。
+ * 应用级共享 HTTP 客户端（Now in Android：集中式网络源）。
  * 作为全应用唯一 OkHttpClient 来源：
  * - 复用连接池，避免每个请求新建连接（原行为一致）；
  * - 统一连接/读/写超时与 SSL 重定向跟随。
@@ -17,6 +17,8 @@ import okhttp3.OkHttpClient;
 public final class ApiClient {
 
     private static volatile OkHttpClient instance;
+    /** 短超时客户端：主源不可达时快速失败让位兜底源，避免调用方长时间等待 */
+    private static volatile OkHttpClient fastInstance;
 
     private ApiClient() {
     }
@@ -39,5 +41,24 @@ public final class ApiClient {
             }
         }
         return instance;
+    }
+
+    /**
+     * 短超时客户端（connect/read 各 4s，懒加载、线程安全）。
+     * 专用于「主源 + 兜底源」拉取链路：主源（如 GitHub raw，国内常不可达）快速失败后
+     * 立即落到兜底源，而不是等满常规超时。经 newBuilder() 派生，与主客户端共享连接池与调度器。
+     */
+    public static OkHttpClient getFast() {
+        if (fastInstance == null) {
+            synchronized (ApiClient.class) {
+                if (fastInstance == null) {
+                    fastInstance = get().newBuilder()
+                            .connectTimeout(4, TimeUnit.SECONDS)
+                            .readTimeout(4, TimeUnit.SECONDS)
+                            .build();
+                }
+            }
+        }
+        return fastInstance;
     }
 }

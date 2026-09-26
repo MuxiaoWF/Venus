@@ -1,7 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 表面行按钮底：浅表面 8dp 圆角 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="?attr/colorSurfaceContainerHigh" />
-    <corners android:radius="@dimen/shape_corner_xs" />
-</shape>
+<!-- 表面行按钮底：液态玻璃材质（8dp 圆角）。
+     外层 = 1px 渐变光边（rim）；内层四周内缩 1px = 顶部高光衰减的半透明填充。
+     内层沿用同一圆角 dimen（1px 内缩的圆角差不可辨）。使用方（后台运行/重试行）
+     自带 android:foreground 涟漪，此处不再内嵌 ripple。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="@color/glass_rim_top"
+                android:endColor="@color/glass_rim_bottom" />
+            <corners android:radius="@dimen/shape_corner_xs" />
+        </shape>
+    </item>
+    <item
+        android:left="1px"
+        android:top="1px"
+        android:right="1px"
+        android:bottom="1px">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="@color/glass_sheen"
+                android:centerColor="@color/glass_fill_top"
+                android:endColor="@color/glass_fill_bottom" />
+            <corners android:radius="@dimen/shape_corner_xs" />
+        </shape>
+    </item>
+</layer-list>

@@ -18,7 +18,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
- * 用户数据仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
+ * 用户数据仓储（单一可信数据源，底层 DataStore）。
  * <br/>
  * 底层由 RxJava3 Preferences DataStore 承载，替代原 "user_{userId}" SharedPreferences；
  * 对外公开 API（getString / putString / remove / contains）与原 SharedPreferences 实现

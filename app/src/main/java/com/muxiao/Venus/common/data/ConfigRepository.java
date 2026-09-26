@@ -20,11 +20,11 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
- * 米游社配置仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
+ * 米游社配置仓储（单一可信数据源，底层 DataStore）。
  * 底层由 RxJava3 Preferences DataStore 承载，替代原 "config_prefs" SharedPreferences。
  * 对外 get/put 同步热读（Write-Through），与原 SP 版签名/语义一致。
  *
- * <p>承载的键（config_prefs 的全部键，已完成收口，P0-1 阶段 5）：
+ * <p>承载的键（config_prefs 的全部键，已完成收口）：
  * <ul>
  *   <li>字符串：SALT_6X / SALT_4X / LK2 / K2 / bbs_version / update_time / update_time_local
  *       —— 由 MiHoYoBBSConstants 写入、SettingsFragment 展示；</li>

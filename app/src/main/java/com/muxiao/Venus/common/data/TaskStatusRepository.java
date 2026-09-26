@@ -18,7 +18,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
- * 任务状态仓储（单一可信数据源，P0-1 / 阶段 2 DataStore）。
+ * 任务状态仓储（单一可信数据源，底层 DataStore）。
  * 底层由 RxJava3 Preferences DataStore 承载，替代原 "task_status_prefs" SharedPreferences；
  * task_status_prefs 当前仅由 TaskStatusManager 经本仓储读写（无其他直接访问点），
  * 故迁移不会造成访问分叉。对外提供 getString/getBoolean/getAll/putString/putBoolean/clear
@@ -103,12 +103,6 @@ public class TaskStatusRepository {
     public String getString(String key, String def) {
         Object v = cache.get(key);
         return v instanceof String ? (String) v : def;
-    }
-
-    // 同步热读：仅读内存缓存，未命中或类型不符时返回 def，不阻塞也不触发持久化。
-    public boolean getBoolean(String key, boolean def) {
-        Object v = cache.get(key);
-        return v instanceof Boolean ? (Boolean) v : def;
     }
 
     // 返回缓存的快照副本（防御性拷贝）：拿到的是当前时刻的只读视图，不受后续并发写入影响。

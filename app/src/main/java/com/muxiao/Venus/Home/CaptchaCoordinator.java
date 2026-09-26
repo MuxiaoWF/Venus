@@ -3,7 +3,7 @@ package com.muxiao.Venus.Home;
 import java.util.Map;
 
 /**
- * 前后台人机验证协调契约（P0-4 解耦目标）。
+ * 前后台人机验证协调契约（解耦目标）。
  * 取代 BackgroundGeetestController 中散落的静态 CountDownLatch / 全局 pending 状态，
  * 将"后台→前台"的 Challenge/Headers 与"前台→后台"的结果传递集中到单一协调者实例，
  * 前后台通过接口契约通信，而非依赖静态全局变量。

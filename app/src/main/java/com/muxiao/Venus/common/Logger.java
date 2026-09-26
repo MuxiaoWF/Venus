@@ -5,7 +5,7 @@ import android.util.Log;
 import com.muxiao.Venus.BuildConfig;
 
 /**
- * 统一日志门面（P2-4）。
+ * 统一日志门面。
  * 痛点：原代码大量使用 Log.e 输出调试信息，而 R8 仅剥离 v/d/i，不剥离 e/w，
  * 导致发布包残留调试日志与验证码噪声。
  * 方案：调试级日志经 BuildConfig.DEBUG 门控（release 下被 R8 常量折叠消除）；

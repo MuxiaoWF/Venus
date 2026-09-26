@@ -298,4 +298,31 @@
 
     <!-- 破坏性操作（删除用户等）：错误色低透明涟漪 -->
     <color name="destructive_ripple">#1ABA1A1A</color>
+
+    <!-- ========== 液态玻璃（liquid glass）材质色 ========== -->
+    <!-- 模拟顶光入射的玻璃表面：sheen（顶部高光）→ fill_top → fill_bottom 上亮下暗衰减；
+         rim 为边缘 1px 渐变光边。glass_solid_* 是给 MaterialCardView / MaterialButton 等
+         只吃单色 API 的组件用的半透表面 + 光边（无渐变能力）。
+         昼夜各一套（night 见 values-night/colors.xml），刻意不随换肤 ThemeOverlay 变色
+         ——玻璃是中性材质，与 bottom_nav_glass_stroke 同口径。 -->
+    <color name="glass_sheen">#8CFFFFFF</color>
+    <color name="glass_fill_top">#40FFFFFF</color>
+    <color name="glass_fill_bottom">#14FFFFFF</color>
+    <color name="glass_rim_top">#A6FFFFFF</color>
+    <color name="glass_rim_bottom">#1FFFFFFF</color>
+    <!-- RowButton 软光边（bg_glass_row_button 专用）：与 glass_fill_* 恒定 ~6% alpha 落差
+         （#50=#40+0x10、#24=#14+0x10），保证 1px 光边与内部填充沿整圈落差一致——
+         原 glass_rim_* 顶部比填充亮 40 个点、底部只亮 4 个点，落差悬殊使亮环
+         读作独立高光环而非玻璃轮廓（「边缘一圈和中间不连贯」）。昼夜各一套。 -->
+    <color name="glass_rim_soft_top">#50FFFFFF</color>
+    <color name="glass_rim_soft_bottom">#24FFFFFF</color>
+    <color name="glass_solid_fill">#99FFFFFF</color>
+    <color name="glass_solid_stroke">#B3FFFFFF</color>
+    <!-- Kyant 材质栈：表面 tint（button 0.22 / panel 0.20）、边缘高光描边、内阴影、Screen sparkle。
+         tint 取中庸值：过弱「透得像没有玻璃」，过强则雾化淹没折射弯折——折射可见性优先。 -->
+    <color name="glass_tint">#45FFFFFF</color>
+    <color name="glass_highlight_top">#99FFFFFF</color>
+    <color name="glass_highlight_bottom">#52FFFFFF</color>
+    <color name="glass_inner_shadow">#2E000000</color>
+    <color name="glass_sparkle">#14FFFFFF</color>
 </resources>

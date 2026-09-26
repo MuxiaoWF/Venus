@@ -8,7 +8,13 @@ public class TaskItem {
         COMPLETED,
         ERROR,
         WARNING,
-        CANCELLED
+        CANCELLED,
+        /**
+         * 仅 UI 展示态、不持久化：任务当日已完成（COMPLETED），但本轮运行尚未执行到，
+         * 绿色结果系沿用上一次运行——与「本轮已重签成功」的实心绿区分，
+         * 避免重跑中途终止时未触达任务看起来像本轮已完成。
+         */
+        RETAINED
     }
 
     private final String name;

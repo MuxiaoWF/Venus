@@ -66,8 +66,12 @@
     <dimen name="text_line_spacing_extra">2dp</dimen> <!-- 正文多行行距（layout 的 lineSpacingExtra） -->
 
     <!-- ========== 6. 动效基线（与既有 motion_duration_* 对齐，统一缓动） ========== -->
-    <!-- 强调缓动 cubic-bezier(0.1,0.7,0.1,1.0)，沉淀在 res/anim/emphasized_accelerate.xml
-         与 res/anim/emphasized_decelerate.xml（注意：不是 res/interpolator）。 -->
+    <!-- M3 官方缓动曲线，沉淀在 res/anim/（注意：不是 res/interpolator）：
+         emphasized_decelerate.xml  cubic-bezier(0.05,0.7,0.1,1.0)  进入元素（淡入/上滑入场）
+         emphasized_accelerate.xml  cubic-bezier(0.3,0,0.8,0.15)    退出元素（淡出/收起）
+         emphasized.xml             cubic-bezier(0.2,0,0,1.0)       持久容器（ChangeBounds 等）
+         时长 token：short=100ms（退出）/ medium=250ms（常规）/ long=350ms（页面转场），
+         全部动效必须尊重系统「减少动态效果」（tools.isReducedMotionEnabled）。 -->
     <!-- 按压态抬升量：卡片/行按下时 elevation +1 档，释放回落，营造"可点"质感 -->
 
     <!-- ========== 7. 配色角色（语义层，全部指向 M3 theme attr，禁止硬编码） ========== -->

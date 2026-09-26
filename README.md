@@ -4,6 +4,7 @@
 [Womsxd/MihoyoBBSTools 绝大部分签到内容由python转写为Java](https://github.com/Womsxd/MihoyoBBSTools)，
 [YueHen14/skyland-auto-sign 森空岛签到转写](https://github.com/YueHen14/skyland-auto-sign)，
 [jimmylizz/SRGachaLink 星铁vpn抓包转写](https://github.com/jimmylizz/SRGachaLink)，
+[juliuskreutz/stardb-exporter 星铁密钥](https://github.com/juliuskreutz/stardb-exporter/blob/master/keys/hsr.json)，
 [Android/Material3 组件样式](https://github.com/material-components/material-components-android)，
 [google/gson JSON解析](https://github.com/google/gson)，
 [square/okhttp HTTP请求](https://github.com/square/okhttp)，
@@ -42,9 +43,15 @@
 
 更新日志：
 
+2026.09.27
+
+添加了没什么用的定时任务（未测试是否可能被杀后台）
+
+---
+
 2026.09.20
 
-添加了vpn抓包星铁的抽卡记录，感谢参考库：[jimmylizz/SRGachaLink 星铁vpn抓包转写](https://github.com/jimmylizz/SRGachaLink)
+添加了vpn抓包星铁的抽卡记录，感谢参考库：[jimmylizz/SRGachaLink 星铁vpn抓包转写](https://github.com/jimmylizz/SRGachaLink)和[juliuskreutz/stardb-exporter 星铁密钥](https://github.com/juliuskreutz/stardb-exporter/blob/master/keys/hsr.json)
 
 ---
 

@@ -64,8 +64,18 @@ public class UserManagementFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
+        // 液态玻璃透镜接管：日期 chip（有背景图时真实模糊底衬，无图回退渐变）
+        com.muxiao.Venus.common.LensGlassDrawable.apply(rootView.findViewById(R.id.users_date_chip),
+                getResources().getDimension(R.dimen.shape_corner_xxs));
         // 背景图玻璃感收口：标记 glass 的日期 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
         com.muxiao.Venus.common.tools.applyGlassAlpha(requireContext(), rootView);
+        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        com.muxiao.Venus.common.BottomBarOverlay.attachClearance(
+                rootView.findViewById(R.id.login_scroll_view));
+        // 右下角扩展 FAB 锚定页面底部：bottomMargin 叠加底栏悬浮高度抬到玻璃之上，
+        // 底栏高度随导航栏 inset 变化时自动跟随（同 attachClearance 机制）
+        com.muxiao.Venus.common.BottomBarOverlay.attachMargin(
+                rootView.findViewById(R.id.user_login_btn));
         pageRootView = rootView;
 
         userManager = new UserManager(requireContext());
@@ -133,6 +143,11 @@ public class UserManagementFragment extends Fragment {
             // 为每个用户inflate一个新的视图
             View userItemView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.item_user_management, userListContainer, false);
+
+            // 用户卡液态玻璃透镜：接管 MaterialCardView 背景（自带圆角轮廓裁剪子内容与光边，
+            // 原 glass_solid 半透卡面保留为无背景图时的回退）
+            com.muxiao.Venus.common.LensGlassDrawable.apply(userItemView,
+                    getResources().getDimension(R.dimen.shape_corner_md));
 
             // 第一个用户卡片顶到容器,其余卡片之间留出间距
             if (i > 0) {

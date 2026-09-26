@@ -49,7 +49,7 @@
     <string name="enable_scheduled_task">Scheduled Sign-in</string>
     <string name="scheduled_task_desc">Runs sign-in tasks automatically in the background at the set time every day and posts notifications; if a captcha appears, you need to return to the app to complete it</string>
     <string name="scheduled_task_captcha_hint">Tip: leave BBS coin sign-in unchecked for scheduled runs to reduce the risk of captcha interruptions</string>
-    <string name="scheduled_task_time_placeholder">Daily at 07:30</string>
+    <string name="scheduled_task_time_label">Run Time</string>
     <string name="scheduled_task_time_fmt">Daily at %s</string>
     <string name="scheduled_time_picker_title">Set daily time</string>
     <string name="msg_scheduled_battery_hint">Battery optimization may delay or drop scheduled tasks. It is recommended to set this app to \"Unrestricted\" in battery settings so scheduled tasks run on time.\n\nIf a vendor settings page shows up, add this app to the unrestricted list.</string>
@@ -60,6 +60,8 @@
     <string name="gacha_link_subtitle">Tap a game row to fetch</string>
     <string name="gacha_link_title">Gacha Link</string>
     <string name="gacha_login_prompt">Please log in on the webpage and open the gacha history page</string>
+    <string name="cloud_load_failed">Failed to load page, check your network and retry</string>
+    <string name="cloud_retry">Retry</string>
     <string name="miyoushe_coin_sign_in">Miyoushe Coin Sign-In</string>
     <string name="game_sign_in">Game Sign-In</string>
     <string name="genshin_impact">Genshin Impact</string>
@@ -116,15 +118,17 @@
     <string name="gacha_chip_pending">Pending</string>
     <string name="cloud_open_hint">Open cloud page · link captured automatically</string>
     <!-- VPN capture fetch (HSR gacha link, ported from SRGachaLink) -->
-    <string name="vpn_capture_title">VPN Capture Fetch</string>
-    <string name="vpn_capture_hint">Start local VPN · open gacha records in game to capture</string>
+    <string name="vpn_capture_title">VPN Capture Fetch (Star Rail)</string>
+    <string name="vpn_capture_hint">Star Rail only: start capture, then restart the game and open the gacha records page</string>
     <string name="vpn_capture_running_hint">Capturing · tap row to stop</string>
     <string name="vpn_capture_channel_name">Capture service</string>
     <string name="vpn_capture_notification_title">Capture service running</string>
     <string name="vpn_capture_notification_text">Open gacha records page in Star Rail to capture the link</string>
-    <string name="vpn_capture_started">Local VPN started, open the gacha records page in Star Rail</string>
+    <string name="vpn_capture_started">Local VPN started, restart Star Rail and open the gacha records page</string>
     <string name="vpn_capture_stopped">Capture stopped</string>
     <string name="vpn_capture_permission_denied">VPN permission not granted, capture unavailable</string>
+    <string name="vpn_capture_updating">Init key missing, updating key table from cloud, capture continues…</string>
+    <string name="vpn_capture_failed_key">Capture failed: the current game version is not yet in the cloud key table, please retry later</string>
     <string name="vpn_authkey_captured">HSR gacha link captured (%s), copied to clipboard</string>
     <string name="capture_channel_bili">Bilibili</string>
     <plurals name="run_remaining">
@@ -146,6 +150,7 @@
     <string name="user_chip_default">Default</string>
     <string name="task_chip_done">Done</string>
     <string name="task_chip_failed">Failed</string>
+    <string name="task_chip_retained">Kept</string>
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">CANCELLED</string>

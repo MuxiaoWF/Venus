@@ -82,9 +82,10 @@ public final class AvatarStore {
     /**
      * 加载头像到 ImageView：有自定义图则 Glide 圆形裁剪铺满（去着色、去内边距），
      * 否则恢复布局默认态（内边距 + ic_user + 主题着色）。
+     * username 为 null/空（无用户空态）时按默认态处理——md5Hex 不接受空输入。
      */
     public static void loadInto(Context context, String username, ImageView view) {
-        if (hasAvatar(context, username)) {
+        if (username != null && !username.isEmpty() && hasAvatar(context, username)) {
             view.setPadding(0, 0, 0, 0);
             view.setImageTintList(null);
             Glide.with(view).load(avatarFile(context, username)).circleCrop().into(view);

@@ -84,8 +84,6 @@ public class SklandDaily {
         Cred cred = getCredByToken(token);
         notifier.notifyListeners(context.getString(R.string.skland_cred_success));
         List<Role> roles = getRoles(cred);
-        android.util.Log.d("SklandDaily", "all roles: " + roles.size() + ", target gameId=" + gameId);
-        for (Role r : roles) android.util.Log.d("SklandDaily", "  role: " + r.name + " gameId=" + r.gameId + " uid=" + r.uid + " serverId=" + r.serverId);
         // 按 gameId 过滤角色
         Iterator<Role> it = roles.iterator();
         while (it.hasNext()) {
@@ -155,7 +153,6 @@ public class SklandDaily {
         headers.put("vName", signBase.get("vName"));
         headers.put("sign", sig.get("sign"));
         String resp = sendGetRequest(URL_BIND, headers, null);
-        android.util.Log.d("SklandDaily", "binding response: " + resp);
         JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
         if (j.get("code").getAsInt() != 0)
             throw new RuntimeException(j.get("message").getAsString());
@@ -212,7 +209,6 @@ public class SklandDaily {
                 headers.put("referer", "https://game.skland.com/");
                 headers.put("origin", "https://game.skland.com/");
                 String resp = sendPostRequest(URL_SIGN_ENDFIELD, headers, new HashMap<>());
-                android.util.Log.d("SklandDaily", "endfield sign response: " + resp);
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
                     JsonObject data = j.getAsJsonObject("data");
@@ -236,7 +232,6 @@ public class SklandDaily {
                 Map<String, String> t = generateSignature(cred.token, "/api/v1/game/attendance", new Gson().toJson(body), signBase);
                 Map<String, String> headers = createSignHeaders(cred, signBase, t);
                 String resp = sendPostRequest(URL_SIGN_ARKNIGHTS, headers, body);
-                android.util.Log.d("SklandDaily", "arknights sign response: " + resp);
                 JsonObject j = JsonParser.parseString(resp).getAsJsonObject();
                 if (j.get("code").getAsInt() == 0) {
                     JsonObject data = j.getAsJsonObject("data");

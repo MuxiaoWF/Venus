@@ -21,7 +21,6 @@ import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewOutlineProvider;
 
 import android.widget.ImageView;
 
@@ -48,6 +47,10 @@ import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.BottomBarOverlay;
+import com.muxiao.Venus.common.ContentStripSampler;
+import com.muxiao.Venus.common.GlassBackdrop;
+import com.muxiao.Venus.common.LensGlassDrawable;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.data.ConfigRepository;
 
@@ -57,8 +60,6 @@ import android.graphics.Canvas;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageDecoder;
-import android.graphics.Matrix;
-import android.graphics.Outline;
 import android.graphics.Paint;
 import android.os.Build;
 
@@ -74,11 +75,11 @@ public class MainActivity extends BaseActivity {
     public BottomNavigationView bottomNavigationView;
     private NavigationRailView navigationRailView;
 
-    // 毛玻璃"透镜"三件套：底栏后方的模糊背景层、背景图视图、降采样模糊小样。
-    // setupBackground（解码赋值）与 insets 回调（几何重对齐）跨方法共用，故提为字段。
+    // 背景图视图与降采样模糊小样：setupBackground（解码赋值）跨方法共用，故提为字段。
+    // 底栏毛玻璃条（bottom_nav_blur）已由底栏液态玻璃（LensGlassDrawable）取代。
     private ImageView backgroundImage;
-    private ImageView bottomNavBlur;
-    private Bitmap blurredGlassBitmap;
+    /** 底栏玻璃的内容条带采样器：把滚进玻璃下方的真实内容采样进透镜采样源。 */
+    private ContentStripSampler contentStripSampler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,21 +104,31 @@ public class MainActivity extends BaseActivity {
         viewPager = findViewById(R.id.viewPager);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         navigationRailView = findViewById(R.id.navigation_rail);
-        bottomNavBlur = findViewById(R.id.bottom_nav_blur);
-        if (bottomNavBlur != null) {
-            // 与 bg_bottom_nav_rounded 相同的大圆角裁剪，
-            // 防止模糊层以方角从半透明玻璃的圆角空隙处露出
-            float glassCorner = getResources().getDimension(R.dimen.shape_corner_lg);
-            bottomNavBlur.setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View view, Outline outline) {
-                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), glassCorner);
-                }
-            });
-            bottomNavBlur.setClipToOutline(true);
+
+        // 底栏液态玻璃：LensGlassDrawable 对背景图轻模糊底衬取景折射（panel 口径
+        // lens 24/34dp，圆角与 bg_bottom_nav_rounded 一致）。无背景图时回退绘制原
+        // colorSurfaceContainer 表面（透明度经 setAlpha 转发）。
+        // 整条底栏不挂按压形变/涟漪（interactiveEffects=false），交互反馈仍由 Tab 项自身承担。
+        if (bottomNavigationView != null) {
+            LensGlassDrawable barLens = LensGlassDrawable.apply(bottomNavigationView,
+                    getResources().getDimension(R.dimen.shape_corner_lg), 24f, 34f, false);
+            // 底栏是唯一吃「壁纸+内容条带」合成图的透镜：折射身后真实内容。
+            // 嵌套小透镜保持纯壁纸采样，防止滚进条带范围时自引用残影。
+            if (barLens != null)
+                barLens.enableContentStripSampling();
+            // 选中态玻璃药丸：接管 Material activeIndicator 的背景（原为 colorSecondaryContainer
+            // 纯色填充），替换为透镜折射的玻璃药丸——选中项浮起一块更厚的玻璃，无语义色填充。
+            // 选中/取消由 Material 库经 indicator 视图的 setVisibility 切换（已反编译 1.14.0 确认：
+            // setActiveIndicatorDrawable 仅初始化调用一次，接管不会被顶掉），本处无需监听选中事件。
+            installGlassPillIndicators();
+            // 内容条带采样器：把底栏身后的真实内容（滚动卡片/列表）离屏采样进透镜
+            // 采样源——内容不再避让，可滚进玻璃下方，玻璃折射真实的身后层
+            // （对应 Kyant0/AndroidLiquidGlass 的 LayerBackdrop），见 ContentStripSampler。
+            contentStripSampler = new ContentStripSampler(viewPager, bottomNavigationView);
+            contentStripSampler.start();
         }
 
-        // 设置背景图片（须在透镜视图初始化之后：其回调会引用 backgroundImage/bottomNavBlur）
+        // 设置背景图片（须在透镜视图初始化之后：其回调会引用 backgroundImage）
         setupBackground();
         // 监听背景 prefs 变化：预设档/不透明度/图片更换即时重合成。
         // 此前只在 onResume 检测——ViewPager 切页不触发 Activity 生命周期，
@@ -138,9 +149,10 @@ public class MainActivity extends BaseActivity {
         adjustCardsForBackground();
 
         // 处理状态栏内边距，避免工具栏被状态栏遮挡。
-        // 手机布局的底部避让由底栏监听器统一处理（导航栏 inset + 底栏高度），
-        // 这里保留现有底部内边距即可；宽屏（NavigationRail）布局中 ViewPager
-        // 直通屏幕底部，需自行让出系统导航栏高度。
+        // 手机布局底部不再做容器级避让（内容可滚进玻璃下方，由 ContentStripSampler
+        // 采样进透镜），列表尾部留白由各页滚动容器经 BottomBarOverlay.attachClearance
+        // 自行处理；宽屏（NavigationRail）布局中 ViewPager 直通屏幕底部，
+        // 需自行让出系统导航栏高度。
         ViewCompat.setOnApplyWindowInsetsListener(viewPager, (v, insets) -> {
             int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
             int bottomPad = navigationRailView != null
@@ -160,17 +172,12 @@ public class MainActivity extends BaseActivity {
                 ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
                 lp.bottomMargin = baseBottomMargin + navBarHeight;
                 v.setLayoutParams(lp);
-                // 内容已延伸到底栏之下（毛玻璃透感来源）：按「底栏高度 + 外边距 + 导航栏 inset」
-                // 给 ViewPager 底部内边距，保证最后一个列表项能完整滚出玻璃区；
-                // 底栏位置变化后同步重对齐模糊透镜的取景矩阵。
+                // 内容避让已拆除：底栏悬浮高度改由 BottomBarOverlay 发布，各页滚动
+                // 容器（attachClearance 注册）自行留白，保证最后一个列表项能完整
+                // 滚出玻璃区；透镜身后的真实内容经 ContentStripSampler 采样进玻璃。
                 v.post(() -> {
                     if (v.getHeight() == 0) return;
-                    viewPager.setPadding(viewPager.getPaddingLeft(), viewPager.getPaddingTop(),
-                            viewPager.getPaddingRight(),
-                            v.getHeight() + baseBottomMargin + navBarHeight);
-                    if (bottomNavBlur != null
-                            && bottomNavBlur.getVisibility() == android.view.View.VISIBLE)
-                        updateBlurStripGeometry();
+                    BottomBarOverlay.update(v.getHeight() + baseBottomMargin + navBarHeight);
                 });
                 return insets;
             });
@@ -195,6 +202,21 @@ public class MainActivity extends BaseActivity {
                     navigationRailView.setSelectedItemId(menuId);
                 else if (bottomNavigationView != null)
                     bottomNavigationView.setSelectedItemId(menuId);
+                // 过渡开始（instant 切换不走 scrollStateChanged，这里统一入口；
+                // 平滑切换时后续 SETTLING 事件幂等重入）：玻璃用最高频率跟踪滑动内容
+                if (contentStripSampler != null)
+                    contentStripSampler.onTransitionStart();
+            }
+
+            @Override
+            public void onPageScrollStateChanged(int state) {
+                super.onPageScrollStateChanged(state);
+                if (contentStripSampler == null) return;
+                if (state == ViewPager2.SCROLL_STATE_DRAGGING
+                        || state == ViewPager2.SCROLL_STATE_SETTLING)
+                    contentStripSampler.onTransitionStart();
+                else if (state == ViewPager2.SCROLL_STATE_IDLE)
+                    contentStripSampler.onTransitionEnd();
             }
         });
 
@@ -405,6 +427,31 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
+     * 选中态玻璃药丸：把每个 Tab 项内部 Material activeIndicator 的背景接管为透镜。
+     * 指示器是 icon container 里 id 为 navigation_bar_item_active_indicator_view 的
+     * 独立 View（material 1.14.0 布局已确认），其背景即选中态的纯色药丸——
+     * 换成 LensGlassDrawable（透镜折射 + tint，无语义色填充）；库经 setVisibility
+     * 控制显隐，未选中的 Tab 天然不绘制药丸，无需监听选中事件。
+     * 指示器尺寸在库内布局期设置，故 post 到布局完成后安装。
+     */
+    private void installGlassPillIndicators() {
+        bottomNavigationView.post(() -> {
+            ViewGroup menuView = (ViewGroup) bottomNavigationView.getChildAt(0);
+            if (menuView == null) return;
+            float radius = getResources().getDimension(R.dimen.bottom_nav_indicator_height) / 2f;
+            for (int i = 0; i < menuView.getChildCount(); i++) {
+                View item = menuView.getChildAt(i);
+                if (!(item instanceof ViewGroup)) continue;
+                View indicator = item.findViewById(
+                        com.google.android.material.R.id.navigation_bar_item_active_indicator_view);
+                if (indicator != null && !(indicator.getBackground() instanceof LensGlassDrawable)) {
+                    LensGlassDrawable.apply(indicator, radius, 12f, 24f, false);
+                }
+            }
+        });
+    }
+
+    /**
      * 加载用户设定的背景图：后台解码 → 预合成（按淡化风格预设降饱和提亮/压暗，
      * 再按不透明度滑条与主题底色一次性掺合）→ 主线程全不透明显示。
      * 关键：淡化只发生一次且全部烘进位图——此前先预处理再 setAlpha 叠在纯色底上，
@@ -425,6 +472,7 @@ public class MainActivity extends BaseActivity {
         // 无图：直接隐藏（透镜也一并隐藏，玻璃透出的就是滚动到栏下的页面内容）
         if (backgroundImageUri == null) {
             backgroundImage.setVisibility(android.view.View.GONE);
+            GlassBackdrop.clear();
             return;
         }
 
@@ -449,11 +497,11 @@ public class MainActivity extends BaseActivity {
                 error = getString(R.string.err_background_setup_error,
                         e.getMessage() != null ? e.getMessage() : e.toString());
             }
-            // 预合成与模糊小样都在后台一次算好：纯位图运算，无版本兼容问题
+            // 预合成与轻模糊小样都在后台一次算好：纯位图运算，无版本兼容问题
             final Bitmap composited = source != null
                     ? createCompositedBitmap(source, backgroundPreset, backgroundAlpha, surfaceColor)
                     : null;
-            final Bitmap blurred = composited != null ? createBlurredGlassBitmap(composited) : null;
+            final Bitmap glassBlur = composited != null ? createGlassBlurBitmap(composited) : null;
             final Drawable result =
                     composited != null ? new BitmapDrawable(getResources(), composited) : null;
             final String errorMsg = error;
@@ -463,26 +511,23 @@ public class MainActivity extends BaseActivity {
                 // 且已用 isFinishing/isDestroyed 拦截过期回调（重复查找会触发 Lint DuplicateIdLookup）
                 if (errorMsg != null) {
                     backgroundImage.setVisibility(android.view.View.GONE);
-                    if (bottomNavBlur != null)
-                        bottomNavBlur.setVisibility(android.view.View.GONE);
+                    GlassBackdrop.clear();
                     show_error_dialog(MainActivity.this, errorMsg);
                     return;
                 }
                 if (result != null) {
-                    blurredGlassBitmap = blurred;
+                    // 发布轻模糊小样：液态玻璃透镜（LensGlassDrawable）的取样源
+                    // （壁纸 + 内容条带合成，条带由 ContentStripSampler 采样）
+                    GlassBackdrop.set(glassBlur, backgroundImage);
                     backgroundImage.setImageDrawable(result);
                     // 淡化已全部烘进位图：视图恒为全不透明，绝不再叠加 alpha
                     backgroundImage.setAlpha(1f);
                     backgroundImage.setVisibility(android.view.View.VISIBLE);
-                    if (bottomNavBlur != null) {
-                        bottomNavBlur.setVisibility(android.view.View.VISIBLE);
-                        // 等布局完成（含 insets 让位）后再做矩阵对齐，取景才准确
-                        bottomNavBlur.post(this::updateBlurStripGeometry);
-                    }
+                    // 壁纸小样已更新（旧内容条带随之作废）：立即重采内容条带
+                    if (contentStripSampler != null) contentStripSampler.invalidate();
                 } else {
                     backgroundImage.setVisibility(android.view.View.GONE);
-                    if (bottomNavBlur != null)
-                        bottomNavBlur.setVisibility(android.view.View.GONE);
+                    GlassBackdrop.clear();
                 }
             });
         });
@@ -592,50 +637,19 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 把模糊小样按 centerCrop 规则对齐到底栏区域：
-     * 先按背景图视图的尺寸算出整图的缩放与居中偏移，再减去底栏相对背景图的偏移，
-     * 使透镜里显示的正是玻璃背后那块像素——这就是"磨砂玻璃"的取景原理。
-     * 底栏位置随 insets 变化（系统导航栏 inset 在首帧后才到位），几何变化后需重调。
+     * 生成液态玻璃透镜用的轻模糊小样：单步双线性降到原图约 1/4 尺度即止——
+     * 参考 Kyant0/AndroidLiquidGlass（SleepDown-Schedule 的玻璃基础库）配方：
+     * 透镜的模糊半径很小（2~10dp），必须能透出可辨认的内容，边缘折射弯折才可见；
+     * 极重模糊（毛玻璃那档）会让透镜变成牛奶色平板、折射失真无从谈起。
+     * 1/4 尺度双线性缩放 ≈ 数像素级的低通滤波，全 API 级别可用、零逐帧成本。
      */
-    private void updateBlurStripGeometry() {
-        if (bottomNavBlur == null || blurredGlassBitmap == null
-                || bottomNavBlur.getWidth() == 0 || backgroundImage.getWidth() == 0) return;
-        int[] stripLoc = new int[2];
-        int[] bgLoc = new int[2];
-        bottomNavBlur.getLocationInWindow(stripLoc);
-        backgroundImage.getLocationInWindow(bgLoc);
-        int offsetX = stripLoc[0] - bgLoc[0];
-        int offsetY = stripLoc[1] - bgLoc[1];
-
-        int bgW = backgroundImage.getWidth();
-        int bgH = backgroundImage.getHeight();
-        int bmpW = blurredGlassBitmap.getWidth();
-        int bmpH = blurredGlassBitmap.getHeight();
-        float scale = Math.max(bgW / (float) bmpW, bgH / (float) bmpH);
-        float dx = (bgW - bmpW * scale) / 2f;
-        float dy = (bgH - bmpH * scale) / 2f;
-
-        Matrix matrix = new Matrix();
-        matrix.setScale(scale, scale);
-        matrix.postTranslate(dx - offsetX, dy - offsetY);
-        bottomNavBlur.setImageMatrix(matrix);
-    }
-
-    /**
-     * 生成毛玻璃用的模糊小样：连续 1/4 降采样到极小尺寸（浓缩像素即低通滤波），
-     * 再双线性回升到原图约 1/4，得到平滑的磨砂质感。纯位图运算，全 API 级别可用。
-     */
-    private static Bitmap createBlurredGlassBitmap(Bitmap source) {
-        Bitmap out = source;
-        while (out.getWidth() > 64 && out.getHeight() > 64) {
-            out = Bitmap.createScaledBitmap(out,
-                    Math.max(1, out.getWidth() / 4), Math.max(1, out.getHeight() / 4), true);
-        }
-        int targetW = Math.max(1, source.getWidth() / 4);
-        int targetH = Math.max(1, source.getHeight() / 4);
-        if (out.getWidth() < targetW && out.getHeight() < targetH)
-            out = Bitmap.createScaledBitmap(out, targetW, targetH, true);
-        return out;
+    private static Bitmap createGlassBlurBitmap(Bitmap source) {
+        // 1/2 而非 1/4：采样源分辨率是透镜清晰度的关键——AGSL 逐像素折射会把
+        // 采样源放大回屏幕尺寸，1/4 源即 4x 放大，条带文字呈马赛克；1/2 源
+        // （内存约 +2MB）配合 ContentStripSampler.CAPTURE_SCALE=0.5 保证文字可辨
+        int w = Math.max(1, source.getWidth() / 2);
+        int h = Math.max(1, source.getHeight() / 2);
+        return Bitmap.createScaledBitmap(source, w, h, true);
     }
 
     /**
@@ -644,11 +658,11 @@ public class MainActivity extends BaseActivity {
     private void adjustCardsForBackground() {
         Uri bgUri = SettingsFragment.getBackgroundImageUri(this);
         viewPager.post(() -> {
-            // 底部导航栏毛玻璃：颜色由 bg_bottom_nav_rounded 的 ?attr/colorSurfaceContainer
+            // 底部导航栏玻璃表面：颜色由 bg_bottom_nav_rounded 的 ?attr/colorSurfaceContainer
             // 提供（随 6 套 ThemeOverlay 与昼夜在运行时解析），此处只叠加"不透明度"，
             // 且 alpha 取自 @integer/bottom_nav_glass_alpha。
-            // 颜色来源与不透明度各归一处；不再像过去那样 setTint 一个写死 alpha 的
-            // 颜色去覆盖 drawable，也不再把颜色写死在 drawable 里（两者都会让换肤失效）。
+            // 底栏背景已是 LensGlassDrawable：setAlpha 转发给回退底（透镜本体不吃 alpha，
+            // 有背景图时恒为液态玻璃），无背景图时回退表面保持半透明观感。
             if (bottomNavigationView != null && bottomNavigationView.getBackground() != null) {
                 bottomNavigationView.getBackground().mutate()
                         .setAlpha(getResources().getInteger(R.integer.bottom_nav_glass_alpha));

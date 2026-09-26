@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * 既受 Android 10+ 后台启动 Activity 限制、用户也感知不到）：改为发送可点击的
  * 验证码通知（见 {@link com.muxiao.Venus.common.Notification#sendCaptchaNotification}，
  * 点击直达验证流程），后台线程阻塞等待验证结果，完成后继续执行任务。
- * 全局验证状态已收敛到 CaptchaCoordinator 单一协调者（P0-4 解耦）。
+ * 全局验证状态已收敛到 CaptchaCoordinator 单一协调者。
  */
 public class BackgroundGeetestController implements GeetestController {
 
@@ -84,16 +84,6 @@ public class BackgroundGeetestController implements GeetestController {
     @Override
     public void destroyButton() {
         coordinator.countDown();
-    }
-
-    @Override
-    public void updateTaskStatusWaring(String taskName) {
-        notifier.notifyListeners(taskName + context.getString(R.string.geetest_waiting));
-    }
-
-    @Override
-    public void updateTaskStatusInProgress(String taskName) {
-        notifier.notifyListeners(taskName + context.getString(R.string.geetest_done));
     }
 
     // ===== 静态门面：供 Geetest / HomeFragment 按原调用方式使用（委托给协调者） =====

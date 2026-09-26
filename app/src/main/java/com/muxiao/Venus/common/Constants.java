@@ -86,6 +86,11 @@ public class Constants {
         public static final String HSR_GACHA_URL_GLOBAL = "https://public-operation-hkrpg.hoyoverse.com/common/gacha_record/api/getGachaLog?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&lang=en-us&authkey=";
 
         public static final String MUXIAO_MINE_UPDATE_SALT_URL = "https://muxiaowf.top/api/salt";
+        /** 星铁 KCP 初始密钥表（HSR KeyStore）主源：stardb-exporter 社区维护（海外快、国内常不可达，短超时快速让位） */
+        public static final String HSR_KEYS_UPDATE_URL_PRIMARY =
+                "https://raw.githubusercontent.com/juliuskreutz/stardb-exporter/refs/heads/master/keys/hsr.json";
+        /** 星铁 KCP 初始密钥表（HSR KeyStore）兜底源：自建服务，返回与 assets/hsr.json 同构的 {版本号: base64密钥} JSON */
+        public static final String HSR_KEYS_UPDATE_URL = "https://muxiaowf.top/api/hsr";
         public static final String MUXIAO_MINE_UPDATE_LANZOU_URL = "https://wwzq.lanzouq.com/b00wn0dtfe";
         public static final String MUXIAO_MINE_UPDATE_URL = "https://api.github.com/repos/MuxiaoWF/Venus/releases/latest";
         public static final String MUXIAO_MINE_GITHUB_URL = "https://github.com/MuxiaoWF/Venus";
@@ -143,6 +148,10 @@ public class Constants {
         public static final String BBS_VERSION_PREF = "bbs_version";
         public static final String UPDATE_TIME_PREF = "update_time";
         public static final String UPDATE_TIME_LOCAL_PREF = "update_time_local";
+        /** 星铁 KCP 初始密钥表云端更新差量（JSON：{版本号: base64密钥}），HsrKeyStore 写入 */
+        public static final String HSR_KEYS_PREF = "hsr_keys";
+        /** 星铁初始密钥表上次成功云端拉取的时间（epoch 毫秒字符串），HsrKeyStore 写入 */
+        public static final String HSR_KEYS_UPDATE_TIME_PREF = "hsr_keys_update_time";
 
         // 背景
         public static final String BACKGROUND_PREFS_NAME = "background_prefs";

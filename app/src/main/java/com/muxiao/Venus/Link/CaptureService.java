@@ -42,6 +42,10 @@ public class CaptureService extends VpnService {
     private static final String TAG = "CaptureService";
     private static final String STOP_SERVICE_ACTION = "com.muxiao.Venus.Link.STOP_CAPTURE";
     public static final String ACTION_GET_AUTHKEY = "com.muxiao.Venus.Link.GET_AUTHKEY";
+    /** 捕获失败广播（PacketAnalyzer 发出）：extra "reason" 说明原因（key_missing=云端密钥表仍未收录该版本） */
+    public static final String ACTION_CAPTURE_FAILED = "com.muxiao.Venus.Link.CAPTURE_FAILED";
+    /** 密钥表更新中广播（PacketAnalyzer 缺键时发出，抓包继续，重放机制衔接；拿到键后由成功广播覆盖） */
+    public static final String ACTION_CAPTURE_UPDATING = "com.muxiao.Venus.Link.CAPTURE_UPDATING";
     private static final String CHANNEL_ID = "CaptureService";
     private static final int MAX_PACKET_SIZE = 8192;
 
@@ -64,6 +68,9 @@ public class CaptureService extends VpnService {
     /** UI 侧判断服务运行态（onCreate/onDestroy 维护） */
     public static volatile boolean running = false;
 
+    /** 最近一次捕获的渠道（null=本次运行尚未捕获；PacketAnalyzer 成功时写入，LinkFragment 回显用） */
+    public static volatile String capturedChannel = null;
+
     private ParcelFileDescriptor pfd;
     private ParcelFileDescriptor remotePfd;
     private ParcelFileDescriptor localPfd;
@@ -78,10 +85,18 @@ public class CaptureService extends VpnService {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground();
+        if (pfd != null && tunnelThread != null) {
+            // 重复 startForegroundService：不能重绑 socketpair，否则 native 隧道仍持旧 fd，永远收不到包
+            Log.i(TAG, "already running, ignore duplicate start");
+            return super.onStartCommand(intent, flags, startId);
+        }
         startVpn();
         startCapture();
         initNative();
         startNative();
+        // 每次启动抓包时检查星铁初始密钥表更新（HsrKeyStore 内部节流：距上次成功拉取
+        // 不足 24h 直接跳过，正常情况零请求；拉取/合并均在后台线程池）
+        HsrKeyStore.checkForUpdateAsync(getApplicationContext(), false);
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -104,6 +119,7 @@ public class CaptureService extends VpnService {
     }
 
     private void stopCapture() {
+        capturedChannel = null;
         stopNative();
         stopForward();
         stopVpn();
@@ -131,7 +147,8 @@ public class CaptureService extends VpnService {
         try {
             pfd = builder.establish();
             localPfd = pfd;
-        } catch (NullPointerException e) {
+        } catch (Exception e) {
+            // 建立失败（未授权/系统限制等）直接自毁，不能让异常炸掉服务进程
             Log.e(TAG, "fail to start vpn", e);
             stopSelf();
         }
@@ -158,6 +175,7 @@ public class CaptureService extends VpnService {
     private void startCapture() {
         if (pfd == null) return;
         PORT_PACKAGE.clear();
+        capturedChannel = null;
         try {
             // Unix socketpair：fd1↔fd2 互为对端，dup 成 PFD 后原始句柄关闭
             FileDescriptor fd1 = new FileDescriptor();
@@ -173,11 +191,11 @@ public class CaptureService extends VpnService {
             return;
         }
         PacketAnalyzer analyzer = new PacketAnalyzer(this);
-        Thread forwardThreadOut = forward(pfd, remotePfd, analyzer);
-        Thread forwardThreadIn = forward(remotePfd, pfd, analyzer);
+        forward(pfd, remotePfd, analyzer);
+        forward(remotePfd, pfd, analyzer);
     }
 
-    private Thread forward(ParcelFileDescriptor src, ParcelFileDescriptor dst, PacketAnalyzer analyzer) {
+    private void forward(ParcelFileDescriptor src, ParcelFileDescriptor dst, PacketAnalyzer analyzer) {
         Thread t = new Thread(() -> {
             byte[] buffer = new byte[MAX_PACKET_SIZE];
             try (ParcelFileDescriptor.AutoCloseInputStream in =
@@ -198,7 +216,6 @@ public class CaptureService extends VpnService {
             }
         }, "CaptureForward");
         t.start();
-        return t;
     }
 
     private void stopForward() {
@@ -261,7 +278,9 @@ public class CaptureService extends VpnService {
         }
     }
 
-    // JNI 导出函数（C 侧符号：Java_com_muxiao_Venus_Link_CaptureService_jni_*）
+    // JNI 导出函数（C 侧符号：Java_com_muxiao_Venus_Link_CaptureService_jni_*）。
+    // 仅保留本服务实际使用的入口；C 侧同符号导出（get_mtu/get_stats/pcap/socks5）
+    // 在未声明时成为死导出，无副作用。
     private native long jni_init(int sdk);
 
     private native void jni_start(long context, int loglevel);
@@ -272,42 +291,36 @@ public class CaptureService extends VpnService {
 
     private native void jni_clear(long context);
 
-    private native int jni_get_mtu();
-
-    private native int[] jni_get_stats(long context);
-
-    private native void jni_pcap(String name, int record_size, int file_size);
-
-    private native void jni_socks5(String addr, int port, String username, String password);
-
     private native void jni_done(long context);
 
     /* ===== JNI 回调（C 侧经 GetMethodID 反射调用，勿改名；混淆需 keep） ===== */
+    /* 以下方法仅在 native 侧被引用，Java 层无调用点：@SuppressWarnings 消除
+     * IDE 的 unused 告警（方法级精确标注，不影响类内其他死代码检查）。 */
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private void nativeExit(String reason) {
         Log.w(TAG, "Native exit reason=" + reason);
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private void nativeError(int error, String message) {
         Log.w(TAG, "Native error " + error + ": " + message);
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private void logPacket(eu.faircode.netguard.Packet packet) {
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private void dnsResolved(eu.faircode.netguard.ResourceRecord rr) {
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private boolean isDomainBlocked(String name) {
         return false;
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private int getUidQ(int version, int protocol, String saddr, int sport, String daddr, int dport) {
         // Android 10+ 起 C 层读不到 /proc/net，由 Java 侧反射系统 API 反查连接归属（NetGuard 同款方案）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && version == 4) {
@@ -330,7 +343,7 @@ public class CaptureService extends VpnService {
         return -1;
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private eu.faircode.netguard.Allowed isAddressAllowed(eu.faircode.netguard.Packet packet) {
         // 新 UDP 会话建立时记录「客户端源端口 → 渠道包名」，供 PacketAnalyzer 判定 authkey 渠道
         if (packet.protocol == 17)
@@ -374,7 +387,7 @@ public class CaptureService extends VpnService {
         return found;
     }
 
-    // Called from native code
+    @SuppressWarnings("unused") // Called from native code
     private void accountUsage(eu.faircode.netguard.Usage usage) {
     }
 

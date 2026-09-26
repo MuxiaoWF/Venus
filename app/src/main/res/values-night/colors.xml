@@ -287,4 +287,24 @@
 
     <!-- 破坏性操作涟漪（深色用浅错误色低透明，深底上可见） -->
     <color name="destructive_ripple">#1AFFB4AB</color>
+
+    <!-- ========== 液态玻璃（liquid glass）材质色（深色） ========== -->
+    <!-- 深色玻璃 = 暗色半透明填充压暗背景保证浅色文字对比，rim/sheen 用白光提亮边缘。 -->
+    <color name="glass_sheen">#26FFFFFF</color>
+    <color name="glass_fill_top">#66161920</color>
+    <color name="glass_fill_bottom">#40161920</color>
+    <color name="glass_rim_top">#66FFFFFF</color>
+    <color name="glass_rim_bottom">#0FFFFFFF</color>
+    <!-- RowButton 软光边（深色）：白光边语义保留（暗玻璃的提边光源），
+         顶部 40%→30% 收敛、底部 6%→8% 微提，减弱光环与暗色填充的割裂感 -->
+    <color name="glass_rim_soft_top">#4DFFFFFF</color>
+    <color name="glass_rim_soft_bottom">#14FFFFFF</color>
+    <color name="glass_solid_fill">#8C161920</color>
+    <color name="glass_solid_stroke">#59FFFFFF</color>
+    <!-- Kyant 材质栈（深色）：tint 更低（内容自透深色），高光稍强，内阴影更深 -->
+    <color name="glass_tint">#28FFFFFF</color>
+    <color name="glass_highlight_top">#8CFFFFFF</color>
+    <color name="glass_highlight_bottom">#40FFFFFF</color>
+    <color name="glass_inner_shadow">#40000000</color>
+    <color name="glass_sparkle">#0EFFFFFF</color>
 </resources>

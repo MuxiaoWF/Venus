@@ -2,14 +2,20 @@
 <!-- 云游戏获取页：独立 Activity 承载 WebView，登录云游戏后自动捕获抽卡链接 -->
 <!-- 不在根节点设置背景：applyAppTheme 已将主题切为 Theme_Venus，其 windowBackground
      即为 colorBackground，重复着色会触发 Lint Overdraw（全屏多画一遍）。 -->
+<!-- WebView 走 ViewStub 延迟展开：其首次初始化（provider 启动）为主线程重活，
+     放在 onCreate 同步展开会拖慢首帧、表现为点击后卡顿才进入本页。
+     首帧先渲染顶栏 + 加载指示器，首帧后再展开 WebView 并加载（见 CloudGachaActivity）。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/cloud_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- 页眉（紧凑单行）：返回 + 标题。长提示由下方提示行与捕获 Snackbar 承担 -->
+    <!-- 页眉（紧凑单行）：返回 + 标题。长提示由下方提示行与捕获 Snackbar 承担。
+         状态栏内边距由 insets 监听器注入（与其他二级页同一套，见 UserLoginActivity） -->
     <LinearLayout
+        android:id="@+id/cloud_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
@@ -55,9 +61,61 @@
         android:textAppearance="@style/TextAppearance.Venus.Body"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
-    <WebView
-        android:id="@+id/webView"
+    <!-- 内容区：WebView（延迟展开）/ 加载指示器 / 加载失败重试 三态叠加 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
+
+        <ViewStub
+            android:id="@+id/webview_stub"
+            android:layout="@layout/view_cloud_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ProgressBar
+            android:id="@+id/cloud_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true" />
+
+        <!-- 加载失败态：主帧请求失败/HTTP 错误时显示，WebView 隐藏避免残缺白屏盖住提示 -->
+        <LinearLayout
+            android:id="@+id/cloud_error"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="@dimen/icon_badge_circle"
+                android:layout_height="@dimen/icon_badge_circle"
+                android:background="@drawable/bg_icon_circle"
+                android:contentDescription="@null"
+                android:padding="@dimen/space_2"
+                android:src="@drawable/ic_task_error"
+                app:tint="?attr/colorPrimary" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_3"
+                android:gravity="center"
+                android:maxWidth="280dp"
+                android:text="@string/cloud_load_failed"
+                android:textAppearance="@style/TextAppearance.Venus.Body"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/cloud_retry"
+                style="@style/Widget.Venus.Button.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_3"
+                android:text="@string/cloud_retry" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

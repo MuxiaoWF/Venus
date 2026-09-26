@@ -67,9 +67,12 @@
     <!-- 填充卡：无阴影 + 表面色，用于"嵌入"分组（如用户选择区 / 可折叠设置分组） -->
     <style name="Widget.Venus.Card.Filled" parent="Widget.Venus.Card.Base" />
 
-    <!-- 描边卡：透明表面 + 发丝描边，用于轻量分组（与父类的唯一差异是背景） -->
-    <style name="Widget.Venus.Card.Outlined" parent="Widget.Venus.Card.Base">
-        <item name="cardBackgroundColor">@android:color/transparent</item>
+    <!-- 液态玻璃卡：半透明表面 + 发丝光边，用于直接叠在背景图/表面上的内容容器
+         （用户条目卡等）。MaterialCardView 只支持单色填充/描边，渐变质感由
+         glass_solid_* 半透色 + 昼夜色板近似表达；无背景图时呈浅玻璃面板。 -->
+    <style name="Widget.Venus.Card.Glass" parent="Widget.Venus.Card.Base">
+        <item name="cardBackgroundColor">@color/glass_solid_fill</item>
+        <item name="strokeColor">@color/glass_solid_stroke</item>
     </style>
 
     <!-- 透明卡：无背景无描边，用于设置 List 组内可展开行（嵌套在分组外壳内），
@@ -83,7 +86,7 @@
     <!-- 注：原 Widget.Venus.StateCard（空态/错误态大卡片）已删除。
          抽卡链接页的错误改为「就地替换」——直接写在触发的来源行结果位上，
          不再单独立块（详见 fragment_link.xml 与 LinkFragment.showInlineError）。
-         空态若日后需要，用 Card.Filled / Card.Outlined + 居中内容即可。 -->
+         空态若日后需要，用 Card.Filled / Card.Glass + 居中内容即可。 -->
 
     <!-- ===================== 屏幕脚手架（滚动内容容器） ===================== -->
     <!-- 应用于 NestedScrollView / LinearLayout 滚动容器：统一裁剪、留白节奏 -->
@@ -224,13 +227,14 @@
 
     <style name="Widget.Venus.Button.Text" parent="Widget.Material3.Button.TextButton" />
 
-    <!-- 表面行按钮：次操作，浅表面圆角行（命令台第二行等） -->
+    <!-- 表面行按钮：次操作，液态玻璃行（1px 渐变光边 + 顶部高光半透明填充，涟漪内嵌）。
+         自定义 background 后 MaterialShapeDrawable 被替换：rippleColor 不再生效（涟漪在
+         bg_glass_row_button 内），backgroundTint 必须显式 @null 防止 SrcIn 打平渐变。 -->
     <style name="Widget.Venus.RowButton" parent="Widget.Material3.Button">
-        <item name="backgroundTint">?attr/colorSurfaceContainerHigh</item>
+        <item name="android:background">@drawable/bg_glass_row_button</item>
+        <item name="backgroundTint">@null</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="iconTint">?attr/colorOnSurfaceVariant</item>
-        <item name="rippleColor">?attr/colorOutlineVariant</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.Venus.TextInput</item>
         <item name="android:minHeight">@dimen/touch_target_min</item>
         <item name="android:textSize">14sp</item>
         <item name="android:letterSpacing">0</item>

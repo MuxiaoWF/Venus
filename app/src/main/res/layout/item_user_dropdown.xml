@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 账号选择下拉的展开列表项：头像 + 用户名。
+     Link / Home 两处账号下拉共用（见 common/UserDropdownAdapter），
+     头像复用账号体系 AvatarStore：有自定义头像则圆形裁剪铺满，
+     否则恢复圆底 + ic_user + 主题着色的默认态（与账号行同款视觉）。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="@dimen/space_3"
+    android:paddingVertical="@dimen/space_2">
+
+    <ImageView
+        android:id="@+id/item_user_avatar"
+        android:layout_width="@dimen/icon_badge_md"
+        android:layout_height="@dimen/icon_badge_md"
+        android:background="@drawable/bg_icon_circle"
+        android:contentDescription="@null"
+        android:padding="@dimen/space_2"
+        android:src="@drawable/ic_user"
+        app:tint="?attr/colorPrimary" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/item_user_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_3"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:textColor="?android:attr/textColorPrimary" />
+</LinearLayout>

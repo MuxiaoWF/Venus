@@ -172,6 +172,24 @@ public class CollapsibleCardView extends FrameLayout {
     }
 
     /**
+     * 通知卡片内容在运行时发生变化（如内部某行 setVisible/GONE 改变了内容自然高度）：
+     * 重测展开高度；展开态下把内容区高度同步到新值（带动画，尊重「减少动态效果」），
+     * 折叠态仅刷新缓存，下次展开即用新高度。
+     * <p>不调本方法时，内容长高会被钉死的旧内容区高度裁剪在可视区外，
+     * 内容变矮则卡片底部留白——内容区高度在展开后是固定 px 而非 wrap_content。
+     */
+    public void notifyContentChanged() {
+        expandedHeight = -1;
+        contentLayout.post(() -> {
+            expandedHeight = measureContentHeight();
+            if (isExpanded) {
+                cancelHeightAnim();
+                animateHeight(getCurrentHeight(), expandedHeight, true);
+            }
+        });
+    }
+
+    /**
      * 在展开与折叠之间切换（已是目标状态时无操作）。
      */
     public void toggle() {
