@@ -55,19 +55,19 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return -1;
     }
 
-    const char *packet = "eu/faircode/netguard/Packet";
+    const char *packet = "com/muxiao/Venus/Link/CaptureModels$Packet";
     clsPacket = jniGlobalRef(env, jniFindClass(env, packet));
     ng_add_alloc(clsPacket, "clsPacket");
 
-    const char *allowed = "eu/faircode/netguard/Allowed";
+    const char *allowed = "com/muxiao/Venus/Link/CaptureModels$Allowed";
     clsAllowed = jniGlobalRef(env, jniFindClass(env, allowed));
     ng_add_alloc(clsAllowed, "clsAllowed");
 
-    const char *rr = "eu/faircode/netguard/ResourceRecord";
+    const char *rr = "com/muxiao/Venus/Link/CaptureModels$ResourceRecord";
     clsRR = jniGlobalRef(env, jniFindClass(env, rr));
     ng_add_alloc(clsRR, "clsRR");
 
-    const char *usage = "eu/faircode/netguard/Usage";
+    const char *usage = "com/muxiao/Venus/Link/CaptureModels$Usage";
     clsUsage = jniGlobalRef(env, jniFindClass(env, usage));
     ng_add_alloc(clsUsage, "clsUsage");
 
@@ -552,7 +552,7 @@ void log_packet(const struct arguments *args, jobject jpacket) {
     jclass clsService = (*args->env)->GetObjectClass(args->env, args->instance);
     ng_add_alloc(clsService, "clsService");
 
-    const char *signature = "(Leu/faircode/netguard/Packet;)V";
+    const char *signature = "(Lcom/muxiao/Venus/Link/CaptureModels$Packet;)V";
     if (midLogPacket == NULL)
         midLogPacket = jniGetMethodID(args->env, clsService, "logPacket", signature);
 
@@ -593,11 +593,11 @@ void dns_resolved(const struct arguments *args,
     jclass clsService = (*args->env)->GetObjectClass(args->env, args->instance);
     ng_add_alloc(clsService, "clsService");
 
-    const char *signature = "(Leu/faircode/netguard/ResourceRecord;)V";
+    const char *signature = "(Lcom/muxiao/Venus/Link/CaptureModels$ResourceRecord;)V";
     if (midDnsResolved == NULL)
         midDnsResolved = jniGetMethodID(args->env, clsService, "dnsResolved", signature);
 
-    const char *rr = "eu/faircode/netguard/ResourceRecord";
+    const char *rr = "com/muxiao/Venus/Link/CaptureModels$ResourceRecord";
     if (midInitRR == NULL)
         midInitRR = jniGetMethodID(args->env, clsRR, "<init>", "()V");
 
@@ -753,7 +753,7 @@ struct allowed *is_address_allowed(const struct arguments *args, jobject jpacket
     jclass clsService = (*args->env)->GetObjectClass(args->env, args->instance);
     ng_add_alloc(clsService, "clsService");
 
-    const char *signature = "(Leu/faircode/netguard/Packet;)Leu/faircode/netguard/Allowed;";
+    const char *signature = "(Lcom/muxiao/Venus/Link/CaptureModels$Packet;)Lcom/muxiao/Venus/Link/CaptureModels$Allowed;";
     if (midIsAddressAllowed == NULL)
         midIsAddressAllowed = jniGetMethodID(args->env, clsService, "isAddressAllowed", signature);
 
@@ -844,7 +844,7 @@ jobject create_packet(const struct arguments *args,
         env->SetByteArrayRegion (ret, 0, 3, b);
      */
 
-    const char *packet = "eu/faircode/netguard/Packet";
+    const char *packet = "com/muxiao/Venus/Link/CaptureModels$Packet";
     if (midInitPacket == NULL)
         midInitPacket = jniGetMethodID(env, clsPacket, "<init>", "()V");
     jobject jpacket = jniNewObject(env, clsPacket, midInitPacket, packet);
@@ -932,11 +932,11 @@ void account_usage(const struct arguments *args, jint version, jint protocol,
     jclass clsService = (*args->env)->GetObjectClass(args->env, args->instance);
     ng_add_alloc(clsService, "clsService");
 
-    const char *signature = "(Leu/faircode/netguard/Usage;)V";
+    const char *signature = "(Lcom/muxiao/Venus/Link/CaptureModels$Usage;)V";
     if (midAccountUsage == NULL)
         midAccountUsage = jniGetMethodID(args->env, clsService, "accountUsage", signature);
 
-    const char *usage = "eu/faircode/netguard/Usage";
+    const char *usage = "com/muxiao/Venus/Link/CaptureModels$Usage";
     if (midInitUsage == NULL)
         midInitUsage = jniGetMethodID(args->env, clsUsage, "<init>", "()V");
 

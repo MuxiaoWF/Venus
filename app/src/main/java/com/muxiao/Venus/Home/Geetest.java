@@ -28,6 +28,15 @@ import java.util.Map;
 public class Geetest {
     private static final Gson GSON = new Gson();
 
+    /** 验证码验证完成回调接口。 */
+    public interface GeetestVerificationCallback {
+        /** 验证成功，geetest_code 含二次验证结果（x-rpc-challenge/validate/seccode）。 */
+        void onVerificationSuccess(Map<String, String> geetest_code);
+
+        /** 验证失败或被用户关闭，error 为原因描述。 */
+        void onVerificationFailed(String error);
+    }
+
     /**
      * 完整验证流程：先 API1 取 gt/challenge，再配置极验 SDK 弹窗并注册结果回调。
      * 若控制器为后台类型，则把 challenge/headers 暂存供前台复用同一 challenge 验证。

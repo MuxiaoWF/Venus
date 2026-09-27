@@ -91,13 +91,13 @@ import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.BatteryHelper;
-import com.muxiao.Venus.common.CollapsibleCardView;
+import com.muxiao.Venus.common.ui.CollapsibleCardView;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.data.ConfigRepository;
-import com.muxiao.Venus.common.BottomBarOverlay;
-import com.muxiao.Venus.common.LensGlassDrawable;
+import com.muxiao.Venus.common.ui.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 

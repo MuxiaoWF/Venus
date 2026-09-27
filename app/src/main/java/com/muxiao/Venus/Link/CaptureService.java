@@ -135,15 +135,21 @@ public class CaptureService extends VpnService {
         builder.setMtu(MAX_PACKET_SIZE);
         builder.addAddress("10.1.10.1", 32);
         builder.addRoute("0.0.0.0", 0);
-        // 应用白名单：不存在的包名抛 NameNotFoundException，逐个忽略
+        // 应用白名单：只放行本机实际安装的渠道（未安装渠道传给系统也会被拒绝），
+        // 最小化 VPN 配置暴露给系统服务的包名集合，并留痕本次实际放行列表便于排查
+        StringBuilder allowed = new StringBuilder();
         for (String app : ALLOWED_APPS) {
             try {
+                getPackageManager().getPackageInfo(app, 0);
                 builder.addAllowedApplication(app);
+                if (allowed.length() > 0) allowed.append(", ");
+                allowed.append(app);
             } catch (NameNotFoundException ignored) {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
+        Log.i(TAG, "vpn allowed apps: " + allowed);
         try {
             pfd = builder.establish();
             localPfd = pfd;
@@ -211,8 +217,13 @@ public class CaptureService extends VpnService {
                     System.arraycopy(buffer, 0, packet, 0, length);
                     analyzer.handleIpPacket(packet, length);
                 }
-            } catch (Exception ignored) {
-                // 流关闭即线程自然退出（停止流程会依次关闭两端）
+            } catch (Exception e) {
+                // 正常停止时流关闭会抛 IOException；其余异常意味着转发线程提前死亡
+                // （隧道黑洞、游戏侧表现为断网重连并反复触发系统网络状态事件），必须留痕排查
+                if (e instanceof java.io.IOException)
+                    Log.i(TAG, "forward thread exit (stream closed)", e);
+                else
+                    Log.w(TAG, "forward thread died unexpectedly", e);
             }
         }, "CaptureForward");
         t.start();
@@ -308,11 +319,11 @@ public class CaptureService extends VpnService {
     }
 
     @SuppressWarnings("unused") // Called from native code
-    private void logPacket(eu.faircode.netguard.Packet packet) {
+    private void logPacket(CaptureModels.Packet packet) {
     }
 
     @SuppressWarnings("unused") // Called from native code
-    private void dnsResolved(eu.faircode.netguard.ResourceRecord rr) {
+    private void dnsResolved(CaptureModels.ResourceRecord rr) {
     }
 
     @SuppressWarnings("unused") // Called from native code
@@ -344,11 +355,11 @@ public class CaptureService extends VpnService {
     }
 
     @SuppressWarnings("unused") // Called from native code
-    private eu.faircode.netguard.Allowed isAddressAllowed(eu.faircode.netguard.Packet packet) {
+    private CaptureModels.Allowed isAddressAllowed(CaptureModels.Packet packet) {
         // 新 UDP 会话建立时记录「客户端源端口 → 渠道包名」，供 PacketAnalyzer 判定 authkey 渠道
         if (packet.protocol == 17)
             recordPortPackage(packet.sport, packet.uid);
-        return new eu.faircode.netguard.Allowed();
+        return new CaptureModels.Allowed();
     }
 
     private void recordPortPackage(int sport, int uid) {
@@ -388,7 +399,7 @@ public class CaptureService extends VpnService {
     }
 
     @SuppressWarnings("unused") // Called from native code
-    private void accountUsage(eu.faircode.netguard.Usage usage) {
+    private void accountUsage(CaptureModels.Usage usage) {
     }
 
     /* ===== 前台服务 ===== */

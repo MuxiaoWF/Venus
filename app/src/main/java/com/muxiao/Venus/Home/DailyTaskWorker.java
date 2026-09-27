@@ -13,7 +13,6 @@ import androidx.core.app.NotificationCompat;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
@@ -96,7 +95,7 @@ public class DailyTaskWorker extends Worker {
 
         String userId = TaskWidgetReceiver.resolveTargetUser(context);
         TaskSettings settings = TaskSettings.fromPreferences(context);
-        if (userId == null || userId.isEmpty() || settings.hasAnyTaskDisabled()) {
+        if (userId.isEmpty() || settings.hasAnyTaskDisabled()) {
             tools.writeLog(context, TAG + ": no user or no task enabled, skip this round");
             DailyTaskScheduler.enqueueNext(context,
                     ExistingWorkPolicy.APPEND,

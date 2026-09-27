@@ -1,4 +1,4 @@
-package com.muxiao.Venus.common;
+package com.muxiao.Venus.common.ui;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;

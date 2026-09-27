@@ -1,10 +1,9 @@
-package com.muxiao.Venus;
+package com.muxiao.Venus.common;
 
 import android.content.Context;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.muxiao.Venus.common.LocaleHelper;
 
 /**
  * 所有 Activity 的基类：在 {@link #attachBaseContext(Context)} 中统一应用用户语言设置，

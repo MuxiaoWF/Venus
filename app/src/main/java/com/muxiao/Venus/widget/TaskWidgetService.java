@@ -9,7 +9,7 @@ import androidx.core.content.ContextCompat;
 
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.LocaleHelper;
-import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.Home.TaskSettings;
 
 import java.util.ArrayList;
 import java.util.List;

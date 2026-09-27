@@ -1,8 +1,8 @@
 package com.muxiao.Venus.Setting;
 
+import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
-import com.muxiao.Venus.BaseActivity;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;

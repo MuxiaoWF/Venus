@@ -1,5 +1,6 @@
 package com.muxiao.Venus.Link;
 
+import com.muxiao.Venus.common.BaseActivity;
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
@@ -19,7 +20,6 @@ import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.muxiao.Venus.BaseActivity;
 import com.muxiao.Venus.R;
 
 import android.widget.ImageView;

@@ -1,8 +1,8 @@
 package com.muxiao.Venus.User;
 
+import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
-import com.muxiao.Venus.BaseActivity;
 
 import android.content.Context;
 import android.content.Intent;

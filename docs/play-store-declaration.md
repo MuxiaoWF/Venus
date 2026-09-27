@@ -544,9 +544,9 @@ WorkManager 执行长任务必须调用 `setForegroundAsync(ForegroundInfo)`，�
 
 | 事实 | 位置 |
 |---|---|
-| 遇到验证时拉起前台 Activity 并阻塞等待（最长 5 分钟） | `Home/BackgroundGeetestController.java:52-55` |
-| 等待逻辑与 5 分钟上限 | `Home/DefaultCaptchaCoordinator.java:25-27` |
-| `gt` / `challenge` / `headers` 保存在**内存静态字段** | `Home/DefaultCaptchaCoordinator.java:14-16, 54-87` |
+| 遇到验证时拉起前台 Activity 并阻塞等待（最长 5 分钟） | `Home/GeetestController.java:100-113`（`BackgroundGeetestController`，与接口同文件） |
+| 等待逻辑与 5 分钟上限 | `Home/CaptchaCoordinator.java:66-70`（`DefaultCaptchaCoordinator`，与接口同文件） |
+| `gt` / `challenge` / `headers` 保存在**内存静态字段** | `Home/GeetestController.java:73`（静态协调者）+ `Home/CaptchaCoordinator.java:55-57, 88-105` |
 | API 34+ 显式传入 `FOREGROUND_SERVICE_TYPE_DATA_SYNC` | `Home/ForegroundTaskService.java:123-128` |
 | 进度通知的 PendingIntent（通知回拉改造的半成品） | `common/Notification.java:64-71` |
 

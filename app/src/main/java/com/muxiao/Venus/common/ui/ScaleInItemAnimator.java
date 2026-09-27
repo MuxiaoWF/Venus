@@ -1,7 +1,8 @@
-package com.muxiao.Venus.common;
+package com.muxiao.Venus.common.ui;
 
 import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
+
 import android.view.ViewPropertyAnimator;
 import android.view.animation.AnimationUtils;
 import android.view.animation.Interpolator;
@@ -11,6 +12,7 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.tools;
 
 /**
  * RecyclerView item 添加动画：从底部淡入并轻微缩放。

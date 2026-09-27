@@ -298,4 +298,137 @@ public class PacketAnalyzer {
         System.arraycopy(src, offset, out, 0, length);
         return out;
     }
+
+    /* ===== 协议数据结构（仅本分析器使用，收敛为嵌套类） ===== */
+
+    /**
+     * KCP 协议包头（复刻自 SRGachaLink）：24 字节标准头 + 4 字节 len（米哈游变体共 28 字节，小端）。
+     * conv/conv2 双会话号、cmd（81=数据包）、frg 分片标记、len 为载荷长度。
+     */
+    static final class KcpPacket {
+        public final int conv;
+        public final int conv2;
+        public final int cmd;
+        public final int frg;
+        public final int wnd;
+        public final int ts;
+        public final int sn;
+        public final int una;
+        public final int len;
+        public final byte[] payload;
+
+        KcpPacket(byte[] data) {
+            ByteBuffer buffer = ByteBuffer.wrap(data, 0, 28).order(ByteOrder.LITTLE_ENDIAN);
+            conv = buffer.getInt();
+            conv2 = buffer.getInt();
+            cmd = buffer.get();
+            frg = buffer.get();
+            wnd = buffer.getShort();
+            ts = buffer.getInt();
+            sn = buffer.getInt();
+            una = buffer.getInt();
+            len = buffer.getInt();
+            payload = new byte[len];
+            System.arraycopy(data, 28, payload, 0, len);
+        }
+    }
+
+    /**
+     * 米哈游 KCP 载荷的 proto 包结构（复刻自 SRGachaLink）：
+     * [magic head 0x9D74C714][cmdId u16][headerLen u16][protoLen u32][header][proto][magic tail 0xD7A152C8]
+     * 魔数校验失败时 headerLen/protoLen 置 0，由调用方丢弃。
+     */
+    static final class ProtoPacket {
+        public static final int MAGIC_HEAD = 0x9D74C714;
+        public static final int MAGIC_TAIL = 0xD7A152C8;
+
+        public final int mh;        // magic head（原始位型，负数属正常）
+        public final int mt;        // magic tail
+        public final int cmdId;
+        public final int headerLen;
+        public final int protoLen;
+        public final byte[] header;
+        public final byte[] proto;
+
+        ProtoPacket(byte[] data) {
+            ByteBuffer buffer = ByteBuffer.wrap(data);
+            mh = buffer.getInt();
+            cmdId = buffer.getShort();
+            int hl = buffer.getShort();
+            int pl = buffer.getInt();
+            buffer.position(data.length - 4);
+            mt = buffer.getInt();
+            if (mh != MAGIC_HEAD || mt != MAGIC_TAIL) {
+                // 魔数不匹配：视为无效包，交由调用方通过 header/proto 长度丢弃
+                hl = 0;
+                pl = 0;
+            }
+            headerLen = hl;
+            protoLen = pl;
+
+            int start = 12;
+            int end1 = start + headerLen;
+            header = new byte[headerLen];
+            System.arraycopy(data, start, header, 0, Math.min(headerLen, data.length - start));
+            proto = new byte[Math.max(0, Math.min(protoLen, data.length - end1))];
+            System.arraycopy(data, end1, proto, 0, proto.length);
+        }
+    }
+
+    /**
+     * MT19937-64 伪随机数生成器（复刻自 SRGachaLink）。
+     * 星铁会话密钥派生：服务端在 PlayerGetTokenScRsp 下发 secret_seed，
+     * 客户端与嗅探端以 seed 播种 MT19937-64 生成 4096 字节 XOR pad 作为会话密钥。
+     * ULong 以 long 承载（Java long 运算天然是 mod 2^64，与无符号语义等价）。
+     */
+    static final class MT19937_64 {
+        private static final int N = 312;
+        private static final int M = 156;
+        private static final long MATRIX_A = 0xB5026F5AA96619E9L;
+        private static final long UPPER_MASK = 0xFFFFFFFF80000000L;
+        private static final long LOWER_MASK = 0x7FFFFFFFL;
+
+        private final long[] array = new long[N];
+        // 初始化为 N+1，表示未初始化
+        private int index = N + 1;
+
+        public void seed(long seed) {
+            array[0] = seed;
+            for (int i = 1; i < N; i++) {
+                long prev = array[i - 1];
+                long temp = (prev ^ (prev >>> 62)) * 6364136223846793005L;
+                array[i] = temp + i;
+            }
+            index = N;
+        }
+
+        public long generate() {
+            return int63();
+        }
+
+        private long int63() {
+            long[] mag01 = {0L, MATRIX_A};
+            if (index >= N) {
+                if (index == N + 1)
+                    seed(5489L); // 默认种子
+                for (int i = 0; i < N - M; i++) {
+                    long x = (array[i] & UPPER_MASK) | (array[i + 1] & LOWER_MASK);
+                    array[i] = array[i + M] ^ (x >>> 1) ^ mag01[(int) (x & 1)];
+                }
+                for (int i = N - M; i < N - 1; i++) {
+                    long x = (array[i] & UPPER_MASK) | (array[i + 1] & LOWER_MASK);
+                    array[i] = array[i + (M - N)] ^ (x >>> 1) ^ mag01[(int) (x & 1)];
+                }
+                long x = (array[N - 1] & UPPER_MASK) | (array[0] & LOWER_MASK);
+                array[N - 1] = array[M - 1] ^ (x >>> 1) ^ mag01[(int) (x & 1)];
+                index = 0;
+            }
+            long y = array[index++];
+            y ^= (y >>> 29) & 0x5555555555555555L;
+            y ^= (y << 17) & 0x71D67FFFEDA60000L;
+            y ^= (y << 37) & 0xFFF7EEE000000000L;
+            y ^= y >>> 43;
+            return y;
+        }
+    }
 }

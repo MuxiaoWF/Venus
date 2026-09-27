@@ -1,4 +1,4 @@
-package com.muxiao.Venus.common;
+package com.muxiao.Venus.Home;
 
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
 
 import java.util.ArrayList;
 import java.util.List;

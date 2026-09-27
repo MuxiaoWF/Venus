@@ -15,9 +15,8 @@ import androidx.work.NetworkType;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkManager;
 
-import com.muxiao.Venus.common.HttpStatusCodeException;
 import com.muxiao.Venus.common.LocaleHelper;
-import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetReceiver;
 
@@ -91,7 +90,7 @@ public final class DailyTaskScheduler {
     public static int[] getConfiguredTime(Context context) {
         String raw = prefs(context).getString(SCHEDULED_TASK_TIME, DEFAULT_TIME);
         int hour = 7, minute = 30;
-        if (raw != null && raw.matches("\\d{1,2}:\\d{2}")) {
+        if (raw.matches("\\d{1,2}:\\d{2}")) {
             try {
                 String[] parts = raw.split(":");
                 int h = Integer.parseInt(parts[0]);
@@ -200,7 +199,7 @@ public final class DailyTaskScheduler {
     /** 当日是否需要补跑：任务已配置、能确定用户、且未全部完成。 */
     private static boolean shouldCatchUpToday(Context context) {
         String userId = TaskWidgetReceiver.resolveTargetUser(context);
-        if (userId == null || userId.isEmpty()) return false;
+        if (userId.isEmpty()) return false;
         TaskSettings settings = TaskSettings.fromPreferences(context);
         if (settings.hasAnyTaskDisabled()) return false;
         return !allEnabledTasksCompletedToday(context, userId);
@@ -233,8 +232,8 @@ public final class DailyTaskScheduler {
         boolean network = false;
         Throwable t = cause;
         while (t != null) {
-            if (t instanceof HttpStatusCodeException
-                    && ((HttpStatusCodeException) t).getStatusCode() == 429)
+            if (t instanceof tools.HttpStatusCodeException
+                    && ((tools.HttpStatusCodeException) t).getStatusCode() == 429)
                 return RATE_LIMIT_RETRY_DELAY_MINUTES;
             if (t instanceof IOException) network = true;
             t = t.getCause() == t ? null : t.getCause();

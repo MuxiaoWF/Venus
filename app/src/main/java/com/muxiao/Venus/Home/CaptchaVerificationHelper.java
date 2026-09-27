@@ -52,7 +52,7 @@ public class CaptchaVerificationHelper {
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
         notifier.notifyListeners(taskName + context.getString(R.string.geetest_waiting));
-        Geetest.geetest(context, headers, new GeetestVerificationCallback() {
+        Geetest.geetest(context, headers, new Geetest.GeetestVerificationCallback() {
             @Override
             public void onVerificationSuccess(Map<String, String> code) {
                 notification.dismissErrorNotification();

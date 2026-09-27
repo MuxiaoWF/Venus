@@ -1,4 +1,4 @@
-package com.muxiao.Venus.common;
+package com.muxiao.Venus.User;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -12,7 +12,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.User.AvatarStore;
 
 import java.util.List;
 

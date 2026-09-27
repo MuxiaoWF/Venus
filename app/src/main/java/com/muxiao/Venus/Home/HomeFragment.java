@@ -42,13 +42,12 @@ import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.HeaderManager;
-import com.muxiao.Venus.common.BottomBarOverlay;
-import com.muxiao.Venus.common.LensGlassDrawable;
+import com.muxiao.Venus.common.ui.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.common.TaskSettings;
-import com.muxiao.Venus.common.UserDropdownAdapter;
+import com.muxiao.Venus.User.UserDropdownAdapter;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
@@ -286,7 +285,7 @@ public class HomeFragment extends Fragment {
 
         // 设置任务列表RecyclerView
         tasksRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        tasksRecyclerView.setItemAnimator(new com.muxiao.Venus.common.ScaleInItemAnimator(false));
+        tasksRecyclerView.setItemAnimator(new com.muxiao.Venus.common.ui.ScaleInItemAnimator(false));
         taskAdapter = new TaskAdapter(taskList);
         tasksRecyclerView.setAdapter(taskAdapter);
         // 单向数据流：观察 ViewModel 的不可变 UiState，一次性渲染任务列表 + 全部按钮可见性
@@ -551,7 +550,7 @@ public class HomeFragment extends Fragment {
                 // 检查是否有后台任务保存的 challenge（避免重复 API1 导致 challenge 不匹配）
                 String[] savedChallenge = BackgroundGeetestController.consumePendingChallenge();
                 Notification notification = new Notification(activity);
-                GeetestVerificationCallback callback = new GeetestVerificationCallback() {
+                Geetest.GeetestVerificationCallback callback = new Geetest.GeetestVerificationCallback() {
                     @Override
                     public void onVerificationSuccess(Map<String, String> geetestCode) {
                         Logger.debug("VenusCaptcha", "Verification SUCCESS, sending broadcast...");

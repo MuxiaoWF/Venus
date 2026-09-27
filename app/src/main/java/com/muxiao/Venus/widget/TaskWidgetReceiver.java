@@ -15,7 +15,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.LocaleHelper;
-import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.Home.TaskSettings;
 
 /**
  * 接收小组件"运行"按钮的广播，启动前台任务服务。

@@ -12,7 +12,7 @@ import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.common.TaskSettings;
+import com.muxiao.Venus.Home.TaskSettings;
 import com.muxiao.Venus.common.LocaleHelper;
 
 import java.lang.ref.WeakReference;

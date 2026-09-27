@@ -16,7 +16,6 @@ import androidx.core.app.NotificationCompat;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.common.Constants;
-import com.muxiao.Venus.common.TaskSettings;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;

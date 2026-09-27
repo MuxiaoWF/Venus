@@ -92,9 +92,10 @@
 # ---------- VPN 抓包链路（netguard JNI 反射回调 + 协议数据类） ----------
 # CaptureService 的 native 回调方法（nativeExit/logPacket/isAddressAllowed 等）经
 # C 层 GetMethodID 反射调用，R8 无法感知，必须整类 keep；
-# eu.faircode.netguard 数据类由 C 层 FindClass/NewObject 构造，同样 keep。
+# CaptureModels 嵌套数据类由 C 层 FindClass/NewObject 构造（类名含 $），同样 keep。
 -keep class com.muxiao.Venus.Link.CaptureService { *; }
--keep class eu.faircode.netguard.** { *; }
+-keep class com.muxiao.Venus.Link.CaptureModels { *; }
+-keep class com.muxiao.Venus.Link.CaptureModels$* { *; }
 
 # ---------- 保留 WebView 相关接口 ----------
 -keepclassmembers class * {

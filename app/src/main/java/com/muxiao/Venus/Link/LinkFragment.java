@@ -31,8 +31,8 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
-import com.muxiao.Venus.common.UserDropdownAdapter;
-import com.muxiao.Venus.common.LensGlassDrawable;
+import com.muxiao.Venus.User.UserDropdownAdapter;
+import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 
 import java.util.HashMap;

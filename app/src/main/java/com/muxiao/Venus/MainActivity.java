@@ -1,5 +1,6 @@
 package com.muxiao.Venus;
 
+import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
 import static com.muxiao.Venus.common.Constants.Prefs.APP_INFO_PREFS_NAME;
@@ -47,10 +48,10 @@ import com.muxiao.Venus.User.UserManagementFragment;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
 import com.muxiao.Venus.common.Constants;
-import com.muxiao.Venus.common.BottomBarOverlay;
-import com.muxiao.Venus.common.ContentStripSampler;
-import com.muxiao.Venus.common.GlassBackdrop;
-import com.muxiao.Venus.common.LensGlassDrawable;
+import com.muxiao.Venus.common.ui.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.ContentStripSampler;
+import com.muxiao.Venus.common.ui.GlassBackdrop;
+import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.data.ConfigRepository;
 
