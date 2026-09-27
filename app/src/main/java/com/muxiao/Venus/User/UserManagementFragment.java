@@ -80,6 +80,9 @@ public class UserManagementFragment extends Fragment {
 
         userManager = new UserManager(requireContext());
         userListContainer = rootView.findViewById(R.id.user_list_container);
+        // 删除卡片淡出期间容器已按新内容收缩，放开裁剪让淡出中的卡片完整绘制
+        // （稳定态卡片从不溢出容器边界，无副作用）
+        userListContainer.setClipChildren(false);
         noUserPrompt = rootView.findViewById(R.id.no_user_prompt);
 
         // 页眉日期 chip：MM/dd 周几（与设计稿一致）
@@ -112,15 +115,36 @@ public class UserManagementFragment extends Fragment {
         refreshUserList();
     }
 
+    /** 用户列表过渡：仅结构性增删时挂上（被删卡淡出、其余卡平滑让位）。
+     *  LayoutTransition 不做内容 diff，常驻会让 onResume 等无变化重建也整块闪动。 */
+    private final android.animation.LayoutTransition userListTransition =
+            new android.animation.LayoutTransition();
+
+    /** 容器现有行（行根 tag=用户名）与最新用户列表是否构成增删/重排。 */
+    private boolean userListStructureChanged(List<String> users) {
+        int count = userListContainer.getChildCount();
+        if (count != users.size()) return true;
+        for (int i = 0; i < count; i++) {
+            if (!users.get(i).equals(userListContainer.getChildAt(i).getTag())) return true;
+        }
+        return false;
+    }
+
     /**
      * 按当前服务器类型重建用户列表视图，并为每个条目绑定重登录/重命名/删除操作
      * （任务运行时这些操作均被拦截）。
      */
     private void refreshUserList() {
-        userListContainer.removeAllViews();
         // 根据当前服务器类型过滤用户
         boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
         List<String> users = userManager.getUsernamesByServerType(isOversea);
+        // 仅行数/行序真正增删时挂过渡（先挂再 removeAllViews，增删才会被捕捉为动画）；
+        // 无变化重建（onResume 等）与首帧构建瞬时完成，避免整块闪动。
+        boolean structural = userListContainer.getChildCount() > 0 && userListStructureChanged(users);
+        userListContainer.setLayoutTransition(
+                structural && !tools.isReducedMotionEnabled(requireContext())
+                        ? userListTransition : null);
+        userListContainer.removeAllViews();
         // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
         MaterialTextView subtitle = pageRootView.findViewById(R.id.users_subtitle);
         if (subtitle != null)
@@ -140,9 +164,10 @@ public class UserManagementFragment extends Fragment {
         // 为每个用户创建新的视图实例
         for (int i = 0; i < users.size(); i++) {
             String username = users.get(i);
-            // 为每个用户inflate一个新的视图
+            // 为每个用户inflate一个新的视图；行根 tag 记用户名，供下次重建做增删检测
             View userItemView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.item_user_management, userListContainer, false);
+            userItemView.setTag(username);
 
             // 用户卡液态玻璃透镜：接管 MaterialCardView 背景（自带圆角轮廓裁剪子内容与光边，
             // 原 glass_solid 半透卡面保留为无背景图时的回退）

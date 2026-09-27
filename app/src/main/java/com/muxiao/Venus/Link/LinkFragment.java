@@ -26,12 +26,15 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.color.MaterialColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.AvatarStore;
 import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.User.UserDropdownAdapter;
+import com.muxiao.Venus.common.ui.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.common.tools;
 
@@ -57,6 +60,7 @@ public class LinkFragment extends Fragment {
                     result -> {
                         if (result.getResultCode() == androidx.fragment.app.FragmentActivity.RESULT_OK) {
                             CaptureService.start(requireContext().getApplicationContext());
+                            setStatusVpn(getString(R.string.vpn_capture_running_hint), VpnStatus.RUNNING);
                             View root = getView();
                             if (root != null)
                                 tools.showCustomSnackbar(root, requireContext().getApplicationContext(),
@@ -68,6 +72,15 @@ public class LinkFragment extends Fragment {
                                         getString(R.string.vpn_capture_permission_denied));
                         }
                     });
+
+    /**
+     * 电池优化豁免授权回调：无论用户是否豁免，返回后都续启抓包流程
+     * （未豁免时仅效果打折——挂机熄屏后可能被省电策略掐网，不影响前台使用）。
+     */
+    private final androidx.activity.result.ActivityResultLauncher<android.content.Intent> batteryLauncher =
+            registerForActivityResult(
+                    new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                    result -> startCaptureAfterChecks());
 
     /**
      * 捕获结果广播接收器（CaptureService/PacketAnalyzer 发出，均带包名限制）：
@@ -83,16 +96,14 @@ public class LinkFragment extends Fragment {
             View root = getView();
             if (CaptureService.ACTION_CAPTURE_UPDATING.equals(intent.getAction())) {
                 if (root == null) return;
-                ((android.widget.TextView) root.findViewById(R.id.status_vpn))
-                        .setText(R.string.vpn_capture_updating);
+                setStatusVpn(getString(R.string.vpn_capture_updating), VpnStatus.WARN);
                 tools.showCustomSnackbar(root, context.getApplicationContext(),
                         getString(R.string.vpn_capture_updating));
                 return;
             }
             if (CaptureService.ACTION_CAPTURE_FAILED.equals(intent.getAction())) {
                 if (root == null) return;
-                ((android.widget.TextView) root.findViewById(R.id.status_vpn))
-                        .setText(R.string.vpn_capture_failed_key);
+                setStatusVpn(getString(R.string.vpn_capture_failed_key), VpnStatus.WARN);
                 tools.showCustomSnackbar(root, context.getApplicationContext(),
                         getString(R.string.vpn_capture_failed_key));
                 return;
@@ -102,13 +113,75 @@ public class LinkFragment extends Fragment {
             if (authkey == null || authkey.isEmpty()) return;
             String channel = intent.getStringExtra("channel");
             if (root == null) return;
-            copyToClipboard(root, context.getApplicationContext(), buildHsrUrl(authkey, channel));
+            lastCapturedChannel = channel;
+            lastCapturedUrl = buildHsrUrl(authkey, channel);
+            copyToClipboard(root, context.getApplicationContext(), lastCapturedUrl);
+            setStatusVpn(getString(R.string.vpn_authkey_captured, channelLabel(channel)),
+                    VpnStatus.SUCCESS);
+            renderVpnResult();
             tools.showCustomSnackbar(root, context.getApplicationContext(),
                     getString(R.string.vpn_authkey_captured, channelLabel(channel)));
-            ((android.widget.TextView) root.findViewById(R.id.status_vpn))
-                    .setText(getString(R.string.vpn_authkey_captured, channelLabel(channel)));
         }
     };
+
+    /* ===== VPN 抓包状态与结果常驻 ===== */
+
+    /** status_vpn 语义状态：着色让用户切回应用后一眼分清运行中/已捕获/异常 */
+    private enum VpnStatus {DEFAULT, RUNNING, SUCCESS, WARN}
+
+    /** 首次访问缓存的 status_vpn 默认文字色（DEFAULT 态恢复用） */
+    private android.content.res.ColorStateList defaultVpnStatusColor;
+
+    /** 最近一次捕获的渠道与完整 URL：常驻结果区的数据源（进程内记忆，重启抓包不丢） */
+    @Nullable
+    private String lastCapturedChannel;
+    @Nullable
+    private String lastCapturedUrl;
+
+    /** 按语义状态更新 status_vpn 文案与文字色（DEFAULT 恢复样式原色） */
+    private void setStatusVpn(CharSequence text, VpnStatus state) {
+        View root = getView();
+        if (root == null) return;
+        MaterialTextView tv = root.findViewById(R.id.status_vpn);
+        tv.setText(text);
+        Context ctx = requireContext();
+        if (defaultVpnStatusColor == null)
+            defaultVpnStatusColor = tv.getTextColors();
+        switch (state) {
+            case RUNNING:
+                tv.setTextColor(MaterialColors.getColor(ctx,
+                        androidx.appcompat.R.attr.colorPrimary, 0xFF415F91));
+                break;
+            case SUCCESS:
+                tv.setTextColor(ContextCompat.getColor(ctx, R.color.status_success));
+                break;
+            case WARN:
+                tv.setTextColor(ContextCompat.getColor(ctx, R.color.status_warning));
+                break;
+            default:
+                if (defaultVpnStatusColor != null)
+                    tv.setTextColor(defaultVpnStatusColor);
+                break;
+        }
+    }
+
+    /** VPN 抓包结果区：捕获成功后常驻渲染链接行（切页/切后台回来仍在，可重复复制）。 */
+    private void renderVpnResult() {
+        View root = getView();
+        if (root == null) return;
+        LinearLayout container = root.findViewById(R.id.result_vpn);
+        container.removeAllViews();
+        if (lastCapturedUrl == null) {
+            container.setVisibility(View.GONE);
+            return;
+        }
+        container.addView(buildLinkRow(
+                lastCapturedChannel == null
+                        ? getString(R.string.server_cn)
+                        : channelLabel(lastCapturedChannel),
+                lastCapturedUrl));
+        container.setVisibility(View.VISIBLE);
+    }
 
     /** 按渠道拼星铁抽卡记录 URL：B服与国服同 host（game_biz 区分），国际服换 hoyoverse host + 英文 */
     private String buildHsrUrl(String authkey, String channel) {
@@ -160,6 +233,9 @@ public class LinkFragment extends Fragment {
         LensGlassDrawable.apply(view.findViewById(R.id.icon_zzz), -1f);
         LensGlassDrawable.apply(view.findViewById(R.id.refresh_genshin), -1f);
         LensGlassDrawable.apply(view.findViewById(R.id.refresh_zzz), -1f);
+        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        // （抽卡页来源行 + 行内结果区可整体上下滚动，获取结果展开后不再被裁出屏幕）
+        BottomBarOverlay.attachClearance(view.findViewById(R.id.link_scroll));
         // 状态 chip 药丸透镜（「玻璃底 + 语义色描边」）：圆角取实际高度一半（真药丸形），
         // 需布局完成后安装；状态填充改描边的逻辑见 setChipState。
         View chipGenshin = view.findViewById(R.id.chip_genshin);
@@ -215,26 +291,58 @@ public class LinkFragment extends Fragment {
         return view;
     }
 
-    /** VPN 抓包导航行：运行中点击停止并恢复提示文案；未运行先申请 VPN 权限再启动服务。 */
+    /** VPN 抓包导航行：运行中点击停止（本次未捕获时给出针对性引导）；未运行先过电池优化豁免门控再启动服务。 */
     private void toggleVpnCapture() {
         android.content.Context appContext =
                 requireContext().getApplicationContext();
         View root = requireView();
         android.widget.TextView statusVpn = root.findViewById(R.id.status_vpn);
         if (CaptureService.running) {
+            // 先读后停：stopCapture 会清 capturedChannel，停止后即无从判断本次是否有结果
+            boolean captured = CaptureService.capturedChannel != null;
             CaptureService.stop(appContext);
             statusVpn.setText(R.string.vpn_capture_hint);
-            tools.showCustomSnackbar(root, appContext, getString(R.string.vpn_capture_stopped));
+            setStatusVpn(getString(R.string.vpn_capture_hint), VpnStatus.DEFAULT);
+            // 本次没抓到时给出区别于普通停止的明确提示（缺键场景另有 CAPTURE_FAILED 广播提示）
+            tools.showCustomSnackbar(root, appContext, getString(captured
+                    ? R.string.vpn_capture_stopped : R.string.vpn_capture_no_result));
+        } else if (!BatteryHelper.isIgnoringBatteryOptimizations(appContext)) {
+            // 未豁免电池优化：实验证实厂商省电策略会在熄屏/切后台后掐断抓包网络，
+            // 导致游戏断连甚至闪退——先引导豁免（不强制，可「仍然启动」）。
+            // 走系统设置列表页让用户手动勾选（无需权限、无 Play 政策风险），
+            // 对话框文案需告知操作路径：切「所有应用」→ 找到本应用 → 允许
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(getString(R.string.dialog_need_battery_optimization))
+                    .setMessage(getString(R.string.msg_capture_battery_hint))
+                    .setPositiveButton(getString(R.string.battery_request_positive), (d, w) -> {
+                        try {
+                            batteryLauncher.launch(
+                                    BatteryHelper.buildBatteryOptimizationSettingsIntent());
+                        } catch (Exception e) {
+                            // 机型不支持该设置页：退回应用详情页，返回后手动再点一次
+                            BatteryHelper.openVendorBatterySettings(appContext);
+                        }
+                    })
+                    .setNegativeButton(getString(R.string.battery_start_anyway),
+                            (d, w) -> startCaptureAfterChecks())
+                    .show();
         } else {
-            android.content.Intent prepare = VpnService.prepare(appContext);
-            if (prepare == null) {
-                // 已授权过：直接启动
-                CaptureService.start(appContext);
-                statusVpn.setText(R.string.vpn_capture_running_hint);
+            startCaptureAfterChecks();
+        }
+    }
+
+    /** 电池优化门控通过后的续启流程：VPN 未授权走系统授权页，授权后启动抓包。 */
+    private void startCaptureAfterChecks() {
+        android.content.Context appContext = requireContext().getApplicationContext();
+        android.content.Intent prepare = VpnService.prepare(appContext);
+        if (prepare == null) {
+            CaptureService.start(appContext);
+            setStatusVpn(getString(R.string.vpn_capture_running_hint), VpnStatus.RUNNING);
+            View root = getView();
+            if (root != null)
                 tools.showCustomSnackbar(root, appContext, getString(R.string.vpn_capture_started));
-            } else {
-                vpnLauncher.launch(prepare);
-            }
+        } else {
+            vpnLauncher.launch(prepare);
         }
     }
 
@@ -340,7 +448,7 @@ public class LinkFragment extends Fragment {
             return;
         }
         for (Map.Entry<Integer, String> e : links.entrySet())
-            container.addView(buildLinkRow(e.getKey(), e.getValue()));
+            container.addView(buildLinkRow(getString(R.string.gacha_uid_label, e.getKey()), e.getValue()));
         // 结果区出现动效：淡入 + 轻微上滑，与 chip 的"已获取"点亮同步；
         // 仅从隐藏态转可见时播（onResume 同内容重渲染不重放）
         boolean wasHidden = container.getVisibility() != View.VISIBLE;
@@ -360,8 +468,8 @@ public class LinkFragment extends Fragment {
         refresh.setVisibility(View.VISIBLE);
     }
 
-    /** 构造单条链接行：UID 小字 + 截断链接 + 复制按钮。 */
-    private View buildLinkRow(int uid, String url) {
+    /** 构造单条链接行：小字标签（UID 或渠道）+ 截断链接 + 复制按钮。 */
+    private View buildLinkRow(String label, String url) {
         android.content.Context ctx = requireContext();
         float density = ctx.getResources().getDisplayMetrics().density;
 
@@ -377,7 +485,7 @@ public class LinkFragment extends Fragment {
         row.addView(textCol, textColParams);
 
         MaterialTextView uidView = new MaterialTextView(ctx);
-        uidView.setText(getString(R.string.gacha_uid_label, uid));
+        uidView.setText(label);
         uidView.setTextSize(10);
         uidView.setTypeface(Typeface.MONOSPACE);
         uidView.setLetterSpacing(0.05f);
@@ -647,16 +755,18 @@ public class LinkFragment extends Fragment {
         // 同步 VPN 抓包行状态（服务可能在其他界面被停止；已捕获时回显最近结果）
         View root = getView();
         if (root != null) {
-            android.widget.TextView statusVpn = root.findViewById(R.id.status_vpn);
             if (CaptureService.capturedChannel != null) {
                 // 成功反馈发生在游戏后台、Snackbar 早已消失，切回应用时靠这行确认已复制
-                statusVpn.setText(getString(R.string.vpn_authkey_captured,
-                        channelLabel(CaptureService.capturedChannel)));
+                setStatusVpn(getString(R.string.vpn_authkey_captured,
+                        channelLabel(CaptureService.capturedChannel)), VpnStatus.SUCCESS);
+            } else if (CaptureService.running) {
+                setStatusVpn(getString(R.string.vpn_capture_running_hint), VpnStatus.RUNNING);
             } else {
-                statusVpn.setText(CaptureService.running
-                        ? R.string.vpn_capture_running_hint : R.string.vpn_capture_hint);
+                setStatusVpn(getString(R.string.vpn_capture_hint), VpnStatus.DEFAULT);
             }
         }
+        // 恢复常驻结果区：捕获过的链接切页/切后台回来仍在，可随时重复复制
+        renderVpnResult();
         if (getView() != null) {
             // 恢复后按当前用户重绘行内结果
             renderGameResult(0);

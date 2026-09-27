@@ -6,7 +6,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.widget.ImageView;
+import android.view.View;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -17,7 +17,11 @@ import java.util.List;
  * 液态玻璃透镜的采样源：壁纸轻模糊小样 +（可选）底栏区域内容条带的合成小样，
  * 及二者的<b>磨砂小样</b>（金字塔高斯近似）。
  *
- * <p>无背景图时透镜不激活，采样源无意义；有背景图时，清晰档采样源 = 壁纸小样，
+ * <p>无背景图时经 {@link #setSolidSurface} 发布「主题底色纯色基底」（锚为铺满窗口
+ * 的内容视图，几何公式与壁纸路径完全同构，退化为均匀 1/2 缩放）：底栏级透镜（吃
+ * 内容条带）继续采样「底色 + 真实身后内容」合成图，玻璃照常磨砂折射；嵌套小透镜
+ * 不激活（身后没有可采样的壁纸，激活会把真实内容挡成纯色，比回退底更差）。
+ * 有背景图时，清晰档采样源 = 壁纸小样，
  * 叠加 {@link ContentStripSampler} 发布的底栏区域<b>内容条带</b>（滚动的卡片/
  * 列表等真实身后内容）。条带为内容视图的离屏绘制，半透明处透出壁纸——与玻璃
  * 身后的真实像素构成一致，折射带拉进的不再是不存在的壁纸（对应 Kyant0/
@@ -67,7 +71,20 @@ public final class GlassBackdrop {
     private static Bitmap contentStrip;
     private static Rect stripWindowRect;
     private static final Paint stripPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private static WeakReference<ImageView> backdropRef = new WeakReference<>(null);
+    private static WeakReference<View> backdropRef = new WeakReference<>(null);
+    /**
+     * 纯色基底模式（无背景图）：wallpaperSample 为主题底色纯色小样，坐标锚为
+     * 铺满窗口的内容视图（android.R.id.content）。锚与窗口同尺寸，透镜取景与
+     * 条带合成的 centerCrop 公式对该锚退化为均匀 1/2 缩放——与壁纸路径共用
+     * 全部几何代码，仅采样源内容由图片换成纯色。
+     */
+    private static boolean solidSurface;
+    private static int solidColor;
+    /** 布局监听当前挂载的锚（防重复挂载 + 供刷新入口取实时尺寸）。 */
+    private static WeakReference<View> solidListenerAnchor = new WeakReference<>(null);
+    /** 锚尺寸变化（首次布局/旋转/分屏）时重建纯色基底小样。 */
+    private static final View.OnLayoutChangeListener solidLayoutListener =
+            (v, l, t, r, b, ol, ot, or2, ob) -> refreshSolidSample();
     private static final List<WeakReference<Runnable>> listeners = new ArrayList<>();
 
     private GlassBackdrop() {
@@ -79,7 +96,13 @@ public final class GlassBackdrop {
      *
      * @param light 轻模糊小样（液态玻璃透镜的取景源，透镜清晰度的关键）
      */
-    public static void set(Bitmap light, ImageView backdropView) {
+    public static void set(Bitmap light, View backdropView) {
+        set(light, backdropView, false);
+    }
+
+    /** 完整发布入口：solid = 纯色基底模式（无壁纸路径内部复用，见 refreshSolidSample）。 */
+    private static void set(Bitmap light, View backdropView, boolean solid) {
+        solidSurface = solid;
         wallpaperSample = light;
         backdropRef = new WeakReference<>(backdropView);
         if (light != null && !light.isRecycled()) {
@@ -106,8 +129,61 @@ public final class GlassBackdrop {
         notifyListeners();
     }
 
+    /** 完全清除采样源与纯色基底状态（透镜全部回退渲染；仅错误兜底路径使用）。 */
     public static void clear() {
-        set(null, null);
+        solidSurface = false;
+        View old = solidListenerAnchor.get();
+        if (old != null) old.removeOnLayoutChangeListener(solidLayoutListener);
+        solidListenerAnchor = new WeakReference<>(null);
+        set(null, null, false);
+    }
+
+    /** 纯色基底模式查询：透镜据此决定嵌套小透镜是否保持回退渲染。 */
+    public static boolean isSolidSurface() {
+        return solidSurface;
+    }
+
+    /**
+     * 无背景图时发布「主题底色纯色基底」（UI 线程调用）：以 anchor（铺满窗口的
+     * 内容视图，如 android.R.id.content）为坐标锚生成 1/2 尺度纯色小样，走与
+     * 壁纸完全相同的合成/磨砂/取景管线——底栏透镜（enableContentStripSampling）
+     * 继续采样「底色 + 真实身后内容」（条带经 ContentStripSampler），玻璃不因
+     * 缺壁纸而整条停摆成无模糊的静态半透明表面。
+     *
+     * <p>anchor 未布局（宽或高为 0，如 onCreate 阶段调用）时挂起，由
+     * solidLayoutListener 在首次布局后自动补发；旋转/分屏的尺寸变化同样经布局
+     * 监听重建小样。重复调用同锚时只更新颜色，不重挂监听。</p>
+     */
+    public static void setSolidSurface(int color, View anchor) {
+        solidSurface = true;
+        solidColor = color;
+        if (anchor != null && solidListenerAnchor.get() != anchor) {
+            View old = solidListenerAnchor.get();
+            if (old != null) old.removeOnLayoutChangeListener(solidLayoutListener);
+            anchor.addOnLayoutChangeListener(solidLayoutListener);
+            solidListenerAnchor = new WeakReference<>(anchor);
+        }
+        refreshSolidSample();
+    }
+
+    /** 按锚当前尺寸重建纯色小样并发布（同锚同尺寸时跳过，条带/磨砂状态全保持）。 */
+    private static void refreshSolidSample() {
+        View anchor = solidListenerAnchor.get();
+        if (!solidSurface || anchor == null
+                || anchor.getWidth() == 0 || anchor.getHeight() == 0) {
+            return;
+        }
+        int sw = Math.max(1, anchor.getWidth() / 2);
+        int sh = Math.max(1, anchor.getHeight() / 2);
+        if (backdropRef.get() == anchor && wallpaperSample != null
+                && !wallpaperSample.isRecycled()
+                && wallpaperSample.getWidth() == sw
+                && wallpaperSample.getHeight() == sh) {
+            return;
+        }
+        Bitmap light = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
+        light.eraseColor(solidColor);
+        set(light, anchor, true);
     }
 
     /** 透镜实际取用的采样源：有内容条带时为合成小样，否则为纯壁纸小样。 */
@@ -138,8 +214,12 @@ public final class GlassBackdrop {
         return wallpaperFrost;
     }
 
-    /** 背景来源视图（activity_main 的 background_image），供透镜按窗口坐标差对齐取景。 */
-    public static ImageView getBackdropView() {
+    /**
+     * 采样源坐标锚：有背景图时为 activity_main 的 background_image（centerCrop
+     * 取景），纯色基底模式为铺满窗口的内容视图（均匀 1/2 缩放取景）。
+     * 供透镜按窗口坐标差对齐取景、条带合成按同一公式映射窗口矩形。
+     */
+    public static View getBackdropView() {
         return backdropRef.get();
     }
 
@@ -170,7 +250,7 @@ public final class GlassBackdrop {
      * 窗口点 w → 小样点 b = (w - bgLoc - offset) / scale。
      */
     private static void rebuildComposite() {
-        ImageView bg = backdropRef.get();
+        View bg = backdropRef.get();
         if (wallpaperSample == null || contentStrip == null || stripWindowRect == null
                 || bg == null || bg.getWidth() == 0 || bg.getHeight() == 0) {
             compositeSample = null;

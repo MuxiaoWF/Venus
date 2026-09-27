@@ -99,5 +99,57 @@
             app:tint="?attr/colorPrimary"
             tools:ignore="ContentDescription" />
     </LinearLayout>
+    <!-- 电池优化豁免行：厂商省电策略是定时任务失准与 VPN 抓包挂机断连（游戏闪退）的根源 -->
+    <LinearLayout
+        android:id="@+id/battery_opt_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_3"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/space_2"
+        android:paddingTop="@dimen/space_1"
+        android:paddingEnd="@dimen/space_2"
+        android:paddingBottom="@dimen/space_1">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/space_2"
+            android:contentDescription="@string/battery_row_label"
+            android:src="@drawable/ic_zap"
+            app:tint="?attr/colorOnSurfaceVariant" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/battery_row_label"
+                android:textAppearance="@style/TextAppearance.Venus.DrawerLabel" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/space_hairline"
+                android:text="@string/battery_row_desc"
+                android:textAppearance="@style/TextAppearance.Venus.Body.Small"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/battery_opt_value"
+            style="@style/TextAppearance.Venus.MonoValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/space_1" />
+    </LinearLayout>
 
 </LinearLayout>

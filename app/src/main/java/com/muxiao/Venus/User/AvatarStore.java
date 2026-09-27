@@ -5,12 +5,17 @@ import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
+import android.graphics.drawable.Drawable;
 import androidx.exifinterface.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.tools;
 
@@ -80,28 +85,59 @@ public final class AvatarStore {
     }
 
     /**
-     * 加载头像到 ImageView：有自定义图则 Glide 圆形裁剪铺满（去着色、去内边距），
+     * 加载头像到 ImageView：有自定义图则圆形加载铺满（去着色、去内边距），
      * 否则恢复布局默认态（内边距 + ic_user + 主题着色）。
      * username 为 null/空（无用户空态）时按默认态处理——md5Hex 不接受空输入。
+     * <p>
+     * 自定义图异步加载期间保持默认图标态，出图瞬间（onResourceReady 同一调用栈内）
+     * 才清 padding/tint——避免内存缓存未命中时先闪一帧「无 padding 的默认图标/
+     * 复用残留的上一用户头像」再突变为头像。
      */
     public static void loadInto(Context context, String username, ImageView view) {
         if (username != null && !username.isEmpty() && hasAvatar(context, username)) {
-            view.setPadding(0, 0, 0, 0);
-            view.setImageTintList(null);
-            Glide.with(view).load(avatarFile(context, username)).circleCrop().into(view);
+            applyDefaultState(context, view);
+            Glide.with(view)
+                    .load(avatarFile(context, username))
+                    .circleCrop()
+                    .listener(new RequestListener<>() {
+                        @Override
+                        public boolean onLoadFailed(@androidx.annotation.Nullable GlideException e,
+                                                    Object model, Target<Drawable> target,
+                                                    boolean isFirstResource) {
+                            // 文件在 hasAvatar 判断后到出图前被删等竞态：回默认态并
+                            // 拦截 Glide 的失败置空，防止头像位变空白
+                            applyDefaultState(context, view);
+                            return true;
+                        }
+
+                        @Override
+                        public boolean onResourceReady(Drawable resource, Object model,
+                                                       Target<Drawable> target, DataSource dataSource,
+                                                       boolean isFirstResource) {
+                            view.setPadding(0, 0, 0, 0);
+                            view.setImageTintList(null);
+                            return false; // 交回 Glide 展示资源（同帧完成，无中间破相帧）
+                        }
+                    })
+                    .into(view);
         } else {
             // 先取消可能在途的 Glide 请求，避免异步结果覆盖默认图标
             Glide.with(view).clear(view);
-            int pad = context.getResources().getDimensionPixelSize(R.dimen.space_2);
-            view.setPadding(pad, pad, pad, pad);
-            view.setImageResource(R.drawable.ic_user);
-            // MaterialColors 解析主题属性：colorPrimary 可能指向 ColorStateList 资源，
-            // 直接 resolveAttribute 拿到的是引用而非颜色值。
-            // colorPrimary 声明在 appcompat（material 未重复声明该 attr）
-            view.setImageTintList(ColorStateList.valueOf(
-                    com.google.android.material.color.MaterialColors.getColor(
-                            view, androidx.appcompat.R.attr.colorPrimary)));
+            applyDefaultState(context, view);
         }
+    }
+
+    /** 默认态：内边距 + ic_user + 主题着色。加载中与无自定义图共用，保证观感一致。 */
+    private static void applyDefaultState(Context context, ImageView view) {
+        int pad = context.getResources().getDimensionPixelSize(R.dimen.space_2);
+        view.setPadding(pad, pad, pad, pad);
+        view.setImageResource(R.drawable.ic_user);
+        // MaterialColors 解析主题属性：colorPrimary 可能指向 ColorStateList 资源，
+        // 直接 resolveAttribute 拿到的是引用而非颜色值。
+        // colorPrimary 声明在 appcompat（material 未重复声明该 attr）
+        view.setImageTintList(ColorStateList.valueOf(
+                com.google.android.material.color.MaterialColors.getColor(
+                        view, androidx.appcompat.R.attr.colorPrimary)));
     }
 
     // ========== 图片解码与加工 ==========

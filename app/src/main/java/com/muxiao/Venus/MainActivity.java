@@ -107,14 +107,15 @@ public class MainActivity extends BaseActivity {
         navigationRailView = findViewById(R.id.navigation_rail);
 
         // 底栏液态玻璃：LensGlassDrawable 对背景图轻模糊底衬取景折射（panel 口径
-        // lens 24/34dp，圆角与 bg_bottom_nav_rounded 一致）。无背景图时回退绘制原
-        // colorSurfaceContainer 表面（透明度经 setAlpha 转发）。
+        // lens 24/34dp，圆角与 bg_bottom_nav_rounded 一致）。无背景图时改用纯色基底
+        // （GlassBackdrop.setSolidSurface，见 publishSolidSurface）继续折射身后内容。
         // 整条底栏不挂按压形变/涟漪（interactiveEffects=false），交互反馈仍由 Tab 项自身承担。
         if (bottomNavigationView != null) {
             LensGlassDrawable barLens = LensGlassDrawable.apply(bottomNavigationView,
                     getResources().getDimension(R.dimen.shape_corner_lg), 24f, 34f, false);
-            // 底栏是唯一吃「壁纸+内容条带」合成图的透镜：折射身后真实内容。
-            // 嵌套小透镜保持纯壁纸采样，防止滚进条带范围时自引用残影。
+            // 底栏与选中态药丸吃「壁纸/底色+内容条带」合成图：折射身后真实内容。
+            // 内容树内的嵌套小透镜保持纯壁纸采样，防止滚进条带范围时自引用残影；
+            // 药丸位于底栏树内（条带采样范围之外），见 installGlassPillIndicators 注释。
             if (barLens != null)
                 barLens.enableContentStripSampling();
             // 选中态玻璃药丸：接管 Material activeIndicator 的背景（原为 colorSecondaryContainer
@@ -434,6 +435,12 @@ public class MainActivity extends BaseActivity {
      * 换成 LensGlassDrawable（透镜折射 + tint，无语义色填充）；库经 setVisibility
      * 控制显隐，未选中的 Tab 天然不绘制药丸，无需监听选中事件。
      * 指示器尺寸在库内布局期设置，故 post 到布局完成后安装。
+     *
+     * <p>药丸开启内容条带合成采样（enableContentStripSampling）：它位于底栏视图树内，
+     * 条带只从 ViewPager 内容树离屏采样，永远不会包含药丸自身的渲染——不存在
+     * 内容树内嵌套透镜的自引用问题。收益：无背景图（纯色基底模式）时药丸采样
+     * 「底色+条带」合成图，与底栏透镜同一磨砂材质，保持玻璃观感——否则会退回
+     * 纯色填充；有背景图时药丸底衬与底栏身后的真实内容也保持同源一致。</p>
      */
     private void installGlassPillIndicators() {
         bottomNavigationView.post(() -> {
@@ -446,7 +453,10 @@ public class MainActivity extends BaseActivity {
                 View indicator = item.findViewById(
                         com.google.android.material.R.id.navigation_bar_item_active_indicator_view);
                 if (indicator != null && !(indicator.getBackground() instanceof LensGlassDrawable)) {
-                    LensGlassDrawable.apply(indicator, radius, 12f, 24f, false);
+                    LensGlassDrawable pillLens = LensGlassDrawable.apply(
+                            indicator, radius, 12f, 24f, false);
+                    // 见方法注释：药丸在底栏树内、条带采样范围之外，吃合成图无自引用风险
+                    if (pillLens != null) pillLens.enableContentStripSampling();
                 }
             }
         });
@@ -459,7 +469,7 @@ public class MainActivity extends BaseActivity {
      * 等于双重淡化（最终像素 = 预处理图 × alpha + 底色 × (1-alpha)），画面必然发蒙，
      * 且 alpha 把各预设档的差距压缩到一半以下，导致切换「无感」。
      * 预合成后：滑条直接控制图片权重，预设控制色彩质感，各自独立生效。
-     * 权限不足或解码失败时回退隐藏并提示。
+     * 权限不足或解码失败时回退隐藏、改发纯色基底（底栏玻璃保留磨砂）并提示。
      * 同时在后台线程生成底栏毛玻璃用的模糊小样（连续降采样），主线程只做矩阵对齐。
      */
     private void setupBackground() {
@@ -470,10 +480,13 @@ public class MainActivity extends BaseActivity {
         appliedBackgroundPreset = backgroundPreset;
         appliedBackgroundAlpha = backgroundAlpha;
 
-        // 无图：直接隐藏（透镜也一并隐藏，玻璃透出的就是滚动到栏下的页面内容）
+        // 无图：隐藏图片层，改用主题底色作为液态玻璃的采样基底（纯色基底模式）——
+        // 底栏透镜继续经 ContentStripSampler 条带采样磨砂折射滚到玻璃下的真实内容，
+        // 不再因无壁纸整条停摆成无模糊的静态半透明表面
         if (backgroundImageUri == null) {
             backgroundImage.setVisibility(android.view.View.GONE);
-            GlassBackdrop.clear();
+            publishSolidSurface();
+            if (contentStripSampler != null) contentStripSampler.invalidate();
             return;
         }
 
@@ -512,7 +525,7 @@ public class MainActivity extends BaseActivity {
                 // 且已用 isFinishing/isDestroyed 拦截过期回调（重复查找会触发 Lint DuplicateIdLookup）
                 if (errorMsg != null) {
                     backgroundImage.setVisibility(android.view.View.GONE);
-                    GlassBackdrop.clear();
+                    publishSolidSurface();
                     show_error_dialog(MainActivity.this, errorMsg);
                     return;
                 }
@@ -528,10 +541,25 @@ public class MainActivity extends BaseActivity {
                     if (contentStripSampler != null) contentStripSampler.invalidate();
                 } else {
                     backgroundImage.setVisibility(android.view.View.GONE);
-                    GlassBackdrop.clear();
+                    publishSolidSurface();
                 }
             });
         });
+    }
+
+    /**
+     * 无背景图（或背景解码失败）时为液态玻璃发布纯色采样基底：
+     * 锚 = 窗口内容视图 android.R.id.content（铺满窗口，与根布局同一坐标系，
+     * 几何公式与壁纸路径同构），色 = 根布局显式着色（?android:attr/colorBackground），
+     * 与「无背景图时玻璃身后的真实像素」一致。锚未布局时由 GlassBackdrop 的
+     * 布局监听自动补发，无需关心调用时机。
+     */
+    private void publishSolidSurface() {
+        View anchor = findViewById(android.R.id.content);
+        if (anchor == null) return;
+        int color = com.google.android.material.color.MaterialColors
+                .getColor(anchor, android.R.attr.colorBackground);
+        GlassBackdrop.setSolidSurface(color, anchor);
     }
 
     /** 已应用到 UI 的背景预设档 / 不透明度，供 onResume 检测变化后重新预合成。 */

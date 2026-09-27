@@ -6,9 +6,9 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewTreeObserver;
-import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 
@@ -21,9 +21,13 @@ import androidx.annotation.NonNull;
  * {@link GlassBackdrop#publishStrip} 与壁纸小样合成，玻璃折射的即是真实的
  * 身后内容——对应 Kyant0/AndroidLiquidGlass 的 LayerBackdrop 采样「玻璃身后的层」。</p>
  *
- * <p>节流：滚动/布局变化合并为 {@link #CAPTURE_INTERVAL_MS} 一次的条带重采样，
- * 静止不采样；条带只覆盖底栏附近区域（全宽 × 栏高 + 外推余量）且 1/2 尺度，
- * 单次成本可控。</p>
+ * <p>节流：滚动/布局变化合并为一次条带重采样，静止不采样；条带只覆盖底栏附近
+ * 区域（全宽 × 栏高 + 外推余量）且 1/2 尺度，单次成本可控。调度用 {@link
+ * Choreographer} 帧对齐：动画阶段回调先于本帧 traversal（draw）执行，采样 →
+ * 发布 → 透镜失效全部落在绘制之前，同一帧玻璃即取到当前帧内容——零滞后、
+ * 零漂移；此前 Handler.postDelayed 定时与 vsync 不对齐，采样常落在本帧绘制
+ * 之后（生效延后一帧以上且间隔抖动），页面切换时玻璃内容走走停停、收尾追帧
+ * 跳跃。</p>
  *
  * <p>递归防护：离屏绘制期间 {@link LensGlassDrawable#setCaptureActive} 置位，
  * 树内嵌套小透镜（状态圈/玻璃药丸/图标）一律画静态回退底——玻璃采样玻璃会
@@ -31,23 +35,28 @@ import androidx.annotation.NonNull;
  */
 public final class ContentStripSampler {
 
-    /** 条带重采样基准间隔（ms）：与帧率同频（60fps），滚动中玻璃内容跟踪的
-     *  时延下限由此决定（发布+下一帧绘制各占一帧）。主页等轻页面单次离屏
-     *  绘制 2~4ms，可承受逐帧采样；重页面由自适应退避自动拉大间隔。 */
+    /** 条带重采样基准间隔（ms）：与帧率同频（60fps）。调度帧对齐（Choreographer
+     *  动画阶段先于本帧 draw），采样→发布→绘制同帧完成，玻璃内容零滞后。
+     *  主页等轻页面单次离屏绘制 2~4ms，可承受逐帧采样；重页面由自适应退避
+     *  自动拉大间隔（过渡期上限 48ms，静止期上限 200ms）。 */
     private static final long CAPTURE_INTERVAL_MS = 16;
     /** 自适应退避上限（ms）：离屏绘制成本高的页面（软件路径全树遍历，设置页可达
      *  50~150ms/次）按实测成本倍增间隔，最低降到 5fps——掉帧换采样时延，保滚动流畅。 */
     private static final long MAX_INTERVAL_MS = 200;
     /** 单次离屏绘制预算（ms）：超过一个标准帧时长即触发退避。 */
     private static final long CAPTURE_BUDGET_MS = 14;
+    /** 标准帧周期（ms）：帧对齐调度用——delay = 采样间隔 − 帧周期，间隔恰为一帧时贴下一帧。 */
+    private static final long FRAME_PERIOD_MS = 16;
     /** 折射带外推量（dp）：与底栏透镜 panel 口径 lensAmount（MainActivity 传 34f）一致。 */
     private static final float LENS_AMOUNT_DP = 34f;
     /** 条带顶边在折射外推量之上的安全余量（dp），覆盖取景对齐的亚像素误差。 */
     private static final float SAFETY_DP = 8f;
     /** 条带降采样系数：与壁纸小样 1/2 尺度对齐，合成时不再被二次压缩，AGSL 放大后文字可辨。 */
     private static final float CAPTURE_SCALE = 0.5f;
-    /** 页面切换过渡期的采样间隔（ms）：动画仅几百 ms，用最高频率跟踪真实滑动内容。 */
-    private static final long TRANSITION_INTERVAL_MS = 16;
+    /** 过渡期自适应退避上限（ms）：过渡要跟踪动画，但高成本页面（设置页全树遍历
+     *  50~150ms/次）逐帧采样会把切换动画本身拖出掉帧——按实测成本退避，上限
+     *  48ms 保证动画期间仍以 ≥20fps 跟踪；静止期维持 200ms 深退避。 */
+    private static final long MAX_TRANSITION_INTERVAL_MS = 48;
     /** 过渡静默窗口（ms）：最后一个滚动/布局事件后经过该时长仍无事件，判定过渡结束。
      *  平滑切换由 SCROLL_STATE_IDLE 即时收尾；instant 切换（smoothScroll=false）
      *  无 IDLE 事件，靠本窗口兜底——比固定超时精确得多。 */
@@ -55,21 +64,49 @@ public final class ContentStripSampler {
 
     private final View content;
     private final View overlayBar;
+    /** 静默窗口等非帧节奏任务仍走 Handler；采样调度走 Choreographer（帧对齐）。 */
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable captureRunnable = this::capture;
+    private final Choreographer choreographer = Choreographer.getInstance();
+    /**
+     * 帧对齐采样回调：Choreographer 动画阶段先于本帧 traversal 执行——采样 →
+     * publishStrip（合成+磨砂重建）→ 透镜 invalidate 全部落在绘制之前，本帧
+     * draw 即取到当前帧内容。此前 Handler 定时采样与 vsync 无对齐，常落在
+     * 本帧绘制之后（生效延后 1~2 帧且间隔漂移），切页时玻璃走走停停、收尾跳跃。
+     */
+    private final Choreographer.FrameCallback captureFrameCallback = frameTimeNanos -> capture();
 
-    private Bitmap strip;
-    private Canvas stripCanvas;
     /** 当前生效的采样间隔（ms）：自适应退避在基准与上限之间浮动。 */
     private long currentIntervalMs = CAPTURE_INTERVAL_MS;
     /** 节流标志：已有待执行的采样任务时，后续事件不再重置延迟——否则持续滚动中
-     *  回调被 removeCallbacks 不断推迟，采样只会在事件流停止后执行（「松手才刷新」）。 */
+     *  回调被 remove 不断推迟，采样只会在事件流停止后执行（「松手才刷新」）。 */
     private boolean capturePending;
     /** 页面切换过渡中（ViewPager2 DRAGGING/SETTLING 或 instant 切换的超时窗口内）：
-     *  内容在真实滑动，退避让位于跟踪——固定最高频率采样。 */
+     *  内容在真实滑动，退避让位于跟踪——退避上限收紧到 MAX_TRANSITION_INTERVAL_MS。 */
     private boolean transitionActive;
     /** 过渡收尾兜底任务：instant 切换无 IDLE 事件时按超时结束过渡状态。 */
     private final Runnable transitionEndRunnable = this::onTransitionEnd;
+
+    /**
+     * 帧对齐调度一次采样：delay 为相对「下一帧」的额外等待（0 = 贴下一帧）。
+     * 采样间隔换算：delay = interval − 帧周期（间隔恰为一帧时逐帧采样）。
+     */
+    private void postCapture(long intervalMs) {
+        if (capturePending) return;
+        capturePending = true;
+        long delay = Math.max(0, intervalMs - FRAME_PERIOD_MS);
+        if (delay == 0) choreographer.postFrameCallback(captureFrameCallback);
+        else choreographer.postFrameCallbackDelayed(captureFrameCallback, delay);
+    }
+
+    /** 撤销已排期的采样任务（Choreographer 回调 + 节流标志一并复位）。 */
+    private void cancelCapture() {
+        choreographer.removeFrameCallback(captureFrameCallback);
+        capturePending = false;
+    }
+
+    /** 条带图像与其画布（原地复用，尺寸变化才重建）。 */
+    private Bitmap strip;
+    private Canvas stripCanvas;
 
     public ContentStripSampler(@NonNull View content, @NonNull View overlayBar) {
         this.content = content;
@@ -88,8 +125,7 @@ public final class ContentStripSampler {
             @Override
             public void onViewDetachedFromWindow(@NonNull View v) {
                 v.getViewTreeObserver().removeOnScrollChangedListener(scrollListener);
-                handler.removeCallbacks(captureRunnable);
-                capturePending = false;
+                cancelCapture();
             }
         });
         if (content.isAttachedToWindow())
@@ -103,17 +139,18 @@ public final class ContentStripSampler {
         schedule();
     }
 
-    /** 页面切换开始（MainActivity 的 OnPageChangeCallback 接线）：玻璃改用最高频率
-     *  跟踪滑动内容，避免条带滞后于页面动画、落定后旧内容「闪动」一次才换新。 */
+    /** 页面切换开始（MainActivity 的 OnPageChangeCallback 接线）：玻璃贴帧跟踪滑动
+     *  内容。退避间隔复位到基准——静止期可能带着上一页的深退避（最长 200ms）进入
+     *  过渡，不复位则切换前几帧跟踪严重滞后。 */
     public void onTransitionStart() {
         transitionActive = true;
+        currentIntervalMs = CAPTURE_INTERVAL_MS;
         handler.removeCallbacks(transitionEndRunnable);
         handler.postDelayed(transitionEndRunnable, TRANSITION_QUIET_MS);
-        // 立即采一帧：onPageSelected 早于布局事件，若已有挂起的退避采样任务
-        // （最长 200ms），切换第一帧的跟踪会被它拖住
-        handler.removeCallbacks(captureRunnable);
-        capturePending = true;
-        handler.post(captureRunnable);
+        // 立即采一帧（贴下一帧）：onPageSelected 早于布局事件，若已有挂起的退避
+        // 采样任务（最长 200ms），切换第一帧的跟踪会被它拖住
+        cancelCapture();
+        postCapture(CAPTURE_INTERVAL_MS);
     }
 
     /** 页面切换结束（SCROLL_STATE_IDLE 或兜底超时）：回基准间隔并立即补采——
@@ -124,20 +161,17 @@ public final class ContentStripSampler {
         handler.removeCallbacks(transitionEndRunnable);
         // 退避间隔按「上一页的采样成本」调出，对新页面无效：直接回基准
         currentIntervalMs = CAPTURE_INTERVAL_MS;
-        handler.removeCallbacks(captureRunnable);
-        capturePending = false;
+        cancelCapture();
         capture();
         // 兜底补采：Fragment 视图 inflate / RecyclerView 异步回填可能晚于 IDLE 一两帧
-        handler.postDelayed(captureRunnable, CAPTURE_INTERVAL_MS * 2);
+        postCapture(CAPTURE_INTERVAL_MS * 2);
     }
 
-    /** 节流调度：滚动/布局事件合并为一次条带重采样（UI 线程）；
-     *  过渡期固定 16ms 跟踪动画，平时用自适应退避间隔。 */
+    /** 节流调度：滚动/布局事件合并为一次条带重采样（UI 线程），帧对齐执行；
+     *  过渡期与静止期共用自适应退避间隔（过渡上限更紧，见 MAX_TRANSITION_INTERVAL_MS）。 */
     private void schedule() {
         if (capturePending) return;
-        capturePending = true;
-        handler.postDelayed(captureRunnable,
-                transitionActive ? TRANSITION_INTERVAL_MS : currentIntervalMs);
+        postCapture(currentIntervalMs);
         if (transitionActive) {
             // 过渡中每个滚动/布局事件都重置静默窗口：事件停止 + 静默期 → 过渡结束
             // （平滑切换实际由 SCROLL_STATE_IDLE 先行收尾，此处主要服务 instant 切换）
@@ -149,7 +183,9 @@ public final class ContentStripSampler {
     /** 条带重采样（UI 线程）：离屏绘制内容条带 → 发布给 GlassBackdrop 合成。 */
     private void capture() {
         capturePending = false;
-        ImageView backdrop = GlassBackdrop.getBackdropView();
+        // 坐标锚：有背景图为 background_image（centerCrop 取景），纯色基底模式
+        // （无背景图）为铺满窗口的内容视图（GlassBackdrop.setSolidSurface 发布）
+        View backdrop = GlassBackdrop.getBackdropView();
         if (backdrop == null || backdrop.getVisibility() != View.VISIBLE
                 || backdrop.getWidth() == 0 || GlassBackdrop.getBitmap() == null
                 || content.getWidth() == 0 || content.getHeight() == 0
@@ -206,13 +242,14 @@ public final class ContentStripSampler {
         GlassBackdrop.publishStrip(strip, windowRect);
 
         // 自适应退避：离屏绘制是软件路径全树遍历，成本随页面树规模变化巨大
-        // （RecyclerView 页 ~几 ms，设置页 NestedScrollView 可达 50~150ms）。
-        // 超预算倍增间隔（上限 200ms），明显低于预算则逐级回落到基准 16ms。
-        // 过渡期不调退避：页面切换动画只有几百 ms，跟踪动画优先于采样成本。
-        if (transitionActive) return;
+        // （RecyclerView 页 ~几 ms，设置页 NestedScrollView 可达 50~150ms/次）。
+        // 超预算倍增间隔；过渡期上限收紧到 48ms——逐帧采样高成本页面会把切换
+        // 动画本身拖出掉帧，48ms 保证动画期间 ≥20fps 跟踪；静止期上限 200ms。
+        // 明显低于预算则逐级回落到基准 16ms。
+        long cap = transitionActive ? MAX_TRANSITION_INTERVAL_MS : MAX_INTERVAL_MS;
         if (costMs > CAPTURE_BUDGET_MS) {
-            if (currentIntervalMs < MAX_INTERVAL_MS) {
-                currentIntervalMs = Math.min(currentIntervalMs * 2, MAX_INTERVAL_MS);
+            if (currentIntervalMs < cap) {
+                currentIntervalMs = Math.min(currentIntervalMs * 2, cap);
             }
         } else if (costMs < CAPTURE_BUDGET_MS / 2 && currentIntervalMs > CAPTURE_INTERVAL_MS) {
             currentIntervalMs = Math.max(CAPTURE_INTERVAL_MS, currentIntervalMs / 2);

@@ -48,6 +48,12 @@ public class CaptureService extends VpnService {
     public static final String ACTION_CAPTURE_UPDATING = "com.muxiao.Venus.Link.CAPTURE_UPDATING";
     private static final String CHANNEL_ID = "CaptureService";
     private static final int MAX_PACKET_SIZE = 8192;
+    /**
+     * VPN 接口 MTU：与普通 VPN 的常规值（1500）对齐。
+     * 注意 C 层 get_mtu()（app/src/main/cpp/netguard/ip.c，决定 TUN 读缓冲与下游 TCP MSS）
+     * 必须与本值同步修改，否则会出现分段超出 TUN MTU 或指纹不一致。
+     */
+    private static final int VPN_MTU = 1500;
 
     /** 星铁国服 / B服 / 国际服包名（白名单：仅这些应用的流量进入 VPN） */
     private static final String[] ALLOWED_APPS = {
@@ -74,6 +80,8 @@ public class CaptureService extends VpnService {
     private ParcelFileDescriptor pfd;
     private ParcelFileDescriptor remotePfd;
     private ParcelFileDescriptor localPfd;
+    /** 本轮抓包的旁路分析器（含独立分析线程，stopCapture 时停止） */
+    private PacketAnalyzer analyzer;
     private final BroadcastReceiver stopReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -120,6 +128,10 @@ public class CaptureService extends VpnService {
 
     private void stopCapture() {
         capturedChannel = null;
+        if (analyzer != null) {
+            analyzer.stop();
+            analyzer = null;
+        }
         stopNative();
         stopForward();
         stopVpn();
@@ -132,9 +144,39 @@ public class CaptureService extends VpnService {
     private void startVpn() {
         if (pfd != null) return;
         VpnService.Builder builder = new VpnService.Builder();
-        builder.setMtu(MAX_PACKET_SIZE);
+        builder.setMtu(VPN_MTU);
         builder.addAddress("10.1.10.1", 32);
         builder.addRoute("0.0.0.0", 0);
+        // 声明 DNS 服务器（普通 VPN 均有，DNS-less 的 VPN 网络是可观测的反常指纹）：
+        // 优先继承当前网络的 DNS，取不到时兜底公共 DNS，保证非空
+        try {
+            ConnectivityManager cm =
+                    (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            android.net.Network active = cm == null ? null : cm.getActiveNetwork();
+            android.net.LinkProperties lp = active == null ? null : cm.getLinkProperties(active);
+            java.util.List<java.net.InetAddress> dns =
+                    lp == null ? null : lp.getDnsServers();
+            // 只声明 IPv4 DNS：netguard 仅转发 IPv4（cpp 下无 ip6.c），隧道内 IPv6 服务器
+            // （尤其 fe80:: 链路本地地址）是不可达的死地址，会导致解析轮询超时，
+            // SDK 连通性自检失败后误报"检测到代理"
+            java.util.List<java.net.InetAddress> v4 = new java.util.ArrayList<>();
+            if (dns != null)
+                for (java.net.InetAddress d : dns)
+                    if (d instanceof java.net.Inet4Address)
+                        v4.add(d);
+            if (v4.isEmpty()) {
+                builder.addDnsServer(java.net.InetAddress.getByName("223.5.5.5"));
+                Log.i(TAG, "vpn dns: fallback 223.5.5.5 (raw=" + dns + ")");
+            } else {
+                for (java.net.InetAddress d : v4)
+                    builder.addDnsServer(d);
+                int dropped = (dns == null ? 0 : dns.size()) - v4.size();
+                Log.i(TAG, "vpn dns: inherited v4 " + v4
+                        + (dropped > 0 ? " (dropped " + dropped + " non-ipv4: " + dns + ")" : ""));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "fail to configure vpn dns", e);
+        }
         // 应用白名单：只放行本机实际安装的渠道（未安装渠道传给系统也会被拒绝），
         // 最小化 VPN 配置暴露给系统服务的包名集合，并留痕本次实际放行列表便于排查
         StringBuilder allowed = new StringBuilder();
@@ -150,6 +192,11 @@ public class CaptureService extends VpnService {
             }
         }
         Log.i(TAG, "vpn allowed apps: " + allowed);
+        // 白名单为空时 VpnService 会捕获全设备所有应用的流量（会话表瞬间爆满，
+        // 新建连接被 netguard 丢弃），必须留痕定位
+        if (allowed.length() == 0)
+            Log.w(TAG, "vpn allowed apps EMPTY! VPN will capture ALL apps' traffic"
+                    + " (check manifest <queries> package visibility)");
         try {
             pfd = builder.establish();
             localPfd = pfd;
@@ -197,6 +244,8 @@ public class CaptureService extends VpnService {
             return;
         }
         PacketAnalyzer analyzer = new PacketAnalyzer(this);
+        analyzer.start();
+        this.analyzer = analyzer;
         forward(pfd, remotePfd, analyzer);
         forward(remotePfd, pfd, analyzer);
     }
@@ -212,10 +261,9 @@ public class CaptureService extends VpnService {
                     int length = in.read(buffer, 0, MAX_PACKET_SIZE);
                     if (length <= 0) continue;
                     out.write(buffer, 0, length);
-                    // 旁路镜像：复制一份交分析器（不能把内部缓冲直接交出去被改写）
-                    byte[] packet = new byte[length];
-                    System.arraycopy(buffer, 0, packet, 0, length);
-                    analyzer.handleIpPacket(packet, length);
+                    // 旁路镜像：转发线程只做快速过滤与有界入队（内部按需拷贝），
+                    // 重负载解析在独立分析线程执行，不阻塞转发（防 KCP 时延抖动）
+                    analyzer.offerIpPacket(buffer, length);
                 }
             } catch (Exception e) {
                 // 正常停止时流关闭会抛 IOException；其余异常意味着转发线程提前死亡

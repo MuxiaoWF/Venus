@@ -14,6 +14,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- 星铁抽卡链接 VPN 抓包（specialUse 前台服务） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- 电池优化 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!--移除第三方库声明的不需要的权限-->
     <uses-permission
@@ -31,6 +32,14 @@
     <uses-permission
         android:name="freemme.permission.msa"
         tools:node="remove" />
+
+    <!-- Android 11+ 包可见性：CaptureService 白名单需 getPackageInfo 探测游戏是否安装，
+         未声明时一律抛 NameNotFoundException → 白名单为空 → VPN 捕获全设备流量（会话爆炸） -->
+    <queries>
+        <package android:name="com.miHoYo.hkrpg" />
+        <package android:name="com.miHoYo.hkrpg.bilibili" />
+        <package android:name="com.HoYoverse.hkrpgoversea" />
+    </queries>
 
     <application
         android:name=".VenusApplication"

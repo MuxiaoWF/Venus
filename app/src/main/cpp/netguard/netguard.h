@@ -62,7 +62,10 @@
 #define TCP_KEEP_TIMEOUT 300 // seconds
 // https://en.wikipedia.org/wiki/Maximum_segment_lifetime
 
-#define SESSION_LIMIT 40 // percent
+// 上限过低会导致新流量被静默丢弃（ip.c handle_ip：sessions>=maxsessions 时丢
+// ICMP/新 UDP 流/TCP SYN），游戏表现为"无法连接"。UDP 会话存活 300s、TCP 空闲
+// 3600s，白名单游戏的并发会话数百很常见，40%×1024=409 不够，放宽到 75%×1024=768
+#define SESSION_LIMIT 75 // percent
 #define SESSION_MAX (1024 * SESSION_LIMIT / 100) // number
 
 #define SEND_BUF_DEFAULT 163840 // bytes

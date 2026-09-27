@@ -61,7 +61,8 @@ import org.intellij.lang.annotations.Language;
  *       InnerShadow（底部内侧柔和暗带，BlurMaskFilter 实现）——两者构成玻璃的「厚度感」；</li>
  *   <li><b>按压液态形变</b>：可点击宿主按压时放大 {@link #PRESS_EXPANSION_DP} 并向指尖方向
  *       微位移（tanh 曲线），对应 LiquidButton 的 pressExpansion + InteractiveHighlight；</li>
- *   <li><b>回退</b>：无背景图时绘制接管前的原玻璃渐变 drawable，静态蒙版观感不丢。</li>
+ *   <li><b>回退</b>：无背景图时，非底栏透镜绘制接管前的原玻璃渐变 drawable（底栏级
+ *       透镜经 {@link GlassBackdrop} 的纯色基底继续折射身后内容），静态蒙版观感不丢。</li>
  * </ul>
  *
  * 取景偏移在每次绘制时按 host 与背景图视图（background_image）的<b>窗口坐标差</b>实时
@@ -403,11 +404,16 @@ public final class LensGlassDrawable extends Drawable {
                 ? GlassBackdrop.getFrostBitmap()
                 : GlassBackdrop.getWallpaperFrostBitmap();
         if (frostBmp == null || frostBmp.isRecycled()) frostBmp = bmp;
-        android.widget.ImageView bg = GlassBackdrop.getBackdropView();
-        // captureActive：离屏采样期间嵌套透镜一律画回退底（见 setCaptureActive 注释）
+        View bg = GlassBackdrop.getBackdropView();
+        // captureActive：离屏采样期间嵌套透镜一律画回退底（见 setCaptureActive 注释）。
+        // 纯色基底模式（无背景图）：仅吃「底色+内容条带」合成图的透镜（底栏与
+        // 选中态药丸，均在条带采样范围之外的底栏树内）激活，继续磨砂折射真实
+        // 身后内容；其余嵌套小透镜的采样源只是纯色基底（无壁纸可采），激活会把
+        // 身后的真实内容挡成一块纯色——比回退底的半透明更差，保持回退。
         boolean lensActive = bmp != null && !bmp.isRecycled() && bg != null
                 && bg.getWidth() > 0 && bg.getVisibility() == View.VISIBLE
-                && !captureActive;
+                && !captureActive
+                && (!GlassBackdrop.isSolidSurface() || sampleContentStrip);
         if (!lensActive) {
             // 离屏采样期间嵌套透镜画<b>透明体</b>：回退玻璃底（半透明白填充+光边）会
             // 被上层玻璃再次折射，叠加成雾斑（设置页「查看榜单图」按钮压在底栏上方

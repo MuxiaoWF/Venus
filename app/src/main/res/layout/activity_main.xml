@@ -39,7 +39,8 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- 底部导航栏：液态玻璃（LensGlassDrawable 接管背景，对背景图轻模糊底衬取景折射；
-         blur 条方案已删除）。无背景图时回退原 colorSurfaceContainer 半透明表面。 -->
+         blur 条方案已删除）。无背景图时底栏透镜改用 GlassBackdrop 纯色基底（主题底色）
+         继续磨砂折射身后的滚动内容；其余透镜回退原 colorSurfaceContainer 半透明表面。 -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
         style="@style/Widget.Venus.BottomNavigationView"

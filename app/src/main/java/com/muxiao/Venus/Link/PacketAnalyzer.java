@@ -11,6 +11,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 抓包分析器（复刻自 SRGachaLink）：
@@ -20,6 +22,11 @@ import java.util.ArrayDeque;
  * 1. 初始密钥：包首 4 字节 XOR magic head 得 key ID，查 HsrKeyStore（assets/hsr.json 内置表，
  *    云端更新见 HsrKeyStore 注释）；缺键时缓存待解包并触发即时补拉，拿到密钥后按到达顺序重放；
  * 2. 会话密钥：解出 PlayerGetTokenScRsp 后取 seed，MT19937-64 生成 4096 字节新 XOR pad。
+ *
+ * <p>异步架构：转发线程只调用 {@link #offerIpPacket}（无锁快速过滤 + 有界入队），
+ * 解密/字符串构造等重负载全部在独立分析线程执行——解析耗时不再阻塞转发路径、
+ * 也不再形成上下行争抢锁的网络抖动（此类抖动可被游戏内网络质量检测感知）。
+ * 单消费者模型：启动后所有密钥状态仅由分析线程读写，无需加锁。
  */
 public class PacketAnalyzer {
     private static final String TAG = "PacketAnalyzer";
@@ -35,10 +42,8 @@ public class PacketAnalyzer {
     private boolean isInitKey = true;
     /** 「更新中」提示只上报一次：缺版本时每个 KCP 包都会走到该分支，重复广播会刷爆 UI */
     private boolean updatingNotified = false;
-    /** 最近一次缺失的版本号：补拉落定回调据此判断云端是否已收录该版本 */
-    private volatile long lastMissingVersion = -1;
 
-    /** 缺键期间缓存的待解包（payload 已是独立数组；拿到初始密钥后按到达顺序重放） */
+    /** 待分析包（payload 已是独立数组；含渠道判定的客户端源端口） */
     private static final class Pending {
         final byte[] payload;
         final int clientPort;
@@ -49,21 +54,56 @@ public class PacketAnalyzer {
         }
     }
 
-    /** 待解包上限：重放只需覆盖补拉耗时（秒级）内的连接期流量，超限丢最旧 */
-    private static final int PENDING_LIMIT = 512;
+    /**
+     * 待分析队列上限：仅吸收分析耗速与转发耗速的瞬时差，超限丢最旧
+     * （分析尽力而为，丢包只影响捕获不影响转发）。256 × MTU 包 ≈ 亚 MB 级内存上界。
+     */
+    private static final int QUEUE_LIMIT = 256;
+    private final LinkedBlockingDeque<Pending> queue = new LinkedBlockingDeque<>(QUEUE_LIMIT);
+
+    /**
+     * 缺键缓存上限（个）：仅保近期包供拿到键后重放衔接，超限丢最旧（与 QUEUE_LIMIT
+     * 同策略）——缺键期间每个 KCP 包都会入缓存，无界会 OOM。
+     */
+    private static final int PENDING_LIMIT = 256;
     private final ArrayDeque<Pending> pending = new ArrayDeque<>();
+
+    private volatile boolean running = false;
+    private Thread worker;
+    private long droppedCount = 0;
 
     public PacketAnalyzer(Context context) {
         this.context = context.getApplicationContext();
     }
 
+    /* ===== 生命周期 ===== */
+
+    /** 启动独立分析线程（每轮抓包调用一次） */
+    public synchronized void start() {
+        if (running) return;
+        running = true;
+        worker = new Thread(this::analyzeLoop, "CaptureAnalyzer");
+        worker.start();
+    }
+
+    /** 停止分析线程并清空队列（stopCapture 时调用） */
+    public synchronized void stop() {
+        running = false;
+        if (worker != null) {
+            worker.interrupt();
+            worker = null;
+        }
+        queue.clear();
+    }
+
+    /* ===== 数据面入口（转发线程调用，必须无锁、低开销） ===== */
+
     /**
-     * 处理旁路镜像的原始 IP 包（双向均传入）。
-     * 由 CaptureService 的两条转发线程并发调用，需串行化保护密钥状态。
+     * 快速过滤旁路镜像的 IP 包：仅识别 IPv4/UDP 且端口为 23301 的游戏 KCP 包，
+     * 命中才拷贝入队交由分析线程处理。其余包在此直接返回，零分配零锁。
      */
-    public synchronized void handleIpPacket(byte[] data, int length) {
-        // 仅处理 IPv4/UDP（VPN 只声明了 IPv4 地址与路由，TUN 内不会出现 IPv6 包）
-        if (length < 28 || (data[0] >> 4) != 4)
+    public void offerIpPacket(byte[] data, int length) {
+        if (!running || length < 28 || (data[0] >> 4) != 4)
             return;
         int ihl = (data[0] & 0x0F) * 4;
         if ((data[9] & 0xFF) != 17 || length < ihl + 8) // 17 = UDP
@@ -74,7 +114,41 @@ public class PacketAnalyzer {
             return;
         // 客户端侧临时端口：服务端端口恒为 23301，另一端即客户端端口（渠道判定依据）
         int clientPort = dstPort == GAME_PORT ? srcPort : dstPort;
-        handleUdpPacket(data, ihl + 8, length - ihl - 8, clientPort);
+        byte[] packet = new byte[length];
+        System.arraycopy(data, 0, packet, 0, length);
+        // 队列满：丢最旧保最新（重放与捕获均只需近期包）
+        while (!queue.offerLast(new Pending(packet, clientPort))) {
+            queue.pollFirst();
+            if (++droppedCount % 1024 == 1)
+                Log.w(TAG, "analyze queue full, dropped total=" + droppedCount);
+        }
+    }
+
+    /* ===== 分析线程（单消费者） ===== */
+
+    private void analyzeLoop() {
+        while (running) {
+            Pending p;
+            try {
+                p = queue.pollFirst(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                continue; // running 置 false 后自然退出
+            }
+            if (p == null)
+                continue;
+            try {
+                analyzePacket(p.payload, p.clientPort);
+            } catch (Throwable t) {
+                // 单包解析异常只丢弃该包，绝不外溢（此前此类异常曾杀死转发线程形成隧道黑洞）
+                Log.w(TAG, "analyze packet failed", t);
+            }
+        }
+    }
+
+    /** 解析单个已过滤的 IP 包（仅分析线程调用；IPv4/UDP/端口过滤已在入队前完成） */
+    private void analyzePacket(byte[] data, int clientPort) {
+        int ihl = (data[0] & 0x0F) * 4;
+        handleUdpPacket(data, ihl + 8, data.length - ihl - 8, clientPort);
     }
 
     /** UDP 载荷内逐个解析 KCP 包（一个 UDP 包可含多个连续 KCP 包） */
@@ -106,28 +180,20 @@ public class PacketAnalyzer {
         if (key == null) {
             if (packet.payload.length < 4)
                 return;
-            int mhEnc = ((packet.payload[0] & 0xFF) << 24) | ((packet.payload[1] & 0xFF) << 16)
-                    | ((packet.payload[2] & 0xFF) << 8) | (packet.payload[3] & 0xFF);
-            long version = (mhEnc ^ ProtoPacket.MAGIC_HEAD) & 0xFFFFFFFFL;
+            long version = extractVersion(packet.payload);
             String keyB64 = HsrKeyStore.getKey(context, version + "");
-            if (keyB64 == null) {
-                // 缺键：先缓存待解包再触发即时补拉。seed 包在连接后毫秒级到达、补拉来不及，
-                // 若直接丢弃则本次会话永远解不开；缓存到拿到密钥后按到达顺序重放即可衔接
-                // （补拉 10min 节流 + 单飞闸在 HsrKeyStore 内部，重复 miss 不会刷请求）
-                if (pending.size() >= PENDING_LIMIT)
-                    pending.pollFirst();
-                pending.addLast(new Pending(packet.payload, clientPort));
-                lastMissingVersion = version;
-                notifyCaptureUpdating();
-                HsrKeyStore.checkForUpdateAsync(context, true, this::notifyCaptureFailedIfStillMissing);
-                Log.e(TAG, "no match key for version " + version + ", pending=" + pending.size());
-                return;
-            }
             key = Base64.decode(keyB64, Base64.DEFAULT);
             Log.i(TAG, "get init key: " + version);
             drainPending();
         }
         processKcpPayload(packet.payload, clientPort);
+    }
+
+    /** KCP 首包加密 magic head 反解 key ID（缺键判定与补拉落定核对共用） */
+    private static long extractVersion(byte[] payload) {
+        int mhEnc = ((payload[0] & 0xFF) << 24) | ((payload[1] & 0xFF) << 16)
+                | ((payload[2] & 0xFF) << 8) | (payload[3] & 0xFF);
+        return (mhEnc ^ ProtoPacket.MAGIC_HEAD) & 0xFFFFFFFFL;
     }
 
     /** 按到达顺序重放缺键期间缓存的包；重放途中解出 seed 切到会话密钥后，余下包自然衔接 */
@@ -155,20 +221,40 @@ public class PacketAnalyzer {
     }
 
     private void handleProtoPacket(ProtoPacket packet, int clientPort) {
-        String s = new String(packet.proto, StandardCharsets.UTF_8);
-        // 抽卡 URL 明文特征：含 webview_gacha、非 https、长度足以容纳 684 字符 authkey
-        if (s.contains("webview_gacha") && !s.contains("https") && s.length() > AUTHKEY_LEN) {
-            String authkey = s.substring(s.length() - AUTHKEY_LEN);
-            String channel = detectChannel(s, clientPort);
-            // 写入静态状态：触发时用户多半在游戏里，Snackbar 早已消失，切回应用靠行内回显确认
-            CaptureService.capturedChannel = channel;
-            Intent intent = new Intent(ACTION_GET_AUTHKEY);
-            intent.setPackage(context.getPackageName());
-            intent.putExtra("authkey", authkey);
-            intent.putExtra("channel", channel);
-            context.sendBroadcast(intent);
-            Log.i(TAG, "get authkey, channel=" + channel);
+        byte[] proto = packet.proto;
+        // 抽卡 URL 明文特征：含 webview_gacha、非 https、长度足以容纳 684 字符 authkey。
+        // 直接在字节层做 ASCII 特征匹配，仅命中候选时才整包解码为 String，
+        // 避免对每个 proto 包都做 UTF-8→UTF-16 转换造成 GC 压力
+        if (proto.length <= AUTHKEY_LEN
+                || indexOfAscii(proto, "webview_gacha") < 0
+                || indexOfAscii(proto, "https") >= 0)
+            return;
+        String s = new String(proto, StandardCharsets.UTF_8);
+        String authkey = s.substring(s.length() - AUTHKEY_LEN);
+        String channel = detectChannel(s, clientPort);
+        // 写入静态状态：触发时用户多半在游戏里，Snackbar 早已消失，切回应用靠行内回显确认
+        CaptureService.capturedChannel = channel;
+        Intent intent = new Intent(ACTION_GET_AUTHKEY);
+        intent.setPackage(context.getPackageName());
+        intent.putExtra("authkey", authkey);
+        intent.putExtra("channel", channel);
+        context.sendBroadcast(intent);
+        Log.i(TAG, "get authkey, channel=" + channel);
+    }
+
+    /** ASCII 子串查找（字节层 contains，无需 UTF-8 解码） */
+    private static int indexOfAscii(byte[] data, String needle) {
+        byte first = (byte) needle.charAt(0);
+        outer:
+        for (int i = 0; i <= data.length - needle.length(); i++) {
+            if (data[i] != first)
+                continue;
+            for (int j = 1; j < needle.length(); j++)
+                if (data[i + j] != (byte) needle.charAt(j))
+                    continue outer;
+            return i;
         }
+        return -1;
     }
 
     /**
@@ -205,17 +291,18 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 补拉落定后仍缺键（网络失败或服务端未收录该版本）才广播失败事件（reason=key_missing）。
-     * 在后台线程执行：查密钥表而非分析器的 key 字段——拉取成功到下一个包到达之间 key 尚未
-     * 刷新，查表才能避免误报。
+     * 缺键强制补拉落定回调（后台线程，HsrKeyStore.checkForUpdateAsync 的 onSettled）：
+     * 拉取失败或服务端仍未收录该版本时广播失败事件（reason=key_missing），
+     * LinkFragment 行内提示收尾「更新中」状态。键已就绪（本次拉取成功）则静默——
+     * 分析线程处理下一个包时查表命中并重放缓存，成功广播自然覆盖此状态。
+     * 注意重放不在本线程执行：processKcpPayload 的复用 buffer 仅限分析线程使用。
      */
-    private void notifyCaptureFailedIfStillMissing() {
-        if (HsrKeyStore.getKey(context, lastMissingVersion + "") != null) return;
-        Intent intent = new Intent(CaptureService.ACTION_CAPTURE_FAILED);
-        intent.setPackage(context.getPackageName());
-        intent.putExtra("reason", "key_missing");
-        context.sendBroadcast(intent);
-        Log.e(TAG, "key still missing after update: " + lastMissingVersion);
+    private void onKeyFetchSettled() {
+        if (key != null) return;
+        Pending first = pending.peekFirst();
+        if (first == null) return;
+        long version = extractVersion(first.payload);
+        HsrKeyStore.getKey(context, version + "");
     }
 
     private static String packageToChannel(String pkg) {

@@ -156,6 +156,7 @@ public class SettingsFragment extends Fragment {
     private ActivityResultLauncher<Intent> selectImageLauncher; // ACTION_OPEN_DOCUMENT (老设备)
     private ActivityResultLauncher<PickVisualMediaRequest> pickMedia; // Photo Picker (API33+)
     private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
+    private ActivityResultLauncher<Intent> batteryOptLauncher; // 电池优化豁免授权
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -441,6 +442,28 @@ public class SettingsFragment extends Fragment {
                     DailyTaskScheduler.applySchedule(requireContext());
             });
             picker.show(getChildFragmentManager(), "scheduled_time_picker");
+        });
+
+        // 电池优化豁免行：厂商省电策略是定时任务失准与 VPN 抓包挂机断连（游戏闪退）的根源。
+        // 未豁免时点击打开系统省电白名单列表页（用户手动勾选，无需权限），返回后刷新行值；
+        // 机型不支持该设置页时退回应用详情页
+        batteryOptLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> updateBatteryOptValue(notificationView));
+        View batteryOptRow = notificationView.findViewById(R.id.battery_opt_row);
+        updateBatteryOptValue(notificationView);
+        batteryOptRow.setOnClickListener(v -> {
+            if (BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
+                tools.showCustomSnackbar(v, requireContext().getApplicationContext(),
+                        getString(R.string.battery_already_exempted));
+                return;
+            }
+            try {
+                batteryOptLauncher.launch(
+                        BatteryHelper.buildBatteryOptimizationSettingsIntent());
+            } catch (Exception e) {
+                BatteryHelper.openVendorBatterySettings(requireContext());
+            }
         });
 
         // 关于
@@ -1260,6 +1283,17 @@ public class SettingsFragment extends Fragment {
 
     private void updateNotificationCardValue(boolean enabled) {
         setCardValue(notificationCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+    }
+
+    /** 刷新电池优化豁免行的值：已豁免=成功绿，未豁免=警告黄。 */
+    private void updateBatteryOptValue(View notificationView) {
+        MaterialTextView value = notificationView.findViewById(R.id.battery_opt_value);
+        boolean exempted = BatteryHelper.isIgnoringBatteryOptimizations(requireContext());
+        value.setText(getString(exempted
+                ? R.string.battery_exempted_value : R.string.battery_not_exempted_value));
+        value.setTextColor(ContextCompat.getColor(requireContext(), exempted
+                ? com.muxiao.Venus.R.color.status_success
+                : com.muxiao.Venus.R.color.status_warning));
     }
 
     /** 刷新定时签到时间行的时间值（每天 HH:mm，值取自 settings_prefs；行内含图标/标签/箭头）。 */

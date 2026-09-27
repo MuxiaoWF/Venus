@@ -24,7 +24,10 @@ extern int loglevel;
 extern FILE *pcap_file;
 
 uint16_t get_mtu() {
-    return 10000;
+    // 必须与 Java 侧 CaptureService.VPN_MTU（1500）保持一致：
+    // 该值同时决定 TUN 读缓冲与下游 TCP MSS（get_default_mss），
+    // 与 TUN 实际 MTU 不一致会导致下游分段超出 MTU 或 VPN 指纹异常
+    return 1500;
 }
 
 uint16_t get_default_mss(int version) {
@@ -276,7 +279,7 @@ void handle_ip(const struct arguments *args,
             (protocol == IPPROTO_TCP && syn)) {
             log_android(ANDROID_LOG_ERROR,
                         "%d of max %d sessions, dropping version %d protocol %d",
-                        sessions, maxsessions, protocol, version);
+                        sessions, maxsessions, version, protocol);
             return;
         }
     }

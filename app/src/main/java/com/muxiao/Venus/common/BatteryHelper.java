@@ -17,6 +17,18 @@ public class BatteryHelper {
     }
 
     /**
+     * 构建打开「忽略电池优化」系统设置列表页的 Intent（无需任何权限）。
+     * 该页面展示全部应用的白名单列表，用户需手动切到「所有应用」并找到本应用允许——
+     * 比直接弹授权框多两步，但不触碰 REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 权限，
+     * 无 Google Play BatteryLife 政策风险，且不受国产 ROM 拦截/跳转变形的影响。
+     * 用 ActivityResultLauncher 启动；机型不支持该 action 时
+     * （ActivityNotFoundException）由调用方回退 {@link #openVendorBatterySettings}。
+     */
+    public static android.content.Intent buildBatteryOptimizationSettingsIntent() {
+        return new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+    }
+
+    /**
      * 打开应用详情设置页，用户可在此手动设置后台行为、电池优化等
      */
     public static void openVendorBatterySettings(Context context) {
