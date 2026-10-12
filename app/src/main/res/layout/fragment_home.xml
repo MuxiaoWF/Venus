@@ -288,12 +288,17 @@
                         android:text="@string/bg_hint_notify" />
                 </LinearLayout>
 
-                <!-- Geetest 验证容器 -->
+                <!-- Geetest 验证容器。
+                     垂直留白契约（上下必须严格对称，改一侧务必同步另一侧）：
+                       · 按钮上方留白 = 本容器 layout_marginTop（space_4 = 16dp）
+                       · 按钮下方留白 = 紧随其后 MaterialDivider 的 layout_marginTop（space_4 = 16dp）
+                     按钮自身**不设**垂直外边距（曾各设 12dp，叠加容器 8dp / 分隔线 16dp 后
+                     呈「上 20dp / 下 28dp」的不对称观感）。 -->
                 <LinearLayout
                     android:id="@+id/geetest_container"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/space_2"
+                    android:layout_marginTop="@dimen/space_4"
                     android:gravity="center_horizontal"
                     android:orientation="horizontal"
                     android:visibility="gone" />

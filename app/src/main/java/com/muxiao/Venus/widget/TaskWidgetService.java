@@ -132,8 +132,11 @@ public class TaskWidgetService extends RemoteViewsService {
         }
 
         @Override
+        // 数据重载期间 launcher 会短暂显示加载视图；默认加载视图（居中 spinner）与条目布局
+        // 完全不同，整表重建时表现为肉眼可见的"闪烁"。返回与条目同构的空白 RemoteViews，
+        // 让重载前后视觉保持连续（onDataSetChanged 完成后立即被真实条目覆盖）。
         public RemoteViews getLoadingView() {
-            return null;
+            return new RemoteViews(context.getPackageName(), R.layout.widget_task_item);
         }
 
         @Override

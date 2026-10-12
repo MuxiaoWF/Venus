@@ -143,12 +143,21 @@ public class HomeFragment extends Fragment {
                     }
                     // 创建新的GT3GeetestButton实例
                     geetestButton = new GT3GeetestButton(requireContext());
-                    // 设置布局参数
+                    // 内容居中 + 显式横向：SDK 官方 XML 用法为
+                    //   android:gravity="center" android:orientation="horizontal"
+                    // 二者都不在 SDK 内部设置，LinearLayout 默认 gravity 为 TOP|START。
+                    // 按钮内部内容（盾牌图标 + 「请点击验证」14sp 文案）自然高度仅约 20~30dp，
+                    // 定高 44dp 且顶对齐时，剩余部分会表现为按钮底部一条空白（白底渐变上极显眼）。
+                    geetestButton.setGravity(Gravity.CENTER);
+                    geetestButton.setOrientation(LinearLayout.HORIZONTAL);
+                    // 布局参数：宽度定尺 290dp、高度 44dp。**刻意不设垂直外边距**——
+                    // 按钮上下的留白统一由 geetest_container 的 marginTop 与紧随其后的
+                    // 分隔线 marginTop 各出 space_4 提供（见 fragment_home.xml 的留白契约）。
+                    // 若在此再叠加垂直 margin，会变成「上 20dp / 下 28dp」的不对称观感。
                     LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                             (int) (290 * getResources().getDisplayMetrics().density),
                             (int) (44 * getResources().getDisplayMetrics().density)
                     );
-                    params.setMargins(0, (int) (12 * getResources().getDisplayMetrics().density), 0, (int) (12 * getResources().getDisplayMetrics().density));
                     params.gravity = Gravity.CENTER_HORIZONTAL;
                     geetestButton.setLayoutParams(params);
                     // 添加到容器中

@@ -68,6 +68,15 @@ public class PacketAnalyzer {
     private static final int PENDING_LIMIT = 256;
     private final ArrayDeque<Pending> pending = new ArrayDeque<>();
 
+    /**
+     * 缺键补拉是否已落定：由 HsrKeyStore 的 onSettled 回调在后台线程置位，仅作事件标志，
+     * 不承载密钥数据——pending/key 是分析线程私有的（单消费者模型，见类注释），
+     * 跨线程读写会破坏该约定。分析线程在空闲轮询里消费这个标志。
+     */
+    private volatile boolean keyFetchSettled = false;
+    /** 缺键失败是否已上报（分析线程私有）：空闲轮询/每包重试都会走到判定点，只广播一次 */
+    private boolean failureNotified = false;
+
     private volatile boolean running = false;
     private Thread worker;
     private long droppedCount = 0;
@@ -82,6 +91,8 @@ public class PacketAnalyzer {
     public synchronized void start() {
         if (running) return;
         running = true;
+        keyFetchSettled = false;
+        failureNotified = false;
         worker = new Thread(this::analyzeLoop, "CaptureAnalyzer");
         worker.start();
     }
@@ -134,8 +145,13 @@ public class PacketAnalyzer {
             } catch (InterruptedException e) {
                 continue; // running 置 false 后自然退出
             }
-            if (p == null)
+            if (p == null) {
+                // 空闲自愈：补拉落定后游戏侧可能已无新 KCP 包（authkey 往往就是连接里最后一批
+                // 数据），不主动查一次表就再也接不上；补拉被节流/单飞跳过（HsrKeyStore 不回调）
+                // 的情况也由这里兜住
+                recoverOnIdle();
                 continue;
+            }
             try {
                 analyzePacket(p.payload, p.clientPort);
             } catch (Throwable t) {
@@ -181,12 +197,38 @@ public class PacketAnalyzer {
             if (packet.payload.length < 4)
                 return;
             long version = extractVersion(packet.payload);
-            String keyB64 = HsrKeyStore.getKey(context, version + "");
-            key = Base64.decode(keyB64, Base64.DEFAULT);
+            if (!trySetInitKey(version)) {
+                // 缺键（当前游戏版本既不在 assets 表、云端也还没覆盖到）：先缓存待解包再触发即时补拉。
+                // seed 包在连接后毫秒级到达、补拉来不及，若直接丢弃则本会话永远解不开；
+                // 缓存到拿到密钥后按到达顺序重放即可衔接（补拉 10min 节流 + 单飞闸在
+                // HsrKeyStore 内部，重复 miss 不会刷请求）。此处必须 return——
+                // 密钥为空时继续解密只会得到垃圾数据。
+                if (pending.size() >= PENDING_LIMIT)
+                    pending.pollFirst();
+                pending.addLast(new Pending(packet.payload, clientPort));
+                notifyCaptureUpdating();
+                HsrKeyStore.checkForUpdateAsync(context, true, this::onKeyFetchSettled);
+                notifyKeyMissingIfSettled(version);
+                Log.e(TAG, "no match key for version " + version + ", pending=" + pending.size());
+                return;
+            }
             Log.i(TAG, "get init key: " + version);
             drainPending();
         }
         processKcpPayload(packet.payload, clientPort);
+    }
+
+    /**
+     * 查表并装载初始密钥；表中没有该版本时返回 false（调用方按缺键处理）。
+     * 单独抽出：正常收包路径与补拉落定后的衔接路径共用，两处都必须走「查不到就返回 false」，
+     * 否则 Base64.decode(null) 会抛 NPE 被 analyzeLoop 吞掉，表现为抓包静默无结果。
+     */
+    private boolean trySetInitKey(long version) {
+        String keyB64 = HsrKeyStore.getKey(context, version + "");
+        if (keyB64 == null || keyB64.isEmpty())
+            return false;
+        key = Base64.decode(keyB64, Base64.DEFAULT);
+        return true;
     }
 
     /** KCP 首包加密 magic head 反解 key ID（缺键判定与补拉落定核对共用） */
@@ -291,18 +333,43 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 缺键强制补拉落定回调（后台线程，HsrKeyStore.checkForUpdateAsync 的 onSettled）：
-     * 拉取失败或服务端仍未收录该版本时广播失败事件（reason=key_missing），
-     * LinkFragment 行内提示收尾「更新中」状态。键已就绪（本次拉取成功）则静默——
-     * 分析线程处理下一个包时查表命中并重放缓存，成功广播自然覆盖此状态。
-     * 注意重放不在本线程执行：processKcpPayload 的复用 buffer 仅限分析线程使用。
+     * 缺键强制补拉的落定回调（后台线程，来自 HsrKeyStore.checkForUpdateAsync 的 onSettled）。
+     * 本线程只置一个事件标志，不触碰 pending/key（单消费者约定）；衔接由分析线程的空闲轮询完成。
      */
     private void onKeyFetchSettled() {
-        if (key != null) return;
-        Pending first = pending.peekFirst();
-        if (first == null) return;
-        long version = extractVersion(first.payload);
-        HsrKeyStore.getKey(context, version + "");
+        keyFetchSettled = true;
+    }
+
+    /**
+     * 空闲自愈（仅分析线程调用，队列空转 1s 触发）：补拉落定后重新查表——
+     * 命中说明云端已收录该版本，装载后按到达顺序重放（重放途中解出 seed 即切会话密钥，
+     * 因此本会话就能接着解下去）；仍未收录则广播失败事件收尾 UI「更新中」提示。
+     */
+    private void recoverOnIdle() {
+        if (key != null || pending.isEmpty()) return;
+        long version = extractVersion(pending.peekFirst().payload);
+        if (trySetInitKey(version)) {
+            Log.i(TAG, "get init key on idle: " + version + ", replay pending=" + pending.size());
+            drainPending();
+            return;
+        }
+        notifyKeyMissingIfSettled(version); // 补拉未落定则先等，下一个空闲轮询再试
+    }
+
+    /**
+     * 补拉落定后该版本仍不在密钥表（网络失败或服务端未收录）：广播一次失败事件
+     * （reason=key_missing），让 UI 把「更新中」收尾成明确失败并引导稍后重试。
+     * 查的是密钥表而不是分析器的 key 字段——拉取成功到下个包到达之间 key 尚未刷新，
+     * 查表才能避免误报；调用点有两个（每次缺键收包、空闲轮询），故用标志去重。
+     */
+    private void notifyKeyMissingIfSettled(long version) {
+        if (!keyFetchSettled || failureNotified) return;
+        failureNotified = true;
+        Intent intent = new Intent(CaptureService.ACTION_CAPTURE_FAILED);
+        intent.setPackage(context.getPackageName());
+        intent.putExtra("reason", "key_missing");
+        context.sendBroadcast(intent);
+        Log.e(TAG, "key still missing after update: " + version);
     }
 
     private static String packageToChannel(String pkg) {

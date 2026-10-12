@@ -460,7 +460,7 @@ public class SettingsFragment extends Fragment {
             }
             try {
                 batteryOptLauncher.launch(
-                        BatteryHelper.buildBatteryOptimizationSettingsIntent());
+                        BatteryHelper.buildBatteryOptimizationSettingsIntent(requireContext()));
             } catch (Exception e) {
                 BatteryHelper.openVendorBatterySettings(requireContext());
             }

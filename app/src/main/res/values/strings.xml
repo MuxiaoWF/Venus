@@ -128,7 +128,7 @@
     <string name="vpn_capture_updating">初始密钥缺失，正在从云端更新密钥表，抓包继续…</string>
     <string name="vpn_capture_failed_key">未捕获：云端密钥表暂未收录当前游戏版本，请稍后重试</string>
     <string name="vpn_authkey_captured">已捕获星铁抽卡链接（%s），已复制到剪贴板</string>
-    <string name="msg_capture_battery_hint">抓包依赖后台常驻联网。系统/厂商省电策略（如 ColorOS 后台管控）会在熄屏或切后台后掐断抓包网络，导致游戏断连甚至闪退。\n\n操作步骤：在接下来的列表页底部切换到「所有应用」，找到「启明星」并选择「允许」/「不受限制」。\n\n如需彻底规避厂商管控，请同时在系统设置的电池页中将本应用设为不受限/允许后台运行。</string>
+    <string name="msg_capture_battery_hint">抓包依赖后台常驻联网。系统/厂商省电策略（如 ColorOS 的后台管控）会在熄屏或切后台后掐断抓包网络，导致游戏断连甚至闪退。\n\n操作步骤：在接下来的设置页里把本应用设为「不受限制」，并允许其后台运行——ColorOS 在「应用详情 → 耗电管理」中开启「允许完全后台行为」。\n\n设置完成后返回应用即可继续抓包。</string>
     <string name="battery_request_positive">去豁免</string>
     <string name="battery_start_anyway">仍然启动</string>
     <string name="battery_row_label">电池优化豁免</string>
@@ -481,6 +481,7 @@
     <string name="game_cookie_token_expired">CookieToken失效，尝试刷新</string>
     <string name="game_stoken_suid_empty">Stoken和Suid为空，无法自动更新CookieToken</string>
     <string name="game_cookie_token_failed">获取CookieToken失败，stoken已失效请重新登录</string>
+    <string name="game_cookie_token_get_failed">获取CookieToken失败</string>
     <string name="game_get_accounts_failed">获取账号列表失败</string>
     <string name="game_sign_info_failed">获取账号签到信息失败</string>
     <string name="game_rate_limited">请求过于频繁(429)，即将重试</string>

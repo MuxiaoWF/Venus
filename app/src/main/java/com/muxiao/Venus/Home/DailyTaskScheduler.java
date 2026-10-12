@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * <p>为什么用「自链式 OneTimeWorkRequest」而不用 PeriodicWorkRequest：
  * 周期任务的执行时机是「周期内的浮动窗口」，无法贴近用户设定的时刻；自链式把
  * initialDelay 精确对齐到设定时刻，执行完毕后由 {@link DailyTaskWorker} 在结尾
- * 以 {@link ExistingWorkPolicy#APPEND} 挂接下一次请求。进程死亡时 WorkManager 会
+ * 以 {@link #CHAIN_POLICY} 挂接下一次请求。进程死亡时 WorkManager 会
  * 自动重跑被中断的工作，链条因此自愈；应用冷启动时 {@link #ensureScheduled(Context)}
  * 再以 KEEP 幂等兜底，覆盖「断链 + 长期不打开应用」的场景。</p>
  *
@@ -40,10 +40,11 @@ import java.util.concurrent.TimeUnit;
  * <ul>
  *   <li>设置开关/时间变更 → {@link #applySchedule(Context)}（REPLACE，重建链条）；</li>
  *   <li>进程冷启动 → {@link #ensureScheduled(Context)}（KEEP，链存活则不动）；</li>
- *   <li>执行器结尾续链 → {@link #enqueueNext(Context, ExistingWorkPolicy, long, int)}
- *       （APPEND，挂在当前工作之后，不会自取消）。</li>
- * </ul></p>
- */
+     *   <li>执行器结尾续链 → {@link #enqueueNext(Context, ExistingWorkPolicy, long, int)}
+     *       （{@link #CHAIN_POLICY} = APPEND_OR_REPLACE，挂在当前工作之后，不会自取消；
+     *       链尾若已成终态则另起新序列自愈）</li>
+     * </ul></p>
+     */
 public final class DailyTaskScheduler {
 
     /** 唯一工作名：调度、续链、修复共用同一名字，靠 ExistingWorkPolicy 区分语义。 */
@@ -75,6 +76,18 @@ public final class DailyTaskScheduler {
 
     /** 手动运行占用时的复查等待（分钟）：手动轮结束后短延时复查，保住当日兜底。 */
     public static final long MANUAL_BUSY_RECHECK_DELAY_MINUTES = 5;
+
+    /**
+     * 自链续接策略（执行器结尾挂接下一次工作）：{@code APPEND_OR_REPLACE} 而非 {@code APPEND}。
+     *
+     * <p>{@code APPEND} 把新工作挂到同名链尾的<b>全部叶子</b>上，并继承其终态；一旦某个叶子
+     * 处于 CANCELLED/FAILED（被系统停止、被取消、被 {@code REPLACE} 打断等），后续 APPEND
+     * 出来的工作会一并被判为终态而<b>永不入队执行</b>——链条静默死亡，当天再无任何信号，
+     * 只能等下次冷启动 {@link #ensureScheduled} 修复。
+     * {@code APPEND_OR_REPLACE} 在探测到叶子已是终态时改为另起一条新序列，等价于
+     * 「续链失败即自愈」，且正常路径行为与 APPEND 完全一致（WorkManager ≥ 2.6）。</p>
+     */
+    static final ExistingWorkPolicy CHAIN_POLICY = ExistingWorkPolicy.APPEND_OR_REPLACE;
 
     private static final String DEFAULT_TIME = "07:30";
 
@@ -134,7 +147,7 @@ public final class DailyTaskScheduler {
     /**
      * 排下一次工作（全量执行）。所有入口共用：constraints 保证有网才跑，退避策略兜底进程死亡重跑。
      *
-     * @param policy 设置变更 REPLACE / 冷启动修复 KEEP / 执行器续链 APPEND
+     * @param policy 设置变更 REPLACE / 冷启动修复 KEEP / 执行器续链 {@link #CHAIN_POLICY}
      * @param delay  距执行的毫秒数
      * @param attempt 本次链路上的第几次执行（用于同日重试上限）
      */

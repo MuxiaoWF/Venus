@@ -208,9 +208,16 @@ public class BBSGameDaily {
         String cookieTokenUrl = isOversea ? Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL : Constants.Urls.COOKIE_TOKEN_STOKEN_URL;
         String response = sendGetRequest(cookieTokenUrl, gameLoginHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-        if (JsonAccess.retcode(res) != RETCODE_OK) {
-            notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_cookie_token_failed));
-            throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
+        int retcode = JsonAccess.retcode(res);
+        if (retcode != RETCODE_OK) {
+            // 仅登录态失效（-100）才断言 stoken 已失效；其余（429 限流 / 风控等）透传 retcode
+            // 与 message，避免瞬时故障被误报为「请重新登录」
+            String errorMsg = retcode == RETCODE_COOKIE_EXPIRED
+                    ? context.getString(R.string.game_cookie_token_failed)
+                    : context.getString(R.string.game_cookie_token_get_failed)
+                            + " (retcode=" + retcode + ", message=" + JsonAccess.message(res, "") + ")";
+            notification.sendErrorNotification(notifTitle(), errorMsg);
+            throw new RuntimeException(errorMsg);
         }
         // 原实现直接对 data.cookie_token 调用 getAsString()，字段缺失时以 NPE 收场；
         // 此处改为显式判空并给出可读错误。

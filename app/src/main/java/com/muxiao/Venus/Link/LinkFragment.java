@@ -317,7 +317,7 @@ public class LinkFragment extends Fragment {
                     .setPositiveButton(getString(R.string.battery_request_positive), (d, w) -> {
                         try {
                             batteryLauncher.launch(
-                                    BatteryHelper.buildBatteryOptimizationSettingsIntent());
+                                    BatteryHelper.buildBatteryOptimizationSettingsIntent(appContext));
                         } catch (Exception e) {
                             // 机型不支持该设置页：退回应用详情页，返回后手动再点一次
                             BatteryHelper.openVendorBatterySettings(appContext);

@@ -27,7 +27,8 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable;
  * 同步热读门面（Write-Through）：
  * - 读：直接返回内存 ConcurrentHashMap 缓存（与原 SP 同步读等价，无异步等待、无主线程阻塞）。
  * - 写：先更新缓存，再异步持久化到 DataStore（updateDataAsync）。
- * - 预热：首次访问某 userId 时，从旧 SP 同步灌入缓存，保证 getString 立即可用（与原行为一致）。
+ * - 预热：首次访问某 userId 时，从旧 SP 同步灌入缓存，保证 getString 立即可用（与原行为一致）；
+ *   并发首读在灌入期间排队等待，不会读到瞬时空缓存。
  * <br/>
  * 关于迁移：旧 "user_{userId}" SharedPreferences 仍保留在磁盘，由 seedCacheFromLegacy 在每次进程
  * 冷启动、首次访问该 userId 时同步回灌缓存；新写入只进入 DataStore。该方案刻意不采用自动
@@ -50,6 +51,15 @@ public class UserRepository {
     private static final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
     // 已同步预热的 userId 集合（避免每次读取都扫一遍旧 SP）
     private static final ConcurrentHashMap<String, Boolean> seeded = new ConcurrentHashMap<>();
+    /**
+     * 种子灌入互斥：灌入涉及旧 SP 全量读 + DataStore 首帧阻塞读（冷盘可达数百毫秒）。
+     * 并发首次读取（TaskExecutor 并发提交的多个任务同时 tools.read 同一用户）必须在此排队，
+     * 等灌入完成后再读缓存——否则后来者会读到瞬时空缓存，getString 返回 null，
+     * 表现为「stoken/mid 为空，实际存在」，任务误报需要重新登录
+     * （每日定时签到在冷进程并发跑任务时必现）。
+     * 灌入每用户每进程至多一次，串行化的代价可忽略。
+     */
+    private static final Object SEED_LOCK = new Object();
     /**
      * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
      * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
@@ -92,35 +102,41 @@ public class UserRepository {
 
     // 首次访问某 userId 时，从旧 SP 同步灌入缓存（保证 getString 立即可用，与原行为一致）
     private void seedCacheFromLegacy(String userId) {
-        // putIfAbsent 需 API 24；CHM.put 是原子操作且返回旧值，返回 null 即表示此前不存在
-        if (seeded.put(userId, Boolean.TRUE) == null) {
-            SharedPreferences sp = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
-            for (Map.Entry<String, ?> e : sp.getAll().entrySet()) {
-                if (e.getValue() instanceof String) {
-                    cache.put(composite(userId, e.getKey()), (String) e.getValue());
+        synchronized (SEED_LOCK) {
+            if (seeded.containsKey(userId)) return;
+            try {
+                SharedPreferences sp = context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE);
+                for (Map.Entry<String, ?> e : sp.getAll().entrySet()) {
+                    if (e.getValue() instanceof String) {
+                        cache.put(composite(userId, e.getKey()), (String) e.getValue());
+                    }
                 }
-            }
-            // 兜底：旧 SP 无数据（如升级用户数据仅存在于 DataStore）时，同步从 DataStore 灌入缓存，
-            // 避免 DataStore 异步首帧尚未回灌、getString 在进程首次读取时瞬时返回 null
-            //（表现为「stoken/mid 为空，实际存在」）。
-            RxDataStore<Preferences> ds = stores.get(userId);
-            if (ds != null) {
-                try {
-                    Preferences prefs = ds.data().firstOrError().blockingGet();
-                    for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
-                        if (e.getValue() instanceof String) {
-                            // 仅填充缓存缺失的键：旧 SP / 本次 putString 已写入的键优先，
-                            // 避免 re-login 等场景被 DataStore 磁盘上的旧值覆盖回退。
-                            // （putIfAbsent 需 API 24，改用 containsKey 判断）
-                            String keyName = e.getKey().getName();
-                            if (!cache.containsKey(keyName)) {
-                                cache.put(keyName, (String) e.getValue());
+                // 兜底：旧 SP 无数据（如升级用户数据仅存在于 DataStore）时，同步从 DataStore 灌入缓存，
+                // 避免 DataStore 异步首帧尚未回灌、getString 在进程首次读取时瞬时返回 null
+                //（表现为「stoken/mid 为空，实际存在」）。
+                RxDataStore<Preferences> ds = stores.get(userId);
+                if (ds != null) {
+                    try {
+                        Preferences prefs = ds.data().firstOrError().blockingGet();
+                        for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
+                            if (e.getValue() instanceof String) {
+                                // 仅填充缓存缺失的键：旧 SP / 本次 putString 已写入的键优先，
+                                // 避免 re-login 等场景被 DataStore 磁盘上的旧值覆盖回退。
+                                // （putIfAbsent 需 API 24，改用 containsKey 判断）
+                                String keyName = e.getKey().getName();
+                                if (!cache.containsKey(keyName)) {
+                                    cache.put(keyName, (String) e.getValue());
+                                }
                             }
                         }
+                    } catch (Exception ignored) {
+                        // 首帧读取失败（如文件尚不存在），保留旧 SP 已灌入的缓存
                     }
-                } catch (Exception ignored) {
-                    // 首帧读取失败（如文件尚不存在），保留旧 SP 已灌入的缓存
                 }
+            } finally {
+                // 标记必须在灌入完成后置位：置位即代表「该用户缓存已可用」。
+                // 旧实现先置位后灌入，并发读者据此跳过等待、直接读到空缓存（本次修复的竞态）
+                seeded.put(userId, Boolean.TRUE);
             }
         }
     }

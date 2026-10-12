@@ -131,7 +131,7 @@
     <string name="vpn_capture_updating">Init key missing, updating key table from cloud, capture continues…</string>
     <string name="vpn_capture_failed_key">Capture failed: the current game version is not yet in the cloud key table, please retry later</string>
     <string name="vpn_authkey_captured">HSR gacha link captured (%s), copied to clipboard</string>
-    <string name="msg_capture_battery_hint">Capture relies on persistent background networking. System/vendor power-saving policies (e.g. ColorOS background controls) may cut the capture network after the screen turns off or the app goes to background, causing game disconnects or even crashes.\n\nHow to: on the next list page, switch to \"All apps\" at the bottom, find \"Venus\" and choose \"Allow\"/\"Unrestricted\".\n\nTo fully bypass vendor controls, also set this app to Unrestricted/Allow background activity in the system battery settings.</string>
+    <string name="msg_capture_battery_hint">Capture relies on persistent background networking. System/vendor power-saving policies (e.g. ColorOS background controls) may cut the capture network after the screen turns off or the app goes to background, causing game disconnects or even crashes.\n\nHow to: on the next settings page, set this app to \"Unrestricted\" and allow background activity — on ColorOS, enable \"Allow full background behaviour\" under App info → Power consumption management.\n\nCome back to the app after that to continue capturing.</string>
     <string name="battery_request_positive">Exempt</string>
     <string name="battery_start_anyway">Start anyway</string>
     <string name="battery_row_label">Battery optimization exemption</string>
@@ -478,6 +478,7 @@
     <string name="game_cookie_token_expired">CookieToken expired, attempting refresh</string>
     <string name="game_stoken_suid_empty">Stoken and Suid are empty, cannot auto-update CookieToken</string>
     <string name="game_cookie_token_failed">Failed to get CookieToken, stoken has expired, please re-login</string>
+    <string name="game_cookie_token_get_failed">Failed to get CookieToken</string>
     <string name="game_get_accounts_failed">Failed to get account list</string>
     <string name="game_sign_info_failed">Failed to get account sign-in info</string>
     <string name="game_rate_limited">Too many requests (429), retrying soon</string>

@@ -131,7 +131,7 @@
     <string name="vpn_capture_updating">初始金鑰缺失，正在從雲端更新金鑰表，擷取繼續…</string>
     <string name="vpn_capture_failed_key">未捕獲：雲端金鑰表暫未收錄當前遊戲版本，請稍後重試</string>
     <string name="vpn_authkey_captured">已捕獲星鐵抽卡連結（%s），已複製到剪貼簿</string>
-    <string name="msg_capture_battery_hint">抓包依賴背景常駐連網。系統/廠商省電策略（如 ColorOS 背景管控）會在熄屏或切到背景後切斷抓包網路，導致遊戲斷線甚至閃退。\n\n操作步驟：在接下來的列表頁底部切換到「所有應用程式」，找到「啟明星」並選擇「允許」/「不受限制」。\n\n如需徹底規避廠商管控，請同時在系統設定的電池頁面中將本應用設為不受限/允許背景執行。</string>
+    <string name="msg_capture_battery_hint">抓包依賴背景常駐連網。系統/廠商省電策略（如 ColorOS 的背景管控）會在熄屏或切到背景後切斷抓包網路，導致遊戲斷線甚至閃退。\n\n操作步驟：在接下來的設定頁面將本應用設為「不受限制」，並允許其背景執行——ColorOS 在「應用資訊 → 耗電管理」中開啟「允許完全背景行為」。\n\n設定完成後返回應用即可繼續抓包。</string>
     <string name="battery_request_positive">去豁免</string>
     <string name="battery_start_anyway">仍要啟動</string>
     <string name="battery_row_label">電池最佳化豁免</string>
@@ -472,6 +472,7 @@
     <string name="game_cookie_token_expired">CookieToken失效，嘗試重新整理</string>
     <string name="game_stoken_suid_empty">Stoken和Suid為空，無法自動更新CookieToken</string>
     <string name="game_cookie_token_failed">取得CookieToken失敗，stoken已失效請重新登入</string>
+    <string name="game_cookie_token_get_failed">取得CookieToken失敗</string>
     <string name="game_get_accounts_failed">取得帳號列表失敗</string>
     <string name="game_sign_info_failed">取得帳號簽到資訊失敗</string>
     <string name="game_rate_limited">請求過於頻繁(429)，即將重試</string>

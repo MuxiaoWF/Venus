@@ -195,8 +195,15 @@ public class BBSDaily {
         String taskUrl = isOversea ? Constants.Urls.OS_BBS_TASK_URL : Constants.Urls.BBS_TASK_URL;
         String response = tools.sendGetRequest(taskUrl, bbsHeaders, null);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
-        if (JsonAccess.retcode(data) != 0) {
-            String errorMsg = context.getString(R.string.bbs_cookie_expired);
+        int retcode = JsonAccess.retcode(data);
+        if (retcode != 0) {
+            // 仅登录态失效（-100）才提示重设 cookie；其余（1034 人机验证 / 429 限流 / 风控等）
+            // 原样透传 retcode 与 message——这类瞬时失败重跑即可恢复，
+            // 报成「cookie 过期」会误导用户重新登录
+            String errorMsg = retcode == RETCODE_LOGIN_EXPIRED
+                    ? context.getString(R.string.bbs_cookie_expired)
+                    : context.getString(R.string.bbs_task_list_failed)
+                            + " (retcode=" + retcode + ", message=" + JsonAccess.message(data, "") + ")";
             notification.sendErrorNotification(context.getString(R.string.bbs_task_list_failed), errorMsg);
             throw new RuntimeException(errorMsg);
         }

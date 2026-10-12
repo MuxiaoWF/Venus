@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
-import androidx.work.ExistingWorkPolicy;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
@@ -37,10 +36,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 调度、系统在执行期间持有 WakeLock，无需自持；单轮任务与手动运行一样控制在
  * 10 分钟内（多任务风控延时叠加的上限），超出该量级才需要长运行 Worker 方案。</p>
  *
- * <p>续链契约：doWork 结束前必须以 {@link androidx.work.ExistingWorkPolicy#APPEND}
- * 挂接下一次请求（同日重试或明日到点），否则链条断裂只能靠冷启动修复。关闭开关的
- * 场景由 isEnabled 短路：不再续链，链条自然终止。同日重试只重跑非验证码失败项——
- * 验证码失败需人工介入，自动重试大概率再次超时，改为通知用户手动处理。</p>
+ * <p>续链契约：doWork 结束前必须以 {@link DailyTaskScheduler#CHAIN_POLICY}
+ * （APPEND_OR_REPLACE）挂接下一次请求（同日重试或明日到点），否则链条断裂只能靠冷启动修复；
+ * 用 APPEND_OR_REPLACE 而非 APPEND，是为了在链尾已落入取消/失败终态时另起新序列，
+ * 避免后续续链被一并判为终态而静默死亡。关闭开关的场景由 isEnabled 短路：不再续链，
+ * 链条自然终止。同日重试只重跑非验证码失败项——验证码失败需人工介入，
+ * 自动重试大概率再次超时，改为通知用户手动处理。</p>
  */
 public class DailyTaskWorker extends Worker {
 
@@ -88,7 +89,7 @@ public class DailyTaskWorker extends Worker {
             tools.writeLog(context, TAG + ": manual run active, recheck in "
                     + DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES + " min");
             DailyTaskScheduler.enqueueNext(context,
-                    ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.CHAIN_POLICY,
                     TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES), 1);
             return Result.success();
         }
@@ -98,7 +99,7 @@ public class DailyTaskWorker extends Worker {
         if (userId.isEmpty() || settings.hasAnyTaskDisabled()) {
             tools.writeLog(context, TAG + ": no user or no task enabled, skip this round");
             DailyTaskScheduler.enqueueNext(context,
-                    ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.CHAIN_POLICY,
                     delayToNextOccurrence(), 1);
             return Result.success();
         }
@@ -108,7 +109,7 @@ public class DailyTaskWorker extends Worker {
         if (onlyNames != null && onlyNames.isEmpty()) {
             // 名单内失败项已全部被手动修复：无需重跑，直接排明天
             tools.writeLog(context, TAG + ": retry list all resolved, skip this round");
-            DailyTaskScheduler.enqueueNext(context, ExistingWorkPolicy.APPEND,
+            DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                     delayToNextOccurrence(), 1, null);
             return Result.success();
         }
@@ -117,7 +118,7 @@ public class DailyTaskWorker extends Worker {
         if (DailyTaskScheduler.allEnabledTasksCompletedToday(context, userId)) {
             tools.writeLog(context, TAG + ": all tasks completed today, skip this round");
             DailyTaskScheduler.enqueueNext(context,
-                    ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.CHAIN_POLICY,
                     delayToNextOccurrence(), 1);
             return Result.success();
         }
@@ -213,10 +214,10 @@ public class DailyTaskWorker extends Worker {
             if (!executed) {
                 // 任务体整体未执行（提交阶段异常）：按全量重试处理
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
-                    DailyTaskScheduler.enqueueNext(context, ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             DailyTaskScheduler.RETRY_DELAY_MINUTES * 60_000L, attempt + 1, null);
                 else
-                    DailyTaskScheduler.enqueueNext(context, ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence(), 1, null);
             } else {
                 Set<String> retryable = new HashSet<>(errorNames);
@@ -225,7 +226,7 @@ public class DailyTaskWorker extends Worker {
                     long retryDelayMinutes = retryDelayMinutesFor(retryable, retryDelayHints);
                     tools.writeLog(context, TAG + ": " + retryable.size() + " task(s) failed, retry in "
                             + retryDelayMinutes + " min");
-                    DailyTaskScheduler.enqueueNext(context, ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             retryDelayMinutes * 60_000L, attempt + 1, retryable);
                 } else {
                     if (!bgController.getCaptchaFailedTasks().isEmpty()) {
@@ -235,7 +236,7 @@ public class DailyTaskWorker extends Worker {
                                         TextUtils.join(", ", bgController.getCaptchaFailedTasks())),
                                 true);
                     }
-                    DailyTaskScheduler.enqueueNext(context, ExistingWorkPolicy.APPEND,
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence(), 1, null);
                 }
             }

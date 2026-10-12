@@ -135,6 +135,11 @@ public class ForegroundTaskService extends Service {
      * 在 IO 线程中执行全部签到任务。
      * 先获取 10 分钟 WakeLock 防 CPU 休眠，再提交 TaskExecutor 并回调状态到通知/小组件；
      * 无论成功或异常，finally 中都会释放资源并 stopSelf()。
+     *
+     * <p>复位/持久化/小组件刷新等准备工作一律放在提交的执行线程内：本方法由
+     * {@code onStartCommand} 在主线程调用，而这些动作会触碰 DataStore（首次构造还会同步
+     * 阻塞读取首帧）、跨天时的整仓读写与历史日志落盘、以及小组件 AppWidget 更新，
+     * 放主线程等于在服务启动路径上做磁盘 IO（慢机可能卡顿甚至 ANR）。</p>
      */
     private void executeTasks(String userId) {
         // 获取 WakeLock，防止 CPU 休眠导致任务中断
@@ -144,64 +149,64 @@ public class ForegroundTaskService extends Service {
         wakeLock.acquire(10 * 60 * 1000L);
 
         runningUserId = userId != null ? userId : "";
-        // 新一轮运行：仅复位该用户桶内的「瞬态」（进行中/已取消），保留当日终态
-        // （已完成/已签过/失败）——重跑中途终止不会抹掉之前已完成的记录。
-        // App 内「开始任务」已由 resetForNewRun 复位过（此处重复复位无副作用），
-        // 但小组件入口（TaskWidgetReceiver）没有对应调用，统一由服务侧复位保证三条入口一致。
-        statusManager.resetTransientStatuses(runningUserId,
-                TaskSettings.fromPreferences(this).getTaskNames(this));
-        // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
-        TaskWidgetProvider.refreshAllWidgets(this);
-
-        // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
-        statusManager.setCurrentUser(runningUserId);
 
         try {
-        currentTaskFuture = AppExecutors.get().submit(() -> {
-            try {
-                TaskSettings settings = TaskSettings.fromPreferences(this);
-                int totalTasks = settings.getTaskNames(ForegroundTaskService.this).size();
-                AtomicInteger completedTasks = new AtomicInteger(0);
+            currentTaskFuture = AppExecutors.get().submit(() -> {
+                try {
+                    // 新一轮运行：仅复位该用户桶内的「瞬态」（进行中/已取消），保留当日终态
+                    // （已完成/已签过/失败）——重跑中途终止不会抹掉之前已完成的记录。
+                    // App 内「开始任务」已由 resetForNewRun 复位过（此处重复复位无副作用），
+                    // 但小组件入口（TaskWidgetReceiver）没有对应调用，统一由服务侧复位保证三条入口一致。
+                    statusManager.resetTransientStatuses(runningUserId,
+                            TaskSettings.fromPreferences(this).getTaskNames(this));
+                    // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
+                    TaskWidgetProvider.refreshAllWidgets(this);
+                    // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
+                    statusManager.setCurrentUser(runningUserId);
 
-                GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
+                    TaskSettings settings = TaskSettings.fromPreferences(this);
+                    int totalTasks = settings.getTaskNames(ForegroundTaskService.this).size();
+                    AtomicInteger completedTasks = new AtomicInteger(0);
 
-                TaskExecutor taskExecutor = new TaskExecutor(
-                        this, userId, notifier, geetestController,
-                        new TaskExecutor.Callback() {
-                            @Override
-                            public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
-                                // 持久化任务状态供 Widget 读取
-                                saveTaskStatus(taskName, status);
-                                if (status == TaskItem.TaskStatus.COMPLETED) {
-                                    completedTasks.incrementAndGet();
+                    GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
+
+                    TaskExecutor taskExecutor = new TaskExecutor(
+                            this, userId, notifier, geetestController,
+                            new TaskExecutor.Callback() {
+                                @Override
+                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
+                                    // 持久化任务状态供 Widget 读取
+                                    saveTaskStatus(taskName, status);
+                                    if (status == TaskItem.TaskStatus.COMPLETED) {
+                                        completedTasks.incrementAndGet();
+                                    }
+                                    updateServiceNotification(taskName, status,
+                                            completedTasks.get(), totalTasks);
                                 }
-                                updateServiceNotification(taskName, status,
-                                        completedTasks.get(), totalTasks);
-                            }
 
-                            @Override
-                            public void onAllTasksCompleted() {
-                                notificationHelper.completeProgressNotification(
-                                        "Venus", getString(R.string.notif_all_tasks_done));
-                            }
+                                @Override
+                                public void onAllTasksCompleted() {
+                                    notificationHelper.completeProgressNotification(
+                                            "Venus", getString(R.string.notif_all_tasks_done));
+                                }
 
-                            @Override
-                            public void onError(String message) {
-                                notificationHelper.sendErrorNotification(getString(R.string.notif_task_failed), message, true);
-                            }
+                                @Override
+                                public void onError(String message) {
+                                    notificationHelper.sendErrorNotification(getString(R.string.notif_task_failed), message, true);
+                                }
 
-                            @Override
-                            public boolean isCancelled() {
-                                return Thread.currentThread().isInterrupted()
-                                        || (currentTaskFuture != null && currentTaskFuture.isCancelled());
-                            }
-                        });
+                                @Override
+                                public boolean isCancelled() {
+                                    return Thread.currentThread().isInterrupted()
+                                            || (currentTaskFuture != null && currentTaskFuture.isCancelled());
+                                }
+                            });
 
-                taskExecutor.executeAll(settings);
-            } finally {
-                finishTask();
-            }
-        });
+                    taskExecutor.executeAll(settings);
+                } finally {
+                    finishTask();
+                }
+            });
         } catch (Exception e) {
             // 仅提交阶段可能同步抛错（如线程池拒绝）；任务体内的异常由 Callback 上报
             finishTask();

@@ -145,25 +145,43 @@ public final class HsrKeyStore {
         synchronized (initLock) {
             if (table == null)
                 table = loadRuntimeTable(context);
-            JSONObject diff = new JSONObject();
             Iterator<String> it = valid.keys();
             while (it.hasNext()) {
                 String version = it.next();
-                String value = valid.getString(version);
-                if (!value.equals(table.optString(version, null))) {
-                    diff.put(version, value);
-                    table.put(version, value);
-                }
+                table.put(version, valid.getString(version));
             }
             ConfigRepository configRepo = new ConfigRepository(context);
-            if (diff.length() > 0) {
-                configRepo.putString(HSR_KEYS_PREF, diff.toString());
-                Logger.debug(TAG, "hsr keys updated from " + source + ": +" + diff.length());
+            String snapshot = buildDiffJson(context).toString();
+            if (!snapshot.equals(configRepo.get(HSR_KEYS_PREF, ""))) {
+                configRepo.putString(HSR_KEYS_PREF, snapshot);
+                Logger.debug(TAG, "hsr keys persisted from " + source);
             }
             // 成功即刷新常规节流基准（与差量无关，空表也算「该源已确认无更新」）
             configRepo.putString(HSR_KEYS_UPDATE_TIME_PREF, String.valueOf(System.currentTimeMillis()));
             return true;
         }
+    }
+
+    /**
+     * 运行时表相对 assets 的差量快照（assets 里没有、或值已被云端覆盖的条目）。
+     *
+     * <p>注意必须写「相对 assets 的全量差量」，不能只写本次拉取新增的条目：运行时表
+     * = assets ∪ 已落盘差量，只写本次新增会把此前落盘、assets 里没有的键从磁盘抹掉；
+     * 一旦随后 24h 常规节流窗口内重启进程（常规检查会跳过拉取），应用就会退回缺键状态，
+     * 表现为 VPN 抓包"流程都对但抓不到链接"。
+     */
+    private static JSONObject buildDiffJson(Context context) throws Exception {
+        JSONObject assets = loadAssets(context);
+        JSONObject diff = new JSONObject();
+        Iterator<String> it = table.keys();
+        while (it.hasNext()) {
+            String version = it.next();
+            String value = table.optString(version, null);
+            if (value == null || value.equals(assets.optString(version, null)))
+                continue;
+            diff.put(version, value);
+        }
+        return diff;
     }
 
     private static long getLastSuccessMs(Context context) {
