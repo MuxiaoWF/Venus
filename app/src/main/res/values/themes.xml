@@ -7,13 +7,12 @@
          “整体替换”而非合并 item —— 暗色下基类的 8 项语义色会被整体覆盖掉，
          静默回落到动态取色。夜主题文件已删除，语义色仅在此单点维护。 -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
-        <item name="materialCardViewStyle">@style/Widget.Venus.Card</item>
-        <item name="bottomNavigationStyle">@style/Widget.Venus.BottomNavigationView</item>
-
-        <!-- Snackbar 收敛为单一样式来源（原先 Java 侧三重手工着色 + 专属 drawable 并存） -->
-        <item name="snackbarStyle">@style/Widget.Venus.Snackbar</item>
-        <item name="snackbarTextViewStyle">@style/Widget.Venus.Snackbar.TextView</item>
-        <item name="snackbarButtonStyle">@style/Widget.Venus.Snackbar.Action</item>
+        <!-- 本主题不再注册任何 Widget.* 组件样式。
+             迁移收尾后 View 侧已无 Material 组件实例（底栏/Snackbar/卡片全部 Compose 化），
+             原先的 materialCardViewStyle / bottomNavigationStyle / snackbar*Style 三组
+             注册已随之删除——保留它们只会让「样式存在但无人使用」的僵尸配置继续误导。
+             剩下的职责只有两件：① 作为 Activity 窗口主题（Splash / ThemeOverlay 的基类）；
+             ② 提供 Compose 侧取色的主题属性（VenusTheme 从 Context 读同一份语义色）。 -->
 
         <!-- 跨主题一致的语义色（来自 blue 调色板）。
              colorOnPrimary / colorOnSecondary / colorOnTertiary 是"未叠加配色 Overlay 时"的

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ===== 间距刻度 space_*（语义化，禁止在布局中写裸 dp/sp） ===== -->
-    <dimen name="space_0">0dp</dimen>    <!-- 无间距 -->
+    <!-- 无间距 -->
     <dimen name="space_1">4dp</dimen>    <!-- 微间距 -->
     <dimen name="space_2">8dp</dimen>    <!-- 紧凑间距 -->
     <dimen name="space_3">12dp</dimen>   <!-- 常规内边距 -->
@@ -23,14 +23,13 @@
     <dimen name="shape_corner_sm">10dp</dimen>  <!-- 输入框/图片/内嵌卡片 -->
     <dimen name="shape_corner_md">16dp</dimen>  <!-- 分组卡片 -->
     <dimen name="shape_corner_lg">28dp</dimen>  <!-- 底部导航/悬浮卡 -->
-    <dimen name="shape_corner_pill">99dp</dimen> <!-- 全圆角胶囊（chip/分段钮） -->
 
     <!-- ===== 分隔线 ===== -->
     <dimen name="divider_height">0.5dp</dimen>
-    <dimen name="divider_indent_icon">56dp</dimen>
+    <!-- 列表项间分割线缩进：与任务行文字左边缘对齐 = 状态圈 status_circle_size(20) + 间距 space_4(16) -->
+    <dimen name="divider_indent_icon">36dp</dimen>
 
     <!-- ===== 组件尺寸 ===== -->
-    <dimen name="setting_row_height">52dp</dimen>
     <dimen name="icon_inline">18dp</dimen>   <!-- 命令按钮内的行内图标 -->
     <dimen name="icon_badge_circle">36dp</dimen>
     <dimen name="touch_target_min">48dp</dimen>
@@ -46,13 +45,10 @@
 
     <!-- 底部导航活动指示器 -->
     <dimen name="bottom_nav_indicator_width">64dp</dimen>
-    <dimen name="bottom_nav_indicator_height">32dp</dimen>
-    <dimen name="bottom_nav_indicator_margin_horizontal">12dp</dimen>
     <dimen name="bottom_nav_indicator_expanded_height">40dp</dimen>
 
     <!-- 卡片阴影（轻盈克制：rest 仅微抬，避免厚重感）
          数值统一收口到 elevation_level* 刻度，此处仅为语义别名。 -->
-    <dimen name="card_elevation_rest">@dimen/elevation_level1</dimen>
     <dimen name="card_elevation_image">10dp</dimen>
 
     <!-- Widget 专用字号（RemoteViews 不随主题走，字号刻度独立于全局 type 刻度）；
@@ -67,4 +63,5 @@
 
     <!-- theme dot diameter -->
     <dimen name="theme_dot_size">28dp</dimen>
+    <!-- 分段按钮最小高度：与原 MaterialButton(Tonal) 默认 40dp 对齐 -->
 </resources>

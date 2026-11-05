@@ -10,12 +10,13 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.Logger;
+import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -192,25 +193,35 @@ public class UpdateChecker {
             String message = context.getString(R.string.update_new_version_msg, latestVersion);
             if (releaseNotes != null && !releaseNotes.isEmpty())
                 message += "\n\n" + context.getString(R.string.update_release_notes) + "\n" + releaseNotes;
-            new MaterialAlertDialogBuilder(context)
-                    .setTitle(context.getString(R.string.dialog_new_version_found))
-                    .setMessage(message)
-                    .setPositiveButton(context.getString(R.string.btn_go_to_download), (dialog, which) -> {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(releasesPageUrl));
-                        context.startActivity(intent);
-                    })
-                    .setNegativeButton(context.getString(R.string.btn_update_later), null)
-                    .show();
+            String title = context.getString(R.string.dialog_new_version_found);
+            Runnable download = () -> context.startActivity(
+                    new Intent(Intent.ACTION_VIEW, Uri.parse(releasesPageUrl)));
+            if (context instanceof android.app.Activity) {
+                VenusDialogs.confirm((android.app.Activity) context, title, message,
+                        context.getString(R.string.btn_go_to_download), download,
+                        context.getString(R.string.btn_update_later));
+            } else {
+                // 后台检查（无 Activity 窗口）：弹窗会因窗口 token 缺失抛 BadTokenException，
+                // 降级为记日志；用户侧的更新提示由通知/下次打开设置页时的主动检查承担。
+                Logger.w("检查更新：发现新版本 " + latestVersion
+                        + "，当前无 UI 宿主（" + context.getClass().getSimpleName() + "），未弹窗");
+            }
         });
     }
 
     /** 弹「已是最新版本」对话框（仅手动检查到达该分支时出现）。 */
     private void showNoUpdateDialog() {
-        new Handler(Looper.getMainLooper()).post(() ->
-                new MaterialAlertDialogBuilder(context)
-                        .setTitle(context.getString(R.string.dialog_no_update))
-                        .setMessage(context.getString(R.string.msg_already_latest_version))
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show());
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (context instanceof android.app.Activity) {
+                VenusDialogs.info((android.app.Activity) context,
+                        context.getString(R.string.dialog_no_update),
+                        context.getString(R.string.msg_already_latest_version),
+                        context.getString(android.R.string.ok));
+            } else {
+                // 同上：手动检查才会走到本分支，无窗口时只记日志
+                Logger.w("检查更新：已是最新版本，当前无 UI 宿主（"
+                        + context.getClass().getSimpleName() + "），未弹窗");
+            }
+        });
     }
 }

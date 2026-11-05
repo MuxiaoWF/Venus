@@ -18,6 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import kotlin.OptIn;
+import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
 /**
  * 米游社配置仓储（单一可信数据源，底层 DataStore）。
@@ -39,6 +41,7 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable;
  * 均按 prefs 名静态共享，避免"同一文件多 DataStore 实例"异常。
  * 应用为单进程（AndroidManifest 未声明任何 android:process），满足 DataStore 的单进程约束。
  */
+@OptIn(markerClass = ExperimentalCoroutinesApi.class)
 public class ConfigRepository {
 
     private static volatile RxDataStore<Preferences> store;

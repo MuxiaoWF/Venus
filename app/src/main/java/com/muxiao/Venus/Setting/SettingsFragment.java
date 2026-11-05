@@ -1,7 +1,5 @@
 package com.muxiao.Venus.Setting;
 
-import dagger.hilt.android.AndroidEntryPoint;
-
 import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_ALPHA;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
@@ -53,70 +51,66 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.util.DisplayMetrics;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.transition.Fade;
-import android.transition.TransitionManager;
-import android.widget.ArrayAdapter;
-import android.widget.AutoCompleteTextView;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
-import androidx.fragment.app.Fragment;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.checkbox.MaterialCheckBox;
-import com.google.android.material.chip.Chip;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.button.MaterialButtonToggleGroup;
-import com.google.android.material.switchmaterial.SwitchMaterial;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textview.MaterialTextView;
-import com.google.android.material.slider.Slider;
-import com.google.android.material.timepicker.MaterialTimePicker;
-import com.google.android.material.timepicker.TimeFormat;
+import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.ForegroundTaskService;
-import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.BatteryHelper;
-import com.muxiao.Venus.common.ui.CollapsibleCardView;
+import com.muxiao.Venus.common.PageController;
+import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.AboutSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneKt;
+import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.BbsUtilsSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.CacheSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.DailySettingPaneView;
+import com.muxiao.Venus.common.ui.compose.GameDailySettingPaneView;
+import com.muxiao.Venus.common.ui.compose.GameDailySettingPaneKt;
+import com.muxiao.Venus.common.ui.compose.LanguageSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.SklandSettingPaneKt;
+import com.muxiao.Venus.common.ui.compose.SklandSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.NotificationSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.ServerSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.ThemeSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.UpdateSettingPaneView;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.data.ConfigRepository;
-import com.muxiao.Venus.common.ui.BottomBarOverlay;
-import com.muxiao.Venus.common.ui.LensGlassDrawable;
+import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.compose.SettingsCard;
+import com.muxiao.Venus.common.ui.compose.SettingsScreenView;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
 import com.yalantis.ucrop.UCrop;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
- * 设置页Fragment：签到任务开关、森空岛content配置、背景图片/主题/语言切换、
- * 服务器类型切换（国服/国际服）、缓存清理、版本更新检查。
+ * 设置页控制器（原 Fragment 收敛为控制器）：签到任务开关、森空岛content配置、
+ * 背景图片/主题/语言切换、服务器类型切换（国服/国际服）、缓存清理、版本更新检查。
  */
-@AndroidEntryPoint
-public class SettingsFragment extends Fragment {
+public class SettingsFragment implements PageController {
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        tools.setupFragmentTransitions(this);
-    }
+    private final MainActivity activity;
 
     private SharedPreferences sharedPreferences;
     // 收口：config_prefs 不再直接访问 SharedPreferences，统一走仓储（底层为 DataStore）。
@@ -124,74 +118,120 @@ public class SettingsFragment extends Fragment {
     private ConfigRepository configRepository;
     private static final int THEME_DEFAULT = 0;
 
-    // 添加主题深浅色常量
+    // 主题深浅色变体常量（0=跟随系统 1=浅色 2=深色）
     private static final int THEME_VARIANT_DEFAULT = 0;
-    private static final int THEME_VARIANT_LIGHT = 1;
     private static final int THEME_VARIANT_DARK = 2;
 
-    // 配置显示文本视图
-    private MaterialTextView salt6xValue;
-    private MaterialTextView salt4xValue;
-    private MaterialTextView lk2Value;
-    private MaterialTextView k2Value;
-    private MaterialTextView bbsVersionValue;
-    private MaterialTextView updateTimeLocal;
-    private MaterialTextView updateTime;
-
     // 折叠行右侧 mono 值摘要（命令台设计稿行值）所需的卡片引用
-    private CollapsibleCardView dailyCard;
-    private CollapsibleCardView gameDailyCard;
-    private CollapsibleCardView serverCard;
-    private CollapsibleCardView updateCard;
-    private CollapsibleCardView cacheCard;
-    private CollapsibleCardView languageCard;
-    private CollapsibleCardView themeCard;
-    private CollapsibleCardView notificationCard;
-    private CollapsibleCardView sklandCard;
+    private SettingsCard dailyCard;
+    private SettingsCard gameDailyCard;
+    private SettingsCard serverCard;
+    private SettingsCard updateCard;
+    private SettingsCard cacheCard;
+    private SettingsCard languageCard;
+    private SettingsCard themeCard;
+    private SettingsCard notificationCard;
+    private SettingsCard sklandCard;
+    /** Compose 宿主（本页唯一 UI 入口）。 */
+    private SettingsScreenView screenView;
+    /** 底栏覆盖高度订阅（弱引用持有，必须由本类强持有并在 release 解除）。 */
+    private final Runnable bottomBarListener = () -> {
+        if (screenView != null) screenView.setBottomClearance(BottomBarOverlay.get());
+    };
+
+    // 「缓存管理」抽屉内容为 Compose，由 CacheSettingPaneView 承载并在 Java 侧回填缓存占用文案。
+    private CacheSettingPaneView cachePane;
+    // 「配置信息」抽屉内容为 Compose。
+    private BbsUtilsSettingPaneView utilsPane;
+    private SklandSettingPaneView sklandPane;
+    // 「通知 / 后台运行」抽屉内容为 Compose。
+    private NotificationSettingPaneView notificationPane;
+    // 「米游币签到」「游戏签到」抽屉内容为 Compose。
+    private DailySettingPaneView dailyPane;
+    private GameDailySettingPaneView gameDailyPane;
 
     // 背景设置相关
     private SharedPreferences backgroundPreferences;
 
-    // ActivityResult 启动器
+    // ActivityResult 启动器（MainActivity 注册后注入）
     private ActivityResultLauncher<Intent> selectImageLauncher; // ACTION_OPEN_DOCUMENT (老设备)
     private ActivityResultLauncher<PickVisualMediaRequest> pickMedia; // Photo Picker (API33+)
     private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
     private ActivityResultLauncher<Intent> batteryOptLauncher; // 电池优化豁免授权
 
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        // 加载布局
-        View view = inflater.inflate(R.layout.fragment_settings, container, false);
+    public SettingsFragment(MainActivity activity) {
+        this.activity = activity;
+    }
 
-        // 液态玻璃透镜接管：版本 chip + 查看榜单图按钮（有背景图时真实模糊底衬，无图回退渐变）
-        LensGlassDrawable.apply(view.findViewById(R.id.settings_version_chip),
-                getResources().getDimension(R.dimen.shape_corner_xxs));
-        LensGlassDrawable.apply(view.findViewById(R.id.image_button),
-                getResources().getDimension(R.dimen.shape_corner_xs));
-        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
-        BottomBarOverlay.attachClearance(view.findViewById(R.id.settings_scroll));
+    /** 注入 MainActivity 注册的启动器（图片选择/裁剪/电池优化豁免）。 */
+    public void setLaunchers(ActivityResultLauncher<PickVisualMediaRequest> pickMedia,
+                             ActivityResultLauncher<Intent> selectImage,
+                             ActivityResultLauncher<Intent> cropImage,
+                             ActivityResultLauncher<Intent> batteryOpt) {
+        this.pickMedia = pickMedia;
+        this.selectImageLauncher = selectImage;
+        this.cropImageLauncher = cropImage;
+        this.batteryOptLauncher = batteryOpt;
+    }
 
-        // 背景图玻璃感收口：标记 glass 的版本 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
-        tools.applyGlassAlpha(requireContext(), view);
+    /** Photo Picker 选择结果（MainActivity 的 launcher 转发）：进入裁剪。 */
+    public void onBackgroundImagePicked(Uri uri) {
+        // 用户在系统照片选择器中取消/未选择时返回 null：静默忽略，
+        // 不能把 null 传给裁剪页，否则 UCrop 会以「图片裁剪失败: null」报错收场
+        if (uri != null) startCropActivity(uri);
+    }
+
+    /** 老设备（<API33）ACTION_OPEN_DOCUMENT 选择结果（MainActivity 的 launcher 转发）。 */
+    public void onLegacyImagePicked(Uri uri) {
+        if (uri != null) startCropActivity(uri);
+    }
+
+    /** UCrop 裁剪结果（MainActivity 的 launcher 转发）。 */
+    public void onCropResult(int resultCode, Intent data) {
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            // 获取裁剪后的图片URI
+            Uri croppedImageUri = UCrop.getOutput(data);
+            if (croppedImageUri != null)
+                // 将裁剪后的图片复制到应用私有目录并保存
+                saveBackgroundImage(croppedImageUri);
+        } else if (resultCode == UCrop.RESULT_ERROR) {
+            // 处理裁剪错误
+            if (data != null) {
+                final Throwable cropError = UCrop.getError(data);
+                show_error_dialog(activity, activity.getString(R.string.err_crop_failed,
+                        Objects.requireNonNull(cropError).getMessage()));
+            }
+        }
+    }
+
+    /**
+     * 构建页面 UI（外壳首次组合时调用一次）：12 个抽屉由宿主持有，
+     * 本方法负责「生成窗格内容 → 塞进抽屉 → 维护折叠态摘要」。
+     */
+    public View createView(Context context) {
+        if (screenView != null) return screenView; // 幂等：外壳重组不会重复装配
+        SettingsScreenView root = new SettingsScreenView(context);
+        screenView = root;
 
         // 页眉版本 chip（设计稿：v2.4.0 形式）
-        android.widget.TextView versionChip = view.findViewById(R.id.settings_version_chip);
-        if (versionChip != null)
-            versionChip.setText(getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME));
+        root.setVersionChip(activity.getString(R.string.app_version_fmt, BuildConfig.VERSION_NAME));
 
-        // 设置折叠按钮
-        CollapsibleCardView bbsCard = view.findViewById(R.id.daily_card);
-        CollapsibleCardView bbsGameCard = view.findViewById(R.id.game_daily_card);
-        CollapsibleCardView serverCardView = view.findViewById(R.id.server_card);
-        CollapsibleCardView bbsUtilsCard = view.findViewById(R.id.config_card);
-        CollapsibleCardView updateCardView = view.findViewById(R.id.update_card);
-        CollapsibleCardView cacheCardView = view.findViewById(R.id.cache_card);
-        CollapsibleCardView languageCardView = view.findViewById(R.id.language_card);
-        CollapsibleCardView themeCardView = view.findViewById(R.id.theme_card);
-        CollapsibleCardView backgroundCardView = view.findViewById(R.id.background_card);
-        CollapsibleCardView notificationCardView = view.findViewById(R.id.notification_card);
-        CollapsibleCardView aboutCard = view.findViewById(R.id.about_card);
-        CollapsibleCardView sklandCardView = view.findViewById(R.id.skland_card);
+        // 内容不再容器级避让：正文底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        BottomBarOverlay.addListener(bottomBarListener);
+        root.setBottomClearance(BottomBarOverlay.get());
+
+        SettingsCard bbsCard = root.getDailyCard();
+        SettingsCard bbsGameCard = root.getGameDailyCard();
+        SettingsCard serverCardView = root.getServerCard();
+        SettingsCard bbsUtilsCard = root.getConfigCard();
+        SettingsCard updateCardView = root.getUpdateCard();
+        SettingsCard cacheCardView = root.getCacheCard();
+        SettingsCard languageCardView = root.getLanguageCard();
+        SettingsCard themeCardView = root.getThemeCard();
+        SettingsCard backgroundCardView = root.getBackgroundCard();
+        SettingsCard notificationCardView = root.getNotificationCard();
+        SettingsCard aboutCard = root.getAboutCard();
+        SettingsCard sklandCardView = root.getSklandCard();
         dailyCard = bbsCard;
         gameDailyCard = bbsGameCard;
         serverCard = serverCardView;
@@ -202,186 +242,105 @@ public class SettingsFragment extends Fragment {
         notificationCard = notificationCardView;
         sklandCard = sklandCardView;
 
-        bbsCard.setContent(R.layout.item_setting_bbs_daily);
-        bbsGameCard.setContent(R.layout.item_setting_game_daily);
-        serverCardView.setContent(R.layout.item_setting_server_segmented);
-        bbsUtilsCard.setContent(R.layout.item_setting_bbs_utils);
-        updateCardView.setContent(R.layout.item_setting_update);
-        cacheCardView.setContent(R.layout.item_setting_cache);
-        languageCardView.setContent(R.layout.item_setting_language);
-        themeCardView.setContent(R.layout.item_setting_theme);
-        backgroundCardView.setContent(R.layout.item_setting_background_picture);
-        notificationCardView.setContent(R.layout.item_setting_notification);
-        aboutCard.setContent(R.layout.item_setting_about);
-        sklandCardView.setContent(R.layout.item_setting_skland);
+        dailyPane = new DailySettingPaneView(context);
+        bbsCard.setContent(dailyPane);
+        gameDailyPane = new GameDailySettingPaneView(context);
+        bbsGameCard.setContent(gameDailyPane);
+        ServerSettingPaneView serverPane = new ServerSettingPaneView(context);
+        serverCardView.setContent(serverPane);
+        utilsPane = new BbsUtilsSettingPaneView(context);
+        bbsUtilsCard.setContent(utilsPane);
+        UpdateSettingPaneView updatePane = new UpdateSettingPaneView(context);
+        updateCardView.setContent(updatePane);
+        cachePane = new CacheSettingPaneView(context);
+        cacheCardView.setContent(cachePane);
+        LanguageSettingPaneView languagePane = new LanguageSettingPaneView(context);
+        languageCardView.setContent(languagePane);
+        ThemeSettingPaneView themePane = new ThemeSettingPaneView(context);
+        themeCardView.setContent(themePane);
+        BackgroundSettingPaneView backgroundPane = new BackgroundSettingPaneView(context);
+        backgroundCardView.setContent(backgroundPane);
+        notificationPane = new NotificationSettingPaneView(context);
+        notificationCardView.setContent(notificationPane);
+        AboutSettingPaneView aboutPane = new AboutSettingPaneView(context);
+        aboutCard.setContent(aboutPane);
+        sklandPane = new SklandSettingPaneView(context);
+        sklandCardView.setContent(sklandPane);
 
-        View dailyView = bbsCard.getContentLayout();
-        View bbsGameView = bbsGameCard.getContentLayout();
-        View serverView = serverCardView.getContentLayout();
-        View utilsView = bbsUtilsCard.getContentLayout();
-        View updateView = updateCardView.getContentLayout();
-        View cacheView = cacheCardView.getContentLayout();
-        View languageView = languageCardView.getContentLayout();
-        View themeView = themeCardView.getContentLayout();
-        View backgroundView = backgroundCardView.getContentLayout();
-        View notificationView = notificationCardView.getContentLayout();
-        View aboutView = aboutCard.getContentLayout();
-        View sklandView = sklandCardView.getContentLayout();
 
         // 静态行值摘要（设计稿：配置信息=已配置、关于=开源许可 · 隐私政策、背景按设置）
-        bbsUtilsCard.setValue(getString(R.string.config_configured));
-        bbsUtilsCard.setValueColor(ContextCompat.getColor(requireContext(), com.muxiao.Venus.R.color.status_success));
-        aboutCard.setValue(getString(R.string.about_value));
-        backgroundCardView.setValue(getString(SettingsFragment.getBackgroundImageUri(requireContext()) != null
+        bbsUtilsCard.setValue(activity.getString(R.string.config_configured));
+        bbsUtilsCard.setValueColor(ContextCompat.getColor(context, com.muxiao.Venus.R.color.status_success));
+        aboutCard.setValue(activity.getString(R.string.about_value));
+        backgroundCardView.setValue(activity.getString(SettingsFragment.getBackgroundImageUri(context) != null
                 ? R.string.background_value_custom : R.string.background_value_default));
 
         // 初始化SharedPreferences
-        sharedPreferences = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        configRepository = new ConfigRepository(requireContext());
-        backgroundPreferences = requireActivity().getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
-
-        // 初始化图片选择启动器
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            pickMedia = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
-                // 用户在系统照片选择器中取消/未选择时返回 null：静默忽略，
-                // 不能把 null 传给裁剪页，否则 UCrop 会以「图片裁剪失败: null」报错收场
-                if (uri != null)
-                    startCropActivity(uri);
-            });
-        else
-            selectImageLauncher = registerForActivityResult(
-                    new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                            Uri selectedImageUri = result.getData().getData();
-                            if (selectedImageUri != null) // 启动裁剪
-                                startCropActivity(selectedImageUri);
-                        }
-                    }
-            );
-        // UCrop 裁剪结果启动器
-        cropImageLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        // 获取裁剪后的图片URI
-                        Uri croppedImageUri = UCrop.getOutput(result.getData());
-                        if (croppedImageUri != null)
-                            // 将裁剪后的图片复制到应用私有目录并保存
-                            saveBackgroundImage(croppedImageUri);
-                    } else if (result.getResultCode() == UCrop.RESULT_ERROR) {
-                        // 处理裁剪错误
-                        if (result.getData() != null) {
-                            final Throwable cropError = UCrop.getError(result.getData());
-                            show_error_dialog(requireContext(), getString(R.string.err_crop_failed, Objects.requireNonNull(cropError).getMessage()));
-                        }
-                    }
-                }
-        );
-
-        // 查找所有Switch和CheckBox控件
-        SwitchMaterial dailySwitchButton = dailyView.findViewById(R.id.daily_switch_button);
-        SwitchMaterial gameDailySwitchButton = bbsGameView.findViewById(R.id.game_daily_switch_button);
-        SwitchMaterial backgroundTaskSwitch = notificationView.findViewById(R.id.background_task_switch);
-
-        Chip dailyCheckboxGenshin = dailyView.findViewById(R.id.daily_checkbox_genshin);
-        Chip dailyCheckboxZzz = dailyView.findViewById(R.id.daily_checkbox_zzz);
-        Chip dailyCheckboxSrg = dailyView.findViewById(R.id.daily_checkbox_srg);
-        Chip dailyCheckboxHr3 = dailyView.findViewById(R.id.daily_checkbox_hr3);
-        Chip dailyCheckboxHr2 = dailyView.findViewById(R.id.daily_checkbox_hr2);
-        Chip dailyCheckboxWeiding = dailyView.findViewById(R.id.daily_checkbox_weiding);
-        Chip dailyCheckboxDabieye = dailyView.findViewById(R.id.daily_checkbox_dabieye);
-        Chip dailyCheckboxHna = dailyView.findViewById(R.id.daily_checkbox_hna);
-
-        Chip gameDailyCheckboxGenshin = bbsGameView.findViewById(R.id.game_daily_checkbox_genshin);
-        Chip gameDailyCheckboxZzz = bbsGameView.findViewById(R.id.game_daily_checkbox_zzz);
-        Chip gameDailyCheckboxSrg = bbsGameView.findViewById(R.id.game_daily_checkbox_srg);
-        Chip gameDailyCheckboxHr3 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr3);
-        Chip gameDailyCheckboxHr2 = bbsGameView.findViewById(R.id.game_daily_checkbox_hr2);
-        Chip gameDailyCheckboxWeiding = bbsGameView.findViewById(R.id.game_daily_checkbox_weiding);
-
-        // 查找配置显示文本视图
-        salt6xValue = utilsView.findViewById(R.id.salt_6x_value);
-        salt4xValue = utilsView.findViewById(R.id.salt_4x_value);
-        lk2Value = utilsView.findViewById(R.id.lk2_value);
-        k2Value = utilsView.findViewById(R.id.k2_value);
-        bbsVersionValue = utilsView.findViewById(R.id.bbs_version_value);
-        updateTimeLocal = utilsView.findViewById(R.id.update_time_local);
-        updateTime = utilsView.findViewById(R.id.update_time);
+        sharedPreferences = activity.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        configRepository = new ConfigRepository(context);
+        backgroundPreferences = activity.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
 
         // 恢复保存的状态
-        dailySwitchButton.setChecked(sharedPreferences.getBoolean(DAILY, true));
-        gameDailySwitchButton.setChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
-        backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
+        dailyPane.setSwitchChecked(sharedPreferences.getBoolean(DAILY, true));
+        gameDailyPane.setSwitchChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
+        notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
         // 折叠行值摘要初始态（设计稿：行右侧 mono 摘要）
-        updateDailyCardValue(dailySwitchButton.isChecked());
+        updateDailyCardValue(dailyPane.getSwitchChecked());
         updateGameCardValue();
-        updateNotificationCardValue(backgroundTaskSwitch.isChecked());
+        updateNotificationCardValue(notificationPane.getBackgroundChecked());
 
-        // checkbox-pref 映射，统一恢复状态和设置监听器
-        Object[][] dailyBindings = {
-                {dailyCheckboxGenshin, DAILY_GENSHIN, false},
-                {dailyCheckboxZzz, DAILY_ZZZ, false},
-                {dailyCheckboxSrg, DAILY_SRG, false},
-                {dailyCheckboxHr3, DAILY_HR3, false},
-                {dailyCheckboxHr2, DAILY_HR2, false},
-                {dailyCheckboxWeiding, DAILY_WEIDING, false},
-                {dailyCheckboxDabieye, DAILY_DABIEYE, true},
-                {dailyCheckboxHna, DAILY_HNA, false},
+        // chip-pref 映射：下标顺序与 Compose 侧 DAILY_CHIP_LABEL_RES / GAME_CHIP_LABEL_RES 一致
+        final String[] dailyKeys = {
+                DAILY_GENSHIN, DAILY_ZZZ, DAILY_SRG, DAILY_HR3,
+                DAILY_HR2, DAILY_WEIDING, DAILY_DABIEYE, DAILY_HNA,
         };
-        Object[][] gameDailyBindings = {
-                {gameDailyCheckboxGenshin, GAME_DAILY_GENSHIN, false},
-                {gameDailyCheckboxZzz, GAME_DAILY_ZZZ, false},
-                {gameDailyCheckboxSrg, GAME_DAILY_SRG, false},
-                {gameDailyCheckboxHr3, GAME_DAILY_HR3, false},
-                {gameDailyCheckboxHr2, GAME_DAILY_HR2, false},
-                {gameDailyCheckboxWeiding, GAME_DAILY_WEIDING, false},
+        final boolean[] dailyDefaults = {false, false, false, false, false, false, true, false};
+        for (int i = 0; i < dailyKeys.length; i++)
+            dailyPane.setChipChecked(i, sharedPreferences.getBoolean(dailyKeys[i], dailyDefaults[i]));
+        dailyPane.setOnChipChangeListener((index, checked) -> {
+            // 任务运行中弹窗，dismiss 时回滚勾选（与原 CompoundButton 版语义一致）
+            if (blockIfTaskRunning(() -> dailyPane.setChipChecked(index, !checked))) return;
+            sharedPreferences.edit().putBoolean(dailyKeys[index], checked).apply();
+        });
+
+        final String[] gameKeys = {
+                GAME_DAILY_GENSHIN, GAME_DAILY_ZZZ, GAME_DAILY_SRG,
+                GAME_DAILY_HR3, GAME_DAILY_HR2, GAME_DAILY_WEIDING,
         };
-        for (Object[] b : dailyBindings) {
-            Chip cb = (Chip) b[0];
-            String key = (String) b[1];
-            boolean def = (boolean) b[2];
-            cb.setChecked(sharedPreferences.getBoolean(key, def));
-            cb.setOnCheckedChangeListener((btn, checked) -> {
-                if (blockIfTaskRunning(btn, checked)) return;
-                sharedPreferences.edit().putBoolean(key, checked).apply();
-            });
-        }
-        for (Object[] b : gameDailyBindings) {
-            Chip cb = (Chip) b[0];
-            String key = (String) b[1];
-            boolean def = (boolean) b[2];
-            cb.setChecked(sharedPreferences.getBoolean(key, def));
-            cb.setOnCheckedChangeListener((btn, checked) -> {
-                if (blockIfTaskRunning(btn, checked)) return;
-                sharedPreferences.edit().putBoolean(key, checked).apply();
-                updateGameCardValue();
-            });
-        }
+        for (int i = 0; i < gameKeys.length; i++)
+            gameDailyPane.setChipChecked(i, sharedPreferences.getBoolean(gameKeys[i], false));
+        gameDailyPane.setOnChipChangeListener((index, checked) -> {
+            if (blockIfTaskRunning(() -> gameDailyPane.setChipChecked(index, !checked))) return;
+            sharedPreferences.edit().putBoolean(gameKeys[index], checked).apply();
+            updateGameCardValue();
+        });
 
         // 所有控件设置监听器以保存状态
-        dailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
+        dailyPane.setOnSwitchChangeListener(isChecked -> {
+            if (blockIfTaskRunning(() -> dailyPane.setSwitchChecked(!isChecked))) return;
             sharedPreferences.edit().putBoolean(DAILY, isChecked).apply();
             updateDailyCardValue(isChecked);
         });
 
-        gameDailySwitchButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
+        gameDailyPane.setOnSwitchChangeListener(isChecked -> {
+            if (blockIfTaskRunning(() -> gameDailyPane.setSwitchChecked(!isChecked))) return;
             sharedPreferences.edit().putBoolean(GAME_DAILY, isChecked).apply();
         });
 
-        backgroundTaskSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        notificationPane.setOnBackgroundChangeListener(isChecked -> {
             if (isChecked) {
                 // 检查系统通知权限
-                Notification notificationUtil = new Notification(requireContext());
+                Notification notificationUtil = new Notification(context);
                 if (notificationUtil.areNotificationsDisabled()) {
-                    new MaterialAlertDialogBuilder(requireContext())
-                            .setTitle(getString(R.string.dialog_need_notification_permission))
-                            .setMessage(getString(R.string.msg_need_notification_for_background))
-                            .setPositiveButton(getString(R.string.btn_go_to_settings), (dialog, which) -> startActivity(notificationUtil.getNotificationSettingsIntent()))
-                            .setNegativeButton(getString(R.string.btn_later), (dialog, which) -> backgroundTaskSwitch.setChecked(false))
-                            .setOnCancelListener(dialog -> backgroundTaskSwitch.setChecked(false)).show();
+                    VenusDialogs.confirm(
+                            activity,
+                            activity.getString(R.string.dialog_need_notification_permission),
+                            activity.getString(R.string.msg_need_notification_for_background),
+                            activity.getString(R.string.btn_go_to_settings),
+                            () -> activity.startActivity(notificationUtil.getNotificationSettingsIntent()),
+                            activity.getString(R.string.btn_later),
+                            null,
+                            () -> notificationPane.setBackgroundChecked(false));
                     return;
                 }
             }
@@ -392,235 +351,201 @@ public class SettingsFragment extends Fragment {
         });
 
         // 定时签到：开关排程/取消 + 时间行弹出选择器（WorkManager 自链式每日调度）
-        SwitchMaterial scheduledTaskSwitch = notificationView.findViewById(R.id.scheduled_task_switch);
-        View scheduledTimeRow = notificationView.findViewById(R.id.scheduled_task_time_row);
         boolean scheduledEnabled = sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false);
-        scheduledTaskSwitch.setChecked(scheduledEnabled);
-        scheduledTimeRow.setVisibility(scheduledEnabled ? View.VISIBLE : View.GONE);
-        updateScheduledTimeLabel(scheduledTimeRow);
-        scheduledTaskSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
+        notificationPane.setScheduledChecked(scheduledEnabled);
+        notificationPane.setScheduledTimeVisible(scheduledEnabled);
+        updateScheduledTimeLabel();
+        notificationPane.setOnScheduledChangeListener(isChecked -> {
+            if (blockIfTaskRunning(() -> notificationPane.setScheduledChecked(!isChecked))) return;
             sharedPreferences.edit().putBoolean(SCHEDULED_TASK_ENABLED, isChecked).apply();
             // 与后台运行开关同口径：验证码提示通知受通知开关控制，开启定时必须连带开启通知，
             // 否则定时运行遇到人机验证时用户将收不到任何可点击的入口
             sharedPreferences.edit().putBoolean(NOTIFICATION, isChecked).apply();
-            scheduledTimeRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-            // 时间行出现/消失改变卡片内容高度：通知宿主重算并同步当前高度，
-            // 否则新行被钉死的旧内容区高度裁剪在可视区外（关闭后则底部留白）
-            notificationCardView.notifyContentChanged();
+            notificationPane.setScheduledTimeVisible(isChecked);
             if (isChecked) {
-                DailyTaskScheduler.applySchedule(requireContext());
+                DailyTaskScheduler.applySchedule(context);
                 // 厂商省电是定时任务失准的头号原因：未豁免电池优化时引导一次（不阻断开启）
-                if (!BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
-                    new MaterialAlertDialogBuilder(requireContext())
-                            .setTitle(getString(R.string.dialog_need_battery_optimization))
-                            .setMessage(getString(R.string.msg_scheduled_battery_hint))
-                            .setPositiveButton(getString(R.string.btn_go_to_settings),
-                                    (d, w) -> BatteryHelper.openVendorBatterySettings(requireContext()))
-                            .setNegativeButton(getString(R.string.btn_ignore), null)
-                            .show();
+                if (!BatteryHelper.isIgnoringBatteryOptimizations(context)) {
+                    VenusDialogs.confirm(
+                            activity,
+                            activity.getString(R.string.dialog_need_battery_optimization),
+                            activity.getString(R.string.msg_scheduled_battery_hint),
+                            activity.getString(R.string.btn_go_to_settings),
+                            () -> BatteryHelper.openVendorBatterySettings(context),
+                            activity.getString(R.string.btn_ignore));
                 }
             } else {
-                DailyTaskScheduler.cancel(requireContext());
+                DailyTaskScheduler.cancel(context);
             }
         });
-        scheduledTimeRow.setOnClickListener(v -> {
-            int[] time = DailyTaskScheduler.getConfiguredTime(requireContext());
-            MaterialTimePicker picker = new MaterialTimePicker.Builder()
-                    .setTimeFormat(android.text.format.DateFormat.is24HourFormat(requireContext())
-                            ? TimeFormat.CLOCK_24H : TimeFormat.CLOCK_12H)
-                    .setHour(time[0])
-                    .setMinute(time[1])
-                    .setTitleText(getString(R.string.scheduled_time_picker_title))
-                    .build();
-            picker.addOnPositiveButtonClickListener(p -> {
-                String timeStr = String.format(Locale.US, "%02d:%02d", picker.getHour(), picker.getMinute());
-                sharedPreferences.edit().putString(SCHEDULED_TASK_TIME, timeStr).apply();
-                updateScheduledTimeLabel(scheduledTimeRow);
-                // 已开启状态下改时间：立即重排到新时刻
-                if (sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false))
-                    DailyTaskScheduler.applySchedule(requireContext());
-            });
-            picker.show(getChildFragmentManager(), "scheduled_time_picker");
+        notificationPane.setOnScheduledTimeClickListener(() -> {
+            int[] time = DailyTaskScheduler.getConfiguredTime(context);
+            VenusDialogs.timePicker(
+                    activity,
+                    android.text.format.DateFormat.is24HourFormat(context),
+                    time[0], time[1],
+                    activity.getString(R.string.scheduled_time_picker_title),
+                    (hour, minute) -> {
+                        String timeStr = String.format(Locale.US, "%02d:%02d", hour, minute);
+                        sharedPreferences.edit().putString(SCHEDULED_TASK_TIME, timeStr).apply();
+                        updateScheduledTimeLabel();
+                        // 已开启状态下改时间：立即重排到新时刻
+                        if (sharedPreferences.getBoolean(SCHEDULED_TASK_ENABLED, false))
+                            DailyTaskScheduler.applySchedule(context);
+                    });
         });
 
         // 电池优化豁免行：厂商省电策略是定时任务失准与 VPN 抓包挂机断连（游戏闪退）的根源。
         // 未豁免时点击打开系统省电白名单列表页（用户手动勾选，无需权限），返回后刷新行值；
         // 机型不支持该设置页时退回应用详情页
-        batteryOptLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> updateBatteryOptValue(notificationView));
-        View batteryOptRow = notificationView.findViewById(R.id.battery_opt_row);
-        updateBatteryOptValue(notificationView);
-        batteryOptRow.setOnClickListener(v -> {
-            if (BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
-                tools.showCustomSnackbar(v, requireContext().getApplicationContext(),
-                        getString(R.string.battery_already_exempted));
+        updateBatteryOptValue();
+        notificationPane.setOnBatteryRowClickListener(() -> {
+            if (BatteryHelper.isIgnoringBatteryOptimizations(context)) {
+                tools.showCustomSnackbar(notificationPane, context.getApplicationContext(),
+                        activity.getString(R.string.battery_already_exempted));
                 return;
             }
             try {
                 batteryOptLauncher.launch(
-                        BatteryHelper.buildBatteryOptimizationSettingsIntent(requireContext()));
+                        BatteryHelper.buildBatteryOptimizationSettingsIntent(context));
             } catch (Exception e) {
-                BatteryHelper.openVendorBatterySettings(requireContext());
+                BatteryHelper.openVendorBatterySettings(context);
             }
         });
 
-        // 关于
-        MaterialTextView githubLink = aboutView.findViewById(R.id.github_link);
-        githubLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
-        githubLink.setOnClickListener(v -> {
+        // 关于（Compose 版内容）
+        aboutPane.setOnGithubClickListener(() -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_GITHUB_URL));
-            startActivity(intent);
+            activity.startActivity(intent);
         });
-        MaterialTextView blogLink = aboutView.findViewById(R.id.blog_link);
-        blogLink.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
-        blogLink.setOnClickListener(v -> {
+        aboutPane.setOnBlogClickListener(() -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_BLOG_URL));
-            startActivity(intent);
+            activity.startActivity(intent);
         });
-        MaterialTextView appVersionText = aboutView.findViewById(R.id.app_version_text);
-        appVersionText.setText(getString(R.string.about_version, BuildConfig.VERSION_NAME));
+        aboutPane.setAppVersion(activity.getString(R.string.about_version, BuildConfig.VERSION_NAME));
 
         // 配置更新
-        MaterialButton updateConfigButton = utilsView.findViewById(R.id.update_config_button);
-        updateConfigButton.setOnClickListener(v -> {
+        utilsPane.setOnUpdateClickListener(() -> {
             if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle(getString(R.string.dialog_task_running))
-                        .setMessage(getString(R.string.msg_wait_task_finish_update))
-                        .setPositiveButton(getString(R.string.btn_ok), null)
-                        .show();
+                VenusDialogs.info(
+                        activity,
+                        activity.getString(R.string.dialog_task_running),
+                        activity.getString(R.string.msg_wait_task_finish_update),
+                        activity.getString(R.string.btn_ok));
                 return;
             }
-            updateConfig(utilsView);
+            updateConfig(utilsPane);
         });
         // 显示当前配置值
         displayCurrentConfigValues();
 
         // 服务器选择
-        setupServerSelection(serverView, bbsCard, gameDailyCheckboxHr2, gameDailyCheckboxWeiding);
+        setupServerSelection(serverPane, bbsCard, gameDailyPane);
         // 语言选择
-        setupLanguageSelection(languageView);
+        setupLanguageSelection(languagePane);
         // 主题选择
-        setupThemeSelection(themeView);
+        setupThemeSelection(themePane);
         // 背景选择
-        setupBackgroundSelection(backgroundView);
-        // 自动更新设置
-        SwitchMaterial autoUpdateSwitch = updateView.findViewById(R.id.auto_update_switch);
+        setupBackgroundSelection(backgroundPane);
+        // 自动更新设置（Compose 版内容）
         boolean autoUpdateEnabled = sharedPreferences.getBoolean(AUTO_UPDATE_ENABLED, true);
-        autoUpdateSwitch.setChecked(autoUpdateEnabled);
+        updatePane.setAutoUpdateChecked(autoUpdateEnabled);
         updateUpdateCardValue(autoUpdateEnabled);
-        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        updatePane.setOnAutoUpdateChangeListener(isChecked -> {
             sharedPreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply();
             updateUpdateCardValue(isChecked);
         });
         // 手动检查更新按钮
-        MaterialButton checkUpdateButton = updateView.findViewById(R.id.check_update_button_github);
-        checkUpdateButton.setOnClickListener(v -> {
-            UpdateChecker updateChecker = new UpdateChecker(requireContext());
+        updatePane.setOnCheckGithubClickListener(() -> {
+            UpdateChecker updateChecker = new UpdateChecker(context);
             updateChecker.checkForUpdatesImmediately();
         });
-        MaterialButton checkUpdateButton2 = updateView.findViewById(R.id.check_update_button_pan);
-        checkUpdateButton2.setOnClickListener(v -> new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.dialog_pan_download))
-                .setMessage(getString(R.string.msg_pan_download_hint))
-                .setPositiveButton(getString(R.string.btn_go_to_download), (dialog, which) -> {
+        updatePane.setOnCheckPanClickListener(() -> VenusDialogs.confirm(
+                activity,
+                activity.getString(R.string.dialog_pan_download),
+                activity.getString(R.string.msg_pan_download_hint),
+                activity.getString(R.string.btn_go_to_download),
+                () -> {
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.MUXIAO_MINE_UPDATE_LANZOU_URL));
-                    startActivity(intent);
-                })
-                .setNegativeButton(getString(R.string.btn_cancel), null)
-                .show());
+                    activity.startActivity(intent);
+                },
+                activity.getString(R.string.btn_cancel)));
 
         // 看图按钮（设置行形式，点击跳转）
-        View imageButton = view.findViewById(R.id.image_button);
-        imageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(requireActivity(), ImageActivity.class);
-            startActivity(intent);
+        root.setOnImageClickListener(() -> {
+            Intent intent = new Intent(activity, ImageActivity.class);
+            activity.startActivity(intent);
         });
 
-        // 缓存管理
-        MaterialTextView cacheSizeText = cacheView.findViewById(R.id.cache_size_text);
-        MaterialButton clearCacheButton = cacheView.findViewById(R.id.clear_cache_button);
-        // 计算并显示当前缓存大小
-        calculateCacheSize(cacheSizeText);
+        // 缓存管理（Compose 版内容：计算并显示当前缓存大小）
+        calculateCacheSize(cachePane);
         // 设置清理缓存按钮
-        clearCacheButton.setOnClickListener(v -> clearCache(cacheSizeText));
+        cachePane.setOnClearClickListener(() -> clearCache(cachePane));
 
-        //森空岛设置
-        SwitchMaterial sklandSwitch = sklandView.findViewById(R.id.skland_switch);
-        MaterialCheckBox sklandCheckboxArknights = sklandView.findViewById(R.id.skland_checkbox_arknights);
-        MaterialCheckBox sklandCheckboxEndfield = sklandView.findViewById(R.id.skland_checkbox_endfield);
+        //森空岛设置（Compose 版内容）
         boolean sklandEnabled = sharedPreferences.getBoolean(SKLAND_ENABLED, false);
-        sklandSwitch.setChecked(sklandEnabled);
-        sklandCheckboxArknights.setChecked(sharedPreferences.getBoolean(SKLAND_ARKNIGHTS_ENABLED, false));
-        sklandCheckboxEndfield.setChecked(sharedPreferences.getBoolean(SKLAND_ENDFIELD_ENABLED, false));
-        sklandCheckboxArknights.setEnabled(sklandEnabled);
-        sklandCheckboxEndfield.setEnabled(sklandEnabled);
+        sklandPane.setEnabledChecked(sklandEnabled);
+        sklandPane.setArknightsChecked(sharedPreferences.getBoolean(SKLAND_ARKNIGHTS_ENABLED, false));
+        sklandPane.setEndfieldChecked(sharedPreferences.getBoolean(SKLAND_ENDFIELD_ENABLED, false));
         updateSklandCardValue(sklandEnabled);
-        sklandSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
+        sklandPane.setOnEnabledChangeListener(isChecked -> {
+            if (blockIfTaskRunning(() -> sklandPane.setEnabledChecked(!isChecked))) return;
             sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply();
-            sklandCheckboxArknights.setEnabled(isChecked);
-            sklandCheckboxEndfield.setEnabled(isChecked);
+            // 两个子项的可点态由 pane 依 enabledChecked 自行派生，无需再 setEnabled
             updateSklandCardValue(isChecked);
         });
-        sklandCheckboxArknights.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(SKLAND_ARKNIGHTS_ENABLED, isChecked).apply();
+        sklandPane.setOnSubItemChangeListener((index, isChecked) -> {
+            if (blockIfTaskRunning(() -> setSklandSubItemChecked(index, !isChecked))) return;
+            sharedPreferences.edit().putBoolean(
+                    index == SklandSettingPaneKt.SKLAND_INDEX_ARKNIGHTS ? SKLAND_ARKNIGHTS_ENABLED : SKLAND_ENDFIELD_ENABLED,
+                    isChecked).apply();
         });
-        sklandCheckboxEndfield.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (blockIfTaskRunning(buttonView, isChecked)) return;
-            sharedPreferences.edit().putBoolean(SKLAND_ENDFIELD_ENABLED, isChecked).apply();
-        });
-        MaterialTextView skland_link = sklandView.findViewById(R.id.skland_link);
-        skland_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
-        skland_link.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_LOGIN_URL));
-            startActivity(intent);
-        });
-        MaterialTextView skland_cookie_link = sklandView.findViewById(R.id.skland_cookie_link);
-        skland_cookie_link.getPaint().setFlags(Paint.UNDERLINE_TEXT_FLAG);
-        skland_cookie_link.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_COOKIE_URL));
-            startActivity(intent);
-        });
-        MaterialButton sklandButton = sklandView.findViewById(R.id.skland_button);
-        sklandButton.setOnClickListener(v -> {
+        sklandPane.setOnLoginLinkClickListener(() -> activity.startActivity(
+                new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_LOGIN_URL))));
+        sklandPane.setOnCookieLinkClickListener(() -> activity.startActivity(
+                new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_COOKIE_URL))));
+        sklandPane.setOnSaveClickListener(() -> {
             // 获取当前保存的森空岛token值
             String currentToken = sharedPreferences.getString(SKLAND_COOKIE, "");
-            // 创建一个EditText用于输入token
-            TextInputEditText editText = new TextInputEditText(requireContext());
-            editText.setText(currentToken);
-            editText.setHint(getString(R.string.skland_content_tip));
-            // 创建对话框
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(getString(R.string.dialog_skland_content_settings))
-                    .setMessage(getString(R.string.msg_skland_content_hint))
-                    .setView(editText)
-                    .setPositiveButton(getString(R.string.btn_save), (dialog, which) -> {
-                        String newToken = Objects.requireNonNull(editText.getText()).toString().trim();
+            // Token 输入对话框（Compose 版输入框）
+            VenusDialogs.input(
+                    activity,
+                    activity.getString(R.string.dialog_skland_content_settings),
+                    activity.getString(R.string.msg_skland_content_hint),
+                    currentToken,
+                    activity.getString(R.string.skland_content_tip),
+                    activity.getString(R.string.btn_save),
+                    activity.getString(R.string.btn_cancel),
+                    true,
+                    null,
+                    newToken -> {
                         // 保存到SharedPreferences
-                        SharedPreferences.Editor editor = sharedPreferences.edit();
-                        editor.putString(SKLAND_COOKIE, newToken);
-                        editor.apply();
-                        showCustomSnackbar(view, requireContext(), getString(R.string.snack_skland_content_saved));
-                    }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> {
-                        // 用户选择取消，不做任何操作
-                    }).show();
+                        sharedPreferences.edit().putString(SKLAND_COOKIE, newToken).apply();
+                        showCustomSnackbar(screenView, context, activity.getString(R.string.snack_skland_content_saved));
+                    });
         });
-        return view;
+        return root;
     }
 
+    /** 页面成为当前选中页 / Activity 恢复：同步后台运行开关状态。 */
     @Override
-    public void onResume() {
-        super.onResume();
+    public void show() {
         // 更新后台运行开关状态
-        if (sharedPreferences != null && getView() != null) {
-            SwitchMaterial backgroundTaskSwitch = getView().findViewById(R.id.background_task_switch);
-            backgroundTaskSwitch.setChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
-            updateNotificationCardValue(backgroundTaskSwitch.isChecked());
+        if (sharedPreferences != null && screenView != null) {
+            notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
+            updateNotificationCardValue(notificationPane.getBackgroundChecked());
         }
+    }
+
+    /** 页面失去选中 / Activity 暂停（无逐帧资源，无操作）。 */
+    @Override
+    public void hide() {
+    }
+
+    /** 销毁：解除底栏订阅，清空宿主引用（Activity 销毁时由 MainActivity 调用）。 */
+    public void release() {
+        BottomBarOverlay.removeListener(bottomBarListener);
+        screenView = null;
     }
 
     /**
@@ -630,22 +555,22 @@ public class SettingsFragment extends Fragment {
         // 获取屏幕尺寸作为裁剪比例
         int screenWidth, screenHeight;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            android.graphics.Rect bounds = requireActivity().getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
+            android.graphics.Rect bounds = activity.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
             screenWidth = bounds.width();
             screenHeight = bounds.height();
         } else {
             // 使用Resources获取屏幕尺寸，避免使用过时的Display方法
-            DisplayMetrics displayMetrics = requireContext().getResources().getDisplayMetrics();
+            DisplayMetrics displayMetrics = activity.getResources().getDisplayMetrics();
             screenWidth = displayMetrics.widthPixels;
             screenHeight = displayMetrics.heightPixels;
         }
         // 创建裁剪输出URI到临时文件
-        Uri destinationUri = Uri.fromFile(new File(requireContext().getCacheDir(), "temp_cropped_background.jpg"));
+        Uri destinationUri = Uri.fromFile(new File(activity.getCacheDir(), "temp_cropped_background.jpg"));
         // 配置uCrop
         UCrop.Options options = new UCrop.Options();
         // 修改状态栏
         options.setStatusBarLight(true);
-        options.setToolbarTitle(getString(R.string.toolbar_crop_image));
+        options.setToolbarTitle(activity.getString(R.string.toolbar_crop_image));
         // 隐藏底部工具
         options.setHideBottomControls(true);
         // 图片格式
@@ -659,7 +584,7 @@ public class SettingsFragment extends Fragment {
                 .withMaxResultSize(screenWidth, screenHeight) // 设置最大尺寸为屏幕尺寸
                 .withOptions(options);
         // 启动裁剪Activity，使用cropImageLauncher处理结果
-        Intent uCropIntent = uCrop.getIntent(requireContext());
+        Intent uCropIntent = uCrop.getIntent(activity);
         // 授予裁剪 Activity 临时读写权限，确保能读取 source Uri 并写入 destination Uri
         uCropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         cropImageLauncher.launch(uCropIntent);
@@ -673,40 +598,41 @@ public class SettingsFragment extends Fragment {
     private void saveBackgroundImage(Uri croppedImageUri) {
         try {
             // 创建背景图片文件
-            File backgroundFile = new File(requireContext().getFilesDir(), "background.jpg");
-            if (backgroundFile.exists()) backgroundFile.delete();
+            File backgroundFile = new File(activity.getFilesDir(), "background.jpg");
+            if (backgroundFile.exists() && !backgroundFile.delete()) {
+                Logger.w("删除旧背景文件失败：" + backgroundFile.getAbsolutePath());
+            }
 
             // 使用 tools.copyFile（确保实现基于 ContentResolver.openInputStream(...)）
-            tools.copyFile(requireContext(), croppedImageUri, backgroundFile);
+            tools.copyFile(activity, croppedImageUri, backgroundFile);
 
             // 保存背景图片文件Uri到SharedPreferences
             Uri backgroundUri = Uri.fromFile(backgroundFile);
             backgroundPreferences.edit().putString(BACKGROUND_IMAGE_URI, backgroundUri.toString()).apply();
 
             // 删除临时裁剪文件
-            File temp = new File(requireContext().getCacheDir(), "temp_cropped_background.jpg");
-            if (temp.exists())
-                temp.delete();
+            File temp = new File(activity.getCacheDir(), "temp_cropped_background.jpg");
+            if (temp.exists() && !temp.delete()) {
+                Logger.w("删除临时裁剪文件失败：" + temp.getAbsolutePath());
+            }
 
             // 显示提示信息
-            View view = getView();
-            if (view != null)
-                showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_set));
+            if (screenView != null)
+                showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_background_set));
         } catch (Exception e) {
-            show_error_dialog(requireContext(), getString(R.string.err_save_background_failed, tools.describeError(e)));
+            show_error_dialog(activity, activity.getString(R.string.err_save_background_failed, tools.describeError(e)));
         }
     }
 
     /**
-     * 设置背景选择功能
+     * 设置背景选择功能（Compose 版内容）。
+     * <p>
+     * 淡化风格与不透明度只写 backgroundPreferences，MainActivity 侧监听（300ms 防抖）
+     * 即时重新预合成，无需重启；两枚按钮的动作由 Java 侧注入（涉及 ActivityResult launcher）。
      */
-    private void setupBackgroundSelection(View view) {
-        MaterialButton selectBackgroundButton = view.findViewById(R.id.select_background_button);
-        MaterialButton clearBackgroundButton = view.findViewById(R.id.clear_background_button);
-        Slider backgroundAlphaSlider = view.findViewById(R.id.background_alpha_slider);
-
-        // 设置选择背景按钮
-        selectBackgroundButton.setOnClickListener(v -> {
+    private void setupBackgroundSelection(BackgroundSettingPaneView view) {
+        // 选择背景
+        view.setOnSelectClickListener(() -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pickMedia.launch(new PickVisualMediaRequest.Builder()
                         .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
@@ -724,142 +650,98 @@ public class SettingsFragment extends Fragment {
             }
         });
 
-        // 设置清除背景按钮
-        clearBackgroundButton.setOnClickListener(v -> {
+        // 清除背景
+        view.setOnClearClickListener(() -> {
             // 清除之前先释放权限
             String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
             if (uriString == null) {
                 // 从未设置过背景时点「清除」：如实提示，不再谎报「已清除」
-                showCustomSnackbar(view, requireContext(), getString(R.string.snack_no_background_to_clear));
+                showCustomSnackbar(view, activity, activity.getString(R.string.snack_no_background_to_clear));
                 return;
             }
             try {
                 Uri backgroundUri = Uri.parse(uriString);
                 if ("file".equals(backgroundUri.getScheme())) {
                     File backgroundFile = new File(Objects.requireNonNull(backgroundUri.getPath()));
-                    if (backgroundFile.exists()) backgroundFile.delete();
+                    if (backgroundFile.exists() && !backgroundFile.delete()) {
+                        Logger.w("删除背景文件失败：" + backgroundFile.getAbsolutePath());
+                    }
                 } else {
-                    requireContext().getContentResolver().delete(backgroundUri, null, null);
+                    activity.getContentResolver().delete(backgroundUri, null, null);
                 }
             } catch (Exception e) {
-                show_error_dialog(requireContext(), getString(R.string.err_delete_background_error, e.toString()));
+                show_error_dialog(activity, activity.getString(R.string.err_delete_background_error, e.toString()));
             }
             backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
-            showCustomSnackbar(view, requireContext(), getString(R.string.snack_background_cleared));
+            showCustomSnackbar(view, activity, activity.getString(R.string.snack_background_cleared));
         });
 
-        // 设置淡化风格预设档（0=轻盈 1=标准 2=浓郁）：控制解码时的图像预处理强度，
-        // 与不透明度滑条正交——风格管质感，滑条管浓度。仅写 prefs，
-        // MainActivity 通过背景 prefs 监听（300ms 防抖）即时重新预合成，无需重启。
-        com.google.android.material.button.MaterialButtonToggleGroup presetGroup =
-                view.findViewById(R.id.background_preset_group);
-        if (presetGroup != null) {
-            int preset = backgroundPreferences.getInt(BACKGROUND_PRESET, 1);
-            int presetButtonId;
-            if (preset == 0) presetButtonId = R.id.bg_preset_light;
-            else if (preset == 2) presetButtonId = R.id.bg_preset_rich;
-            else presetButtonId = R.id.bg_preset_standard;
-            presetGroup.check(presetButtonId);
-            presetGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                if (!isChecked) return;
-                int newPreset;
-                if (checkedId == R.id.bg_preset_light) newPreset = 0;
-                else if (checkedId == R.id.bg_preset_rich) newPreset = 2;
-                else newPreset = 1;
-                backgroundPreferences.edit().putInt(BACKGROUND_PRESET, newPreset).apply();
-            });
-        }
+        // 淡化风格预设档（0=轻盈 1=标准 2=浓郁）：控制解码时的图像预处理强度，
+        // 与不透明度滑条正交——风格管质感，滑条管浓度。
+        view.setPresetIndex(backgroundPreferences.getInt(BACKGROUND_PRESET, BackgroundSettingPaneKt.BG_PRESET_INDEX_STANDARD));
+        view.setOnPresetSelectListener(preset ->
+                backgroundPreferences.edit().putInt(BACKGROUND_PRESET, preset).apply());
 
-        // 设置不透明度滑块
+        // 不透明度滑块（0-90，步长 5）
         float currentAlpha = backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.45f);
-        backgroundAlphaSlider.setValue(currentAlpha * 100);
-        backgroundAlphaSlider.setLabelFormatter(value -> (int) value + "%");
-        backgroundAlphaSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser) {
-                float alpha = value / 100.0f;
-                backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, alpha).apply();
-            }
-        });
-        backgroundAlphaSlider.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
-            @Override
-            public void onStartTrackingTouch(@NonNull Slider slider) {
-                // 开始滑动时
-            }
-
-            @Override
-            public void onStopTrackingTouch(@NonNull Slider slider) {
-                // 滑动结束时
-                showCustomSnackbar(view, requireContext(), getString(R.string.snack_opacity_set, (int) slider.getValue()));
-            }
-        });
+        view.setAlphaPercent(currentAlpha * 100);
+        view.setOnAlphaChangeListener(percent ->
+                backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, percent / 100.0f).apply());
+        view.setOnAlphaChangeFinishedListener(() -> showCustomSnackbar(view, activity,
+                activity.getString(R.string.snack_opacity_set, (int) view.getAlphaPercent())));
     }
 
     /**
-     * 设置服务器选择功能：使用 Material 3 分段按钮（SingleChoiceSegmentedButton），
-     * 国服/国际服即时切换，无需展开卡片。
+     * 设置服务器选择功能：国服/国际服即时切换，无需展开卡片。
      */
-    private void setupServerSelection(View view, View bbsCard, View... overseaHiddenViews) {
-        ViewGroup settingsContainer = view.getRootView().findViewById(R.id.settings_content_container);
-        SharedPreferences prefs = requireActivity().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+    private void setupServerSelection(ServerSettingPaneView view, SettingsCard bbsCard, GameDailySettingPaneView gamePane) {
+        SharedPreferences prefs = activity.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
         int serverType = prefs.getInt(SERVER_TYPE, 0);
 
-        MaterialButtonToggleGroup segmented = view.findViewById(R.id.server_segmented);
-
         // 国际服隐藏米游币签到（需要stoken，Cookie登录不提供）
-        if (!tools.isReducedMotionEnabled(requireContext()) && settingsContainer != null)
-            TransitionManager.beginDelayedTransition(settingsContainer, new Fade());
         bbsCard.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
-        // 国际服隐藏不支持的游戏签到
-        for (View v : overseaHiddenViews)
-            v.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
+        // 国际服隐藏不支持的游戏签到（崩坏2 / 未定事件簿）
+        setOverseaChipsVisible(gamePane, serverType == 0);
 
         // 先设初始选中（此时监听器尚未注册，不会触发回调/弹 Snackbar），
-        // 再由下面的 addOnButtonCheckedListener 接管后续交互。
-        segmented.setSelectionRequired(true);
-        segmented.check(serverType == 0 ? R.id.server_cn : R.id.server_os);
+        // 再由下面的监听器接管后续交互。
+        view.setSelectedIndex(serverType == 0 ? 0 : 1);
         updateServerCardValue(serverType == 0);
 
-        segmented.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (!isChecked) return; // 仅处理被选中的一个
-            int newType = (checkedId == R.id.server_cn) ? 0 : 1;
+        view.setOnSelectListener(newType -> {
+            // 重复点选中态不再触发一次切换
+            if (newType == prefs.getInt(SERVER_TYPE, 0)) return;
             prefs.edit().putInt(SERVER_TYPE, newType).apply();
             MiHoYoBBSConstants.clearOverseaCache();
             updateServerCardValue(newType == 0);
-            if (!tools.isReducedMotionEnabled(requireContext()) && settingsContainer != null)
-                TransitionManager.beginDelayedTransition(settingsContainer, new Fade());
             bbsCard.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
-            for (View v : overseaHiddenViews)
-                v.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
-            showCustomSnackbar(view, requireContext(),
-                    getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
+            setOverseaChipsVisible(gamePane, newType == 0);
+            showCustomSnackbar(view, activity,
+                    activity.getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
         });
     }
 
     /**
      * 设置语言选择功能
      */
-    private void setupLanguageSelection(View view) {
-        SharedPreferences languagePreferences = requireActivity().getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
+    private void setupLanguageSelection(LanguageSettingPaneView view) {
+        SharedPreferences languagePreferences = activity.getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedLanguage = languagePreferences.getInt(SELECTED_LANGUAGE, 0);
 
-        AutoCompleteTextView languageDropdown = view.findViewById(R.id.language_dropdown);
-
         String[] languages = {
-                getString(R.string.language_system),
-                getString(R.string.language_zh),
-                getString(R.string.language_zh_tw),
-                getString(R.string.language_en)
+                activity.getString(R.string.language_system),
+                activity.getString(R.string.language_zh),
+                activity.getString(R.string.language_zh_tw),
+                activity.getString(R.string.language_en)
         };
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_dropdown_item_1line, languages);
-        languageDropdown.setAdapter(adapter);
+        view.setOptions(Arrays.asList(languages));
 
         if (selectedLanguage >= 0 && selectedLanguage < languages.length) {
-            languageDropdown.setText(languages[selectedLanguage], false);
+            view.setSelectedIndex(selectedLanguage);
             languageCard.setValue(languages[selectedLanguage]);
         }
 
-        languageDropdown.setOnItemClickListener((parent, view1, position, id) -> saveAndApplyLanguage(position));
+        view.setOnSelectListener(this::saveAndApplyLanguage);
     }
 
     /**
@@ -868,66 +750,38 @@ public class SettingsFragment extends Fragment {
      * @param languageId 语言ID
      */
     private void saveAndApplyLanguage(int languageId) {
-        SharedPreferences languagePreferences = requireActivity().getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences languagePreferences = activity.getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
         languagePreferences.edit().putInt(SELECTED_LANGUAGE, languageId).apply();
         // 重建 Activity 以应用语言：BaseActivity.attachBaseContext 已通过 LocaleHelper 读取最新语言，
         // recreate() 会重新走 attachBaseContext，等价于原 finish()+startActivity，但无需销毁整个任务栈。
-        requireActivity().recreate();
+        activity.recreate();
     }
 
     /**
-     * 设置主题选择功能
+     * 设置主题选择功能（Compose 版内容）。
+     * <p>
+     * 七枚圆点的下标即 `saveAndApplyTheme` 的主题序号（0=系统动态取色，1-6=蓝绿红黄青紫）；
+     * 选中态由 pane 内部维护，Java 只负责落盘与刷新折叠行摘要。
      */
-    private void setupThemeSelection(View view) {
-        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+    private void setupThemeSelection(ThemeSettingPaneView view) {
+        SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
         int selectedThemeVariant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
 
-        // 七枚主题圆点：index 与 saveAndApplyTheme 的主题序号一致（0=系统动态取色，1-6=蓝绿红黄青紫）
-        MaterialButton[] themeDots = {
-                view.findViewById(R.id.theme_dot_system),
-                view.findViewById(R.id.theme_dot_blue),
-                view.findViewById(R.id.theme_dot_green),
-                view.findViewById(R.id.theme_dot_red),
-                view.findViewById(R.id.theme_dot_yellow),
-                view.findViewById(R.id.theme_dot_cyan),
-                view.findViewById(R.id.theme_dot_purple)
-        };
+        view.setSelectedTheme(selectedTheme);
         updateThemeCardValue();
-        // 注：java.util.function.IntConsumer 需 API 24，直接调用 saveAndApplyTheme 代替
-        for (int i = 0; i < themeDots.length; i++) {
-            MaterialButton dot = themeDots[i];
-            final int themeIndex = i;
-            if (i == selectedTheme)
-                markThemeDotSelected(dot);
-            dot.setOnClickListener(v -> {
-                for (MaterialButton d : themeDots) d.setForeground(null);
-                markThemeDotSelected(dot);
-                saveAndApplyTheme(themeIndex);
-                updateThemeCardValue();
-            });
-        }
-
-        // 深浅模式分段（沿用原单选语义：default/light/dark）
-        MaterialButtonToggleGroup variantGroup = view.findViewById(R.id.theme_variant_group);
-        int[] variantIds = {R.id.theme_variant_default, R.id.theme_variant_light, R.id.theme_variant_dark};
-        if (selectedThemeVariant >= 0 && selectedThemeVariant < variantIds.length)
-            variantGroup.check(variantIds[selectedThemeVariant]);
-        variantGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (!isChecked) return;
-            if (checkedId == R.id.theme_variant_default) saveAndApplyThemeVariant(THEME_VARIANT_DEFAULT);
-            else if (checkedId == R.id.theme_variant_light) saveAndApplyThemeVariant(THEME_VARIANT_LIGHT);
-            else if (checkedId == R.id.theme_variant_dark) saveAndApplyThemeVariant(THEME_VARIANT_DARK);
+        view.setOnThemeSelectListener(themeIndex -> {
+            saveAndApplyTheme(themeIndex);
             updateThemeCardValue();
         });
-    }
 
-    /** 主题圆点选中态：foreground 主色环（backgroundTint 会连带染色 stroke，故不用 stroke）。 */
-    private void markThemeDotSelected(MaterialButton dot) {
-        android.graphics.drawable.Drawable ring =
-                androidx.core.content.ContextCompat.getDrawable(requireContext(), R.drawable.bg_theme_dot_ring);
-        if (ring != null)
-            dot.setForeground(ring);
+        // 深浅模式分段（沿用原单选语义：default/light/dark，序号与 THEME_VARIANT_* 一一对应）
+        if (selectedThemeVariant >= THEME_VARIANT_DEFAULT && selectedThemeVariant <= THEME_VARIANT_DARK)
+            view.setSelectedVariant(selectedThemeVariant);
+        view.setOnVariantSelectListener(variantIndex -> {
+            saveAndApplyThemeVariant(variantIndex);
+            updateThemeCardValue();
+        });
     }
 
     /**
@@ -937,12 +791,11 @@ public class SettingsFragment extends Fragment {
      */
     private void saveAndApplyTheme(int themeId) {
         // 保存选择的主题
-        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME, themeId).apply();
         // 显示提示信息，告知用户需要重启应用以应用主题
-        View view = getView();
-        if (view != null)
-            showCustomSnackbar(view, requireContext(), getString(R.string.snack_theme_saved));
+        if (screenView != null)
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_theme_saved));
     }
 
     /**
@@ -952,7 +805,7 @@ public class SettingsFragment extends Fragment {
      */
     private void saveAndApplyThemeVariant(int themeVariantId) {
         // 保存选择的主题深浅色变体
-        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
 
         // 立即应用深浅色模式
@@ -962,15 +815,14 @@ public class SettingsFragment extends Fragment {
                 AppCompatDelegate.MODE_NIGHT_YES
         };
         String[] variantMessages = {
-                getString(R.string.snack_set_follow_system),
-                getString(R.string.snack_set_light_mode),
-                getString(R.string.snack_set_dark_mode)
+                activity.getString(R.string.snack_set_follow_system),
+                activity.getString(R.string.snack_set_light_mode),
+                activity.getString(R.string.snack_set_dark_mode)
         };
         if (themeVariantId >= 0 && themeVariantId < nightModes.length) {
             AppCompatDelegate.setDefaultNightMode(nightModes[themeVariantId]);
-            View view = getView();
-            if (view != null)
-                showCustomSnackbar(view, requireContext(), variantMessages[themeVariantId]);
+            if (screenView != null)
+                showCustomSnackbar(screenView, activity, variantMessages[themeVariantId]);
         }
     }
 
@@ -1088,30 +940,29 @@ public class SettingsFragment extends Fragment {
         String lk2 = configRepository.get(LK2_PREF, MiHoYoBBSConstants.LK2_final);
         String k2 = configRepository.get(K2_PREF, MiHoYoBBSConstants.K2_final);
         String bbsVersion = configRepository.get(BBS_VERSION_PREF, MiHoYoBBSConstants.bbs_version_final);
-        String update_time = configRepository.get(UPDATE_TIME_PREF, getString(R.string.config_not_fetched));
+        String update_time = configRepository.get(UPDATE_TIME_PREF, activity.getString(R.string.config_not_fetched));
         String update_time_Local = configRepository.get(UPDATE_TIME_LOCAL_PREF, MiHoYoBBSConstants.update_time);
 
         // KV 行布局：标签在布局中，此处只绑裸值（mono 右对齐）
-        salt6xValue.setText(salt6x);
-        salt4xValue.setText(salt4x);
-        lk2Value.setText(lk2);
-        k2Value.setText(k2);
-        bbsVersionValue.setText(bbsVersion);
-        updateTimeLocal.setText(update_time_Local);
-        updateTime.setText(update_time);
+        // 下标顺序与 Compose 侧 CONFIG_KEY_LABEL_RES 一致
+        // ConfigRepository.get 标注 @Nullable（defValue 理论可为 null），此处默认值均非空，仍按契约判空兜底
+        utilsPane.setValue(0, update_time_Local != null ? update_time_Local : activity.getString(R.string.config_not_fetched));
+        utilsPane.setValue(1, update_time != null ? update_time : activity.getString(R.string.config_not_fetched));
+        utilsPane.setValue(2, bbsVersion != null ? bbsVersion : MiHoYoBBSConstants.bbs_version_final);
+        utilsPane.setValue(3, salt6x != null ? salt6x : MiHoYoBBSConstants.SALT_6X_final);
+        utilsPane.setValue(4, salt4x != null ? salt4x : MiHoYoBBSConstants.SALT_4X_final);
+        utilsPane.setValue(5, lk2 != null ? lk2 : MiHoYoBBSConstants.LK2_final);
+        utilsPane.setValue(6, k2 != null ? k2 : MiHoYoBBSConstants.K2_final);
     }
 
     /**
      * 后台从网络拉取最新 salt/版本等配置，成功则刷新显示并提示，失败提示错误。
      */
     private void updateConfig(View view) {
-        // ApplicationContext 与 Activity 均在 UI 线程取出：后台线程调用 requireContext()/requireActivity()
-        // 在 Fragment detach 后会抛 IllegalStateException。
-        final Context appContext = requireContext().getApplicationContext();
-        final android.app.Activity activity = getActivity();
+        // ApplicationContext 在 UI 线程取出：后台线程不访问 Activity 引用
+        final Context appContext = activity.getApplicationContext();
         AppExecutors.get().execute(() -> {
             boolean success = MiHoYoBBSConstants.update_config_from_web(appContext);
-            if (activity == null) return;
             activity.runOnUiThread(() -> {
                 if (success) {
                     displayCurrentConfigValues();
@@ -1126,16 +977,14 @@ public class SettingsFragment extends Fragment {
     /**
      * 计算并显示当前缓存大小
      *
-     * @param cacheSizeText 显示缓存大小的TextView
+     * @param cachePane Compose 版缓存抽屉内容，回填缓存占用文案
      */
-    private void calculateCacheSize(MaterialTextView cacheSizeText) {
+    private void calculateCacheSize(CacheSettingPaneView cachePane) {
         // 注意：不能写成 try (ExecutorService e = ...) —— try-with-resources 会在 try 出口调用
         // close()，而 ExecutorService.close() 语义是 shutdown + awaitTermination，
         // 等于在主线程同步等待整个目录遍历结束（大缓存时直接 ANR）。
-        // 这里改用进程级共享 IO 线程池，并预先在 UI 线程取出 ApplicationContext / Activity 引用：
-        // 后台线程内调用 requireContext() 在 Fragment detach 后会抛 IllegalStateException。
-        final Context appContext = requireContext().getApplicationContext();
-        final android.app.Activity activity = getActivity();
+        // 这里改用进程级共享 IO 线程池，并预先在 UI 线程取出 ApplicationContext 引用。
+        final Context appContext = activity.getApplicationContext();
         AppExecutors.get().execute(() -> {
             try {
                 long totalSize = getDirSizeSafe(appContext.getCacheDir());
@@ -1143,16 +992,14 @@ public class SettingsFragment extends Fragment {
                 if (externalCache != null)
                     totalSize += getDirSizeSafe(externalCache);
                 String sizeText = formatFileSize(totalSize);
-                if (activity != null)
-                    activity.runOnUiThread(() -> {
-                        cacheSizeText.setText(activity.getString(R.string.current_cache_size_fmt, sizeText));
-                        // 折叠行右侧值摘要同步（设计稿：缓存 128 MB）
-                        if (cacheCard != null) cacheCard.setValue(sizeText);
-                    });
+                activity.runOnUiThread(() -> {
+                    cachePane.setCacheSize(activity.getString(R.string.current_cache_size_fmt, sizeText));
+                    // 折叠行右侧值摘要同步（设计稿：缓存 128 MB）
+                    if (cacheCard != null) cacheCard.setValue(sizeText);
+                });
             } catch (Exception e) {
-                if (activity != null)
-                    activity.runOnUiThread(() ->
-                            cacheSizeText.setText(activity.getString(R.string.current_cache_size_error)));
+                activity.runOnUiThread(() ->
+                        cachePane.setCacheSize(activity.getString(R.string.current_cache_size_error)));
             }
         });
     }
@@ -1160,12 +1007,11 @@ public class SettingsFragment extends Fragment {
     /**
      * 清理缓存
      *
-     * @param cacheSizeText 显示缓存大小的TextView
+     * @param cachePane Compose 版缓存抽屉内容，清理后回填缓存占用文案
      */
-    private void clearCache(MaterialTextView cacheSizeText) {
+    private void clearCache(CacheSettingPaneView cachePane) {
         // 同 calculateCacheSize：不可用 try-with-resources（close() 会在主线程同步等待任务结束）。
-        final Context appContext = requireContext().getApplicationContext();
-        final android.app.Activity activity = getActivity();
+        final Context appContext = activity.getApplicationContext();
         AppExecutors.get().execute(() -> {
             boolean success = true;
             try {
@@ -1177,15 +1023,13 @@ public class SettingsFragment extends Fragment {
                 success = false;
             }
             boolean finalSuccess = success;
-            if (activity == null) return;
             activity.runOnUiThread(() -> {
-                View snackbarAnchor = activity.findViewById(android.R.id.content);
                 if (finalSuccess) {
-                    cacheSizeText.setText(activity.getString(R.string.current_cache_size_zero));
+                    cachePane.setCacheSize(activity.getString(R.string.current_cache_size_zero));
                     if (cacheCard != null) cacheCard.setValue("0 B");
-                    showCustomSnackbar(snackbarAnchor, activity, activity.getString(R.string.snack_cache_cleared));
+                    showCustomSnackbar(activity, activity.getString(R.string.snack_cache_cleared));
                 } else {
-                    showCustomSnackbar(snackbarAnchor, activity, activity.getString(R.string.snack_cache_clear_partial_failed));
+                    showCustomSnackbar(activity, activity.getString(R.string.snack_cache_clear_partial_failed));
                 }
             });
         });
@@ -1239,33 +1083,48 @@ public class SettingsFragment extends Fragment {
     }
 
     /**
-     * 检查是否有任务正在运行，如果有则弹窗提示并恢复控件状态。
-     * @return true 表示已拦截（调用方应 return），false 表示可继续
+     * Compose 版拦截：任务运行中弹窗提示，对话框 dismiss 时执行 [revertAction] 回滚 UI 状态。
+     * 回滚动作由调用方以 Runnable 形式给出（Compose 侧没有 View 可 setChecked）。
      */
-    private boolean blockIfTaskRunning(android.widget.CompoundButton buttonView, boolean isChecked) {
+    private boolean blockIfTaskRunning(Runnable revertAction) {
         if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(getString(R.string.dialog_task_running))
-                    .setMessage(getString(R.string.msg_wait_task_finish_settings))
-                    .setPositiveButton(getString(R.string.btn_ok), null)
-                    .setOnDismissListener(dialog -> buttonView.setChecked(!isChecked))
-                    .show();
+            VenusDialogs.confirm(
+                    activity,
+                    activity.getString(R.string.dialog_task_running),
+                    activity.getString(R.string.msg_wait_task_finish_settings),
+                    activity.getString(R.string.btn_ok),
+                    null,
+                    null,
+                    null,
+                    revertAction);
             return true;
         }
         return false;
     }
 
+    /** 森空岛子项勾选态回写（任务运行中弹窗 dismiss 时的回滚入口）。 */
+    private void setSklandSubItemChecked(int index, boolean checked) {
+        if (index == SklandSettingPaneKt.SKLAND_INDEX_ARKNIGHTS) sklandPane.setArknightsChecked(checked);
+        else if (index == SklandSettingPaneKt.SKLAND_INDEX_ENDFIELD) sklandPane.setEndfieldChecked(checked);
+    }
+
+    /** 国际服隐藏游戏签到里不支持的游戏（崩坏2 / 未定事件簿）。 */
+    private void setOverseaChipsVisible(GameDailySettingPaneView gamePane, boolean visible) {
+        gamePane.setChipVisible(GameDailySettingPaneKt.GAME_CHIP_INDEX_HR2, visible);
+        gamePane.setChipVisible(GameDailySettingPaneKt.GAME_CHIP_INDEX_WEIDING, visible);
+    }
+
     /** 折叠行值摘要：positive 时用语义成功色，否则回退次要色。 */
-    private void setCardValue(CollapsibleCardView card, CharSequence value, boolean positive) {
+    private void setCardValue(SettingsCard card, CharSequence value, boolean positive) {
         if (card == null) return;
         card.setValue(value);
         card.setValueColor(positive
-                ? ContextCompat.getColor(requireContext(), com.muxiao.Venus.R.color.status_success)
+                ? ContextCompat.getColor(activity, com.muxiao.Venus.R.color.status_success)
                 : 0);
     }
 
     private void updateDailyCardValue(boolean enabled) {
-        setCardValue(dailyCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+        setCardValue(dailyCard, activity.getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 
     /** 游戏签到行值：已开启游戏数 / 总数（设计稿：4/5 已开启）。 */
@@ -1278,61 +1137,58 @@ public class SettingsFragment extends Fragment {
         int enabled = 0;
         for (String[] d : defs)
             if (sharedPreferences.getBoolean(d[0], Boolean.parseBoolean(d[1]))) enabled++;
-        setCardValue(gameDailyCard, getString(R.string.game_enabled_fmt, enabled, defs.length), enabled > 0);
+        setCardValue(gameDailyCard, activity.getString(R.string.game_enabled_fmt, enabled, defs.length), enabled > 0);
     }
 
     private void updateNotificationCardValue(boolean enabled) {
-        setCardValue(notificationCard, getString(enabled ? R.string.value_on : R.string.value_off), enabled);
+        setCardValue(notificationCard, activity.getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 
     /** 刷新电池优化豁免行的值：已豁免=成功绿，未豁免=警告黄。 */
-    private void updateBatteryOptValue(View notificationView) {
-        MaterialTextView value = notificationView.findViewById(R.id.battery_opt_value);
-        boolean exempted = BatteryHelper.isIgnoringBatteryOptimizations(requireContext());
-        value.setText(getString(exempted
-                ? R.string.battery_exempted_value : R.string.battery_not_exempted_value));
-        value.setTextColor(ContextCompat.getColor(requireContext(), exempted
+    public void updateBatteryOptValue() {
+        boolean exempted = BatteryHelper.isIgnoringBatteryOptimizations(activity);
+        String text = activity.getString(exempted
+                ? R.string.battery_exempted_value : R.string.battery_not_exempted_value);
+        notificationPane.setBatteryValue(text, ContextCompat.getColor(activity, exempted
                 ? com.muxiao.Venus.R.color.status_success
                 : com.muxiao.Venus.R.color.status_warning));
     }
 
     /** 刷新定时签到时间行的时间值（每天 HH:mm，值取自 settings_prefs；行内含图标/标签/箭头）。 */
-    private void updateScheduledTimeLabel(View row) {
-        MaterialTextView value = row.findViewById(R.id.scheduled_task_time_value);
-        int[] time = DailyTaskScheduler.getConfiguredTime(requireContext());
-        value.setText(getString(R.string.scheduled_task_time_fmt,
+    private void updateScheduledTimeLabel() {
+        int[] time = DailyTaskScheduler.getConfiguredTime(activity);
+        notificationPane.setScheduledTimeText(activity.getString(R.string.scheduled_task_time_fmt,
                 String.format(Locale.US, "%02d:%02d", time[0], time[1])));
     }
 
     private void updateSklandCardValue(boolean enabled) {
-        setCardValue(sklandCard, getString(enabled ? R.string.value_enabled : R.string.value_disabled), enabled);
+        setCardValue(sklandCard, activity.getString(enabled ? R.string.value_enabled : R.string.value_disabled), enabled);
     }
 
     private void updateUpdateCardValue(boolean auto) {
-        setCardValue(updateCard, getString(auto ? R.string.update_value_auto : R.string.update_value_manual), false);
+        setCardValue(updateCard, activity.getString(auto ? R.string.update_value_auto : R.string.update_value_manual), false);
     }
 
     private void updateServerCardValue(boolean isCn) {
-        setCardValue(serverCard, getString(isCn ? R.string.server_cn : R.string.server_os), false);
+        setCardValue(serverCard, activity.getString(isCn ? R.string.server_cn : R.string.server_os), false);
     }
 
     /** 主题行值：主题名 · 深浅名（设计稿：蓝色 · 浅色）。 */
     private void updateThemeCardValue() {
         if (themeCard == null) return;
-        SharedPreferences themePreferences = requireActivity().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int theme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
         int variant = themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
         String[] names = {
-                getString(R.string.theme_dynamic), getString(R.string.theme_blue),
-                getString(R.string.theme_green), getString(R.string.theme_red), getString(R.string.theme_yellow),
-                getString(R.string.theme_cyan), getString(R.string.theme_purple)
+                activity.getString(R.string.theme_dynamic), activity.getString(R.string.theme_blue),
+                activity.getString(R.string.theme_green), activity.getString(R.string.theme_red), activity.getString(R.string.theme_yellow),
+                activity.getString(R.string.theme_cyan), activity.getString(R.string.theme_purple)
         };
         String[] variants = {
-                getString(R.string.theme_follow), getString(R.string.theme_light), getString(R.string.theme_dark)
+                activity.getString(R.string.theme_follow), activity.getString(R.string.theme_light), activity.getString(R.string.theme_dark)
         };
         String name = names[theme >= 0 && theme < names.length ? theme : 0];
         String mode = variants[variant >= 0 && variant < variants.length ? variant : 0];
-        setCardValue(themeCard, getString(R.string.theme_value_fmt, name, mode), false);
+        setCardValue(themeCard, activity.getString(R.string.theme_value_fmt, name, mode), false);
     }
-
 }

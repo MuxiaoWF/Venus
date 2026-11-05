@@ -8,16 +8,13 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.snackbar.Snackbar;
-import com.google.android.material.textview.MaterialTextView;
+import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.VenusSnackbar;
 import com.google.gson.Gson;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.common.ui.LensGlassDrawable;
 import com.muxiao.Venus.VenusApplication;
 import com.muxiao.Venus.common.data.UserRepository;
 
@@ -27,9 +24,7 @@ import android.provider.Settings;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 
-import androidx.fragment.app.Fragment;
 
-import com.google.android.material.transition.MaterialSharedAxis;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -312,42 +307,30 @@ public class tools {
     }
 
     /**
-     * 显示居中、带 M3 主题配色与内边距的自定义 Snackbar（短时长自动消失）。
+     * 显示居中、短时长自动消失的提示条。
      *
-     * <p>配色（表面色 / 文本 / 动作按钮）与圆角全部由主题的
-     * {@code snackbarStyle} / {@code snackbarTextViewStyle} / {@code snackbarButtonStyle}
-     * 承载（见 Theme.Venus 与 Widget.Venus.Snackbar*），本方法只保留
-     * 居中、留白、短时长这类"布局行为"，不再逐层覆盖 hardcode 颜色。
+     * <p>已由 Material View 的 {@code Snackbar} 迁到 Compose（{@link VenusSnackbar}）：
+     * 颜色/圆角/字号/内边距/最多三行/底部 64dp 全部由宿主侧承担，
+     * 本方法只做「业务消息 → 当前活跃页面宿主」的转发。
+     *
+     * <p>参数 {@code view}/{@code context} 为历史签名保留（50+ 处调用点零改动）；
+     * 新代码直接调 {@link VenusSnackbar#show(String)} 即可。
      */
+    @SuppressWarnings("unused") // view/context 为历史签名保留（50+ 调用点零改动），实际仅转发 message
     public static void showCustomSnackbar(View view, Context context, String message) {
-        Snackbar snackbar = Snackbar.make(view, message, Snackbar.LENGTH_SHORT);
-        View snackbarView = snackbar.getView();
+        VenusSnackbar.show(message);
+    }
 
-        // 文本居中 + 最多三行（颜色/字号走 snackbarTextViewStyle）
-        MaterialTextView textView = snackbarView.findViewById(com.google.android.material.R.id.snackbar_text);
-        if (textView != null) {
-            textView.setGravity(android.view.Gravity.CENTER);
-            textView.setMaxLines(3);
-        }
-
-        // 阴影和内边距
-        snackbarView.setElevation(4f);
-        float density = context.getResources().getDisplayMetrics().density;
-        int h = (int) (12 * density);
-        int v = (int) (6 * density);
-        snackbarView.setPadding(h, v, h, v);
-
-        // 居中显示，留出底部间距
-        android.view.ViewGroup.LayoutParams lp = snackbarView.getLayoutParams();
-        lp.width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-        if (lp instanceof android.widget.FrameLayout.LayoutParams) {
-            android.widget.FrameLayout.LayoutParams flp = (android.widget.FrameLayout.LayoutParams) lp;
-            flp.gravity = android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM;
-            flp.bottomMargin = (int) (64 * density);
-        }
-        snackbarView.setLayoutParams(lp);
-
-        snackbar.show();
+    /**
+     * 显示提示条（推荐签名）。
+     *
+     * <p>Compose 宿主自己决定落点，调用方不再需要传锚点 View——原
+     * {@code findViewById(android.R.id.content)} 那一套已无意义，新代码与
+     * 清理过锚点字段的旧代码都走这里。
+     */
+    @SuppressWarnings("unused") // context 为历史签名保留，实际仅转发 message
+    public static void showCustomSnackbar(Context context, String message) {
+        VenusSnackbar.show(message);
     }
 
     /**
@@ -366,23 +349,25 @@ public class tools {
      * @param error_message 错误信息
      */
     public static void show_error_dialog(Context context, String title, String error_message) {
-        // 直接使用调用方的 Activity 上下文：与全应用其它 MaterialAlertDialogBuilder 用法一致，
-        // 保留主题（含动态取色）的对话框样式。此前的 ContextThemeWrapper 强制套用
-        // Material3_DayNight_NoActionBar，会丢掉动态取色与品牌对话框样式。
-        new MaterialAlertDialogBuilder(context)
-                .setTitle(title)
-                .setMessage(error_message)
-                .setPositiveButton(context.getString(R.string.btn_copy_error), (dialog, which) -> {
+        // 对话框必须有 Activity 窗口承载（Compose 对话框经 ComponentDialog 挂 Activity）。
+        // Service / Application 上下文既无窗口 token，也给不了 LifecycleOwner。
+        // 历史实现在此回退 MaterialAlertDialogBuilder —— 那会在 show() 时抛
+        // BadTokenException（非 Activity 无法添加窗口），是「不可达且必崩」的死分支。
+        // 现在统一降级为记日志：后台任务的错误留在日志里可排查，不制造二次崩溃。
+        if (!(context instanceof Activity)) {
+            Logger.w("show_error_dialog 无 UI 宿主（" + context.getClass().getSimpleName()
+                    + "），错误仅记录：" + title + " / " + error_message);
+            return;
+        }
+        Activity activity = (Activity) context;
+        VenusDialogs.confirm(activity, title, error_message,
+                context.getString(R.string.btn_copy_error), () -> {
                     ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                     ClipData clip = ClipData.newPlainText(context.getString(R.string.error_label), error_message);
                     clipboard.setPrimaryClip(clip);
-                    if (context instanceof Activity) {
-                        View rootView = ((Activity) context).findViewById(android.R.id.content);
-                        showCustomSnackbar(rootView, context, context.getString(R.string.snack_error_copied));
-                    }
-                })
-                .setNegativeButton(context.getString(R.string.btn_close), null)
-                .show();
+                    showCustomSnackbar(context, context.getString(R.string.snack_error_copied));
+                },
+                context.getString(R.string.btn_close));
     }
 
     /**
@@ -393,11 +378,14 @@ public class tools {
      * @param message 提示信息
      */
     public static void show_warning_dialog(Context context, String message) {
-        new MaterialAlertDialogBuilder(context)
-                .setTitle(context.getString(R.string.dialog_hint))
-                .setMessage(message)
-                .setPositiveButton(context.getString(R.string.btn_close), null)
-                .show();
+        if (!(context instanceof Activity)) {
+            Logger.w("show_warning_dialog 无 UI 宿主（" + context.getClass().getSimpleName()
+                    + "），提示仅记录：" + message);
+            return;
+        }
+        VenusDialogs.info((Activity) context,
+                context.getString(R.string.dialog_hint), message,
+                context.getString(R.string.btn_close));
     }
 
     /**
@@ -472,7 +460,7 @@ public class tools {
             if (files != null) {
                 for (File file : files) {
                     if (file.isFile() && file.getName().startsWith("daily_task_log_") && !file.getName().startsWith(todayPrefix)) {
-                        file.delete();
+                        if (!file.delete()) Logger.w("清理过期日志失败：" + file.getAbsolutePath());
                     }
                 }
             }
@@ -488,7 +476,7 @@ public class tools {
             if (historyFiles != null) {
                 for (File file : historyFiles) {
                     if (!file.getName().equals(todayLog) && !file.getName().equals(yesterdayLog)) {
-                        file.delete();
+                        if (!file.delete()) Logger.w("清理历史日志失败：" + file.getAbsolutePath());
                     }
                 }
             }
@@ -526,7 +514,9 @@ public class tools {
      */
     public static File getTodayLogFile(Context context) {
         File logDir = logDir(context);
-        if (!logDir.exists()) logDir.mkdirs();
+        if (!logDir.exists() && !logDir.mkdirs()) {
+            Logger.w("创建日志目录失败：" + logDir.getAbsolutePath());
+        }
         String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
         return new File(logDir, "daily_task_log_" + date + ".txt");
     }
@@ -623,88 +613,6 @@ public class tools {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /**
-     * 背景图玻璃感收口：设置了背景图片时，把布局中标记 android:tag="glass" 的视图
-     * （液态玻璃 chip/表面行——自带 rim/高光半透明层）背景整体再降一档透明度，
-     * 让背景图透出更多、玻璃感更强；无背景图时恢复 255 保持原生质感。
-     * 各 Fragment 在 inflate 后调用一次。
-     * 注意：① 同一 drawable 资源在各视图间共享 ConstantState，必须 mutate() 后再 setAlpha；
-     * 液态玻璃 drawable 为多层 LayerDrawable，部分实现的整体 setAlpha 不向子层传播，
-     * 故逐层施加保证 rim/填充/高光同步衰减。
-     * ② 背景已被 {@link LensGlassDrawable} 接管的视图直接跳过——透镜的模糊底衬 +
-     * 光边即最终观感，叠加透明度会双重淡化。
-     */
-    public static void applyGlassAlpha(Context context, View root) {
-        boolean hasBackground = context.getSharedPreferences(
-                        Constants.Prefs.BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
-                .contains(Constants.Prefs.BACKGROUND_IMAGE_URI);
-        int alpha = hasBackground
-                ? context.getResources().getInteger(R.integer.surface_glass_alpha)
-                : 255;
-        applyGlassAlphaRecursive(root, alpha);
-    }
-
-    private static void applyGlassAlphaRecursive(View view, int alpha) {
-        if ("glass".equals(view.getTag())) {
-            android.graphics.drawable.Drawable bg = view.getBackground();
-            if (bg != null && !(bg instanceof LensGlassDrawable)) {
-                bg = bg.mutate();
-                if (bg instanceof android.graphics.drawable.LayerDrawable) {
-                    android.graphics.drawable.LayerDrawable ld =
-                            (android.graphics.drawable.LayerDrawable) bg;
-                    for (int i = 0; i < ld.getNumberOfLayers(); i++) {
-                        android.graphics.drawable.Drawable layer = ld.getDrawable(i);
-                        if (layer != null) layer.setAlpha(alpha);
-                    }
-                } else {
-                    bg.setAlpha(alpha);
-                }
-            }
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                applyGlassAlphaRecursive(group.getChildAt(i), alpha);
-            }
-        }
-    }
-
-    /**
-     * 为 Fragment 设置 M3 MaterialSharedAxis 页面转场（X 轴水平滑入），
-     * 时长取 motion_duration_long，并自动尊重系统「减少动态效果」。
-     */
-    public static void setupFragmentTransitions(Fragment fragment) {
-        if (isReducedMotionEnabled(fragment.requireContext()))
-            return;
-        int duration = fragment.getResources().getInteger(R.integer.motion_duration_long);
-        // M3 方向性缓动：进入（enter/reenter）用 emphasized-decelerate，
-        // 退出（exit/return）用 emphasized-accelerate
-        MaterialSharedAxis enterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
-        enterTransition.setInterpolator(
-                android.view.animation.AnimationUtils.loadInterpolator(
-                        fragment.requireContext(), R.anim.emphasized_decelerate));
-        MaterialSharedAxis exitTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
-        exitTransition.setInterpolator(
-                android.view.animation.AnimationUtils.loadInterpolator(
-                        fragment.requireContext(), R.anim.emphasized_accelerate));
-        MaterialSharedAxis reenterTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
-        reenterTransition.setInterpolator(
-                android.view.animation.AnimationUtils.loadInterpolator(
-                        fragment.requireContext(), R.anim.emphasized_decelerate));
-        MaterialSharedAxis returnTransition = new MaterialSharedAxis(MaterialSharedAxis.X, true);
-        returnTransition.setInterpolator(
-                android.view.animation.AnimationUtils.loadInterpolator(
-                        fragment.requireContext(), R.anim.emphasized_accelerate));
-        enterTransition.setDuration(duration);
-        exitTransition.setDuration(duration);
-        reenterTransition.setDuration(duration);
-        returnTransition.setDuration(duration);
-        fragment.setEnterTransition(enterTransition);
-        fragment.setExitTransition(exitTransition);
-        fragment.setReenterTransition(reenterTransition);
-        fragment.setReturnTransition(returnTransition);
     }
 
     /**

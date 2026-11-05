@@ -9,20 +9,11 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.view.MotionEvent;
-import android.view.View;
-import android.widget.ImageView;
-import android.widget.ScrollView;
 
 import androidx.activity.EdgeToEdge;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textview.MaterialTextView;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.zxing.BarcodeFormat;
@@ -40,7 +31,6 @@ import com.muxiao.Venus.common.tools;
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -61,15 +51,10 @@ public class UserLoginActivity extends BaseActivity {
     /** 登录方式：账号密码 */
     private static final int MODE_PASSWORD = 1;
 
-    private TextInputEditText username_input;
-    private TextInputEditText account_input;
-    private TextInputEditText password_input;
-    private View password_login_group;
-    private MaterialButton login_btn;
+    /** Compose 版页面宿主：输入框 / 二维码 / 状态日志都在这里。 */
+    private com.muxiao.Venus.common.ui.compose.UserLoginScreenView pane;
     private UserManager user_manager;
     private String username;
-    private ImageView login_qr_code_image;
-    private View login_qr_card;
     private ExecutorService executor_service;
     private tools.StatusNotifier status_notifier;
     private boolean relogin_mode = false; // 是否为重新登录模式
@@ -81,7 +66,8 @@ public class UserLoginActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         // 应用选定的主题（含换肤 overlay）
         SettingsFragment.applyAppTheme(this);
-        setContentView(R.layout.activity_user_login);
+        pane = new com.muxiao.Venus.common.ui.compose.UserLoginScreenView(this);
+        setContentView(pane);
 
         // 设置状态栏
         EdgeToEdge.enable(this);
@@ -95,82 +81,37 @@ public class UserLoginActivity extends BaseActivity {
         relogin_mode = intent.getBooleanExtra("RELOGIN_MODE", false);
         relogin_username = intent.getStringExtra("USERNAME");
 
-        username_input = findViewById(R.id.username_input);
-        account_input = findViewById(R.id.account_input);
-        password_input = findViewById(R.id.password_input);
-        password_login_group = findViewById(R.id.password_login_group);
-        login_btn = findViewById(R.id.login_btn);
-        MaterialTextView login_status_text = findViewById(R.id.login_status_text);
-        ScrollView login_scroll_view = findViewById(R.id.login_scroll_view);
-        login_qr_code_image = findViewById(R.id.login_qr_code_image);
-        login_qr_card = findViewById(R.id.login_qr_card);
+        // 状态栏内边距由 Compose 的 statusBarsPadding 处理
+        pane.setOnBackClickListener(this::finish);
 
-        com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.user_login_toolbar);
-        toolbar.setNavigationOnClickListener(v -> finish());
-
-        // 处理状态栏内边距
-        ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            v.setPadding(v.getPaddingLeft(), statusBarHeight,
-                    v.getPaddingRight(), v.getPaddingBottom());
-            return insets;
-        });
-
-        // 如果是重新登录模式，自动填充用户名并隐藏输入框
-        if (relogin_mode && relogin_username != null) {
-            username_input.setText(relogin_username);
-            username_input.setEnabled(false);
-            username_input.setVisibility(View.GONE);
-            login_btn.setText(getString(R.string.login_relogin_button, relogin_username));
-        }
+        // 如果是重新登录模式，用户名固定展示在按钮上并隐藏输入框
+        if (relogin_mode && relogin_username != null)
+            pane.setRelogin(relogin_username);
 
         // 登录方式切换：账号密码登录仅国服可用，国际服隐藏切换入口
         // 国服默认使用账号密码登录
-        com.google.android.material.tabs.TabLayout login_mode_tabs = findViewById(R.id.login_mode_tabs);
+        // 登录方式切换：账号密码登录仅国服可用，国际服隐藏切换入口
         if (MiHoYoBBSConstants.is_oversea(this)) {
-            findViewById(R.id.login_mode_card).setVisibility(View.GONE);
+            pane.setOversea(true);
             applyLoginMode(MODE_QRCODE);
         } else {
-            login_mode_tabs.addOnTabSelectedListener(
-                    new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
-                        @Override
-                        public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
-                            applyLoginMode(tab.getPosition());
-                        }
-
-                        @Override
-                        public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {
-                        }
-
-                        @Override
-                        public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {
-                        }
-                    });
-            // 默认选中「账号密码」页签，select() 会触发 onTabSelected → applyLoginMode 联动 UI
-            Objects.requireNonNull(login_mode_tabs.getTabAt(MODE_PASSWORD)).select();
+            pane.setOnModeSelectListener(this::applyLoginMode);
+            // 国服默认「账号密码」登录
+            applyLoginMode(MODE_PASSWORD);
         }
 
         // Notifier更新信息
         status_notifier = new tools.StatusNotifier();
-        status_notifier.addListener(status -> runOnUiThread(() -> {
-            login_status_text.append(status);
-            // 滚动到底部
-            login_scroll_view.post(() -> login_scroll_view.fullScroll(View.FOCUS_DOWN));
-        }));
-        login_btn.setOnClickListener(v -> {
-            login_status_text.setText("");
+        // 日志追加与自动滚底都在 Compose 侧完成
+        status_notifier.addListener(status -> runOnUiThread(() -> pane.appendLog(status)));
+        pane.setOnLoginClickListener(() -> {
+            pane.clearLog();
             handleLogin();
         });
-        // 回车开始执行
-        username_input.setOnEditorActionListener((v, actionId, event) -> {
-            login_status_text.setText("");
+        // 软键盘「完成 / 下一步」同样触发登录
+        pane.setOnSubmitListener(() -> {
+            pane.clearLog();
             handleLogin();
-            return true;
-        });
-        password_input.setOnEditorActionListener((v, actionId, event) -> {
-            login_status_text.setText("");
-            handleLogin();
-            return true;
         });
     }
 
@@ -179,21 +120,13 @@ public class UserLoginActivity extends BaseActivity {
      */
     private void applyLoginMode(int mode) {
         login_mode = mode;
-        boolean isPassword = mode == MODE_PASSWORD;
-        password_login_group.setVisibility(isPassword ? View.VISIBLE : View.GONE);
-        // 切走扫码模式时收起已生成的二维码卡片，避免残留旧 ticket
-        if (isPassword)
-            setQrVisible(false);
-        if (!relogin_mode)
-            login_btn.setText(isPassword ? getString(R.string.login_tab_password) : getString(R.string.login));
+        // 输入区显隐、按钮文案（含重登录文案）、二维码收起都由 Compose 侧依 loginMode 派生
+        pane.setLoginMode(mode);
     }
 
-    /** 统一控制扫码卡片（含二维码图与提示）的显隐，避免旧二维码残留 */
-    private void setQrVisible(boolean visible) {
-        if (login_qr_card != null)
-            login_qr_card.setVisibility(visible ? View.VISIBLE : View.GONE);
-        if (login_qr_code_image != null)
-            login_qr_code_image.setVisibility(visible ? View.VISIBLE : View.GONE);
+    /** 统一收起扫码卡片（含二维码图与提示），避免旧二维码残留；显示走 pane.setQrVisible(true)。 */
+    private void setQrVisible() {
+        pane.setQrVisible(false);
     }
 
     /**
@@ -201,7 +134,7 @@ public class UserLoginActivity extends BaseActivity {
      * 最后按当前登录方式（扫码/密码）提交 LoginTask 执行。
      */
     private void handleLogin() {
-        username = Objects.requireNonNull(username_input.getText()).toString().trim();
+        username = pane.getUsername().trim();
         boolean isOversea = MiHoYoBBSConstants.is_oversea(this);
 
         if (username.isEmpty()) {
@@ -213,8 +146,8 @@ public class UserLoginActivity extends BaseActivity {
                 status_notifier.notifyListeners(getString(R.string.login_password_only_cn));
                 return;
             }
-            String account = Objects.requireNonNull(account_input.getText()).toString().trim();
-            String password = Objects.requireNonNull(password_input.getText()).toString();
+            String account = pane.getAccount().trim();
+            String password = pane.getPassword();
             if (account.isEmpty() || password.isEmpty()) {
                 status_notifier.notifyListeners(getString(R.string.login_input_account));
                 return;
@@ -239,10 +172,8 @@ public class UserLoginActivity extends BaseActivity {
 
         change_component_status(false);
         // 明文账号密码仅在本次任务的内存中传递，不写入任何持久化存储
-        String account = login_mode == MODE_PASSWORD
-                ? Objects.requireNonNull(account_input.getText()).toString().trim() : null;
-        String password = login_mode == MODE_PASSWORD
-                ? Objects.requireNonNull(password_input.getText()).toString() : null;
+        String account = login_mode == MODE_PASSWORD ? pane.getAccount().trim() : null;
+        String password = login_mode == MODE_PASSWORD ? pane.getPassword() : null;
         LoginTask login_task = new LoginTask(this, login_mode, account, password);
         executor_service.execute(login_task);
     }
@@ -251,12 +182,8 @@ public class UserLoginActivity extends BaseActivity {
      * 登录进行中禁用输入与按钮、完成后恢复，避免重复提交。
      */
     private void change_component_status(Boolean status) {
-        login_btn.setEnabled(status);
-        username_input.setEnabled(status);
-        username_input.setFocusable(status);
-        username_input.setFocusableInTouchMode(status);
-        account_input.setEnabled(status);
-        password_input.setEnabled(status);
+        // 按钮与三个输入框的可用态统一由宿主状态驱动
+        pane.setInputsEnabled(status);
     }
 
     @Override
@@ -268,15 +195,10 @@ public class UserLoginActivity extends BaseActivity {
         // 移除监听器
         if (status_notifier != null)
             status_notifier.removeAllListeners();
-        // 清理二维码图片资源
-        if (login_qr_code_image != null) {
-            setQrVisible(false);
-            BitmapDrawable drawable = (BitmapDrawable) login_qr_code_image.getDrawable();
-            if (drawable != null) {
-                Bitmap bitmap = drawable.getBitmap();
-                if (bitmap != null && !bitmap.isRecycled())
-                    bitmap.recycle();
-            }
+        // 清理二维码图片资源：先解绑再回收，避免 Compose 侧仍持有已回收的 Bitmap
+        if (pane != null) {
+            pane.setQrVisible(false);
+            pane.setQrBitmap(null);
         }
     }
 
@@ -319,7 +241,7 @@ public class UserLoginActivity extends BaseActivity {
                 status_notifier.notifyListeners("\n" + getString(R.string.dialog_error) + ": " + error_message + "\n\n" + getString(R.string.login_failed) + "\n");
                 runOnUiThread(() -> {
                     change_component_status(true);
-                    setQrVisible(false);
+                    setQrVisible();
                 });
             }
         }
@@ -333,8 +255,8 @@ public class UserLoginActivity extends BaseActivity {
             runOnUiThread(() -> {
                 // 显示二维码
                 Bitmap qr_code_bitmap = BitmapFactory.decodeByteArray(qr_code_data, 0, qr_code_data.length);
-                login_qr_code_image.setImageBitmap(qr_code_bitmap);
-                setQrVisible(true);
+                pane.setQrBitmap(qr_code_bitmap);
+                pane.setQrVisible(true);
             });
             status_notifier.notifyListeners(getString(R.string.login_qr_generated));
             // 循环检查登录状态
@@ -375,9 +297,9 @@ public class UserLoginActivity extends BaseActivity {
             // 存储服务器类型
             tools.write(context, username, "server_type", isOversea ? "1" : "0");
             runOnUiThread(() -> {
-                setQrVisible(false);
+                setQrVisible();
                 // 清空密码输入，避免明文长期驻留界面
-                if (password_input != null) password_input.setText("");
+                pane.clearPassword();
                 // 如果是重新登录模式，则更新现有用户的token
                 if (relogin_mode && relogin_username != null) {
                     // 设置当前用户为重新登录的用户

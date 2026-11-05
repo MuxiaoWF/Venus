@@ -5,7 +5,6 @@
     <string name="about_license">License: GPL-3.0</string>
     <string name="about_version">Version %s</string>
     <string name="add_or_login_user">Add / Login User</string>
-    <string name="author_name">Author Name</string>
     <string name="content_description_back">Back</string>
     <string name="auto_check_update">Auto Check Updates</string>
     <string name="auto_check_update_desc">Automatically check for new versions every three days</string>
@@ -24,7 +23,10 @@
     <string name="cache">Cache</string>
     <string name="cancel_task">Cancel Task</string>
     <string name="retry_failed_tasks">Retry Failed Tasks</string>
-    <string name="retry_failed_count_fmt">%d failed</string>
+    <plurals name="retry_failed_count">
+        <item quantity="one">%d failed</item>
+        <item quantity="other">%d failed</item>
+    </plurals>
     <string name="check_update_github">Check Updates - Github</string>
     <string name="check_update_pan">Cloud Update Password: mxwf</string>
     <string name="clear_background">Clear Background</string>
@@ -39,10 +41,7 @@
     <string name="current_config_value">Current config value:</string>
     <string name="dabieye">Dabieye</string>
     <string name="daily_tasks_title">Daily Tasks</string>
-    <string name="default_description">Detailed description</string>
-    <string name="default_title">Title</string>
 
-    <string name="download">Download</string>
     <string name="download_image">Download Image</string>
     <string name="enable_background_running">Enable Background Running</string>
     <!-- Scheduled sign-in -->
@@ -73,8 +72,6 @@
     <string name="home_footer_note">Add a user in User Management first · If sign-in fails, update config in Settings → Config Info (no need to update often)</string>
     <string name="honkai_impact_2">Honkai 2</string>
     <string name="honkai_impact_3">Honkai Impact 3rd</string>
-    <string name="image">Image</string>
-    <string name="image_title">Image Title</string>
     <string name="image_type">Image Type</string>
     <string name="login">Login</string>
     <string name="login_log">Login Log</string>
@@ -88,7 +85,6 @@
     <string name="nav_home">Home</string>
     <string name="nav_settings">Settings</string>
     <string name="nav_user_management">User Management</string>
-    <string name="no_user_prompt">No users yet\nTap the + button at bottom right to add a new user</string>
     <string name="re_login">Re-login</string>
     <string name="refresh_tip">Avoid refreshing too frequently</string>
     <string name="rename">Rename</string>
@@ -131,7 +127,7 @@
     <string name="vpn_capture_updating">Init key missing, updating key table from cloud, capture continues…</string>
     <string name="vpn_capture_failed_key">Capture failed: the current game version is not yet in the cloud key table, please retry later</string>
     <string name="vpn_authkey_captured">HSR gacha link captured (%s), copied to clipboard</string>
-    <string name="msg_capture_battery_hint">Capture relies on persistent background networking. System/vendor power-saving policies (e.g. ColorOS background controls) may cut the capture network after the screen turns off or the app goes to background, causing game disconnects or even crashes.\n\nHow to: on the next settings page, set this app to \"Unrestricted\" and allow background activity — on ColorOS, enable \"Allow full background behaviour\" under App info → Power consumption management.\n\nCome back to the app after that to continue capturing.</string>
+    <string name="msg_capture_battery_hint">Capture relies on persistent background networking. System/vendor power-saving policies (e.g. ColorOS background controls) may cut the capture network after the screen turns off or the app goes to background, causing game disconnects or even crashes.\n\nHow to: on the next settings page, set this app to \"Unrestricted\" and allow background activity — on ColorOS, enable \"Allow full background behavior\" under App info → Power consumption management.\n\nCome back to the app after that to continue capturing.</string>
     <string name="battery_request_positive">Exempt</string>
     <string name="battery_start_anyway">Start anyway</string>
     <string name="battery_row_label">Battery optimization exemption</string>
@@ -196,11 +192,8 @@
     <string name="type">Type</string>
     <string name="update">Update</string>
     <string name="update_config">Update Config</string>
-    <string name="user_list">User List</string>
     <string name="user_login_title">User Login</string>
-    <string name="user_management_subtitle">Manage logged-in accounts</string>
     <string name="user_management_title">User Management</string>
-    <string name="user_name">Username</string>
     <string name="username_hint">Username (UID recommended)</string>
     <string name="view_log">View Log</string>
     <string name="view_miyoushe_ranking">View Miyoushe Rankings</string>
@@ -582,4 +575,6 @@
     <string name="snack_avatar_saved">Avatar updated</string>
     <string name="err_avatar_save_failed">Failed to save avatar, please try again</string>
 
+    <string name="password_show">Show password</string>
+    <string name="password_hide">Hide password</string>
 </resources>

@@ -116,11 +116,11 @@ public class TaskWidgetProvider extends AppWidgetProvider {
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId));
 
         // 底部统计信息（状态按用户分桶：展示目标用户——当前选中，兜底最后运行——的完成情况）
-        String[] taskNames = snapshot.taskNames.toArray(new String[0]);
         int completed = snapshot.completedCount();
+        int taskCount = snapshot.taskNames.size();
         views.setTextViewText(R.id.widget_summary,
                 context.getResources().getQuantityString(
-                        R.plurals.widget_task_summary, completed, completed, taskNames.length));
+                        R.plurals.widget_task_summary, completed, completed, taskCount));
         // 日期 chip 显示状态归属日（status_date）而非渲染时刻：任务状态按日重置，
         // 归属日才是这组 ✓/✗ 的语义日期。status_date 格式固定 yyyy-MM-dd，直接截取 MM/dd 段
         String statusDate = snapshot.statusDate;
@@ -223,7 +223,7 @@ public class TaskWidgetProvider extends AppWidgetProvider {
                     statusDate, languageTag);
         }
 
-        /** 统计快照内「已完成」的任务数（与 getCompletedCount 同口径：键序按任务名集合）。 */
+        /** 统计快照内「已完成」的任务数（键序按任务名集合）。 */
         int completedCount() {
             int count = 0;
             for (String name : taskNames)

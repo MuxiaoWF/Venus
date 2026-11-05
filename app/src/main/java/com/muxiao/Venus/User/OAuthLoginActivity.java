@@ -8,25 +8,16 @@ import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.view.MotionEvent;
-import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ProgressBar;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AlertDialog;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textfield.TextInputLayout;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.tools;
 
-import java.util.Objects;
 
 /**
  * 国际服用户登录：通过WebView访问HoYoLAB，自动轮询Cookie获取登录凭证。
@@ -43,15 +34,16 @@ public class OAuthLoginActivity extends BaseActivity {
     private String relogin_username;
 
     private WebView oauth_webview;
-    private View oauth_webview_card;
-    private ProgressBar oauth_webview_progress;
+    /** Compose 版页面宿主：工具栏 / Cookie 卡 / WebView 容器与进度都由它绘制。 */
+    private com.muxiao.Venus.common.ui.compose.OauthLoginScreenView pane;
     private CountDownTimer cookie_polling_timer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         SettingsFragment.applyAppTheme(this);
-        setContentView(R.layout.activity_oauth_login);
+        pane = new com.muxiao.Venus.common.ui.compose.OauthLoginScreenView(this);
+        setContentView(pane);
         EdgeToEdge.enable(this);
 
         user_manager = new UserManager(this);
@@ -59,32 +51,21 @@ public class OAuthLoginActivity extends BaseActivity {
         relogin_mode = getIntent().getBooleanExtra("RELOGIN_MODE", false);
         relogin_username = getIntent().getStringExtra("USERNAME");
 
-        com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.oauth_toolbar);
-        toolbar.setNavigationOnClickListener(v -> finish());
-        ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            v.setPadding(v.getPaddingLeft(), statusBarHeight, v.getPaddingRight(), v.getPaddingBottom());
-            return insets;
-        });
-
+        // 状态栏内边距由 Compose 的 statusBarsPadding 处理（EdgeToEdge 已让出窗口 inset）
+        pane.setOnBackClickListener(this::finish);
         status_notifier = new tools.StatusNotifier();
 
-        oauth_webview_card = findViewById(R.id.oauth_webview_card);
-        oauth_webview = findViewById(R.id.oauth_webview);
-        oauth_webview_progress = findViewById(R.id.oauth_webview_progress);
-
-        findViewById(R.id.btn_cookie_login).setOnClickListener(v -> startCookieCapture());
-        oauth_webview_card.setVisibility(View.GONE);
+        // WebView 由 Compose 容器创建后才存在：就绪即交给 startCookieCapture 配置并加载
+        pane.setOnWebViewCreatedListener(this::startCookieCapture);
     }
 
     // ==================== Cookie 登录 ====================
 
+    // 启动 Cookie 抓取：配置 WebView（强制 https、注入 UA）并清空旧 Cookie，随后加载登录页并开启轮询。
+    // 按钮禁用 / 卡片展开 / 进度条由 Compose 宿主在点击时完成，这里只做 WebView 自身的配置。
     @SuppressLint("SetJavaScriptEnabled")
-    // 启动 Cookie 抓取：配置 WebView（强制 https、注入 UA）并清空旧 Cookie，随后加载登录页并开启轮询
-    private void startCookieCapture() {
-        changeButtonStatus(false);
-        oauth_webview_card.setVisibility(View.VISIBLE);
-
+    private void startCookieCapture(WebView webView) {
+        oauth_webview = webView;
         WebSettings settings = oauth_webview.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -101,7 +82,7 @@ public class OAuthLoginActivity extends BaseActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                oauth_webview_progress.setVisibility(View.GONE);
+                pane.setLoading(false);
             }
         });
 
@@ -127,8 +108,7 @@ public class OAuthLoginActivity extends BaseActivity {
             @Override
             public void onFinish() {
                 runOnUiThread(() -> {
-                    oauth_webview_card.setVisibility(View.GONE);
-                    changeButtonStatus(true);
+                    pane.resetAfterCapture();
                     tools.show_error_dialog(OAuthLoginActivity.this, getString(R.string.cookie_login_failed));
                 });
             }
@@ -138,14 +118,11 @@ public class OAuthLoginActivity extends BaseActivity {
     // Cookie 就绪后的处理：重登录模式直接刷新凭证，否则弹出用户名输入对话框
     private void onCookieObtained(String cookieString) {
         if (cookieString == null || cookieString.isEmpty()) {
-            runOnUiThread(() -> {
-                oauth_webview_card.setVisibility(View.GONE);
-                changeButtonStatus(true);
-            });
+            runOnUiThread(() -> pane.resetAfterCapture());
             return;
         }
 
-        runOnUiThread(() -> oauth_webview_card.setVisibility(View.GONE));
+        runOnUiThread(() -> pane.setWebViewVisible(false));
 
         if (relogin_mode && relogin_username != null) {
             // 经仓储清除缓存 + 旧 SP + DataStore 三处，避免只清旧 SP 时读取仍命中旧凭证
@@ -153,7 +130,7 @@ public class OAuthLoginActivity extends BaseActivity {
             saveCookieUser(relogin_username, cookieString);
             runOnUiThread(() -> {
                 user_manager.setCurrentUser(relogin_username);
-                changeButtonStatus(true);
+                pane.setCookieButtonEnabled(true);
             });
         } else {
             runOnUiThread(() -> showUsernameDialog(cookieString));
@@ -161,40 +138,34 @@ public class OAuthLoginActivity extends BaseActivity {
     }
 
     // 弹出对话框让用户输入用户名，校验唯一性后保存 Cookie 用户
+    // （Compose 版输入框：校验不通过就地显示错误并保持对话框打开，与原 input.setError 等价）
     private void showUsernameDialog(String cookieString) {
-        TextInputLayout inputLayout = new TextInputLayout(this);
-        inputLayout.setHint(getString(R.string.username_hint));
-        TextInputEditText input = new TextInputEditText(this);
-        inputLayout.addView(input);
-        int padding = (int) (getResources().getDisplayMetrics().density * 20);
-        inputLayout.setPadding(padding, padding, padding, 0);
-
-        AlertDialog dialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle(getString(R.string.oauth_login_title))
-                .setMessage(getString(R.string.oauth_set_username))
-                .setView(inputLayout)
-                .setPositiveButton(getString(R.string.login), null)
-                .setNegativeButton(getString(R.string.cancel_task), null)
-                .setCancelable(false)
-                .show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String username = Objects.requireNonNull(input.getText()).toString().trim();
-            if (username.isEmpty()) {
-                input.setError(getString(R.string.username_hint));
-                return;
-            }
-            if (user_manager.getUsers().containsKey(username)) {
-                input.setError(getString(R.string.snack_username_exists));
-                return;
-            }
-            dialog.dismiss();
-            saveCookieUser(username, cookieString);
-            runOnUiThread(() -> {
-                user_manager.addUser(username);
-                user_manager.setCurrentUser(username);
-                changeButtonStatus(true);
-            });
-        });
+        com.muxiao.Venus.common.ui.compose.VenusDialogs.input(
+                this,
+                getString(R.string.oauth_login_title),
+                getString(R.string.oauth_set_username),
+                null,
+                getString(R.string.username_hint),
+                getString(R.string.login),
+                getString(R.string.cancel_task),
+                false,
+                username -> {
+                    if (username.isEmpty()) {
+                        return getString(R.string.username_hint);
+                    }
+                    if (user_manager.getUsers().containsKey(username)) {
+                        return getString(R.string.snack_username_exists);
+                    }
+                    return null;
+                },
+                username -> {
+                    saveCookieUser(username, cookieString);
+                    runOnUiThread(() -> {
+                        user_manager.addUser(username);
+                        user_manager.setCurrentUser(username);
+                        changeButtonStatus();
+                    });
+                });
     }
 
     // 持久化完整 Cookie 字符串，并提取 ltoken/mid/stuid/cookie_token 单独存储
@@ -228,9 +199,9 @@ public class OAuthLoginActivity extends BaseActivity {
         return null;
     }
 
-    // 启用/禁用 Cookie 登录按钮，防止重复触发
-    private void changeButtonStatus(boolean enabled) {
-        findViewById(R.id.btn_cookie_login).setEnabled(enabled);
+    // 登录落定后重新启用 Cookie 登录按钮（按钮在 Compose 侧，走宿主状态）
+    private void changeButtonStatus() {
+        pane.setCookieButtonEnabled(true);
     }
 
     @Override
@@ -238,8 +209,9 @@ public class OAuthLoginActivity extends BaseActivity {
         super.onDestroy();
         if (cookie_polling_timer != null)
             cookie_polling_timer.cancel();
-        if (oauth_webview != null)
-            oauth_webview.destroy();
+        // WebView 的销毁交给 Compose 的 AndroidView.onRelease（离开组合树时触发），
+        // 这里只清引用，避免重复 destroy
+        oauth_webview = null;
         if (status_notifier != null)
             status_notifier.removeAllListeners();
     }

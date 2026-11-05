@@ -24,7 +24,6 @@ import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -85,10 +84,7 @@ public class SklandDaily {
         notifier.notifyListeners(context.getString(R.string.skland_cred_success));
         List<Role> roles = getRoles(cred);
         // 按 gameId 过滤角色
-        Iterator<Role> it = roles.iterator();
-        while (it.hasNext()) {
-            if (it.next().gameId != gameId) it.remove();
-        }
+        roles.removeIf(role -> role.gameId != gameId);
         if (roles.isEmpty()) {
             notifier.notifyListeners(context.getString(R.string.skland_no_roles));
             return;

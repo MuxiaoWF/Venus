@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.Objects;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -225,7 +226,7 @@ public class PacketAnalyzer {
      */
     private boolean trySetInitKey(long version) {
         String keyB64 = HsrKeyStore.getKey(context, version + "");
-        if (keyB64 == null || keyB64.isEmpty())
+        if (Objects.requireNonNull(keyB64).isEmpty())
             return false;
         key = Base64.decode(keyB64, Base64.DEFAULT);
         return true;
@@ -347,7 +348,7 @@ public class PacketAnalyzer {
      */
     private void recoverOnIdle() {
         if (key != null || pending.isEmpty()) return;
-        long version = extractVersion(pending.peekFirst().payload);
+        long version = extractVersion(Objects.requireNonNull(pending.peekFirst()).payload);
         if (trySetInitKey(version)) {
             Log.i(TAG, "get init key on idle: " + version + ", replay pending=" + pending.size());
             drainPending();
@@ -457,30 +458,25 @@ public class PacketAnalyzer {
 
     /**
      * KCP 协议包头（复刻自 SRGachaLink）：24 字节标准头 + 4 字节 len（米哈游变体共 28 字节，小端）。
-     * conv/conv2 双会话号、cmd（81=数据包）、frg 分片标记、len 为载荷长度。
+     * conv/conv2 双会话号、cmd（81=数据包）、frg 分片标记、len 为载荷长度；
+     * conv/conv2/wnd/ts/sn/una 本分析器未消费，仅按小端读出以推进游标（协议头偏移固定）。
      */
     static final class KcpPacket {
-        public final int conv;
-        public final int conv2;
         public final int cmd;
         public final int frg;
-        public final int wnd;
-        public final int ts;
-        public final int sn;
-        public final int una;
         public final int len;
         public final byte[] payload;
 
         KcpPacket(byte[] data) {
             ByteBuffer buffer = ByteBuffer.wrap(data, 0, 28).order(ByteOrder.LITTLE_ENDIAN);
-            conv = buffer.getInt();
-            conv2 = buffer.getInt();
+            buffer.getInt();  // conv（未消费，占位推进）
+            buffer.getInt();  // conv2（未消费，占位推进）
             cmd = buffer.get();
             frg = buffer.get();
-            wnd = buffer.getShort();
-            ts = buffer.getInt();
-            sn = buffer.getInt();
-            una = buffer.getInt();
+            buffer.getShort(); // wnd（未消费，占位推进）
+            buffer.getInt();  // ts（未消费，占位推进）
+            buffer.getInt();  // sn（未消费，占位推进）
+            buffer.getInt();  // una（未消费，占位推进）
             len = buffer.getInt();
             payload = new byte[len];
             System.arraycopy(data, 28, payload, 0, len);
@@ -498,7 +494,6 @@ public class PacketAnalyzer {
 
         public final int mh;        // magic head（原始位型，负数属正常）
         public final int mt;        // magic tail
-        public final int cmdId;
         public final int headerLen;
         public final int protoLen;
         public final byte[] header;
@@ -507,7 +502,7 @@ public class PacketAnalyzer {
         ProtoPacket(byte[] data) {
             ByteBuffer buffer = ByteBuffer.wrap(data);
             mh = buffer.getInt();
-            cmdId = buffer.getShort();
+            buffer.getShort(); // cmdId（本分析器未消费，仅占位推进游标）
             int hl = buffer.getShort();
             int pl = buffer.getInt();
             buffer.position(data.length - 4);

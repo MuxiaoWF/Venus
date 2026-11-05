@@ -3,16 +3,5 @@
     <!-- ===== 动效时长 Token（禁止在代码中硬编码 300/350 等裸值） ===== -->
     <integer name="motion_duration_short">100</integer>
     <integer name="motion_duration_medium">250</integer>
-    <integer name="motion_duration_long">350</integer>
 
-    <!-- ===== 不透明度 Token ===== -->
-    <!-- 底部导航玻璃表面不透明度（0-255）。颜色走 ?attr/colorSurfaceContainer，
-         透明度无法由主题属性表达，故单独成 token 供 MainActivity 施加。
-         有背景图时底栏为 LensGlassDrawable 液态玻璃（折射 + 材质栈，不吃此 alpha，
-         见 LensGlassDrawable.setAlpha 转发语义）；本 token 只作用于无背景图的回退表面——
-         压低到能保证对比度即可，过高会变回"实心色块"。 -->
-    <integer name="bottom_nav_glass_alpha">100</integer>
-    <!-- 标记 tag="glass" 的表面行/chip（如「后台运行」按钮、日期 chip）在
-         设置背景图时的降透明度值；无背景图时恢复 255。由 tools.applyGlassAlpha 施加。 -->
-    <integer name="surface_glass_alpha">168</integer>
 </resources>

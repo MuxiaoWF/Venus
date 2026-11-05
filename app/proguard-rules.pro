@@ -33,6 +33,7 @@
 # ---------- GeeTest 极验验证码（混淆会导致无法正常显示） ----------
 -keep class com.geetest.sdk.** {*;}
 -keep class com.geetest.captcha.** {*;}
+# 保留标注 @ProguardKeepClassMembers 的方法（@com.geetest.sdk.* 通配匹配该注解；全量 keep 下属冗余防御）
 -keepclassmembers class * {
     @com.geetest.sdk.* <methods>;
 }

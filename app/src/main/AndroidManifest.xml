@@ -10,7 +10,11 @@
         android:maxSdkVersion="32" />
     <!-- 通知权限 (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 两个前台服务均已声明 foregroundServiceType（dataSync / specialUse）及对应细分权限，
+         满足 Android 14+ 要求；lint 无法识别运行时语义，此处显式豁免 -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:ignore="ForegroundServicesPolicy" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- 星铁抽卡链接 VPN 抓包（specialUse 前台服务） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

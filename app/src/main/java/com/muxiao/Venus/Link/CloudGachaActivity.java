@@ -7,8 +7,6 @@ import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.view.View;
-import android.view.ViewStub;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -17,14 +15,9 @@ import android.webkit.WebViewClient;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.muxiao.Venus.R;
 
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 
 /**
  * 云游戏获取页：独立 Activity 承载 WebView，访问米游社云游戏页面，
@@ -44,8 +37,8 @@ public class CloudGachaActivity extends BaseActivity {
     private static final String TARGET_URL = "https://mhyy.mihoyo.com/";
 
     private WebView webView;
-    private ProgressBar loadingView;
-    private View errorView;
+    /** Compose 版页面宿主：顶栏 / 提示行 / 内容区三态都由它绘制。 */
+    private com.muxiao.Venus.common.ui.compose.CloudGachaScreenView pane;
     /** 抽卡链接只需复制一次：页面加载会触发多次含 authkey 的资源请求，原实现每次都弹提示。 */
     private boolean linkCopied = false;
     /** 主帧加载是否失败：onPageFinished 与错误回调都可能出现，以最后一次状态为准。 */
@@ -57,28 +50,14 @@ public class CloudGachaActivity extends BaseActivity {
         // 与其他二级页面一致：setContentView 之前应用所选主题（基础主题 + 色彩 Overlay）
         com.muxiao.Venus.Setting.SettingsFragment.applyAppTheme(this);
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_cloud_gacha);
+        pane = new com.muxiao.Venus.common.ui.compose.CloudGachaScreenView(this);
+        setContentView(pane);
 
-        ImageView closeButton = findViewById(R.id.cloud_close_button);
-        closeButton.setOnClickListener(v -> finish());
-
-        loadingView = findViewById(R.id.cloud_loading);
-        errorView = findViewById(R.id.cloud_error);
-        findViewById(R.id.cloud_retry).setOnClickListener(v -> retryLoad());
-
-        // 顶栏空出状态栏位置（与其他二级页同一套：insets 监听器在原 padding 基础上叠加）
-        LinearLayout header = findViewById(R.id.cloud_header);
-        final int headerTopPadding = header.getPaddingTop();
-        ViewCompat.setOnApplyWindowInsetsListener(header, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            v.setPadding(v.getPaddingLeft(), headerTopPadding + statusBarHeight,
-                    v.getPaddingRight(), v.getPaddingBottom());
-            return insets;
-        });
-
-        // WebView 延迟到首帧后再展开：root.post 排到当前遍历（含首帧绘制）之后执行，
-        // 首帧先渲染顶栏 + 加载指示器，点击入口立即有转场反馈
-        findViewById(R.id.cloud_root).post(this::setupWebView);
+        pane.setOnCloseClickListener(this::finish);
+        pane.setOnRetryClickListener(this::retryLoad);
+        // WebView 延迟到首帧后由 Compose 侧挂载（原 ViewStub + root.post 的等价实现），
+        // 创建完成即回到这里配置参数与客户端
+        pane.setOnWebViewCreatedListener(this::setupWebView);
 
         // 返回键优先回退 WebView 历史，无历史时退出页面。
         // 注：onBackPressed 在预测性返回手势下不再被调用，改用 OnBackPressedDispatcher 注册。
@@ -94,12 +73,10 @@ public class CloudGachaActivity extends BaseActivity {
         });
     }
 
-    /** 展开 ViewStub 得到 WebView，配置参数与客户端并发起首次加载。 */
+    /** WebView 就绪后配置参数与客户端并发起首次加载。 */
     @SuppressLint("SetJavaScriptEnabled")
-    private void setupWebView() {
-        ViewStub stub = findViewById(R.id.webview_stub);
-        if (stub == null) return; // 已展开（如重入）
-        webView = (WebView) stub.inflate();
+    private void setupWebView(WebView view) {
+        webView = view;
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
         webView.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
@@ -188,9 +165,9 @@ public class CloudGachaActivity extends BaseActivity {
     /** 重试：回「加载中」态并重新发起主帧加载。 */
     private void retryLoad() {
         if (webView == null) {
-            // 极端时序（WebView 尚未展开就点重试）：重建整个加载流程
+            // 极端时序（WebView 尚未挂载就点重试）：回到加载态即可，
+            // Compose 侧会照常挂载 WebView 并回调 setupWebView 发起首次加载
             showLoading();
-            findViewById(R.id.cloud_root).post(this::setupWebView);
             return;
         }
         showLoading();
@@ -198,22 +175,17 @@ public class CloudGachaActivity extends BaseActivity {
         webView.loadUrl(TARGET_URL);
     }
 
+    // 三态只改宿主状态：WebView 不被移除，加载中/失败时由覆盖层遮住（等价于原来的 INVISIBLE）
     private void showLoading() {
-        loadingView.setVisibility(View.VISIBLE);
-        errorView.setVisibility(View.GONE);
-        if (webView != null) webView.setVisibility(View.INVISIBLE);
+        pane.setStage(com.muxiao.Venus.common.ui.compose.CloudGachaScreenKt.CLOUD_STAGE_LOADING);
     }
 
     private void showContent() {
-        loadingView.setVisibility(View.GONE);
-        errorView.setVisibility(View.GONE);
-        if (webView != null) webView.setVisibility(View.VISIBLE);
+        pane.setStage(com.muxiao.Venus.common.ui.compose.CloudGachaScreenKt.CLOUD_STAGE_CONTENT);
     }
 
     private void showError() {
-        loadingView.setVisibility(View.GONE);
-        errorView.setVisibility(View.VISIBLE);
-        if (webView != null) webView.setVisibility(View.INVISIBLE);
+        pane.setStage(com.muxiao.Venus.common.ui.compose.CloudGachaScreenKt.CLOUD_STAGE_ERROR);
     }
 
     @Override

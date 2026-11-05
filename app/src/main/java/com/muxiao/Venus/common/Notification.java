@@ -217,9 +217,7 @@ public class Notification {
      */
     public boolean areNotificationsDisabled() {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-            return !nm.areNotificationsEnabled();
-        return false;
+        return !nm.areNotificationsEnabled();
     }
 
     /**

@@ -296,16 +296,6 @@ public class TaskStatusManager {
         return new LinkedHashMap<>(loadBucket(userId).statuses);
     }
 
-    /** 统计给定任务名集合中「已完成」的数量。 */
-    public int getCompletedCount(String userId, String[] taskNames) {
-        ensureToday();
-        Map<String, String> statuses = loadBucket(userId).statuses;
-        int count = 0;
-        for (String name : taskNames)
-            if (STATUS_COMPLETED.equals(statuses.get(name))) count++;
-        return count;
-    }
-
     /** 读取指定用户的状态归属日期（格式 yyyy-MM-dd；尚无桶时即今天）。 */
     public String getStatusDate(String userId) {
         ensureToday();

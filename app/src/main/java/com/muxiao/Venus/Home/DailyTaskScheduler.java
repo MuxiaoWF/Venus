@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
  * <ul>
  *   <li>设置开关/时间变更 → {@link #applySchedule(Context)}（REPLACE，重建链条）；</li>
  *   <li>进程冷启动 → {@link #ensureScheduled(Context)}（KEEP，链存活则不动）；</li>
-     *   <li>执行器结尾续链 → {@link #enqueueNext(Context, ExistingWorkPolicy, long, int)}
+ *   <li>执行器结尾续链 → {@link #enqueueNext(Context, ExistingWorkPolicy, long)}
      *       （{@link #CHAIN_POLICY} = APPEND_OR_REPLACE，挂在当前工作之后，不会自取消；
      *       链尾若已成终态则另起新序列自愈）</li>
      * </ul></p>
@@ -124,7 +124,7 @@ public final class DailyTaskScheduler {
      */
     public static void applySchedule(Context context) {
         if (isEnabled(context)) {
-            enqueueNext(context, ExistingWorkPolicy.REPLACE, delayToNextOccurrence(context), 1);
+            enqueueNext(context, ExistingWorkPolicy.REPLACE, delayToNextOccurrence(context));
         } else {
             WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
         }
@@ -141,18 +141,18 @@ public final class DailyTaskScheduler {
      */
     public static void ensureScheduled(Context context) {
         if (!isEnabled(context)) return;
-        enqueueNext(context, ExistingWorkPolicy.KEEP, computeRepairDelay(context), 1);
+        enqueueNext(context, ExistingWorkPolicy.KEEP, computeRepairDelay(context));
     }
 
     /**
-     * 排下一次工作（全量执行）。所有入口共用：constraints 保证有网才跑，退避策略兜底进程死亡重跑。
+     * 排下一次工作（全量执行，attempt 从 1 起算）。所有入口共用：
+     * constraints 保证有网才跑，退避策略兜底进程死亡重跑。
      *
      * @param policy 设置变更 REPLACE / 冷启动修复 KEEP / 执行器续链 {@link #CHAIN_POLICY}
      * @param delay  距执行的毫秒数
-     * @param attempt 本次链路上的第几次执行（用于同日重试上限）
      */
-    static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay, int attempt) {
-        enqueueNext(context, policy, delay, attempt, null);
+    static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay) {
+        enqueueNext(context, policy, delay, 1, null);
     }
 
     /**

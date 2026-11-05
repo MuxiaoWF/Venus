@@ -5,7 +5,6 @@
     <string name="about_license">開源協議: GPL-3.0</string>
     <string name="about_version">版本 %s</string>
     <string name="add_or_login_user">新增 / 登入使用者</string>
-    <string name="author_name">作者名稱</string>
     <string name="content_description_back">返回</string>
     <string name="auto_check_update">自動檢查更新</string>
     <string name="auto_check_update_desc">開啟後將每隔三天自動檢查是否有新版本</string>
@@ -24,7 +23,9 @@
     <string name="cache">快取</string>
     <string name="cancel_task">取消任務</string>
     <string name="retry_failed_tasks">重試失敗任務</string>
-    <string name="retry_failed_count_fmt">失敗 %d 項</string>
+    <plurals name="retry_failed_count">
+        <item quantity="other">失敗 %d 項</item>
+    </plurals>
     <string name="check_update_github">檢查更新 - Github</string>
     <string name="check_update_pan">網碟更新 密碼mxwf</string>
     <string name="clear_background">清除背景</string>
@@ -39,10 +40,7 @@
     <string name="current_config_value">當前設定值：</string>
     <string name="dabieye">大別墅</string>
     <string name="daily_tasks_title">日常任務</string>
-    <string name="default_description">詳細介紹內容</string>
-    <string name="default_title">標題</string>
 
-    <string name="download">下載</string>
     <string name="download_image">下載圖片</string>
     <string name="enable_background_running">啟用背景執行</string>
     <!-- 定時簽到 -->
@@ -73,8 +71,6 @@
     <string name="home_footer_note">首次使用請在「使用者管理」新增使用者；簽到異常可在 設定 → 配置信息 更新配置（無需經常更新）</string>
     <string name="honkai_impact_2">崩壞學園2</string>
     <string name="honkai_impact_3">崩壞3rd</string>
-    <string name="image">圖片</string>
-    <string name="image_title">圖片標題</string>
     <string name="image_type">圖片類型</string>
     <string name="login">登入</string>
     <string name="login_log">登入日誌</string>
@@ -88,7 +84,6 @@
     <string name="nav_home">主頁</string>
     <string name="nav_settings">設定</string>
     <string name="nav_user_management">使用者管理</string>
-    <string name="no_user_prompt">暫無使用者\n點選右下角按鈕新增新使用者</string>
     <string name="re_login">重新登入</string>
     <string name="refresh_tip">建議不要經常重新整理</string>
     <string name="rename">重新命名</string>
@@ -193,11 +188,8 @@
     <string name="type">類型</string>
     <string name="update">更新</string>
     <string name="update_config">更新設定</string>
-    <string name="user_list">使用者列表</string>
     <string name="user_login_title">使用者登入</string>
-    <string name="user_management_subtitle">管理登入帳號</string>
     <string name="user_management_title">使用者管理</string>
-    <string name="user_name">使用者名稱</string>
     <string name="username_hint">使用者名稱（推薦UID）</string>
     <string name="view_log">檢視日誌</string>
     <string name="view_miyoushe_ranking">檢視米遊社排行榜圖</string>
@@ -572,4 +564,6 @@
     <string name="snack_avatar_saved">頭像已更新</string>
     <string name="err_avatar_save_failed">頭像儲存失敗，請重試</string>
 
+    <string name="password_show">顯示密碼</string>
+    <string name="password_hide">隱藏密碼</string>
 </resources>

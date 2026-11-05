@@ -18,13 +18,6 @@ import android.os.Bundle;
 import android.view.MotionEvent;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
-import android.widget.ImageView;
-import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
@@ -32,18 +25,10 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.ActivityOptionsCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.recyclerview.widget.GridLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
-import com.google.android.material.appbar.MaterialToolbar;
-import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -54,10 +39,12 @@ import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.common.ui.compose.ImagePost;
+import com.muxiao.Venus.common.ui.compose.ImageScreenView;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,15 +55,17 @@ import java.util.concurrent.Executors;
 /**
  * 图片浏览页：从米游社API加载图片列表（日榜/周榜/月榜/热门/同人/COS），
  * 支持下载保存到相册和全屏查看。
+ *
+ * <p>界面已迁移为 Compose（{@link ImageScreenView}）：`RecyclerView` + `ImageAdapter` →
+ * `LazyVerticalGrid` + `ImageCard`，ActionBar 的标题与下载菜单改由页面状态派生。
+ * 本类只保留网络、缓存、下载与选择状态机。</p>
  */
 @AndroidEntryPoint
 public class ImageActivity extends BaseActivity {
-    private RecyclerView recyclerView; // 图片列表视图
+    private ImageScreenView pane; // Compose 宿主
     private List<Map<String, Object>> imageDataList; // 图片数据列表
     private final List<Integer> selectedItems = new ArrayList<>(); // 已选择的项目索引
     private boolean isSelectionMode = false; // 是否处于选择模式
-    private MenuItem downloadMenuItem; // 下载菜单项
-    private View rootView; // 根视图
 
     // 下载状态变量
     private int downloadProgress, totalDownloads, currentImageIndexInPost, currentPostIndex;
@@ -119,7 +108,7 @@ public class ImageActivity extends BaseActivity {
 
     // UI数据缓存
     private String[] forumNames; // 游戏内部标识（用于API调用）
-    private String[] forumDisplayNames; // 游戏显示名称（已翻译）
+    private String[] currentCategories; // 当前游戏的分类名（与下拉下标一一对应）
     private Map<String, String> currentForumMap = new HashMap<>(); // 当前游戏的分类映射
     private String currentCategoryId = ""; // 当前分类ID
     private boolean isUpdatingInternal = false; // 是否正在内部更新
@@ -140,127 +129,102 @@ public class ImageActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         SettingsFragment.applyAppTheme(this);
-        setContentView(R.layout.activity_image);
+        pane = new ImageScreenView(this);
+        setContentView(pane);
         EdgeToEdge.enable(this);
 
         // 初始化基础组件
-        rootView = findViewById(android.R.id.content);
-        recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 2)); // 2列网格布局
         executorService = Executors.newFixedThreadPool(4); // 4个线程的线程池
 
         // 初始化 HeaderManager（榜单图始终使用国服API）
         headerManager = new HeaderManager(this, false);
 
-        // 设置UI组件
         forumNames = new String[]{"原神", "星铁", "崩坏3", "绝区零", "未定事件簿", "崩坏2", "大别野"};
-        forumDisplayNames = new String[]{
-                getString(R.string.genshin_impact),
-                getString(R.string.star_rail),
-                getString(R.string.honkai_impact_3),
-                getString(R.string.zenless_zone_zero),
-                getString(R.string.tears_of_themis),
-                getString(R.string.honkai_impact_2),
-                getString(R.string.dabieye)
+        // 游戏显示名称（已翻译）
+        String[] forumDisplayNames = new String[]{
+            getString(R.string.genshin_impact),
+            getString(R.string.star_rail),
+            getString(R.string.honkai_impact_3),
+            getString(R.string.zenless_zone_zero),
+            getString(R.string.tears_of_themis),
+            getString(R.string.honkai_impact_2),
+            getString(R.string.dabieye)
         };
-        MaterialAutoCompleteTextView forumSelector = findViewById(R.id.forumSelector);
-        forumSelector.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, forumDisplayNames));
 
-        // 设置监听器和默认数据
-        setupListenersAndLoadData(forumSelector);
-
-        // 设置ActionBar
-        MaterialToolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle(getString(R.string.toolbar_image_browse));
-        }
-
-        // 处理状态栏内边距
-        ViewCompat.setOnApplyWindowInsetsListener((View) toolbar.getParent(), (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            v.setPadding(v.getPaddingLeft(), statusBarHeight,
-                    v.getPaddingRight(), v.getPaddingBottom());
-            return insets;
-        });
+        // 页面回调：筛选、榜单、卡片点击/长按、下载与返回
+        pane.setForums(Arrays.asList(forumDisplayNames), 0);
+        pane.setOnForumSelectedListener(this::onForumSelected);
+        pane.setOnCategorySelectedListener(this::onCategorySelected);
+        pane.setOnTabSelectedListener(this::onTabSelected);
+        pane.setOnItemClickListener(this::onItemClick);
+        pane.setOnItemLongClickListener(this::onItemLongClick);
+        pane.setOnDownloadClickListener(this::onDownloadClick);
+        pane.setOnBackClickListener(this::handleBack);
 
         // 返回键处理
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (isSelectionMode) exitSelectionMode();
-                else finish();
+                handleBack();
             }
         });
+
+        // 默认加载首个游戏的榜单数据（原 setupListenersAndLoadData 的收尾动作）
+        isUpdatingInternal = true;
+        handleForumSelection(forumNames[0]);
     }
 
-    /**
-     * 设置游戏/分类下拉框与榜单 Tab 的点击监听，末尾默认加载首个游戏的榜单数据。
-     * 借助 isUpdatingInternal 标记避免监听器之间的联动重复触发加载。
-     */
-    private void setupListenersAndLoadData(MaterialAutoCompleteTextView forumSelector) {
-        MaterialAutoCompleteTextView cateSelector = findViewById(R.id.cateIdSelector);
-        TabLayout tabLayout = findViewById(R.id.tabLayout);
+    /** 返回：多选态先退出多选，否则关闭页面。 */
+    private void handleBack() {
+        if (isSelectionMode) exitSelectionMode();
+        else finish();
+    }
 
-        // 游戏选择监听
-        forumSelector.setOnItemClickListener((parent, view, position, id) -> {
-            if (isUpdatingInternal) return;
-            isUpdatingInternal = true;
-            String selectedForum = forumNames[position];
-            forumSelector.setText(forumDisplayNames[position], false);
-            handleForumSelection(selectedForum, cateSelector, tabLayout);
-        });
+    /* ===================== 筛选联动 ===================== */
 
-        // 分类选择监听
-        cateSelector.setOnItemClickListener((parent, view, position, id) -> {
-            if (isUpdatingInternal) return;
-            isUpdatingInternal = true;
-            String selectedCategory = cateSelector.getText().toString();
-            cateSelector.setText(selectedCategory, false);
-            currentCategoryId = currentForumMap.get(selectedCategory);
-            if (currentCategoryId != null) {
-                handleCategorySelection(currentCategoryId, tabLayout);
-            } else {
-                isUpdatingInternal = false;
-            }
-        });
-
-        // Tab选择监听
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                if (isUpdatingInternal || isLoading) {
-                    pendingTabPosition = tab.getPosition();
-                    return;
-                }
-                Map<String, String> params = new HashMap<>();
-                params.put("forum_id", currentCategoryId);
-                params.put("type", String.valueOf(currentListTypes[tab.getPosition()]));
-                loadImages(params);
-            }
-
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) {
-            }
-
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) {
-            }
-        });
-
-        // 加载默认数据
+    /** 游戏下拉选中：内部联动期间忽略，避免重复触发加载。 */
+    private void onForumSelected(int position) {
+        if (isUpdatingInternal) return;
+        if (position < 0 || position >= forumNames.length) return;
         isUpdatingInternal = true;
-        forumSelector.setText(forumDisplayNames[0], false);
-        handleForumSelection(forumNames[0], cateSelector, tabLayout);
+        handleForumSelection(forumNames[position]);
+    }
+
+    /** 分类下拉选中：取出对应 cate_id 后加载榜单类型。 */
+    private void onCategorySelected(int position) {
+        if (isUpdatingInternal) return;
+        isUpdatingInternal = true;
+        if (currentCategories == null || position < 0 || position >= currentCategories.length) {
+            isUpdatingInternal = false;
+            return;
+        }
+        currentCategoryId = currentForumMap.get(currentCategories[position]);
+        if (currentCategoryId != null) {
+            handleCategorySelection(currentCategoryId);
+        } else {
+            isUpdatingInternal = false;
+        }
+    }
+
+    /** 榜单 Tab 选中：加载中/内部联动期间只记录目标位置，等 setupTabLayout 时落到新的 Tab 集合上。 */
+    private void onTabSelected(int position) {
+        if (isUpdatingInternal || isLoading) {
+            pendingTabPosition = position;
+            return;
+        }
+        if (position < 0 || position >= currentListTypes.length) return;
+        Map<String, String> params = new HashMap<>();
+        params.put("forum_id", currentCategoryId);
+        params.put("type", String.valueOf(currentListTypes[position]));
+        loadImages(params);
     }
 
     /**
      * 处理游戏（forum）切换：优先读分类静态缓存，否则异步请求论坛分类映射（同人图/COS），
      * 成功后刷新分类选择器。forumName 为游戏内部中文标识。
      */
-    private void handleForumSelection(String forumName, MaterialAutoCompleteTextView cateSelector, TabLayout tabLayout) {
-        showCustomSnackbar(rootView, this, getString(R.string.snack_loading_types));
+    private void handleForumSelection(String forumName) {
+        showCustomSnackbar(this, getString(R.string.snack_loading_types));
 
         // 检查游戏分类缓存
         String forumCacheKey = "forum_" + forumName;
@@ -268,7 +232,7 @@ public class ImageActivity extends BaseActivity {
             Map<String, String> cachedForumMap = forumCache.get(forumCacheKey);
             mainHandler.post(() -> {
                 currentForumMap = cachedForumMap;
-                setupCategorySelector(cateSelector, tabLayout);
+                setupCategorySelector();
                 isUpdatingInternal = false;
             });
             return;
@@ -290,7 +254,7 @@ public class ImageActivity extends BaseActivity {
 
             mainHandler.post(() -> {
                 currentForumMap = forumMap;
-                setupCategorySelector(cateSelector, tabLayout);
+                setupCategorySelector();
                 isUpdatingInternal = false;
             });
         });
@@ -299,29 +263,28 @@ public class ImageActivity extends BaseActivity {
     /**
      * 用当前游戏的分类映射填充分类下拉框，默认选中首个分类并触发其榜单类型加载与 Tab 构建。
      */
-    private void setupCategorySelector(MaterialAutoCompleteTextView cateSelector, TabLayout tabLayout) {
-        String[] categories = currentForumMap.keySet().toArray(new String[0]);
-        cateSelector.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, categories));
+    private void setupCategorySelector() {
+        currentCategories = currentForumMap.keySet().toArray(new String[0]);
+        if (pane != null) pane.setCategories(Arrays.asList(currentCategories), 0);
 
         String firstCategory = currentForumMap.keySet().iterator().next();
-        cateSelector.setText(firstCategory, false);
         currentCategoryId = currentForumMap.get(firstCategory);
-        handleCategorySelection(currentCategoryId, tabLayout);
+        handleCategorySelection(currentCategoryId);
     }
 
     /**
      * 处理分类（cate_id）切换：优先读榜单类型静态缓存，否则异步请求该分类可用榜单类型
      * （日/周/月/热），成功后构建 Tab 布局。categoryId 来自分类映射表。
      */
-    private void handleCategorySelection(String categoryId, TabLayout tabLayout) {
-        showCustomSnackbar(rootView, this, getString(R.string.snack_loading_ranking_categories));
+    private void handleCategorySelection(String categoryId) {
+        showCustomSnackbar(this, getString(R.string.snack_loading_ranking_categories));
 
         // 检查榜单类型缓存
         String listTypeCacheKey = "listType_" + categoryId;
         if (isStaticCacheValid(listTypeCacheKey, listTypeCacheTimestamps)) {
             int[] cachedListTypes = listTypeCache.get(listTypeCacheKey);
             mainHandler.post(() -> {
-                setupTabLayout(Objects.requireNonNull(cachedListTypes), tabLayout, categoryId);
+                setupTabLayout(Objects.requireNonNull(cachedListTypes), categoryId);
                 isUpdatingInternal = false;
             });
             return;
@@ -334,7 +297,7 @@ public class ImageActivity extends BaseActivity {
             cacheStaticData(listTypeCacheKey, listTypes, listTypeCache, listTypeCacheTimestamps);
 
             mainHandler.post(() -> {
-                setupTabLayout(listTypes, tabLayout, categoryId);
+                setupTabLayout(listTypes, categoryId);
                 isUpdatingInternal = false;
             });
         });
@@ -342,32 +305,22 @@ public class ImageActivity extends BaseActivity {
 
     /**
      * 用榜单类型数组构建 Tab（1=日榜，2=周榜，3=月榜，其他=热榜），
-     * 并按 pendingTabPosition 选中目标 Tab 后自动加载对应榜单图片。
+     * 按 pendingTabPosition 落定目标 Tab 后自动加载对应榜单图片。
+     * <p>
+     * 与原实现的差异：原来靠 `Tab.select()` 触发 `onTabSelected` 再加载，而该回调在
+     * `isUpdatingInternal` 期间只会记下 pendingTabPosition、不加载，真正的加载是方法末尾直调。
+     * 迁移后 Tab 选中态由状态驱动（不触发回调），这里直接加载，语义等价且少一次无效往返。
      */
-    private void setupTabLayout(int[] listTypes, TabLayout tabLayout, String categoryId) {
+    private void setupTabLayout(int[] listTypes, String categoryId) {
         currentListTypes = listTypes;
-        tabLayout.removeAllTabs();
-        for (int serverType : listTypes) {
-            switch (serverType) {
-                case 1:
-                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_daily)));
-                    break;
-                case 2:
-                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_weekly)));
-                    break;
-                case 3:
-                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_monthly)));
-                    break;
-                default:
-                    tabLayout.addTab(tabLayout.newTab().setText(getString(R.string.image_tab_hot)));
-                    break;
-            }
-        }
-        if (tabLayout.getTabCount() > 0) {
-            int targetPosition = Math.min(Math.max(pendingTabPosition, 0), listTypes.length - 1);
-            pendingTabPosition = -1;
-            TabLayout.Tab targetTab = tabLayout.getTabAt(targetPosition);
-            Objects.requireNonNull(targetTab).select();
+        int targetPosition = Math.min(Math.max(pendingTabPosition, 0), Math.max(listTypes.length - 1, 0));
+        pendingTabPosition = -1;
+
+        List<String> labels = new ArrayList<>(listTypes.length);
+        for (int serverType : listTypes) labels.add(tabLabel(serverType));
+        if (pane != null) pane.setTabs(labels, targetPosition);
+
+        if (listTypes.length > 0) {
             Map<String, String> params = new HashMap<>();
             params.put("forum_id", categoryId);
             params.put("type", String.valueOf(listTypes[targetPosition]));
@@ -375,9 +328,23 @@ public class ImageActivity extends BaseActivity {
         }
     }
 
+    /** 榜单类型 → Tab 文案。 */
+    private String tabLabel(int serverType) {
+        switch (serverType) {
+            case 1:
+                return getString(R.string.image_tab_daily);
+            case 2:
+                return getString(R.string.image_tab_weekly);
+            case 3:
+                return getString(R.string.image_tab_monthly);
+            default:
+                return getString(R.string.image_tab_hot);
+        }
+    }
+
     /**
      * 加载指定参数的图片列表：参数与上次相同、正在加载或命中缓存时直接复用。
-     * type=4 走热门接口，其余走常规榜单接口；结果在主线程更新 RecyclerView。
+     * type=4 走热门接口，其余走常规榜单接口；结果在主线程渲染到网格。
      */
     private void loadImages(Map<String, String> params) {
         if (params.equals(lastLoadedParams) || isLoading) return;
@@ -390,13 +357,13 @@ public class ImageActivity extends BaseActivity {
         if (isCacheValid(cacheKey)) {
             imageDataList = imageDataCache.get(cacheKey);
             mainHandler.post(() -> {
-                recyclerView.setAdapter(new ImageAdapter(imageDataList));
+                renderItems();
                 isLoading = false;
             });
             return;
         }
 
-        showCustomSnackbar(rootView, this, getString(R.string.snack_loading));
+        showCustomSnackbar(this, getString(R.string.snack_loading));
 
         safeExecute(() -> {
             try {
@@ -426,7 +393,7 @@ public class ImageActivity extends BaseActivity {
 
                 // 在主线程更新UI
                 mainHandler.post(() -> {
-                    recyclerView.setAdapter(new ImageAdapter(imageDataList));
+                    renderItems();
                     isLoading = false;
                 });
             } catch (Exception e) {
@@ -443,6 +410,212 @@ public class ImageActivity extends BaseActivity {
             }
         });
     }
+
+    /**
+     * 把当前的 `imageDataList` 映射成 Compose 卡片数据并下发。
+     * <p>
+     * 描述与时间沿用原 Adapter 的行为（未绑定 → 空串）；XML 里对应 TextView 文本为空时高度为 0，
+     * `ImageCard` 同样会跳过空文案，卡片高度与原布局一致。
+     */
+    private void renderItems() {
+        if (pane == null) return;
+        List<ImagePost> posts = new ArrayList<>();
+        if (imageDataList != null) {
+            for (Map<String, Object> item : imageDataList) {
+                @SuppressWarnings("unchecked")
+                List<String> images = (List<String>) item.get("images");
+                posts.add(new ImagePost(
+                        safeString(item.get("title")),
+                        safeString(item.get("author")),
+                        "",
+                        "",
+                        images != null && !images.isEmpty() ? images.get(0) : null));
+            }
+        }
+        pane.setItems(posts);
+    }
+
+    private String safeString(Object value) {
+        return value instanceof String ? (String) value : "";
+    }
+
+    /* ===================== 选择与全屏 ===================== */
+
+    /** 点击卡片：多选态切换选中，否则打开全屏。 */
+    private void onItemClick(int position) {
+        if (isSelectionMode) toggleSelection(position);
+        else openFullscreen(position);
+    }
+
+    /** 长按卡片：进入多选模式并选中该项。 */
+    private void onItemLongClick(int position) {
+        if (!isSelectionMode) isSelectionMode = true;
+        toggleSelection(position);
+        syncSelection();
+    }
+
+    /**
+     * 切换某项的选中状态：加入/移出选择集；选中集清空时自动退出选择模式。
+     * 原来由 Adapter 内的 toggleSelection 完成并 notifyItemChanged，现在只更新状态。
+     */
+    private void toggleSelection(int position) {
+        if (selectedItems.contains(position))
+            selectedItems.remove(Integer.valueOf(position));
+        else
+            selectedItems.add(position);
+
+        if (selectedItems.isEmpty()) exitSelectionMode();
+        else syncSelection();
+    }
+
+    /** 把多选态投影给页面（标题文案与下载图标由 Compose 依此派生）。 */
+    private void syncSelection() {
+        if (pane != null) pane.setSelection(isSelectionMode, new ArrayList<>(selectedItems));
+    }
+
+    /**
+     * 退出长按选择下载模式
+     */
+    private void exitSelectionMode() {
+        isSelectionMode = false;
+        selectedItems.clear();
+        syncSelection();
+    }
+
+    /**
+     * 打开全屏查看当前帖子。
+     * <p>
+     * 转场说明：原实现用 `transitionName` 做共享元素缩放转场，Compose 侧没有 View 共享元素的
+     * 等价物（2A 方案），这里降级为淡入淡出——图片本身、可缩放、左右翻页等能力不受影响。
+     */
+    private void openFullscreen(int position) {
+        if (imageDataList == null || position < 0 || position >= imageDataList.size()) return;
+        Intent intent = new Intent(this, FullscreenImageActivity.class);
+        intent.putExtra("imageDataListJson", new Gson().toJson(List.of(imageDataList.get(position))));
+        intent.putExtra("position", 0);
+        Bundle options = ActivityOptionsCompat.makeCustomAnimation(this,
+                android.R.anim.fade_in, android.R.anim.fade_out).toBundle();
+        startActivity(intent, options);
+    }
+
+    /**
+     * 下载图标点击（原 ActionBar 的 action_download）：多选为空时无动作，
+     * Android 9 及以下先要存储权限。
+     */
+    private void onDownloadClick() {
+        if (selectedItems.isEmpty()) return;
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    WRITE_PERMISSION_REQUEST_CODE);
+        } else {
+            // 开始下载
+            itemsToDownload = new ArrayList<>(selectedItems);
+            totalDownloads = 0;
+            for (int pos : itemsToDownload) {
+                @SuppressWarnings("unchecked")
+                List<String> imgs = (List<String>) imageDataList.get(pos).get("images");
+                if (imgs != null) totalDownloads += imgs.size();
+            }
+            downloadProgress = 0;
+            currentPostIndex = 0;
+            currentImageIndexInPost = 0;
+            downloadImage();
+        }
+    }
+
+    /**
+     * 存储权限授予后继续下载已选图片，拒绝则提示需要存储权限。
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == WRITE_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                onDownloadClick();
+            else
+                showCustomSnackbar(this, getString(R.string.snack_grant_storage_permission));
+        }
+    }
+
+    /**
+     * 递归串行下载所有已选帖子的图片到相册：逐帖子、逐张下载，进度累加后自我调用下一轮；
+     * 完成或列表耗尽时提示并退出选择模式。downloadTarget 便于 onDestroy 时取消。
+     */
+    private void downloadImage() {
+        if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
+            showCustomSnackbar(this, getString(R.string.snack_download_complete));
+            exitSelectionMode();
+            return;
+        }
+        // 定位下一个「确有图片」的帖子。itemsToDownload 中可能存在 images 缺失的条目：
+        // totalDownloads 累加时已跳过它们，但索引仍留在队列里，原实现会把 null 赋给
+        // currentPostImages，并在下一行 Objects.requireNonNull 处抛 NPE。
+        while (currentImageIndexInPost >= currentPostImages.size()) {
+            if (currentPostIndex >= itemsToDownload.size()) {
+                // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
+                showCustomSnackbar(this, getString(R.string.snack_download_complete));
+                exitSelectionMode();
+                return;
+            }
+            int position = itemsToDownload.get(currentPostIndex++);
+            Object rawImages = (imageDataList != null && position >= 0 && position < imageDataList.size())
+                    ? imageDataList.get(position).get("images") : null;
+            @SuppressWarnings("unchecked")
+            List<String> images = rawImages instanceof List ? (List<String>) rawImages : null;
+            currentPostImages = images != null ? images : new ArrayList<>();
+            currentImageIndexInPost = 0;
+        }
+
+        String imageUrl = Objects.requireNonNull(currentPostImages).get(currentImageIndexInPost);
+        String fileName = "venus_" + System.currentTimeMillis() + "_" + downloadProgress + ".jpg";
+
+        downloadTarget = new CustomTarget<>() {
+            @Override
+            public void onResourceReady(@NonNull Bitmap resource, Transition<? super Bitmap> transition) {
+                safeSubmit(() -> {
+                    saveImageToGallery(resource, fileName);
+                    mainHandler.post(() -> {
+                        downloadProgress++;
+                        currentImageIndexInPost++;
+                        downloadImage();
+                    });
+                });
+            }
+
+            @Override
+            public void onLoadCleared(Drawable p) {
+                downloadTarget = null;
+            }
+
+            @Override
+            public void onLoadFailed(Drawable e) {
+                downloadTarget = null;
+                downloadProgress++;
+                currentImageIndexInPost++;
+                downloadImage();
+            }
+        };
+        Glide.with(this).asBitmap().load(imageUrl).into(downloadTarget);
+    }
+
+    // 将 Bitmap 持久化到系统相册，失败时切回主线程弹错误框。
+    // 本方法在工作线程执行（见 onResourceReady 的 safeSubmit），而错误对话框是 UI 操作，
+    // 必须 runOnUiThread 切回主线程，否则在工作线程调用主线程方法会触发线程约束冲突。
+    private void saveImageToGallery(Bitmap bitmap, String fileName) {
+        try {
+            tools.saveBitmapToGallery(this, bitmap, fileName);
+        } catch (IOException e) {
+            if (mDestroyed) return;
+            runOnUiThread(() -> {
+                if (mDestroyed) return;
+                show_error_dialog(this, getString(R.string.err_save_image_failed, tools.describeError(e)));
+            });
+        }
+    }
+
+    /* ===================== 数据解析 ===================== */
 
     /**
      * 解析米游社帖子列表 JSON，提取每帖的标题、作者、封面、时间戳、描述与图片 URL 列表。
@@ -544,77 +717,6 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 递归串行下载所有已选帖子的图片到相册：逐帖子、逐张下载，进度累加后自我调用下一轮；
-     * 完成或列表耗尽时提示并退出选择模式。downloadTarget 便于 onDestroy 时取消。
-     */
-    private void downloadImage() {
-        if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
-            showCustomSnackbar(rootView, this, getString(R.string.snack_download_complete));
-            exitSelectionMode();
-            return;
-        }
-        // 定位下一个「确有图片」的帖子。itemsToDownload 中可能存在 images 缺失的条目：
-        // totalDownloads 累加时已跳过它们，但索引仍留在队列里，原实现会把 null 赋给
-        // currentPostImages，并在下一行 Objects.requireNonNull 处抛 NPE。
-        while (currentImageIndexInPost >= currentPostImages.size()) {
-            if (currentPostIndex >= itemsToDownload.size()) {
-                // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
-                showCustomSnackbar(rootView, this, getString(R.string.snack_download_complete));
-                exitSelectionMode();
-                return;
-            }
-            int position = itemsToDownload.get(currentPostIndex++);
-            Object rawImages = (imageDataList != null && position >= 0 && position < imageDataList.size())
-                    ? imageDataList.get(position).get("images") : null;
-            @SuppressWarnings("unchecked")
-            List<String> images = rawImages instanceof List ? (List<String>) rawImages : null;
-            currentPostImages = images != null ? images : new ArrayList<>();
-            currentImageIndexInPost = 0;
-        }
-
-        String imageUrl = Objects.requireNonNull(currentPostImages).get(currentImageIndexInPost);
-        String fileName = "venus_" + System.currentTimeMillis() + "_" + downloadProgress + ".jpg";
-
-        downloadTarget = new CustomTarget<>() {
-            @Override
-            public void onResourceReady(@NonNull Bitmap resource, Transition<? super Bitmap> transition) {
-                safeSubmit(() -> {
-                    saveImageToGallery(resource, fileName);
-                    mainHandler.post(() -> {
-                        downloadProgress++;
-                        currentImageIndexInPost++;
-                        downloadImage();
-                    });
-                });
-            }
-
-            @Override
-            public void onLoadCleared(Drawable p) {
-                downloadTarget = null;
-            }
-
-            @Override
-            public void onLoadFailed(Drawable e) {
-                downloadTarget = null;
-                downloadProgress++;
-                currentImageIndexInPost++;
-                downloadImage();
-            }
-        };
-        Glide.with(this).asBitmap().load(imageUrl).into(downloadTarget);
-    }
-
-    // 将 Bitmap 持久化到系统相册，失败时弹错误框。
-    private void saveImageToGallery(Bitmap bitmap, String fileName) {
-        try {
-            tools.saveBitmapToGallery(this, bitmap, fileName);
-        } catch (IOException e) {
-            if (mDestroyed) return;
-            show_error_dialog(this, getString(R.string.err_save_image_failed, tools.describeError(e)));
-        }
-    }
-
-    /**
      * 请求指定游戏的论坛分类，仅保留「同人图」与「COS」两类并返回其 id 映射；
      * 失败时返回空 Map（调用方据此重试或弹错）。
      */
@@ -658,70 +760,6 @@ public class ImageActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 退出长按选择下载模式
-     */
-    private void exitSelectionMode() {
-        isSelectionMode = false;
-        downloadMenuItem.setVisible(false);
-        selectedItems.clear();
-        if (recyclerView.getAdapter() != null)
-            recyclerView.getAdapter().notifyItemRangeChanged(0, recyclerView.getAdapter().getItemCount());
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle(getString(R.string.toolbar_image_browse));
-            getSupportActionBar().setHomeAsUpIndicator(null);
-        }
-    }
-
-    /**
-     * 展开图片选择菜单：默认隐藏下载项，仅在长按进入选择模式后显示。
-     */
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.image_selection_menu, menu);
-        downloadMenuItem = menu.findItem(R.id.action_download);
-        downloadMenuItem.setVisible(false);
-        return true;
-    }
-
-    /**
-     * 处理顶栏的选项菜单点击事件
-     */
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_download) {
-            if (!selectedItems.isEmpty()) {
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-                        ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this,
-                            new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                            WRITE_PERMISSION_REQUEST_CODE);
-                } else {
-                    // 开始下载
-                    itemsToDownload = new ArrayList<>(selectedItems);
-                    totalDownloads = 0;
-                    for (int pos : itemsToDownload) {
-                        @SuppressWarnings("unchecked")
-                        List<String> imgs = (List<String>) imageDataList.get(pos).get("images");
-                        if (imgs != null) totalDownloads += imgs.size();
-                    }
-                    downloadProgress = 0;
-                    currentPostIndex = 0;
-                    currentImageIndexInPost = 0;
-                    downloadImage();
-                }
-            }
-            return true;
-        }
-
-        if (item.getItemId() == android.R.id.home) {
-            if (isSelectionMode) exitSelectionMode();
-            else finish();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
     // 释放资源：取消进行中的 Glide 下载、关闭线程池、移除主线程回调并清空所有缓存。
     @Override
     protected void onDestroy() {
@@ -746,7 +784,7 @@ public class ImageActivity extends BaseActivity {
     private String generateCacheKey(Map<String, String> params) {
         StringBuilder keyBuilder = new StringBuilder();
         List<Map.Entry<String, String>> entries = new ArrayList<>(params.entrySet());
-        Collections.sort(entries, (o1, o2) -> o1.getKey().compareTo(o2.getKey()));
+        entries.sort(Map.Entry.comparingByKey());
         // 遍历添加
         for (Map.Entry<String, String> entry : entries)
             keyBuilder.append(entry.getKey()).append("=")
@@ -806,144 +844,9 @@ public class ImageActivity extends BaseActivity {
         listTypeCacheTimestamps.clear();
     }
 
-    /**
-     * 图片列表项视图持有者，缓存 imageView、作者/标题文本与卡片视图引用。
-     */
-    private static class ImageViewHolder extends RecyclerView.ViewHolder {
-        private final ImageView imageView; // 图片视图
-        private final TextView authorTextView, titleTextView; // 作者和标题文本
-        private final MaterialCardView cardView; // 卡片视图
-
-        public ImageViewHolder(View v) {
-            super(v);
-            imageView = v.findViewById(R.id.imageView);
-            authorTextView = v.findViewById(R.id.authorTextView);
-            titleTextView = v.findViewById(R.id.titleTextView);
-            cardView = (MaterialCardView) v;
-        }
-    }
-
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
         com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
         return super.dispatchTouchEvent(event);
-    }
-
-    /**
-     * 图片网格适配器：负责缩略图加载、选中描边状态，以及点击全屏查看 / 长按进入选择模式。
-     */
-    private class ImageAdapter extends RecyclerView.Adapter<ImageViewHolder> {
-        private final List<Map<String, Object>> mData; // 数据源
-
-        public ImageAdapter(List<Map<String, Object>> data) {
-            this.mData = data;
-        }
-
-        @NonNull
-        @Override
-        public ImageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new ImageViewHolder(getLayoutInflater().inflate(R.layout.item_image, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ImageViewHolder holder, int position) {
-            // 绑定图片数据
-            Map<String, Object> item = mData.get(position);
-            @SuppressWarnings("unchecked")
-            List<String> images = (List<String>) item.get("images");
-
-            if (images != null && !images.isEmpty()) {
-                Glide.with(holder.itemView.getContext())
-                        .load(images.get(0))
-                        .placeholder(R.drawable.ic_loading)
-                        .error(R.drawable.ic_error)
-                        .into(holder.imageView);
-            } else {
-                Glide.with(holder.itemView.getContext()).clear(holder.imageView);
-                holder.imageView.setImageResource(R.drawable.ic_error);
-            }
-
-            holder.titleTextView.setText((String) item.get("title"));
-            holder.authorTextView.setText((String) item.get("author"));
-
-            // 更新选择状态
-            if (selectedItems.contains(position)) {
-                holder.cardView.setStrokeWidth(8);
-                holder.cardView.setStrokeColor(ContextCompat.getColor(ImageActivity.this, R.color.blue_theme_primary));
-            } else {
-                holder.cardView.setStrokeWidth(0);
-            }
-
-            // 每次绑定都按位置稳定设置 transitionName，避免 RecyclerView 复用导致
-            // 旧 name 残留/错配（共享元素转场依赖 name 一致，错配会触发渲染层 abort）。
-            String transitionName = "image_" + position;
-            holder.imageView.setTransitionName(transitionName);
-
-            // 设置点击事件
-            holder.itemView.setOnClickListener(v -> {
-                int curPos = holder.getBindingAdapterPosition();
-                if (curPos == RecyclerView.NO_POSITION) return;
-
-                if (isSelectionMode) {
-                    toggleSelection(curPos);
-                } else {
-                    // 共享元素转场：网格缩略图 -> 全屏大图
-                    Intent intent = new Intent(ImageActivity.this, FullscreenImageActivity.class);
-                    intent.putExtra("imageDataListJson", new Gson().toJson(List.of(mData.get(curPos))));
-                    intent.putExtra("position", 0);
-                    intent.putExtra("sharedTransitionName", transitionName);
-                    Bundle options = ActivityOptionsCompat
-                            .makeSceneTransitionAnimation(ImageActivity.this, holder.imageView, transitionName)
-                            .toBundle();
-                    startActivity(intent, options);
-                }
-            });
-
-            holder.itemView.setOnLongClickListener(v -> {
-                int curPos = holder.getBindingAdapterPosition();
-                if (curPos == RecyclerView.NO_POSITION) return false;
-
-                if (!isSelectionMode) {
-                    isSelectionMode = true;
-                    downloadMenuItem.setVisible(true);
-                    if (getSupportActionBar() != null)
-                        getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_error);
-                }
-                toggleSelection(curPos);
-                return true;
-            });
-        }
-
-        @Override
-        public void onViewRecycled(@NonNull ImageViewHolder holder) {
-            super.onViewRecycled(holder);
-            Glide.with(holder.itemView.getContext()).clear(holder.imageView);
-            // 清除复用前的共享元素 transitionName，避免 name 错配
-            holder.imageView.setTransitionName(null);
-        }
-
-        @Override
-        public int getItemCount() {
-            return mData != null ? mData.size() : 0;
-        }
-
-        /**
-         * 切换某项的选中状态：加入/移出选择集并刷新该项；
-         * 选中集清空时自动退出选择模式，否则更新标题显示已选数量。
-         */
-        private void toggleSelection(int position) {
-            if (selectedItems.contains(position))
-                selectedItems.remove(Integer.valueOf(position));
-            else
-                selectedItems.add(position);
-
-            notifyItemChanged(position);
-
-            if (selectedItems.isEmpty())
-                exitSelectionMode();
-            else if (getSupportActionBar() != null)
-                getSupportActionBar().setTitle(getResources().getQuantityString(
-                        R.plurals.toolbar_items_selected, selectedItems.size(), selectedItems.size()));
-        }
     }
 }

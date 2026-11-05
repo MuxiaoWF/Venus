@@ -15,46 +15,6 @@ import static com.muxiao.Venus.common.tools.show_error_dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
-import android.net.Uri;
-import android.os.Bundle;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
-
-import android.widget.ImageView;
-
-import com.google.android.material.card.MaterialCardView;
-
-import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.splashscreen.SplashScreen;
-import androidx.viewpager2.widget.ViewPager2;
-
-import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.navigationrail.NavigationRailView;
-
-import com.muxiao.Venus.common.Logger;
-
-import androidx.fragment.app.Fragment;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
-
-import com.muxiao.Venus.Home.HomeFragment;
-import com.muxiao.Venus.Link.LinkFragment;
-import com.muxiao.Venus.User.UserManagementFragment;
-import com.muxiao.Venus.Setting.SettingsFragment;
-import com.muxiao.Venus.Setting.UpdateChecker;
-import com.muxiao.Venus.common.Constants;
-import com.muxiao.Venus.common.ui.BottomBarOverlay;
-import com.muxiao.Venus.common.ui.ContentStripSampler;
-import com.muxiao.Venus.common.ui.GlassBackdrop;
-import com.muxiao.Venus.common.ui.LensGlassDrawable;
-import com.muxiao.Venus.common.MiHoYoBBSConstants;
-import com.muxiao.Venus.common.data.ConfigRepository;
-
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -62,25 +22,65 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.ImageDecoder;
 import android.graphics.Paint;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
+
+import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.core.splashscreen.SplashScreen;
+
+import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Link.LinkFragment;
+import com.muxiao.Venus.User.UserManagementFragment;
+import com.muxiao.Venus.Setting.SettingsFragment;
+import com.muxiao.Venus.Setting.UpdateChecker;
+import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.Logger;
+import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.PageController;
+import com.muxiao.Venus.common.ui.compose.MainShellView;
+import com.muxiao.Venus.common.data.ConfigRepository;
 
 import java.io.InputStream;
 
 /**
- * 主Activity：底部导航（主页/抽卡链接/用户管理/设置）、背景图片加载、
+ * 主Activity：底部导航（主页/用户管理/抽卡链接/设置）、背景图片加载、
  * 语言/主题切换、深色模式跟随系统、后台人机验证入口。
+ *
+ * <p>界面外壳已迁到 Compose（{@link MainShellView}：背景层 + HorizontalPager +
+ * 玻璃底栏，见 docs/module-ui.md）。本类只做业务编排：四个页面控制器
+ * （原 Fragment 收敛为控制器）的创建与 show/hide、背景预合成管线、
+ * 页面程序化跳转、人机验证触发链。</p>
+ *
+ * <p>控制器生命周期对齐原 FragmentStateAdapter 的 maxLifecycle 语义：
+ * 仅当前选中页处于「已恢复」态——页面选中回调与 Activity onResume/onPause
+ * 统一折算为控制器的 show()/hide()（见 {@link #setShownPage}）。</p>
  */
 @AndroidEntryPoint
 public class MainActivity extends BaseActivity {
-    private ViewPager2 viewPager;
-    public BottomNavigationView bottomNavigationView;
-    private NavigationRailView navigationRailView;
 
-    // 背景图视图与降采样模糊小样：setupBackground（解码赋值）跨方法共用，故提为字段。
-    // 底栏毛玻璃条（bottom_nav_blur）已由底栏液态玻璃（LensGlassDrawable）取代。
-    private ImageView backgroundImage;
-    /** 底栏玻璃的内容条带采样器：把滚进玻璃下方的真实内容采样进透镜采样源。 */
-    private ContentStripSampler contentStripSampler;
+    /** Compose 外壳（背景 + Pager + 底栏）。 */
+    private MainShellView shell;
+
+    /** 四个页面控制器，顺序即页面下标：0 主页 / 1 用户管理 / 2 抽卡链接 / 3 设置。 */
+    private final HomeFragment homeController;
+    private final UserManagementFragment usersController;
+    private final LinkFragment linkController;
+    private final SettingsFragment settingsController;
+
+    /** 当前处于「已恢复」态的页面下标（-1 = 尚无）。 */
+    private int shownPage = -1;
+
+    public MainActivity() {
+        homeController = new HomeFragment(this);
+        usersController = new UserManagementFragment(this);
+        linkController = new LinkFragment(this);
+        settingsController = new SettingsFragment(this);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,170 +92,106 @@ public class MainActivity extends BaseActivity {
         SettingsFragment.applyAppTheme(this);
 
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
-        // 状态栏设置
+        // 状态栏/导航栏全出血（inset 由外壳与各页在 Compose 侧自行消费）
         EdgeToEdge.enable(this);
 
         // 检查更新
         checkForUpdatesIfNeeded();
         checkAndUpdateConfig(this);
 
-        // 初始化ViewPager2和底部导航
-        viewPager = findViewById(R.id.viewPager);
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
-        navigationRailView = findViewById(R.id.navigation_rail);
+        // ActivityResult 启动器：必须在本方法内（STARTED 之前）注册
+        registerLaunchers();
 
-        // 底栏液态玻璃：LensGlassDrawable 对背景图轻模糊底衬取景折射（panel 口径
-        // lens 24/34dp，圆角与 bg_bottom_nav_rounded 一致）。无背景图时改用纯色基底
-        // （GlassBackdrop.setSolidSurface，见 publishSolidSurface）继续折射身后内容。
-        // 整条底栏不挂按压形变/涟漪（interactiveEffects=false），交互反馈仍由 Tab 项自身承担。
-        if (bottomNavigationView != null) {
-            LensGlassDrawable barLens = LensGlassDrawable.apply(bottomNavigationView,
-                    getResources().getDimension(R.dimen.shape_corner_lg), 24f, 34f, false);
-            // 底栏与选中态药丸吃「壁纸/底色+内容条带」合成图：折射身后真实内容。
-            // 内容树内的嵌套小透镜保持纯壁纸采样，防止滚进条带范围时自引用残影；
-            // 药丸位于底栏树内（条带采样范围之外），见 installGlassPillIndicators 注释。
-            if (barLens != null)
-                barLens.enableContentStripSampling();
-            // 选中态玻璃药丸：接管 Material activeIndicator 的背景（原为 colorSecondaryContainer
-            // 纯色填充），替换为透镜折射的玻璃药丸——选中项浮起一块更厚的玻璃，无语义色填充。
-            // 选中/取消由 Material 库经 indicator 视图的 setVisibility 切换（已反编译 1.14.0 确认：
-            // setActiveIndicatorDrawable 仅初始化调用一次，接管不会被顶掉），本处无需监听选中事件。
-            installGlassPillIndicators();
-            // 内容条带采样器：把底栏身后的真实内容（滚动卡片/列表）离屏采样进透镜
-            // 采样源——内容不再避让，可滚进玻璃下方，玻璃折射真实的身后层
-            // （对应 Kyant0/AndroidLiquidGlass 的 LayerBackdrop），见 ContentStripSampler。
-            contentStripSampler = new ContentStripSampler(viewPager, bottomNavigationView);
-            contentStripSampler.start();
-        }
+        // Compose 外壳：页面视图由各控制器惰性创建（外壳首次组合时逐页调用一次）
+        shell = new MainShellView(this);
+        shell.setPageFactory((index, context) -> {
+            switch (index) {
+                case 1: return usersController.createView(context);
+                case 2: return linkController.createView(context);
+                case 3: return settingsController.createView(context);
+                case 0:
+                default: return homeController.createView(context);
+            }
+        });
+        // 页面选中 → 控制器 show/hide（对齐 FragmentStateAdapter 的 maxLifecycle 语义）
+        shell.setOnPageSelectedListener(this::setShownPage);
 
-        // 设置背景图片（须在透镜视图初始化之后：其回调会引用 backgroundImage）
+        // 设置背景图片（发布给外壳背景层；玻璃采样源为 Compose GraphicsLayer，见 MainShellView）
         setupBackground();
         // 监听背景 prefs 变化：预设档/不透明度/图片更换即时重合成。
-        // 此前只在 onResume 检测——ViewPager 切页不触发 Activity 生命周期，
-        // 导致设置页里切换淡化风格「无感」。300ms 防抖合并滑条连续写值。
+        // 此前只在 onResume 检测——切页不触发 Activity 生命周期，导致设置页里
+        // 切换淡化风格「无感」。300ms 防抖合并滑条连续写值。
         getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(backgroundPrefListener);
-        // 设置ViewPager2适配器
-        ViewPagerAdapter adapter = new ViewPagerAdapter(this);
-        viewPager.setAdapter(adapter);
 
-        // 设置预加载相邻页面数量
-        viewPager.setOffscreenPageLimit(3);
+        setContentView(shell);
 
-        // 页面切换动效：轻微淡入 + 缩放，增强高级感；尊重系统「减少动态效果」
-        viewPager.setPageTransformer(this::applyPageTransform);
-
-        // 设置背景图片时降低卡片不透明度
-        adjustCardsForBackground();
-
-        // 处理状态栏内边距，避免工具栏被状态栏遮挡。
-        // 手机布局底部不再做容器级避让（内容可滚进玻璃下方，由 ContentStripSampler
-        // 采样进透镜），列表尾部留白由各页滚动容器经 BottomBarOverlay.attachClearance
-        // 自行处理；宽屏（NavigationRail）布局中 ViewPager 直通屏幕底部，
-        // 需自行让出系统导航栏高度。
-        ViewCompat.setOnApplyWindowInsetsListener(viewPager, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            int bottomPad = navigationRailView != null
-                    ? insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-                    : v.getPaddingBottom();
-            v.setPadding(v.getPaddingLeft(), statusBarHeight,
-                    v.getPaddingRight(), bottomPad);
-            return insets;
-        });
-
-        // EdgeToEdge 下系统导航栏（手势条/三键导航）会覆盖窗口底部内容，
-        // 底部导航需在原有 16dp 外边距之上再叠加导航栏 inset，避免 Tab 被遮挡难以点按
-        if (bottomNavigationView != null) {
-            int baseBottomMargin = getResources().getDimensionPixelSize(R.dimen.space_4);
-            ViewCompat.setOnApplyWindowInsetsListener(bottomNavigationView, (v, insets) -> {
-                int navBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
-                lp.bottomMargin = baseBottomMargin + navBarHeight;
-                v.setLayoutParams(lp);
-                // 内容避让已拆除：底栏悬浮高度改由 BottomBarOverlay 发布，各页滚动
-                // 容器（attachClearance 注册）自行留白，保证最后一个列表项能完整
-                // 滚出玻璃区；透镜身后的真实内容经 ContentStripSampler 采样进玻璃。
-                v.post(() -> {
-                    if (v.getHeight() == 0) return;
-                    BottomBarOverlay.update(v.getHeight() + baseBottomMargin + navBarHeight);
-                });
-                return insets;
-            });
-        }
-        if (navigationRailView != null) {
-            // 宽屏侧边导航纵贯全高，底部让出导航栏 inset，防止最后一个 Tab 落入手势区
-            ViewCompat.setOnApplyWindowInsetsListener(navigationRailView, (v, insets) -> {
-                int navBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-                v.setPadding(v.getPaddingLeft(), v.getPaddingTop(),
-                        v.getPaddingRight(), navBarHeight);
-                return insets;
-            });
-        }
-
-        // 设置页面切换监听器，使滑动与底部导航联动
-        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override
-            public void onPageSelected(int position) {
-                super.onPageSelected(position);
-                int menuId = getMenuIdByPosition(position);
-                if (navigationRailView != null)
-                    navigationRailView.setSelectedItemId(menuId);
-                else if (bottomNavigationView != null)
-                    bottomNavigationView.setSelectedItemId(menuId);
-                // 过渡开始（instant 切换不走 scrollStateChanged，这里统一入口；
-                // 平滑切换时后续 SETTLING 事件幂等重入）：玻璃用最高频率跟踪滑动内容
-                if (contentStripSampler != null)
-                    contentStripSampler.onTransitionStart();
-            }
-
-            @Override
-            public void onPageScrollStateChanged(int state) {
-                super.onPageScrollStateChanged(state);
-                if (contentStripSampler == null) return;
-                if (state == ViewPager2.SCROLL_STATE_DRAGGING
-                        || state == ViewPager2.SCROLL_STATE_SETTLING)
-                    contentStripSampler.onTransitionStart();
-                else if (state == ViewPager2.SCROLL_STATE_IDLE)
-                    contentStripSampler.onTransitionEnd();
-            }
-        });
-
-        // 导航选择监听器（BottomNav / NavigationRail 共用逻辑），与ViewPager2联动
-        com.google.android.material.navigation.NavigationBarView.OnItemSelectedListener navListener = item -> {
-            int itemId = item.getItemId();
-            int position = getPositionByMenuId(itemId);
-            if (position != -1) {
-                viewPager.setCurrentItem(position);
-                return true;
-            }
-            return false;
-        };
-        if (navigationRailView != null)
-            navigationRailView.setOnItemSelectedListener(navListener);
-        else if (bottomNavigationView != null)
-            bottomNavigationView.setOnItemSelectedListener(navListener);
-
-        // 默认加载首页Fragment
-        if (savedInstanceState == null)
-            viewPager.setCurrentItem(0);
-
-        // 注册 HomeFragment 就绪监听：替代原先 postDelayed 轮询等待 Fragment 创建，
-        // 用于在其就绪后触发后台人机验证（见 tryTriggerCaptchaIfReady）。
-        getSupportFragmentManager().setFragmentResultListener(
-                HomeFragment.RESULT_HOME_READY, this,
-                (requestKey, result) -> tryTriggerCaptchaIfReady());
+        // 主页控制器就绪 → 触发后台人机验证（替代原先的 FragmentResult + postDelayed 轮询）
+        homeController.setHomeReadyCallback(this::tryTriggerCaptchaIfReady);
 
         // 处理后台人机验证通知跳转
         handleCaptchaIntent(getIntent());
     }
 
-    @Override
-    protected void onNewIntent(@NonNull Intent intent) {
-        super.onNewIntent(intent);
-        handleCaptchaIntent(intent);
-        triggerCaptchaIfPending();
+    /** 注册全部 ActivityResult 启动器并分发到对应控制器（控制器惰性创建视图，注册先于视图）。 */
+    private void registerLaunchers() {
+        // 抽卡链接页：VPN 抓包授权 + 电池优化豁免
+        ActivityResultLauncher<Intent> linkVpnLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> linkController.onVpnPermissionResult(
+                result.getResultCode() == RESULT_OK));
+        ActivityResultLauncher<Intent> linkBatteryLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> linkController.startCaptureAfterChecks());
+        // 用户管理页：头像照片选择器
+        ActivityResultLauncher<PickVisualMediaRequest> userAvatarPicker = registerForActivityResult(
+            new ActivityResultContracts.PickVisualMedia(),
+            usersController::onAvatarPicked);
+        // 设置页：背景图选择（Photo Picker / 老设备回退）+ UCrop 裁剪 + 电池优化豁免
+        ActivityResultLauncher<PickVisualMediaRequest> settingsPickMedia = registerForActivityResult(
+            new ActivityResultContracts.PickVisualMedia(),
+            settingsController::onBackgroundImagePicked);
+        ActivityResultLauncher<Intent> settingsSelectImageLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> settingsController.onLegacyImagePicked(
+                result.getResultCode() == RESULT_OK
+                    && result.getData() != null ? result.getData().getData() : null));
+        ActivityResultLauncher<Intent> settingsCropLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> settingsController.onCropResult(result.getResultCode(), result.getData()));
+        ActivityResultLauncher<Intent> settingsBatteryLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> settingsController.updateBatteryOptValue());
+        // 分发（控制器在视图创建前只持有引用，attach 后使用）
+        linkController.setLaunchers(linkVpnLauncher, linkBatteryLauncher);
+        usersController.setAvatarPicker(userAvatarPicker);
+        settingsController.setLaunchers(settingsPickMedia, settingsSelectImageLauncher,
+            settingsCropLauncher, settingsBatteryLauncher);
+    }
+
+    // ===== 页面控制器生命周期（对齐 FragmentStateAdapter maxLifecycle） =====
+
+    /**
+     * 页面选中回调（含外壳首次组合的初始页）：上一个选中页 hide、当前页 show。
+     * 已暂停状态下不会收到页面回调（Pager 不可交互），故无需额外的暂停分支。
+     */
+    private void setShownPage(int index) {
+        if (shownPage == index) return;
+        int previous = shownPage;
+        shownPage = index;
+        if (previous >= 0) controllerAt(previous).hide();
+        controllerAt(index).show();
+    }
+
+    private PageController controllerAt(int index) {
+        switch (index) {
+            case 1: return usersController;
+            case 2: return linkController;
+            case 3: return settingsController;
+            case 0:
+            default: return homeController;
+        }
     }
 
     @Override
@@ -263,14 +199,37 @@ public class MainActivity extends BaseActivity {
         super.onResume();
         triggerCaptchaIfPending();
         refreshBackgroundIfPrefsChanged();
+        // 与 Fragment 时代同口径：Activity 恢复时当前页控制器收到 show（回到前台刷新）
+        if (shownPage >= 0) controllerAt(shownPage).show();
     }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (shownPage >= 0) controllerAt(shownPage).hide();
+    }
+
+    @Override
+    protected void onDestroy() {
+        getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
+                .unregisterOnSharedPreferenceChangeListener(backgroundPrefListener);
+        backgroundReloadHandler.removeCallbacksAndMessages(null);
+        // 控制器资源回收（广播接收器/极验按钮等；Activity 销毁即全量释放）
+        homeController.release();
+        usersController.release();
+        linkController.release();
+        settingsController.release();
+        super.onDestroy();
+    }
+
+    // ===== 后台人机验证触发链（原 ViewPager 时代逻辑平移） =====
 
     /** 待触发的后台人机验证标记（替代原先 postDelayed 轮询的状态机）。 */
     private boolean captchaPending = false;
 
     /**
      * 检查是否有待处理的后台人机验证，有则触发。
-     * 不再轮询：HomeFragment 通过 FragmentResult({@link HomeFragment#RESULT_HOME_READY}) 通知就绪，
+     * 主页控制器通过 {@link HomeFragment#setHomeReadyCallback} 通知就绪，
      * 由 {@link #tryTriggerCaptchaIfReady()} 触发。
      */
     private void triggerCaptchaIfPending() {
@@ -282,22 +241,21 @@ public class MainActivity extends BaseActivity {
         // 清除标记，防止重复触发（仓储写入为 Write-Through：缓存即时生效，后续读取无问题）
         configRepo.putBoolean(PREF_CAPTCHA_PENDING, false);
         captchaPending = true;
-        viewPager.setCurrentItem(0, false);
+        shell.setCurrentPage(0, false);
 
-        // HomeFragment 可能尚未就绪：先直接尝试一次；未就绪则等待其 RESULT_HOME_READY 回调。
+        // 主页控制器可能尚未就绪（视图未创建）：直接尝试一次；未就绪则等就绪回调。
         tryTriggerCaptchaIfReady();
     }
 
     /**
-     * HomeFragment 已就绪（或刚就绪）时尝试触发后台人机验证。
-     * 仅当 captchaPending 为真且能立即取到 HomeFragment 实例时触发，避免轮询。
+     * 主页控制器已就绪（或刚就绪）时尝试触发后台人机验证。
+     * 仅当 captchaPending 为真且能立即取到主页控制器实例时触发，避免轮询。
      */
     private void tryTriggerCaptchaIfReady() {
         if (!captchaPending) return;
-        HomeFragment homeFragment = getHomeFragment();
-        if (homeFragment != null) {
+        if (homeController.isReady()) {
             captchaPending = false;
-            homeFragment.performBackgroundCaptchaVerification();
+            homeController.performBackgroundCaptchaVerification();
         }
     }
 
@@ -307,192 +265,52 @@ public class MainActivity extends BaseActivity {
         if (intent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(intent.getAction())) {
             intent.setAction(null);
             new ConfigRepository(this).putBoolean(PREF_CAPTCHA_PENDING, true);
-            viewPager.setCurrentItem(0, false);
+            shell.setCurrentPage(0, false);
         }
     }
 
-    // 从 FragmentManager 中查找当前已挂载的 HomeFragment 实例（不依赖 tag）
-    private HomeFragment getHomeFragment() {
-        // 遍历所有已添加的 Fragment 查找 HomeFragment（不依赖 tag 格式）
-        for (androidx.fragment.app.Fragment f : getSupportFragmentManager().getFragments()) {
-            if (f instanceof HomeFragment) {
-                return (HomeFragment) f;
-            }
-        }
-        // 如果找不到，尝试通过 ViewPager adapter 的内部状态获取
-        androidx.fragment.app.Fragment primary = getSupportFragmentManager().getPrimaryNavigationFragment();
-        if (primary instanceof HomeFragment) return (HomeFragment) primary;
-        return null;
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        handleCaptchaIntent(intent);
+        triggerCaptchaIfPending();
     }
 
     /**
-     * ViewPager2 页面变换：当前页 100% 不透明/满尺寸，两侧页轻微淡出并缩小，
-     * 形成柔和的纵深感。系统关闭动画时直接复位属性。
-     */
-    private void applyPageTransform(View page, float position) {
-        if (com.muxiao.Venus.common.tools.isReducedMotionEnabled(this)) {
-            page.setAlpha(1f);
-            page.setScaleX(1f);
-            page.setScaleY(1f);
-            return;
-        }
-        float abs = Math.abs(position);
-        page.setAlpha(1f - 0.12f * abs);
-        page.setScaleX(1f - 0.03f * abs);
-        page.setScaleY(1f - 0.03f * abs);
-    }
-
-    /**
-     * 读取设置中的自动更新开关，开启时启动 UpdateChecker 检查新版本。
-     */
-    private void checkForUpdatesIfNeeded() {
-        // 检查是否启用了自动更新
-        boolean autoUpdateEnabled = getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(AUTO_UPDATE_ENABLED, true);
-
-        if (autoUpdateEnabled) {
-            UpdateChecker updateChecker = new UpdateChecker(this);
-            updateChecker.checkForUpdatesIfNeeded();
-        }
-    }
-
-    /**
-     * 根据菜单ID获取位置
-     *
-     * @param menuId 菜单AndroidID
-     * @return 位置
-     */
-    private int getPositionByMenuId(int menuId) {
-        if (menuId == R.id.navigation_home) return 0;
-        else if (menuId == R.id.navigation_users) return 1;
-        else if (menuId == R.id.navigation_link) return 2;
-        else if (menuId == R.id.navigation_settings) return 3;
-        return -1;
-    }
-
-    /**
-     * 根据位置获取菜单ID
-     *
-     * @param position 位置
-     * @return 菜单AndroidID
-     */
-    private int getMenuIdByPosition(int position) {
-        switch (position) {
-            case 1:
-                return R.id.navigation_users;
-            case 2:
-                return R.id.navigation_link;
-            case 3:
-                return R.id.navigation_settings;
-            case 0:
-            default:
-                return R.id.navigation_home;
-        }
-    }
-
-    /**
-     * 供 Fragment 程序化跳转到指定页（无用户引导：账号行/运行签到跳用户管理页）。
-     * 页面切换回调会联动底部导航选中态，此处只需切 ViewPager。
+     * 供控制器程序化跳转到指定页（无用户引导：账号行/运行签到跳用户管理页）。
+     * 页面选中回调会联动控制器 show/hide，此处只需切 Pager。
      */
     public void navigateToPage(int position) {
-        viewPager.setCurrentItem(position, true);
+        shell.setCurrentPage(position, true);
     }
 
-    /**
-     * ViewPager2 适配器：按位置创建 Home / 用户管理 / 抽卡链接 / 设置 四个 Fragment。
-     */
-    private static class ViewPagerAdapter extends FragmentStateAdapter {
-        public ViewPagerAdapter(MainActivity activity) {
-            super(activity);
-        }
-
-        @NonNull
-        @Override
-        public Fragment createFragment(int position) {
-            switch (position) {
-                case 1:
-                    return new UserManagementFragment();
-                case 2:
-                    return new LinkFragment();
-                case 3:
-                    return new SettingsFragment();
-                case 0:
-                default:
-                    return new HomeFragment();
-            }
-        }
-
-        @Override
-        public int getItemCount() {
-            return 4; // 四个Fragment
-        }
-    }
-
-    /**
-     * 选中态玻璃药丸：把每个 Tab 项内部 Material activeIndicator 的背景接管为透镜。
-     * 指示器是 icon container 里 id 为 navigation_bar_item_active_indicator_view 的
-     * 独立 View（material 1.14.0 布局已确认），其背景即选中态的纯色药丸——
-     * 换成 LensGlassDrawable（透镜折射 + tint，无语义色填充）；库经 setVisibility
-     * 控制显隐，未选中的 Tab 天然不绘制药丸，无需监听选中事件。
-     * 指示器尺寸在库内布局期设置，故 post 到布局完成后安装。
-     *
-     * <p>药丸开启内容条带合成采样（enableContentStripSampling）：它位于底栏视图树内，
-     * 条带只从 ViewPager 内容树离屏采样，永远不会包含药丸自身的渲染——不存在
-     * 内容树内嵌套透镜的自引用问题。收益：无背景图（纯色基底模式）时药丸采样
-     * 「底色+条带」合成图，与底栏透镜同一磨砂材质，保持玻璃观感——否则会退回
-     * 纯色填充；有背景图时药丸底衬与底栏身后的真实内容也保持同源一致。</p>
-     */
-    private void installGlassPillIndicators() {
-        bottomNavigationView.post(() -> {
-            ViewGroup menuView = (ViewGroup) bottomNavigationView.getChildAt(0);
-            if (menuView == null) return;
-            float radius = getResources().getDimension(R.dimen.bottom_nav_indicator_height) / 2f;
-            for (int i = 0; i < menuView.getChildCount(); i++) {
-                View item = menuView.getChildAt(i);
-                if (!(item instanceof ViewGroup)) continue;
-                View indicator = item.findViewById(
-                        com.google.android.material.R.id.navigation_bar_item_active_indicator_view);
-                if (indicator != null && !(indicator.getBackground() instanceof LensGlassDrawable)) {
-                    LensGlassDrawable pillLens = LensGlassDrawable.apply(
-                            indicator, radius, 12f, 24f, false);
-                    // 见方法注释：药丸在底栏树内、条带采样范围之外，吃合成图无自引用风险
-                    if (pillLens != null) pillLens.enableContentStripSampling();
-                }
-            }
-        });
-    }
+    // ===== 背景预合成管线（原 ImageView 版逻辑平移到 Compose 背景） =====
 
     /**
      * 加载用户设定的背景图：后台解码 → 预合成（按淡化风格预设降饱和提亮/压暗，
-     * 再按不透明度滑条与主题底色一次性掺合）→ 主线程全不透明显示。
-     * 关键：淡化只发生一次且全部烘进位图——此前先预处理再 setAlpha 叠在纯色底上，
-     * 等于双重淡化（最终像素 = 预处理图 × alpha + 底色 × (1-alpha)），画面必然发蒙，
-     * 且 alpha 把各预设档的差距压缩到一半以下，导致切换「无感」。
-     * 预合成后：滑条直接控制图片权重，预设控制色彩质感，各自独立生效。
-     * 权限不足或解码失败时回退隐藏、改发纯色基底（底栏玻璃保留磨砂）并提示。
+     * 再按不透明度滑条与主题底色一次性掺合）→ 主线程发布给外壳背景层。
+     * 关键：淡化只发生一次且全部烘进位图——先预处理再叠 alpha 等于双重淡化，
+     * 画面发蒙且预设档差距被压缩。预合成后滑条直接控制图片权重，预设控制质感。
+     * 权限不足或解码失败时回退纯色基底（底栏玻璃保留磨砂）并提示。
      * 同时在后台线程生成底栏毛玻璃用的模糊小样（连续降采样），主线程只做矩阵对齐。
      */
     private void setupBackground() {
-        backgroundImage = findViewById(R.id.background_image);
         Uri backgroundImageUri = SettingsFragment.getBackgroundImageUri(this);
         float backgroundAlpha = SettingsFragment.getBackgroundAlpha(this);
         int backgroundPreset = SettingsFragment.getBackgroundPreset(this);
         appliedBackgroundPreset = backgroundPreset;
         appliedBackgroundAlpha = backgroundAlpha;
 
-        // 无图：隐藏图片层，改用主题底色作为液态玻璃的采样基底（纯色基底模式）——
-        // 底栏透镜继续经 ContentStripSampler 条带采样磨砂折射滚到玻璃下的真实内容，
-        // 不再因无壁纸整条停摆成无模糊的静态半透明表面
+        // 无图：不发背景层——玻璃采样源子树自带主题底色基底（见 MainShellView.Content），
+        // 底栏透镜继续磨砂折射滚到玻璃下的真实内容
         if (backgroundImageUri == null) {
-            backgroundImage.setVisibility(android.view.View.GONE);
-            publishSolidSurface();
-            if (contentStripSampler != null) contentStripSampler.invalidate();
+            shell.publishBackground(null);
             return;
         }
 
         // 底色掺合色在主线程解析（后台线程访问主题属性不安全），只解析一次
         final int surfaceColor = com.google.android.material.color.MaterialColors
-                .getColor(backgroundImage, com.google.android.material.R.attr.colorSurface);
+                .getColor(shell, com.google.android.material.R.attr.colorSurface);
 
         com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
             String error = null;
@@ -511,55 +329,23 @@ public class MainActivity extends BaseActivity {
                 error = getString(R.string.err_background_setup_error,
                         e.getMessage() != null ? e.getMessage() : e.toString());
             }
-            // 预合成与轻模糊小样都在后台一次算好：纯位图运算，无版本兼容问题
+            // 预合成在后台一次算好：纯位图运算，无版本兼容问题
             final Bitmap composited = source != null
                     ? createCompositedBitmap(source, backgroundPreset, backgroundAlpha, surfaceColor)
                     : null;
-            final Bitmap glassBlur = composited != null ? createGlassBlurBitmap(composited) : null;
-            final Drawable result =
-                    composited != null ? new BitmapDrawable(getResources(), composited) : null;
             final String errorMsg = error;
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                // 直接复用方法开头 findViewById 的结果：同一 Activity 实例内视图引用不变，
-                // 且已用 isFinishing/isDestroyed 拦截过期回调（重复查找会触发 Lint DuplicateIdLookup）
                 if (errorMsg != null) {
-                    backgroundImage.setVisibility(android.view.View.GONE);
-                    publishSolidSurface();
+                    shell.publishBackground(null);
                     show_error_dialog(MainActivity.this, errorMsg);
                     return;
                 }
-                if (result != null) {
-                    // 发布轻模糊小样：液态玻璃透镜（LensGlassDrawable）的取样源
-                    // （壁纸 + 内容条带合成，条带由 ContentStripSampler 采样）
-                    GlassBackdrop.set(glassBlur, backgroundImage);
-                    backgroundImage.setImageDrawable(result);
-                    // 淡化已全部烘进位图：视图恒为全不透明，绝不再叠加 alpha
-                    backgroundImage.setAlpha(1f);
-                    backgroundImage.setVisibility(android.view.View.VISIBLE);
-                    // 壁纸小样已更新（旧内容条带随之作废）：立即重采内容条带
-                    if (contentStripSampler != null) contentStripSampler.invalidate();
-                } else {
-                    backgroundImage.setVisibility(android.view.View.GONE);
-                    publishSolidSurface();
-                }
+                // 发布背景位图：玻璃采样源子树的背景 Image 同帧入画（GraphicsLayer 录制）
+                // 淡化已全部烘进位图：背景层恒为全不透明，绝不再叠加 alpha
+                shell.publishBackground(composited);
             });
         });
-    }
-
-    /**
-     * 无背景图（或背景解码失败）时为液态玻璃发布纯色采样基底：
-     * 锚 = 窗口内容视图 android.R.id.content（铺满窗口，与根布局同一坐标系，
-     * 几何公式与壁纸路径同构），色 = 根布局显式着色（?android:attr/colorBackground），
-     * 与「无背景图时玻璃身后的真实像素」一致。锚未布局时由 GlassBackdrop 的
-     * 布局监听自动补发，无需关心调用时机。
-     */
-    private void publishSolidSurface() {
-        View anchor = findViewById(android.R.id.content);
-        if (anchor == null) return;
-        int color = com.google.android.material.color.MaterialColors
-                .getColor(anchor, android.R.attr.colorBackground);
-        GlassBackdrop.setSolidSurface(color, anchor);
     }
 
     /** 已应用到 UI 的背景预设档 / 不透明度，供 onResume 检测变化后重新预合成。 */
@@ -576,26 +362,17 @@ public class MainActivity extends BaseActivity {
                 backgroundReloadHandler.postDelayed(backgroundReloadRunnable, 300);
             };
 
-    @Override
-    protected void onDestroy() {
-        getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
-                .unregisterOnSharedPreferenceChangeListener(backgroundPrefListener);
-        backgroundReloadHandler.removeCallbacksAndMessages(null);
-        super.onDestroy();
-    }
-
     /**
      * 设置页改了淡化风格/不透明度后无需重启：二者现在都烘在位图里，
      * 任一变化都走完整重合成（后台线程，开销一次性，可接受）。
-     * 首次添加背景图（此前视图为 GONE）也在这里兜底触发。
+     * 首次添加背景图（此前为纯色基底）也在这里兜底触发。
      */
     private void refreshBackgroundIfPrefsChanged() {
-        if (backgroundImage == null) return;
         int preset = SettingsFragment.getBackgroundPreset(this);
         float alpha = SettingsFragment.getBackgroundAlpha(this);
-        boolean hadImage = backgroundImage.getVisibility() != android.view.View.GONE;
-        if (!hadImage && SettingsFragment.getBackgroundImageUri(this) != null
-                || preset != appliedBackgroundPreset || alpha != appliedBackgroundAlpha) {
+        // 背景图的增删改本身走 background_prefs 监听（防抖触发），这里只兜底
+        // 淡化风格/不透明度变化（onResume 对账，覆盖监听未覆盖的时序）
+        if (preset != appliedBackgroundPreset || alpha != appliedBackgroundAlpha) {
             setupBackground();
         }
     }
@@ -615,8 +392,8 @@ public class MainActivity extends BaseActivity {
 
     /**
      * 预合成：降饱和 + 亮度偏移（ColorMatrix）→ 与主题底色按图片权重一次性掺合。
-     * 输出为全不透明位图（out = 预处理图 × w + 底色 × (1-w)），主线程直接铺满即可，
-     * 不再依赖 ImageView alpha——那是此前「发蒙 + 预设无感」的根源。
+     * 输出为全不透明位图（out = 预处理图 × w + 底色 × (1-w)），背景层直接铺满即可，
+     * 不再依赖视图 alpha——那是此前「发蒙 + 预设无感」的根源。
      */
     private Bitmap createCompositedBitmap(Bitmap source, int presetIndex, float imageWeight,
             int surfaceColor) {
@@ -666,67 +443,6 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 生成液态玻璃透镜用的轻模糊小样：单步双线性降到原图约 1/4 尺度即止——
-     * 参考 Kyant0/AndroidLiquidGlass（SleepDown-Schedule 的玻璃基础库）配方：
-     * 透镜的模糊半径很小（2~10dp），必须能透出可辨认的内容，边缘折射弯折才可见；
-     * 极重模糊（毛玻璃那档）会让透镜变成牛奶色平板、折射失真无从谈起。
-     * 1/4 尺度双线性缩放 ≈ 数像素级的低通滤波，全 API 级别可用、零逐帧成本。
-     */
-    private static Bitmap createGlassBlurBitmap(Bitmap source) {
-        // 1/2 而非 1/4：采样源分辨率是透镜清晰度的关键——AGSL 逐像素折射会把
-        // 采样源放大回屏幕尺寸，1/4 源即 4x 放大，条带文字呈马赛克；1/2 源
-        // （内存约 +2MB）配合 ContentStripSampler.CAPTURE_SCALE=0.5 保证文字可辨
-        int w = Math.max(1, source.getWidth() / 2);
-        int h = Math.max(1, source.getHeight() / 2);
-        return Bitmap.createScaledBitmap(source, w, h, true);
-    }
-
-    /**
-     * 设置背景图片时，降低卡片背景不透明度以露出背景图
-     */
-    private void adjustCardsForBackground() {
-        Uri bgUri = SettingsFragment.getBackgroundImageUri(this);
-        viewPager.post(() -> {
-            // 底部导航栏玻璃表面：颜色由 bg_bottom_nav_rounded 的 ?attr/colorSurfaceContainer
-            // 提供（随 6 套 ThemeOverlay 与昼夜在运行时解析），此处只叠加"不透明度"，
-            // 且 alpha 取自 @integer/bottom_nav_glass_alpha。
-            // 底栏背景已是 LensGlassDrawable：setAlpha 转发给回退底（透镜本体不吃 alpha，
-            // 有背景图时恒为液态玻璃），无背景图时回退表面保持半透明观感。
-            if (bottomNavigationView != null && bottomNavigationView.getBackground() != null) {
-                bottomNavigationView.getBackground().mutate()
-                        .setAlpha(getResources().getInteger(R.integer.bottom_nav_glass_alpha));
-            }
-            if (bgUri == null) return;
-            int semiTransparentColor = (200 << 24) | (0x00FFFFFF & com.google.android.material.color.MaterialColors.getColor(
-                    viewPager, com.google.android.material.R.attr.colorSurfaceContainerLow, 0));
-            applyTopLevelCardAlpha(viewPager, semiTransparentColor);
-        });
-    }
-
-    // 只为 ViewPager 内最外层分组卡片设置半透明背景色，以露出背景图；
-    // 内层列表项/状态卡不再重复着色，避免多层半透明叠加显脏。
-    // maxDepth=4 覆盖：ViewPager(0) → fragment root(1) → NestedScrollView(2)
-    // → 内容容器(3) → 分组卡片(4)；再深的任务项/空态卡不再处理。
-    private static final int CARD_ALPHA_MAX_DEPTH = 4;
-
-    private void applyTopLevelCardAlpha(View view, int color) {
-        applyTopLevelCardAlpha(view, color, 0);
-    }
-
-    private void applyTopLevelCardAlpha(View view, int color, int depth) {
-        if (depth > CARD_ALPHA_MAX_DEPTH) return;
-        if (view instanceof MaterialCardView) {
-            ((MaterialCardView) view).setCardBackgroundColor(color);
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                applyTopLevelCardAlpha(group.getChildAt(i), color, depth + 1);
-            }
-        }
-    }
-
-    /**
      * 按系统版本从 Uri 解码 Bitmap（Android P+ 用 ImageDecoder，自动处理 EXIF 旋转；
      * 否则 BitmapFactory）。失败时抛出异常，由调用方（后台线程）统一收集并回主线程提示。
      */
@@ -734,7 +450,7 @@ public class MainActivity extends BaseActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             // Android 9.0及以上版本使用ImageDecoder。
             // 必须强制软件内存分配：ImageDecoder 默认可能返回 HARDWARE 位图，
-            // 而后续 createFadedBitmap 要在软件 Canvas 上做色彩滤镜重绘，会直接崩溃。
+            // 而后续预合成要在软件 Canvas 上做色彩滤镜重绘，会直接崩溃。
             return ImageDecoder.decodeBitmap(
                     ImageDecoder.createSource(getContentResolver(), uri),
                     (decoder, info, source) ->
@@ -749,6 +465,20 @@ public class MainActivity extends BaseActivity {
             bitmap = BitmapFactory.decodeStream(is);
         }
         return bitmap;
+    }
+
+    /**
+     * 读取设置中的自动更新开关，开启时启动 UpdateChecker 检查新版本。
+     */
+    private void checkForUpdatesIfNeeded() {
+        // 检查是否启用了自动更新
+        boolean autoUpdateEnabled = getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(AUTO_UPDATE_ENABLED, true);
+
+        if (autoUpdateEnabled) {
+            UpdateChecker updateChecker = new UpdateChecker(this);
+            updateChecker.checkForUpdatesIfNeeded();
+        }
     }
 
     /**
@@ -772,9 +502,8 @@ public class MainActivity extends BaseActivity {
     }
 
     @Override
-    public boolean dispatchTouchEvent(MotionEvent event) {
+    public boolean dispatchTouchEvent(android.view.MotionEvent event) {
         com.muxiao.Venus.common.tools.hideKeyboardOnTouchOutside(this, event);
         return super.dispatchTouchEvent(event);
     }
-
 }

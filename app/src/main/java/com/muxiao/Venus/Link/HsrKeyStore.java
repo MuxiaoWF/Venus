@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -73,7 +74,8 @@ public final class HsrKeyStore {
                     table = loadRuntimeTable(context);
             }
         }
-        return table.optString(version, null);
+        if (table.isNull(version)) return null;
+        return table.optString(version);
     }
 
     /**
@@ -115,10 +117,8 @@ public final class HsrKeyStore {
      * 按顺序尝试各云端源拉取密钥表并合并进运行时表（必须在后台线程调用）。
      * 主源（stardb-exporter，海外快、国内常不可达）用短超时客户端，失败/无效立即让位兜底源；
      * 某源返回任何有效条目即成功，跨源不叠加。全部失败时静默保留现有表（抓包仍可用内置表兜底）。
-     *
-     * @return 是否有某个源拉取并合并成功
      */
-    private static boolean updateFromWeb(Context context) {
+    private static void updateFromWeb(Context context) {
         for (int i = 0; i < SOURCE_URLS.length; i++) {
             // 主源可能被墙：短超时快速失败；兜底源走常规超时
             boolean fast = i < SOURCE_URLS.length - 1;
@@ -132,16 +132,16 @@ public final class HsrKeyStore {
                     Logger.debug(TAG, "remote hsr keys invalid: " + SOURCE_URLS[i]);
                     continue;
                 }
-                return mergeAndPersist(context, valid, SOURCE_URLS[i]);
+                mergeAndPersist(context, valid, SOURCE_URLS[i]);
+                return;
             } catch (Exception e) {
                 Logger.debug(TAG, "fetch hsr keys failed from " + SOURCE_URLS[i] + ": " + e);
             }
         }
-        return false;
     }
 
     /** 合并有效条目进运行时表，差量写盘并刷新成功时刻基准（JSON 异常由调用方按源失败处理） */
-    private static boolean mergeAndPersist(Context context, JSONObject valid, String source) throws Exception {
+    private static void mergeAndPersist(Context context, JSONObject valid, String source) throws Exception {
         synchronized (initLock) {
             if (table == null)
                 table = loadRuntimeTable(context);
@@ -158,7 +158,6 @@ public final class HsrKeyStore {
             }
             // 成功即刷新常规节流基准（与差量无关，空表也算「该源已确认无更新」）
             configRepo.putString(HSR_KEYS_UPDATE_TIME_PREF, String.valueOf(System.currentTimeMillis()));
-            return true;
         }
     }
 
@@ -176,8 +175,9 @@ public final class HsrKeyStore {
         Iterator<String> it = table.keys();
         while (it.hasNext()) {
             String version = it.next();
-            String value = table.optString(version, null);
-            if (value == null || value.equals(assets.optString(version, null)))
+            String value = table.optString(version);
+            String assetValue = assets.optString(version);
+            if (value.equals(assetValue))
                 continue;
             diff.put(version, value);
         }
@@ -187,7 +187,7 @@ public final class HsrKeyStore {
     private static long getLastSuccessMs(Context context) {
         try {
             return Long.parseLong(
-                    new ConfigRepository(context).get(HSR_KEYS_UPDATE_TIME_PREF, "0"));
+                Objects.requireNonNull(new ConfigRepository(context).get(HSR_KEYS_UPDATE_TIME_PREF, "0")));
         } catch (NumberFormatException e) {
             return 0L;
         }
@@ -227,7 +227,7 @@ public final class HsrKeyStore {
     private static JSONObject loadPersisted(Context context) {
         try {
             String raw = new ConfigRepository(context).get(HSR_KEYS_PREF, "");
-            if (raw.isEmpty()) return new JSONObject();
+            if (raw == null || raw.isEmpty()) return new JSONObject();
             return new JSONObject(raw);
         } catch (Exception e) {
             Logger.debug(TAG, "load persisted hsr keys failed: " + e);

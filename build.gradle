@@ -1,6 +1,23 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+// AGP 9 内置 Kotlin（默认 KGP 2.2.10）；提升 KGP 版本需显式声明在 buildscript classpath，
+// 且必须与 compose-compiler 插件版本（libs.versions.toml 的 kotlin）保持一致。
+buildscript {
+    repositories {
+        maven { url = "https://maven.aliyun.com/repository/public" }
+        maven { url = "https://maven.aliyun.com/repository/google" }
+        maven { url = "https://mirrors.cloud.tencent.com/nexus/repository/maven-public/" }
+        mavenCentral()
+        google()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}"
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application) apply false
+    // Compose 编译器插件（Kotlin 2.x 起随 Kotlin 仓库发布）
+    alias(libs.plugins.compose.compiler) apply false
 }
 
 tasks.named("dependencyUpdates").configure {

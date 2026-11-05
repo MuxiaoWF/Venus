@@ -30,7 +30,11 @@ import java.util.Date;
  * 四个数据类由 C 层（netguard.c）经 FindClass/NewObject 构造并按字段名读写，
  * 类名/包名变更必须同步 netguard.c 中的 FindClass 字符串与 JNI 签名
  * （现为 com/muxiao/Venus/Link/CaptureModels$X），并由 proguard-rules.pro keep。
+ *
+ * <p>类级 {@code @SuppressWarnings("unused")}：字段由 C 层 GetFieldID 按名读写，
+ * IDE 的 "never assigned / never used" 检查看不到反射访问，均属误报。</p>
  */
+@SuppressWarnings("unused")
 public final class CaptureModels {
     private CaptureModels() {
     }

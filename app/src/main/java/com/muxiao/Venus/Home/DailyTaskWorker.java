@@ -90,7 +90,7 @@ public class DailyTaskWorker extends Worker {
                     + DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES + " min");
             DailyTaskScheduler.enqueueNext(context,
                     DailyTaskScheduler.CHAIN_POLICY,
-                    TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES), 1);
+                    TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES));
             return Result.success();
         }
 
@@ -100,7 +100,7 @@ public class DailyTaskWorker extends Worker {
             tools.writeLog(context, TAG + ": no user or no task enabled, skip this round");
             DailyTaskScheduler.enqueueNext(context,
                     DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence(), 1);
+                    delayToNextOccurrence());
             return Result.success();
         }
 
@@ -110,7 +110,7 @@ public class DailyTaskWorker extends Worker {
             // 名单内失败项已全部被手动修复：无需重跑，直接排明天
             tools.writeLog(context, TAG + ": retry list all resolved, skip this round");
             DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence(), 1, null);
+                    delayToNextOccurrence());
             return Result.success();
         }
 
@@ -119,7 +119,7 @@ public class DailyTaskWorker extends Worker {
             tools.writeLog(context, TAG + ": all tasks completed today, skip this round");
             DailyTaskScheduler.enqueueNext(context,
                     DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence(), 1);
+                    delayToNextOccurrence());
             return Result.success();
         }
 
@@ -218,7 +218,7 @@ public class DailyTaskWorker extends Worker {
                             DailyTaskScheduler.RETRY_DELAY_MINUTES * 60_000L, attempt + 1, null);
                 else
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                            delayToNextOccurrence(), 1, null);
+                            delayToNextOccurrence());
             } else {
                 Set<String> retryable = new HashSet<>(errorNames);
                 retryable.removeAll(bgController.getCaptchaFailedTasks());
@@ -237,7 +237,7 @@ public class DailyTaskWorker extends Worker {
                                 true);
                     }
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                            delayToNextOccurrence(), 1, null);
+                            delayToNextOccurrence());
                 }
             }
         }
@@ -265,7 +265,7 @@ public class DailyTaskWorker extends Worker {
      * ERROR 状态的项。无名单（首跑/全量重试）返回 {@code null} 表示全量执行。
      */
     private Set<String> resolveOnlyNames(Context context, String userId) {
-        String[] raw = getInputData().getStringArray(DailyTaskScheduler.KEY_ONLY_NAMES);
+        String[] raw = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_ONLY_NAMES);
         if (raw == null || raw.length == 0) return null;
         Map<String, String> statuses = new TaskStatusManager(context).getAllStatuses(userId);
         Set<String> only = new HashSet<>();

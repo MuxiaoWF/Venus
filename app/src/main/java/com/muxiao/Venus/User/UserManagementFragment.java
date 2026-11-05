@@ -1,257 +1,209 @@
 package com.muxiao.Venus.User;
 
-import dagger.hilt.android.AndroidEntryPoint;
-
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Bundle;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.fragment.app.Fragment;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textfield.TextInputLayout;
-import com.google.android.material.textview.MaterialTextView;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
-import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.common.PageController;
+import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.UserCardRow;
+import com.muxiao.Venus.common.ui.compose.UserManagementScreenView;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * 用户管理页：按服务器类型分组展示用户列表，支持添加/删除/重命名用户、重新登录。
- * 任务运行时禁止修改用户（防止数据不一致）。
+ * 用户管理页控制器（原 Fragment 收敛为控制器）：按服务器类型分组展示用户列表，
+ * 支持添加/删除/重命名用户、重新登录。任务运行时禁止修改用户（防止数据不一致）。
+ *
+ * <p>界面为 Compose（{@link UserManagementScreenView}）：本类不再持有任何子 View 引用，
+ * 只负责取数据 → 写状态 → 处理回调。「无用户」「默认账号」等显示态一律由
+ * {@code UserManagementUiState} 派生，不再命令式 setVisibility。</p>
  */
-@AndroidEntryPoint
-public class UserManagementFragment extends Fragment {
+public class UserManagementFragment implements PageController {
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        tools.setupFragmentTransitions(this);
-    }
+    private final MainActivity activity;
 
     private UserManager userManager;
-    private ViewGroup userListContainer;
-    private MaterialTextView noUserPrompt;
-    /** 页面根视图：onCreateView 阶段 requireView() 尚不可用，列表刷新统一走此引用。 */
-    private View pageRootView;
+    /** Compose 宿主：所有 UI 更新经其 setter 触发重组。 */
+    private UserManagementScreenView screenView;
     /** 待保存头像的用户名：照片选择器是页面级 launcher，结果返回时凭此定位目标用户。 */
     private String pendingAvatarUser;
-    /** 系统照片选择器（Photo Picker，无需存储权限）：仅选图片。 */
-    private final ActivityResultLauncher<PickVisualMediaRequest> avatarPicker =
-            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
-                String username = pendingAvatarUser;
-                pendingAvatarUser = null;
-                if (username == null || uri == null) return;
-                handleAvatarPicked(username, uri);
-            });
+    /** 底栏覆盖高度订阅（弱引用持有，必须由本类强持有并在 release 解除）。 */
+    private final Runnable bottomBarListener = () -> {
+        if (screenView != null) screenView.setBottomClearance(BottomBarOverlay.get());
+    };
+    /** 系统照片选择器（Photo Picker，无需存储权限）：MainActivity 注册后注入。 */
+    private ActivityResultLauncher<PickVisualMediaRequest> avatarPicker;
 
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(R.layout.fragment_user_management, container, false);
-        // 液态玻璃透镜接管：日期 chip（有背景图时真实模糊底衬，无图回退渐变）
-        com.muxiao.Venus.common.ui.LensGlassDrawable.apply(rootView.findViewById(R.id.users_date_chip),
-                getResources().getDimension(R.dimen.shape_corner_xxs));
-        // 背景图玻璃感收口：标记 glass 的日期 chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
-        com.muxiao.Venus.common.tools.applyGlassAlpha(requireContext(), rootView);
-        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
-        com.muxiao.Venus.common.ui.BottomBarOverlay.attachClearance(
-                rootView.findViewById(R.id.login_scroll_view));
-        // 右下角扩展 FAB 锚定页面底部：bottomMargin 叠加底栏悬浮高度抬到玻璃之上，
-        // 底栏高度随导航栏 inset 变化时自动跟随（同 attachClearance 机制）
-        com.muxiao.Venus.common.ui.BottomBarOverlay.attachMargin(
-                rootView.findViewById(R.id.user_login_btn));
-        pageRootView = rootView;
-
-        userManager = new UserManager(requireContext());
-        userListContainer = rootView.findViewById(R.id.user_list_container);
-        // 删除卡片淡出期间容器已按新内容收缩，放开裁剪让淡出中的卡片完整绘制
-        // （稳定态卡片从不溢出容器边界，无副作用）
-        userListContainer.setClipChildren(false);
-        noUserPrompt = rootView.findViewById(R.id.no_user_prompt);
-
-        // 页眉日期 chip：MM/dd 周几（与设计稿一致）
-        android.widget.TextView dateChip = rootView.findViewById(R.id.users_date_chip);
-        if (dateChip != null)
-            dateChip.setText(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
-                    .format(new java.util.Date()));
-
-        ExtendedFloatingActionButton userLoginBtn = rootView.findViewById(R.id.user_login_btn);
-        userLoginBtn.setOnClickListener(v -> {
-            if (isTaskRunning()) {
-                showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_add));
-            } else {
-                boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
-                Intent intent = new Intent(getActivity(),
-                        isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
-                startActivity(intent);
-            }
-        });
-        // 刷新用户列表
-        refreshUserList();
-
-        return rootView;
+    public UserManagementFragment(MainActivity activity) {
+        this.activity = activity;
     }
 
+    /** 注入 MainActivity 注册的照片选择器启动器。 */
+    public void setAvatarPicker(ActivityResultLauncher<PickVisualMediaRequest> picker) {
+        this.avatarPicker = picker;
+    }
+
+    /** 照片选择器返回回调（MainActivity 的 launcher 转发）。 */
+    public void onAvatarPicked(Uri uri) {
+        String username = pendingAvatarUser;
+        pendingAvatarUser = null;
+        if (username == null || uri == null) return;
+        handleAvatarPicked(username, uri);
+    }
+
+    /** 构建页面 UI（外壳首次组合时调用一次）：绑定回调、初始化用户列表与底栏订阅。 */
+    public View createView(Context context) {
+        if (screenView != null) return screenView; // 幂等：外壳重组不会重复装配
+        UserManagementScreenView root = new UserManagementScreenView(context);
+        screenView = root;
+
+        root.setOnAddUserClickListener(this::onAddUserClick);
+        root.setOnAvatarClickListener(this::showAvatarActions);
+        root.setOnRenameClickListener(this::onRenameClick);
+        root.setOnReloginClickListener(this::performRelogin);
+        root.setOnDeleteClickListener(this::showDeleteUserDialog);
+
+        // 页眉日期 chip：MM/dd 周几（与设计稿一致）
+        root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
+                .format(new java.util.Date()));
+
+        // 内容不再容器级避让：列表底部留白 + 右下角 FAB 底距都随底栏覆盖高度走
+        // （原来分别是 BottomBarOverlay.attachClearance / attachMargin 的职责）
+        BottomBarOverlay.addListener(bottomBarListener);
+        root.setBottomClearance(BottomBarOverlay.get());
+
+        userManager = new UserManager(context);
+        refreshUserList();
+
+        return root;
+    }
+
+    /** 页面成为当前选中页 / Activity 恢复：刷新用户列表。 */
     @Override
-    public void onResume() {
-        super.onResume();
+    public void show() {
         // 恢复页面也刷新用户列表
         refreshUserList();
     }
 
-    /** 用户列表过渡：仅结构性增删时挂上（被删卡淡出、其余卡平滑让位）。
-     *  LayoutTransition 不做内容 diff，常驻会让 onResume 等无变化重建也整块闪动。 */
-    private final android.animation.LayoutTransition userListTransition =
-            new android.animation.LayoutTransition();
-
-    /** 容器现有行（行根 tag=用户名）与最新用户列表是否构成增删/重排。 */
-    private boolean userListStructureChanged(List<String> users) {
-        int count = userListContainer.getChildCount();
-        if (count != users.size()) return true;
-        for (int i = 0; i < count; i++) {
-            if (!users.get(i).equals(userListContainer.getChildAt(i).getTag())) return true;
-        }
-        return false;
+    /** 页面失去选中 / Activity 暂停（无逐帧资源，无操作）。 */
+    @Override
+    public void hide() {
     }
 
-    /**
-     * 按当前服务器类型重建用户列表视图，并为每个条目绑定重登录/重命名/删除操作
-     * （任务运行时这些操作均被拦截）。
-     */
-    private void refreshUserList() {
-        // 根据当前服务器类型过滤用户
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
-        List<String> users = userManager.getUsernamesByServerType(isOversea);
-        // 仅行数/行序真正增删时挂过渡（先挂再 removeAllViews，增删才会被捕捉为动画）；
-        // 无变化重建（onResume 等）与首帧构建瞬时完成，避免整块闪动。
-        boolean structural = userListContainer.getChildCount() > 0 && userListStructureChanged(users);
-        userListContainer.setLayoutTransition(
-                structural && !tools.isReducedMotionEnabled(requireContext())
-                        ? userListTransition : null);
-        userListContainer.removeAllViews();
-        // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
-        MaterialTextView subtitle = pageRootView.findViewById(R.id.users_subtitle);
-        if (subtitle != null)
-            subtitle.setText(getResources().getQuantityString(
-                    R.plurals.user_count_fmt, users.size(), users.size()));
-        // 如果没有用户，显示提示信息（隐藏区块标签）
-        View sectionLabel = pageRootView.findViewById(R.id.users_section_label);
-        if (users.isEmpty()) {
-            if (sectionLabel != null) sectionLabel.setVisibility(View.GONE);
-            noUserPrompt.setVisibility(View.VISIBLE);
-            String serverName = isOversea ? getString(R.string.server_os) : getString(R.string.server_cn);
-            noUserPrompt.setText(getString(R.string.msg_no_server_user, serverName));
+    /** 销毁：解除底栏订阅，清空宿主引用（Activity 销毁时由 MainActivity 调用）。 */
+    public void release() {
+        BottomBarOverlay.removeListener(bottomBarListener);
+        screenView = null;
+    }
+
+    private Context getContext() {
+        return activity;
+    }
+
+    /** 右下角「添加 / 登录用户」：任务运行中拦截，否则按服务器类型进对应登录页。 */
+    private void onAddUserClick() {
+        if (isTaskRunning()) {
+            showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_add));
             return;
         }
-        if (sectionLabel != null) sectionLabel.setVisibility(View.VISIBLE);
-        String currentUsername = userManager.getCurrentUser();
-        // 为每个用户创建新的视图实例
-        for (int i = 0; i < users.size(); i++) {
-            String username = users.get(i);
-            // 为每个用户inflate一个新的视图；行根 tag 记用户名，供下次重建做增删检测
-            View userItemView = LayoutInflater.from(requireContext())
-                    .inflate(R.layout.item_user_management, userListContainer, false);
-            userItemView.setTag(username);
-
-            // 用户卡液态玻璃透镜：接管 MaterialCardView 背景（自带圆角轮廓裁剪子内容与光边，
-            // 原 glass_solid 半透卡面保留为无背景图时的回退）
-            com.muxiao.Venus.common.ui.LensGlassDrawable.apply(userItemView,
-                    getResources().getDimension(R.dimen.shape_corner_md));
-
-            // 第一个用户卡片顶到容器,其余卡片之间留出间距
-            if (i > 0) {
-                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) userItemView.getLayoutParams();
-                lp.topMargin = getResources().getDimensionPixelSize(R.dimen.gap_card);
-                userItemView.setLayoutParams(lp);
-            }
-
-            MaterialTextView userName = userItemView.findViewById(R.id.user_name_text);
-            View defaultChip = userItemView.findViewById(R.id.user_default_chip);
-            View infoRow = userItemView.findViewById(R.id.user_info_row);
-            MaterialButton deleteButton = userItemView.findViewById(R.id.delete_user_button);
-            MaterialButton reloginButton = userItemView.findViewById(R.id.relogin_user_button);
-            ImageView avatar = userItemView.findViewById(R.id.user_avatar);
-
-            // 头像：有自定义图则圆形加载；点击头像更换/重置（信息行点击仍是重命名，互不干扰）
-            AvatarStore.loadInto(requireContext(), username, avatar);
-            avatar.setOnClickListener(v -> showAvatarActions(username));
-
-            // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
-            String serverType = getString(isOversea ? R.string.server_os : R.string.server_cn);
-            userName.setText(getString(R.string.user_label_with_server, username, serverType));
-            // 当前用户标注「默认」chip（设计稿语义）
-            defaultChip.setVisibility(username.equals(currentUsername) ? View.VISIBLE : View.GONE);
-
-            // 信息行点击 = 重命名（设计稿无独立重命名按钮，保留原入口能力）
-            infoRow.setOnClickListener(v -> {
-                if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
-                else
-                    showRenameUserDialog(username);
-            });
-
-            reloginButton.setOnClickListener(v -> {
-                if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_relogin));
-                else
-                    performRelogin(username);
-            });
-
-            deleteButton.setOnClickListener(v -> {
-                if (isTaskRunning())
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_delete));
-                else
-                    showDeleteUserDialog(username);
-            });
-
-            userListContainer.addView(userItemView);
-        }
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        Intent intent = new Intent(activity,
+                isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
+        activity.startActivity(intent);
     }
 
     /**
-     * 显示重命名用户对话框
+     * 按当前服务器类型重建用户卡列表状态（空态/区块标签/计数副标题一并派生）。
+     *
+     * <p>原实现逐条 inflate 视图、手动挂 LayoutTransition 做增删过渡；
+     * 现在只交一份数据给 Compose，列表项动画由 {@code animateItem()} 逐项 diff 完成。</p>
+     */
+    private void refreshUserList() {
+        if (screenView == null) return;
+        // 根据当前服务器类型过滤用户
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        List<String> users = userManager.getUsernamesByServerType(isOversea);
+        // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
+        screenView.setSubtitle(activity.getResources().getQuantityString(
+                R.plurals.user_count_fmt, users.size(), users.size()));
+        // 如果没有用户，显示空态（Compose 侧同时隐藏区块标签）
+        if (users.isEmpty()) {
+            String serverName = isOversea ? activity.getString(R.string.server_os) : activity.getString(R.string.server_cn);
+            screenView.setEmptyText(activity.getString(R.string.msg_no_server_user, serverName));
+            screenView.setUsers(Collections.emptyList());
+            return;
+        }
+        screenView.setEmptyText(null);
+        String currentUsername = userManager.getCurrentUser();
+        // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
+        String serverType = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
+        List<UserCardRow> rows = new ArrayList<>(users.size());
+        for (String username : users) {
+            rows.add(new UserCardRow(
+                    username,
+                    activity.getString(R.string.user_label_with_server, username, serverType),
+                    // 当前用户标注「默认」chip（设计稿语义）
+                    username.equals(currentUsername)));
+        }
+        screenView.setUsers(rows);
+    }
+
+    /** 信息行点击 = 重命名（设计稿无独立重命名按钮，保留原入口能力）。 */
+    private void onRenameClick(String username) {
+        if (isTaskRunning())
+            showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_rename));
+        else
+            showRenameUserDialog(username);
+    }
+
+    /**
+     * 显示重命名用户对话框（Compose 版输入框 + 就地校验）
      *
      * @param oldUsername 旧用户名
      */
     private void showRenameUserDialog(String oldUsername) {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireContext()).setTitle(getString(R.string.dialog_rename_user));
-
-        final TextInputLayout inputLayout = new TextInputLayout(requireContext());
-        final TextInputEditText input = new TextInputEditText(requireContext());
-        input.setText(oldUsername);
-        inputLayout.addView(input);
-        builder.setView(inputLayout);
-
-        builder.setPositiveButton(getString(R.string.btn_ok), (dialog, which) -> {
-            if (isTaskRunning()) {
-                showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_rename));
-                return;
-            }
-            String newUsername = Objects.requireNonNull(input.getText()).toString().trim();
-            if (!newUsername.isEmpty() && !newUsername.equals(oldUsername)) {
-                if (userManager.isUserExists(newUsername))
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_username_exists));
-                else
-                    renameUser(oldUsername, newUsername);
-            }
-        }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> dialog.cancel());
-        builder.show();
+        VenusDialogs.input(
+                activity,
+                activity.getString(R.string.dialog_rename_user),
+                null,
+                oldUsername,
+                null,
+                activity.getString(R.string.btn_ok),
+                activity.getString(R.string.btn_cancel),
+                true,
+                newUsername -> {
+                    if (isTaskRunning()) {
+                        showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_rename));
+                        return activity.getString(R.string.snack_task_running_cannot_rename);
+                    }
+                    if (newUsername.isEmpty()) {
+                        return activity.getString(R.string.username_hint);
+                    }
+                    if (newUsername.equals(oldUsername)) {
+                        return activity.getString(R.string.username_hint);
+                    }
+                    if (userManager.isUserExists(newUsername)) {
+                        return activity.getString(R.string.snack_username_exists);
+                    }
+                    return null;
+                },
+                newUsername -> renameUser(oldUsername, newUsername));
     }
 
     /**
@@ -265,9 +217,9 @@ public class UserManagementFragment extends Fragment {
      * @param newUsername 新用户名
      */
     private void renameUser(String oldUsername, String newUsername) {
-        new com.muxiao.Venus.common.data.UserRepository(requireContext()).migrate(oldUsername, newUsername);
+        new com.muxiao.Venus.common.data.UserRepository(getContext()).migrate(oldUsername, newUsername);
         // 头像文件按 md5(用户名) 键存储，随重命名一并迁移
-        AvatarStore.renameAvatar(requireContext(), oldUsername, newUsername);
+        AvatarStore.renameAvatar(getContext(), oldUsername, newUsername);
 
         // 添加新用户并删除旧用户
         userManager.addUser(newUsername);
@@ -275,43 +227,42 @@ public class UserManagementFragment extends Fragment {
             userManager.setCurrentUser(newUsername);
         userManager.removeUser(oldUsername);
         refreshUserList();
-        showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_renamed, newUsername));
+        showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_renamed, newUsername));
     }
 
     /** 头像操作入口：更换（拉起系统照片选择器）或恢复默认图标。 */
     private void showAvatarActions(String username) {
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.avatar_action_title))
-                .setItems(new CharSequence[]{
-                        getString(R.string.avatar_change),
-                        getString(R.string.avatar_reset)
-                }, (dialog, which) -> {
+        VenusDialogs.items(
+                activity,
+                activity.getString(R.string.avatar_action_title),
+                java.util.Arrays.asList(
+                        activity.getString(R.string.avatar_change),
+                        activity.getString(R.string.avatar_reset)
+                ),
+                which -> {
                     if (which == 0) {
                         pendingAvatarUser = username;
                         avatarPicker.launch(new PickVisualMediaRequest.Builder()
-                                // Kotlin object 的 Java 互斥写法：取其单例 INSTANCE（与 SettingsFragment 同款）
+                                // Kotlin object 的 Java 互斥写法：取其单例 INSTANCE（与设置页同款）
                                 .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
                                 .build());
                     } else {
-                        AvatarStore.deleteAvatar(requireContext(), username);
+                        AvatarStore.deleteAvatar(getContext(), username);
                         refreshUserList();
                     }
-                })
-                .setNegativeButton(getString(R.string.btn_cancel), null)
-                .show();
+                },
+                activity.getString(R.string.btn_cancel));
     }
 
     /** 照片选择器回调：后台线程解码落盘，完成后回主线程刷新列表并提示。 */
     private void handleAvatarPicked(String username, Uri uri) {
-        android.content.Context appContext = requireContext().getApplicationContext();
+        android.content.Context appContext = getContext().getApplicationContext();
         AppExecutors.get().execute(() -> {
             boolean saved = AvatarStore.saveFromUri(appContext, username, uri);
-            android.app.Activity activity = getActivity();
-            if (activity == null) return;
             activity.runOnUiThread(() -> {
-                if (getView() == null) return;
+                if (screenView == null) return;
                 refreshUserList();
-                showCustomSnackbar(getView(), requireContext(), getString(saved
+                showCustomSnackbar(screenView, getContext(), activity.getString(saved
                         ? R.string.snack_avatar_saved
                         : R.string.err_avatar_save_failed));
             });
@@ -325,20 +276,22 @@ public class UserManagementFragment extends Fragment {
      */
     private void showDeleteUserDialog(String username) {
         if (isTaskRunning()) {
-            showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_delete));
+            showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_delete));
             return;
         }
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.dialog_delete_user))
-                .setMessage(getString(R.string.msg_delete_user_confirm, username))
-                .setPositiveButton(getString(R.string.btn_delete), (dialog, which) -> {
+        VenusDialogs.confirm(
+                activity,
+                activity.getString(R.string.dialog_delete_user),
+                activity.getString(R.string.msg_delete_user_confirm, username),
+                activity.getString(R.string.btn_delete),
+                () -> {
                     userManager.removeUser(username);
                     // 头像文件随用户一并清除，避免残留
-                    AvatarStore.deleteAvatar(requireContext(), username);
+                    AvatarStore.deleteAvatar(getContext(), username);
                     refreshUserList();
-                    showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_user_deleted, username));
-                }).setNegativeButton(getString(R.string.btn_cancel), (dialog, which) -> dialog.cancel())
-                .show();
+                    showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_deleted, username));
+                },
+                activity.getString(R.string.btn_cancel));
     }
 
     /**
@@ -355,16 +308,16 @@ public class UserManagementFragment extends Fragment {
      */
     private void performRelogin(String username) {
         if (isTaskRunning()) {
-            showCustomSnackbar(requireView(), requireContext(), getString(R.string.snack_task_running_cannot_relogin));
+            showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_relogin));
             return;
         }
         // 切换到该用户并启动登录活动以刷新cookie
         userManager.setCurrentUser(username);
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
-        Intent intent = new Intent(getActivity(),
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        Intent intent = new Intent(activity,
                 isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
         intent.putExtra("RELOGIN_MODE", true);
         intent.putExtra("USERNAME", username); // 传递用户名
-        startActivity(intent);
+        activity.startActivity(intent);
     }
 }

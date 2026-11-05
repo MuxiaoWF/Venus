@@ -1,53 +1,38 @@
 package com.muxiao.Venus.Home;
 
-import dagger.hilt.android.AndroidEntryPoint;
-import javax.inject.Inject;
-
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 import static com.muxiao.Venus.common.tools.show_warning_dialog;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Bundle;
 import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.transition.ChangeBounds;
-import android.transition.Fade;
-import android.transition.TransitionManager;
-import android.transition.TransitionSet;
-import android.view.animation.AnimationUtils;
 import android.widget.LinearLayout;
 
-import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3GeetestUtils;
 import com.geetest.sdk.views.GT3GeetestButton;
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
-import com.muxiao.Venus.User.AvatarStore;
+import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.HeaderManager;
-import com.muxiao.Venus.common.ui.BottomBarOverlay;
-import com.muxiao.Venus.common.ui.LensGlassDrawable;
+import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.HomeScreenKt;
+import com.muxiao.Venus.common.ui.compose.HomeScreenView;
+import com.muxiao.Venus.common.ui.compose.HomeTaskRow;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.User.UserDropdownAdapter;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
@@ -65,254 +50,135 @@ import java.util.Set;
 import java.util.concurrent.Future;
 
 /**
- * 主页Fragment：用户选择下拉框、任务列表展示、签到执行（前台/后台）、
+ * 主页控制器（原 Fragment 收敛为控制器，外壳迁移到 Compose 后不再持有
+ * Fragment 生命周期）：用户选择下拉框、任务列表展示、签到执行（前台/后台）、
  * 任务状态实时更新、日志查看、配置更新入口。
+ *
+ * <p>生命周期契约见 {@link PageController}：show/hide 由 MainActivity 按页面
+ * 选中态与 Activity 恢复态折算调用；createView 在外壳首次组合时调用一次；
+ * release 在 Activity 销毁时调用。</p>
  */
-@AndroidEntryPoint
-public class HomeFragment extends Fragment {
+public class HomeFragment implements PageController {
 
-    /** 向宿主 Activity 广播“本 Fragment 已就绪”，用于触发后台人机验证（替代 postDelayed 轮询）。 */
-    public static final String RESULT_HOME_READY = "home_fragment_ready";
-
-    /** 初始化：设置 Fragment 转场动画。 */
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        tools.setupFragmentTransitions(this);
-    }
+    private final MainActivity activity;
 
     private UserManager userManager;
-    @Inject AppExecutors appExecutors;
-    private LinearLayout geetestContainer;
+    /**
+     * Compose 宿主：本页唯一的 UI 入口。
+     *
+     * <p>原实现持有 20 多个 View 字段（下拉框、四个按钮、各种 TextView、
+     * RecyclerView + TaskAdapter），全部收敛到此处；本类只做「取数据 → 写状态 → 处理回调」。</p>
+     */
+    private HomeScreenView screenView;
     private static volatile Future<?> currentTaskFuture;
-    private MaterialAutoCompleteTextView user_dropdown;
-    private View start_daily_btn;
-    private View start_daily_bg_btn;
-    private MaterialButton cancel_daily_btn;
-    /** 重试失败任务行：当日存在 ERROR 任务且空闲时显示，点击只重跑失败任务。 */
-    private View retry_failed_btn;
-    private android.widget.TextView retry_failed_count;
-    /** 后台运行行内文字（运行中切换为「取消任务」）。 */
-    private android.widget.TextView start_daily_bg_text;
-    private android.widget.TextView start_daily_hint;
-    /** 页眉副标题（运行外追加「已完成 x/y」进度）与任务列表头部的 DONE 计数。 */
-    private android.widget.TextView homeSubtitle;
-    private android.widget.TextView taskDoneLabel;
-    /** 账号上下文区块（标签 + 下拉行整体），运行期间按 UiState 隐藏。 */
-    private View userSection;
-    /** 账号小标题与区块下分割线：随 user_section 一起隐藏（否则运行中残留孤儿标题/悬空线）。 */
-    private View accountSectionLabel;
-    private View userSectionDivider;
-    /** 当前用户头像：有自定义图则圆形加载，否则显示默认人像图标。 */
-    private android.widget.ImageView homeUserAvatar;
-    private TaskAdapter taskAdapter;
-    private View taskListEmptyView;
-    private ViewGroup homeContentContainer;
-    /** Adapter 的渲染缓冲区（唯一真相在 HomeViewModel 的 TaskUiState 中）。 */
-    private final List<TaskItem> taskList = new ArrayList<>();
+    /** 当前下拉框中的用户名（顺序即下标契约，Compose 回调按下标取人）。 */
+    private List<String> currentUsernames = new ArrayList<>();
+    /** 底栏覆盖高度订阅（弱引用持有，必须由本类强持有并在 release 解除）。 */
+    private final Runnable bottomBarListener = () -> {
+        if (screenView != null) screenView.setBottomClearance(BottomBarOverlay.get());
+    };
     private HomeViewModel viewModel;
+
+    /** show() 早于 createView 到达的挂起标记（见 show() 守卫与 createView 末尾补发）。 */
+    private boolean pendingShow;
     private File logFile; // 日志文件路径
     private BroadcastReceiver taskStateReceiver;
     private BroadcastReceiver taskStatusReceiver;
+    /** UiState 观察者（show 期间注册 / release 时移除，替代原 getViewLifecycleOwner 观察）。 */
+    private final Observer<HomeViewModel.TaskUiState> uiObserver = this::render;
 
-    private final GeetestController controller = new GeetestController() {
-        private GT3GeetestUtils gt3GeetestUtils;
-        public GT3GeetestButton geetestButton;
+    /** 主页就绪回调：MainActivity 据此触发后台人机验证（替代原 FragmentResult 广播）。 */
+    private Runnable homeReadyCallback;
 
-        @Override
-        public void createUtils() {
-            if (gt3GeetestUtils == null) {
-                android.app.Activity activity = getActivity();
-                if (activity != null)
-                    gt3GeetestUtils = new GT3GeetestUtils(activity);
-            }
-        }
+    public HomeFragment(MainActivity activity) {
+        this.activity = activity;
+    }
 
-        @Override
-        public void createButton(GT3ConfigBean gt3ConfigBean) {
-            Logger.debug("VenusCaptcha", "Foreground controller createButton called");
-            createUtils();
-            runOnUi(() -> {
-                Logger.debug("VenusCaptcha", "Running on UI thread, creating button");
-                try {
-                    // 动态创建GT3GeetestButton
-                    // 如果按钮已存在，先销毁
-                    if (geetestButton != null && geetestContainer != null) {
-                        geetestContainer.removeView(geetestButton);
-                        geetestButton = null;
-                    }
-                    // 创建新的GT3GeetestButton实例
-                    geetestButton = new GT3GeetestButton(requireContext());
-                    // 内容居中 + 显式横向：SDK 官方 XML 用法为
-                    //   android:gravity="center" android:orientation="horizontal"
-                    // 二者都不在 SDK 内部设置，LinearLayout 默认 gravity 为 TOP|START。
-                    // 按钮内部内容（盾牌图标 + 「请点击验证」14sp 文案）自然高度仅约 20~30dp，
-                    // 定高 44dp 且顶对齐时，剩余部分会表现为按钮底部一条空白（白底渐变上极显眼）。
-                    geetestButton.setGravity(Gravity.CENTER);
-                    geetestButton.setOrientation(LinearLayout.HORIZONTAL);
-                    // 布局参数：宽度定尺 290dp、高度 44dp。**刻意不设垂直外边距**——
-                    // 按钮上下的留白统一由 geetest_container 的 marginTop 与紧随其后的
-                    // 分隔线 marginTop 各出 space_4 提供（见 fragment_home.xml 的留白契约）。
-                    // 若在此再叠加垂直 margin，会变成「上 20dp / 下 28dp」的不对称观感。
-                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                            (int) (290 * getResources().getDisplayMetrics().density),
-                            (int) (44 * getResources().getDisplayMetrics().density)
-                    );
-                    params.gravity = Gravity.CENTER_HORIZONTAL;
-                    geetestButton.setLayoutParams(params);
-                    // 添加到容器中
-                    geetestContainer.addView(geetestButton);
-                    geetestContainer.setVisibility(View.VISIBLE);
-                    gt3GeetestUtils.init(gt3ConfigBean);
-                    geetestButton.setGeetestUtils(gt3GeetestUtils);
-                } catch (Exception e) {
-                    Logger.e("Error creating GT3GeetestButton", e);
-                }
-            });
-        }
+    /** 就绪回调注入（MainActivity 在 onCreate 里注册）。 */
+    public void setHomeReadyCallback(Runnable callback) {
+        homeReadyCallback = callback;
+    }
 
-        @Override
-        public void destroyButton() {
-            runOnUi(() -> {
-                // 销毁按钮
-                if (geetestButton != null && geetestContainer != null) {
-                    geetestContainer.removeView(geetestButton);
-                    geetestButton = null;
-                    geetestContainer.setVisibility(View.GONE);
-                }
-            });
-            // 销毁工具
-            destroyUtils();
-        }
+    /** 控制器是否已就绪（视图已创建）：人机验证触发链的守卫条件。 */
+    public boolean isReady() {
+        return screenView != null;
+    }
 
-        @Override
-        public GT3GeetestUtils getGeetestUtils() {
-            return gt3GeetestUtils;
-        }
+    /**
+     * 构建主页 UI（外壳首次组合时调用一次）：绑定视图、初始化下拉框/任务列表、
+     * 注册按钮与日志查看；并以 ViewModel 单向数据流渲染。
+     */
+    public View createView(Context context) {
+        if (screenView != null) return screenView; // 幂等：外壳重组不会重复装配
+        HomeScreenView root = new HomeScreenView(context);
+        screenView = root;
 
-        /** 销毁验证码工具（destroyButton 内部调用，无需经接口暴露）。 */
-        public void destroyUtils() {
-            if (gt3GeetestUtils != null) {
-                gt3GeetestUtils.destory();
-                gt3GeetestUtils = null;
-            }
-        }
-    };
-
-    /** 构建主页 UI：绑定视图、初始化下拉框/任务列表、注册按钮与日志查看；并以 ViewModel 单向数据流渲染。 */
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_home, container, false);
-
-        // 液态玻璃透镜接管（模仿 AndroidLiquidGlass）：有背景图时 chip/行显示真实模糊底衬
-        // + 高光光边（无图回退原渐变蒙版）；须在 applyGlassAlpha 之前，透镜视图跳过降透明
-        LensGlassDrawable.apply(view.findViewById(R.id.home_date_chip),
-                getResources().getDimension(R.dimen.shape_corner_xxs));
-        LensGlassDrawable.apply(view.findViewById(R.id.start_daily_bg),
-                getResources().getDimension(R.dimen.shape_corner_xs));
-        LensGlassDrawable.apply(view.findViewById(R.id.retry_failed),
-                getResources().getDimension(R.dimen.shape_corner_xs));
-
-        // 背景图玻璃感收口：标记 glass 的表面行/chip 在有背景图时降透明度（见 tools.applyGlassAlpha）
-        tools.applyGlassAlpha(requireContext(), view);
-
-        // ViewModel 作为 UI 状态单一可信数据源
-        viewModel = new ViewModelProvider(this).get(HomeViewModel.class);
-
-        user_dropdown = view.findViewById(R.id.user_dropdown);
-        // 内容不再容器级避让：滚动容器底部留出底栏覆盖高度，末项可完整滚出玻璃区
-        BottomBarOverlay.attachClearance(view.findViewById(R.id.home_scroll));
-        start_daily_btn = view.findViewById(R.id.start_daily);
-        cancel_daily_btn = view.findViewById(R.id.cancel_daily);
-        retry_failed_btn = view.findViewById(R.id.retry_failed);
-        retry_failed_count = view.findViewById(R.id.retry_failed_count);
-        start_daily_bg_btn = view.findViewById(R.id.start_daily_bg);
-        start_daily_bg_text = view.findViewById(R.id.start_daily_bg_text);
-        start_daily_hint = view.findViewById(R.id.start_daily_hint);
-        homeSubtitle = view.findViewById(R.id.home_subtitle);
-        taskDoneLabel = view.findViewById(R.id.task_done_label);
-        MaterialButton view_log_btn = view.findViewById(R.id.view_log_btn);
-        RecyclerView tasksRecyclerView = view.findViewById(R.id.tasks_recycler_view);
-        taskListEmptyView = view.findViewById(R.id.task_list_empty_view);
-        geetestContainer = view.findViewById(R.id.geetest_container);
-        userSection = view.findViewById(R.id.user_section);
-        accountSectionLabel = view.findViewById(R.id.account_section_label);
-        userSectionDivider = view.findViewById(R.id.user_section_divider);
-        homeUserAvatar = view.findViewById(R.id.home_user_avatar);
-        homeContentContainer = view.findViewById(R.id.home_content_container);
+        // ViewModel 作为 UI 状态单一可信数据源（Activity 作用域，与原 Fragment 作用域等效）
+        viewModel = new ViewModelProvider(activity).get(HomeViewModel.class);
 
         // 页眉日期 chip：MM/dd 周几
-        android.widget.TextView dateChip = view.findViewById(R.id.home_date_chip);
-        if (dateChip != null) {
-            String pattern = "MM/dd E";
-            dateChip.setText(new java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
-                    .format(new java.util.Date()));
-        }
+        root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
+                .format(new java.util.Date()));
+
+        // 内容不再容器级避让：列表底部留出底栏覆盖高度，末项可完整滚出玻璃区
+        // （原 BottomBarOverlay.attachClearance 的职责，改为把高度喂成组合状态）
+        BottomBarOverlay.addListener(bottomBarListener);
+        root.setBottomClearance(BottomBarOverlay.get());
 
         // 初始化
-        userManager = new UserManager(requireContext());
+        userManager = new UserManager(context);
         controller.createUtils();
-        tools.cleanOldLogs(requireContext());
-        logFile = tools.getTodayLogFile(requireContext());
+        tools.cleanOldLogs(context);
+        logFile = tools.getTodayLogFile(context);
 
         // 输出文本监听器
         tools.StatusNotifier notifier = new tools.StatusNotifier();
-        notifier.addListener(message -> tools.writeLog(requireContext(), message));
+        notifier.addListener(message -> tools.writeLog(context, message));
 
-        // 初始化下拉框
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+        // 初始化下拉框（当前用户由 ViewModel 持有，避免控制器与 VM 双份真相）
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(context);
         List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-        // 下拉展开列表每项带头像：复用账号体系 AvatarStore（与账号行/抽卡页同一套）
-        user_dropdown.setAdapter(new UserDropdownAdapter(requireContext(), usernames));        // 设置当前用户为默认选中项（当前用户由 ViewModel 持有，避免 Fragment 与 VM 双份真相）
         String initialUser = userManager.getCurrentUser();
         if (!initialUser.isEmpty() && usernames.contains(initialUser)) {
             viewModel.setCurrentUser(initialUser);
-            user_dropdown.setText(formatUserLabel(initialUser, isOversea), false);
         } else if (!usernames.isEmpty()) {
             // 如果当前用户不存在或为空，设置为第一个用户
             viewModel.setCurrentUser(usernames.get(0));
-            user_dropdown.setText(formatUserLabel(usernames.get(0), isOversea), false);
         } else {
             viewModel.setCurrentUser("");
         }
-        // 无用户空态引导：账号行显示「尚未添加用户」并点击跳转用户管理页；
-        // 有用户时恢复整行展开下拉的常规行为
-        updateUserGuideState(usernames);
-        // 状态按用户分桶、头像按用户读取：必须先确定当前用户再重建列表，
+        // 账号行/下拉数据：必须先确定当前用户再重建列表，
         // 否则读到空桶导致任务全部显示 pending（原实现刷新先于用户初始化，分桶后不成立）
-        loadUserAvatar();
+        applyUserList(usernames, isOversea);
         viewModel.refreshTaskItems();
-        user_dropdown.setOnItemClickListener((parent, view1, position, id) -> {
-            String picked = (String) parent.getItemAtPosition(position);
+        root.setOnUserSelectedListener(index -> {
+            if (index < 0 || index >= currentUsernames.size()) return;
+            String picked = currentUsernames.get(index);
             viewModel.setCurrentUser(picked);
             userManager.setCurrentUser(picked);
             // 切换账号：按新用户重建任务状态与头像
             loadUserAvatar();
             viewModel.refreshTaskItems();
         });
+        // 无用户空态引导：账号行点击跳转用户管理页（而非弹出一个空下拉）
+        root.setOnJumpToUsersListener(() -> activity.navigateToPage(1));
 
-        // 设置任务列表RecyclerView
-        tasksRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        tasksRecyclerView.setItemAnimator(new com.muxiao.Venus.common.ui.ScaleInItemAnimator(false));
-        taskAdapter = new TaskAdapter(taskList);
-        tasksRecyclerView.setAdapter(taskAdapter);
         // 单向数据流：观察 ViewModel 的不可变 UiState，一次性渲染任务列表 + 全部按钮可见性
-        viewModel.getUiState().observe(getViewLifecycleOwner(), this::render);
+        viewModel.getUiState().observeForever(uiObserver);
 
         // 启动任务按钮
-        start_daily_btn.setOnClickListener(v -> {
+        root.setOnStartDailyListener(() -> {
             // 无用户时引导添加而非运行后报错
             if (interceptIfNoUser()) return;
             // 定时任务执行中不允许叠加手动运行：两路 TaskExecutor 的状态写入会互相覆盖
             if (DailyTaskWorker.isRunning()) {
-                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+                tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_scheduled_task_running));
                 return;
             }
             // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）；属轻微故障，用 Snackbar 而非错误弹窗
             if (!clearLogFile())
-                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
-            tools.writeLogSeparator(requireContext());
+                tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
+            tools.writeLogSeparator(context);
             // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（已完成/已签过/失败）——
             // 重跑中各任务被真正执行到时才逐个切回进行中，中途终止不丢之前已完成的记录
             viewModel.resetForNewRun();
@@ -325,18 +191,16 @@ public class HomeFragment extends Fragment {
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
             viewModel.refreshTaskItems();
 
-            currentTaskFuture = appExecutors.submit(() -> {
+            currentTaskFuture = AppExecutors.get().submit(() -> {
                 try {
-                    TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+                    TaskSettings settings = TaskSettings.fromPreferences(context);
                     if (settings.hasAnyTaskDisabled()) {
                         // 引导性约束而非故障：用「提示」弹窗，不带「复制错误」入口
-                        runOnUi(() -> show_warning_dialog(requireContext(), getString(R.string.err_set_task_first)));
+                        runOnUi(() -> show_warning_dialog(context, activity.getString(R.string.err_set_task_first)));
                         return;
                     }
-                    android.app.Activity taskActivity = getActivity();
-                    if (taskActivity == null) return;
                     TaskExecutor taskExecutor = new TaskExecutor(
-                            taskActivity, viewModel.getCurrentUser(), notifier, controller,
+                            activity, viewModel.getCurrentUser(), notifier, controller,
                             new TaskExecutor.Callback() {
                                 @Override
                                 public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
@@ -344,13 +208,11 @@ public class HomeFragment extends Fragment {
                                 }
                                 @Override
                                 public void onAllTasksCompleted() {
-                                    notifier.notifyListeners(getString(R.string.task_completed));
+                                    notifier.notifyListeners(activity.getString(R.string.task_completed));
                                 }
                                 @Override
                                 public void onError(String message) {
-                                    // 捕获时判空：避免 Fragment 已 detach 时 requireContext() 抛异常
-                                    android.app.Activity a = getActivity();
-                                    if (a != null) a.runOnUiThread(() -> show_error_dialog(a, message));
+                                    activity.runOnUiThread(() -> show_error_dialog(activity, message));
                                 }
                                 @Override
                                 public boolean isCancelled() {
@@ -373,18 +235,18 @@ public class HomeFragment extends Fragment {
         });
 
         // 重试失败任务：只重跑当日 ERROR 状态的任务，已完成项不重复执行
-        retry_failed_btn.setOnClickListener(v -> {
+        root.setOnRetryFailedListener(() -> {
             // 无用户时引导添加（与启动按钮同口径）
             if (interceptIfNoUser()) return;
             // 定时任务执行中不允许叠加（两路 TaskExecutor 的状态写入会互相覆盖）
             if (DailyTaskWorker.isRunning()) {
-                tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+                tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_scheduled_task_running));
                 return;
             }
             Set<String> failedNames = collectFailedTaskNames();
             // 按钮可见性由 ERROR 状态派生，正常不会为空；切用户/改配置等竞态下兜底
             if (failedNames.isEmpty()) return;
-            tools.writeLogSeparator(requireContext());
+            tools.writeLogSeparator(context);
 
             // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖为新结果。
             // 清空触达集合后重建列表：未触达的已完成任务在重试期间按「沿用上次结果」展示
@@ -392,17 +254,15 @@ public class HomeFragment extends Fragment {
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
             viewModel.refreshTaskItems();
 
-            currentTaskFuture = appExecutors.submit(() -> {
+            currentTaskFuture = AppExecutors.get().submit(() -> {
                 try {
-                    TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+                    TaskSettings settings = TaskSettings.fromPreferences(context);
                     if (settings.hasAnyTaskDisabled()) {
-                        runOnUi(() -> show_warning_dialog(requireContext(), getString(R.string.err_set_task_first)));
+                        runOnUi(() -> show_warning_dialog(context, activity.getString(R.string.err_set_task_first)));
                         return;
                     }
-                    android.app.Activity taskActivity = getActivity();
-                    if (taskActivity == null) return;
                     TaskExecutor taskExecutor = new TaskExecutor(
-                            taskActivity, viewModel.getCurrentUser(), notifier, controller,
+                            activity, viewModel.getCurrentUser(), notifier, controller,
                             new TaskExecutor.Callback() {
                                 @Override
                                 public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
@@ -410,13 +270,11 @@ public class HomeFragment extends Fragment {
                                 }
                                 @Override
                                 public void onAllTasksCompleted() {
-                                    notifier.notifyListeners(getString(R.string.task_completed));
+                                    notifier.notifyListeners(activity.getString(R.string.task_completed));
                                 }
                                 @Override
                                 public void onError(String message) {
-                                    // 捕获时判空：避免 Fragment 已 detach 时 requireContext() 抛异常
-                                    android.app.Activity a = getActivity();
-                                    if (a != null) a.runOnUiThread(() -> show_error_dialog(a, message));
+                                    activity.runOnUiThread(() -> show_error_dialog(activity, message));
                                 }
                                 @Override
                                 public boolean isCancelled() {
@@ -440,35 +298,37 @@ public class HomeFragment extends Fragment {
         });
 
         // 取消任务按钮
-        cancel_daily_btn.setOnClickListener(v -> new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(getString(R.string.dialog_confirm_cancel))
-                .setMessage(getString(R.string.msg_confirm_cancel_current_task))
-                .setPositiveButton(getString(R.string.btn_ok), (dialog, which) -> {
+        root.setOnCancelDailyListener(() -> VenusDialogs.confirm(
+                activity,
+                activity.getString(R.string.dialog_confirm_cancel),
+                activity.getString(R.string.msg_confirm_cancel_current_task),
+                activity.getString(R.string.btn_ok),
+                () -> {
                     if (currentTaskFuture != null) {
                         currentTaskFuture.cancel(true); // 尝试取消任务
                         controller.destroyButton(); // 销毁验证码按钮
                         controller.createUtils(); // 创建验证码Utils以备下次使用
                     }
-                    notifier.notifyListeners(getString(R.string.task_cancelled));
-                })
-                .setNegativeButton(getString(R.string.btn_continue_task), null)
-                .show());
+                    notifier.notifyListeners(activity.getString(R.string.task_cancelled));
+                },
+                activity.getString(R.string.btn_continue_task)));
 
         // 后台运行/取消按钮
-        start_daily_bg_btn.setOnClickListener(v -> {
+        root.setOnBackgroundClickListener(() -> {
             if (ForegroundTaskService.isRunning()) {
-                new MaterialAlertDialogBuilder(requireContext())
-                        .setTitle(getString(R.string.dialog_confirm_cancel))
-                        .setMessage(getString(R.string.msg_confirm_cancel_background_task))
-                .setPositiveButton(getString(R.string.btn_ok), (dialog, which) -> {
-                    Intent stopIntent = new Intent(requireContext(), ForegroundTaskService.class);
-                    stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
-                    requireContext().startService(stopIntent);
-                    // 不在此立即置 IDLE：等待服务 cancelTask() 广播 is_running=false，
-                    // 由 applyBackgroundRunning(false) 统一切回 IDLE，避免按钮状态提前翻转
-                })
-                        .setNegativeButton(getString(R.string.btn_continue_task), null)
-                        .show();
+                VenusDialogs.confirm(
+                        activity,
+                        activity.getString(R.string.dialog_confirm_cancel),
+                        activity.getString(R.string.msg_confirm_cancel_background_task),
+                        activity.getString(R.string.btn_ok),
+                        () -> {
+                            Intent stopIntent = new Intent(context, ForegroundTaskService.class);
+                            stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
+                            context.startService(stopIntent);
+                            // 不在此立即置 IDLE：等待服务 cancelTask() 广播 is_running=false，
+                            // 由 applyBackgroundRunning(false) 统一切回 IDLE，避免按钮状态提前翻转
+                        },
+                        activity.getString(R.string.btn_continue_task));
                 return;
             }
 
@@ -479,14 +339,14 @@ public class HomeFragment extends Fragment {
         viewModel.refreshBgFeatureEnabled();
 
         // 检查是否需要处理后台人机验证
-        android.content.Intent launchIntent = getActivity() != null ? getActivity().getIntent() : null;
+        android.content.Intent launchIntent = activity.getIntent();
         if (launchIntent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(launchIntent.getAction())) {
             launchIntent.setAction(null);
-            view.postDelayed(this::performBackgroundCaptchaVerification, 300);
+            screenView.postDelayed(this::performBackgroundCaptchaVerification, 300);
         }
 
         // 查看日志按钮
-        view_log_btn.setOnClickListener(v -> {
+        root.setOnViewLogListener(() -> {
             try {
                 if (logFile.exists() && logFile.length() > 0) {
                     List<String> lines = new ArrayList<>();
@@ -499,40 +359,114 @@ public class HomeFragment extends Fragment {
                     StringBuilder content = new StringBuilder();
                     for (String l : lines) content.append(l).append("\n");
 
-                    // 创建可滚动的 TextView
-                    android.widget.ScrollView scrollView = new android.widget.ScrollView(requireContext());
-                    int padding = (int) (16 * getResources().getDisplayMetrics().density);
-                    scrollView.setPadding(padding, padding / 2, padding, 0);
-
-                    com.google.android.material.textview.MaterialTextView logTextView =
-                            new com.google.android.material.textview.MaterialTextView(requireContext());
-                    logTextView.setText(content.toString());
-                    logTextView.setTextSize(12);
-                    logTextView.setTextIsSelectable(true);
-                    logTextView.setTypeface(android.graphics.Typeface.MONOSPACE);
-                    scrollView.addView(logTextView);
-
-                    // 显示日志内容对话框
-                    new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
-                            .setTitle(getString(R.string.dialog_log_title, logFile.getName()))
-                            .setView(scrollView)
-                            .setPositiveButton(getString(R.string.btn_ok), null)
-                            .setNegativeButton(getString(R.string.btn_clear_log), (dialog, which) -> {
+                    // 日志内容对话框（Compose 版：等宽可滚动文本 + 清空入口）
+                    VenusDialogs.scrolledText(
+                            activity,
+                            activity.getString(R.string.dialog_log_title, logFile.getName()),
+                            content.toString(),
+                            activity.getString(R.string.btn_ok),
+                            activity.getString(R.string.btn_clear_log),
+                            () -> {
                                 if (clearLogFile())
-                                    tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_log_cleared));
+                                    tools.showCustomSnackbar(screenView, context, activity.getString(R.string.snack_log_cleared));
                                 else
-                                    tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_clear_log_failed));
-                            })
-                            .show();
+                                    tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
+                            });
                 } else {
-                    tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_no_log));
+                    tools.showCustomSnackbar(screenView, context, activity.getString(R.string.snack_no_log));
                 }
             } catch (IOException e) {
-                tools.show_error_dialog(requireContext(), getString(R.string.err_read_log_failed, tools.describeError(e)));
+                tools.show_error_dialog(context, activity.getString(R.string.err_read_log_failed, tools.describeError(e)));
             }
         });
-        return view;
+        return root;
     }
+
+    private final GeetestController controller = new GeetestController() {
+        private GT3GeetestUtils gt3GeetestUtils;
+        public GT3GeetestButton geetestButton;
+
+        @Override
+        public void createUtils() {
+            if (gt3GeetestUtils == null) {
+                gt3GeetestUtils = new GT3GeetestUtils(activity);
+            }
+        }
+
+        @Override
+        public void createButton(GT3ConfigBean gt3ConfigBean) {
+            Logger.debug("VenusCaptcha", "Foreground controller createButton called");
+            createUtils();
+            runOnUi(() -> {
+                Logger.debug("VenusCaptcha", "Running on UI thread, creating button");
+                // 容器由 Compose 宿主急切创建（见 HomeScreenView.geetestContainer），
+                // SDK 只认真实 ViewGroup，故这层桥接保留
+                if (screenView == null) return;
+                LinearLayout container = screenView.getGeetestContainer();
+                try {
+                    // 动态创建GT3GeetestButton
+                    // 如果按钮已存在，先销毁
+                    if (geetestButton != null) {
+                        container.removeView(geetestButton);
+                        geetestButton = null;
+                    }
+                    // 创建新的GT3GeetestButton实例
+                    geetestButton = new GT3GeetestButton(activity);
+                    // 内容居中 + 显式横向：SDK 官方 XML 用法为
+                    //   android:gravity="center" android:orientation="horizontal"
+                    // 二者都不在 SDK 内部设置，LinearLayout 默认 gravity 为 TOP|START。
+                    // 按钮内部内容（盾牌图标 + 「请点击验证」14sp 文案）自然高度仅约 20~30dp，
+                    // 定高 44dp 且顶对齐时，剩余部分会表现为按钮底部一条空白（白底渐变上极显眼）。
+                    geetestButton.setGravity(Gravity.CENTER);
+                    geetestButton.setOrientation(LinearLayout.HORIZONTAL);
+                    // 布局参数：宽度定尺 290dp、高度 44dp。**刻意不设垂直外边距**——
+                    // 按钮上下的留白统一由容器的 marginTop 与紧随其后的分隔线 marginTop
+                    // 各出 space_4 提供（见 HomeScreen 的留白契约）。
+                    // 若在此再叠加垂直 margin，会变成「上 20dp / 下 28dp」的不对称观感。
+                    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                            (int) (290 * getResources().getDisplayMetrics().density),
+                            (int) (44 * getResources().getDisplayMetrics().density)
+                    );
+                    params.gravity = Gravity.CENTER_HORIZONTAL;
+                    geetestButton.setLayoutParams(params);
+                    // 添加到容器中
+                    container.addView(geetestButton);
+                    screenView.setGeetestVisible(true);
+                    gt3GeetestUtils.init(gt3ConfigBean);
+                    geetestButton.setGeetestUtils(gt3GeetestUtils);
+                } catch (Exception e) {
+                    Logger.e("Error creating GT3GeetestButton", e);
+                }
+            });
+        }
+
+        @Override
+        public void destroyButton() {
+            runOnUi(() -> {
+                // 销毁按钮
+                if (geetestButton != null && screenView != null) {
+                    screenView.getGeetestContainer().removeView(geetestButton);
+                    geetestButton = null;
+                    screenView.setGeetestVisible(false);
+                }
+            });
+            // 销毁工具
+            destroyUtils();
+        }
+
+        @Override
+        public GT3GeetestUtils getGeetestUtils() {
+            return gt3GeetestUtils;
+        }
+
+        /** 销毁验证码工具（destroyButton 内部调用，无需经接口暴露）。 */
+        public void destroyUtils() {
+            if (gt3GeetestUtils != null) {
+                gt3GeetestUtils.destory();
+                gt3GeetestUtils = null;
+            }
+        }
+    };
 
     /**
      * 由 MainActivity 调用，处理后台人机验证通知跳转。
@@ -540,10 +474,6 @@ public class HomeFragment extends Fragment {
      */
     public void performBackgroundCaptchaVerification() {
         Logger.debug("VenusCaptcha", "performBackgroundCaptchaVerification called, controller=" + controller);
-        // 预先在 UI 线程取出 Activity 引用：本方法在后台线程内使用 requireContext()/getString()，
-        // Fragment detach 后会抛 IllegalStateException；Activity 引用在销毁前始终可用。
-        final android.app.Activity activity = getActivity();
-        if (activity == null) return;
         // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
         AppExecutors.get().execute(() -> {
             try {
@@ -598,123 +528,67 @@ public class HomeFragment extends Fragment {
     }
 
     /**
-     * 渲染 ViewModel 的不可变 UiState：任务列表 + 全部按钮/下拉框可见性。
-     * 这是本 Fragment 唯一改动 UI 可见性的入口，避免多处 setVisibility 互相覆盖。
+     * 渲染 ViewModel 的不可变 UiState：任务行列表 + 运行形态。
+     *
+     * <p>可见性不再在此逐个 {@code setVisibility}：这里只把「原始输入」——运行形态、
+     * 后台功能开关、任务状态——写进 Compose 状态，由 {@code HomeScreen} 按与
+     * {@link HomeViewModel.TaskUiState} 相同的规则派生可见性。
+     * 规则因此只有一处可读、一处可改。</p>
      */
-    @SuppressLint("NotifyDataSetChanged")
     private void render(HomeViewModel.TaskUiState state) {
-        if (state == null) return;
+        if (state == null || screenView == null) return;
 
-        // 先计算目标可见性：仅当有可见性真正变化时才启动 Fade 过渡。
-        // 任务状态每次更新都会走 render，无条件 beginDelayedTransition 会反复
-        // 取消/重建上一个未完成的 Fade——运行期间高频刷新时既闪烁又浪费性能。
-        boolean userVisible = state.userDropdownVisible();
-        boolean cancelVisible = state.cancelButtonVisible();
-        boolean startVisible = state.startButtonVisible();
-        boolean bgVisible = state.bgButtonVisible();
-        boolean retryVisible = state.retryButtonVisible();
-        boolean emptyVisible = state.items.isEmpty();
-        boolean visibilityChanged =
-                (userSection != null && userSection.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
-                        || (accountSectionLabel != null && accountSectionLabel.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
-                        || (userSectionDivider != null && userSectionDivider.getVisibility() != (userVisible ? View.VISIBLE : View.GONE))
-                        || (cancel_daily_btn != null && cancel_daily_btn.getVisibility() != (cancelVisible ? View.VISIBLE : View.GONE))
-                        || (start_daily_btn != null && start_daily_btn.getVisibility() != (startVisible ? View.VISIBLE : View.GONE))
-                        || (start_daily_bg_btn != null && start_daily_bg_btn.getVisibility() != (bgVisible ? View.VISIBLE : View.GONE))
-                        || (retry_failed_btn != null && retry_failed_btn.getVisibility() != (retryVisible ? View.VISIBLE : View.GONE))
-                        || (taskListEmptyView != null && taskListEmptyView.getVisibility() != (emptyVisible ? View.VISIBLE : View.GONE));
-        if (visibilityChanged && !tools.isReducedMotionEnabled(requireContext()) && homeContentContainer != null) {
-            // M3 方向性缓动：退出的视图用 short + emphasized-accelerate（快出），
-            // 进入的视图用 medium + emphasized-decelerate（缓入），位置变化（ChangeBounds）
-            // 属持久容器用 emphasized 缓动。三个 Transition 并行组合。
-            // 单用 Fade 时 androidx/platform Visibility 会在淡出期间把 GONE 视图强制回
-            // VISIBLE 画残影并抑制父布局，导致「下方内容瞬间跳位 + 残影慢淡」两段脱节，
-            // 观感即是组件分两次消失——ChangeBounds 并行塌缩/上滑解决此问题。
-            ChangeBounds move = new ChangeBounds();
-            move.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_medium));
-            move.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized));
-            // XML 里 visibility="gone" 的视图从未参与过布局，捕获到的起始 bounds 是 (0,0,0,0)，
-            // 参与 ChangeBounds 会在出现时从容器原点"生长"，故排除、只保留 Fade
-            move.excludeTarget(R.id.cancel_daily, true);
-            move.excludeTarget(R.id.retry_failed, true);
-            move.excludeTarget(R.id.task_list_empty_view, true);
-            Fade fadeOut = new Fade(Fade.OUT);
-            fadeOut.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_short));
-            fadeOut.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_accelerate));
-            Fade fadeIn = new Fade(Fade.IN);
-            fadeIn.setDuration(requireContext().getResources().getInteger(R.integer.motion_duration_medium));
-            fadeIn.setInterpolator(AnimationUtils.loadInterpolator(requireContext(), R.anim.emphasized_decelerate));
-            TransitionSet transition = new TransitionSet()
-                    .setOrdering(TransitionSet.ORDERING_TOGETHER)
-                    .addTransition(move)
-                    .addTransition(fadeOut)
-                    .addTransition(fadeIn);
-            TransitionManager.beginDelayedTransition(homeContentContainer, transition);
-        }
-
-        // 任务列表
-        synchronized (taskList) {
-            taskList.clear();
-            taskList.addAll(state.items);
-            if (taskListEmptyView != null)
-                taskListEmptyView.setVisibility(emptyVisible ? View.VISIBLE : View.GONE);
-            if (taskAdapter != null) {
-                // 数据整体替换：用 notifyDataSetChanged 一次性刷新。
-                // 不能用 notifyItemRangeRemoved + notifyItemRangeInserted——后者会触发
-                // ScaleInItemAnimator 对“所有条目”做淡出/缩放入场，导致每次任务状态变更时整列闪动；
-                // 且 oldSize≠newSize 时还存在通知与实际条目数不一致的崩溃隐患。
-                // ScaleInItemAnimator.animateChange 已禁用 change 动画，更新时只安静重绑；
-                // 首次加载的入场动画由 TaskAdapter.animateEnter() 负责，不受影响。
-                taskAdapter.notifyDataSetChanged();
-            }
-        }
-
-        // 应用可见性（一律由 UiState 派生）
-        if (userSection != null)
-            userSection.setVisibility(userVisible ? View.VISIBLE : View.GONE);
-        // 账号小标题与分割线跟随账号行整体显隐：只藏下拉行会留下孤儿标题与悬空分割线
-        if (accountSectionLabel != null)
-            accountSectionLabel.setVisibility(userVisible ? View.VISIBLE : View.GONE);
-        if (userSectionDivider != null)
-            userSectionDivider.setVisibility(userVisible ? View.VISIBLE : View.GONE);
-        if (cancel_daily_btn != null)
-            cancel_daily_btn.setVisibility(cancelVisible ? View.VISIBLE : View.GONE);
-        if (start_daily_btn != null)
-            start_daily_btn.setVisibility(startVisible ? View.VISIBLE : View.GONE);
-        if (start_daily_bg_btn != null)
-            start_daily_bg_btn.setVisibility(bgVisible ? View.VISIBLE : View.GONE);
-        if (retry_failed_btn != null)
-            retry_failed_btn.setVisibility(retryVisible ? View.VISIBLE : View.GONE);
-        if (start_daily_bg_text != null)
-            start_daily_bg_text.setText(state.bgButtonShowsCancel()
-                    ? getString(R.string.cancel_task)
-                    : getString(R.string.background_running));
-        if (start_daily_hint != null)
-            start_daily_hint.setText(getResources().getQuantityString(
-                    R.plurals.run_remaining, taskList.size(), taskList.size()));
-
-        // 页眉副标题与任务列表头 DONE 计数：与小组件 done_ 口径一致，仅统计 COMPLETED。
-        // 「已签过」由服务端返回后任务正常走 COMPLETED；等待人机验证期间任务保持 IN_PROGRESS，不计入。
-        // RETAINED（沿用上次结果）本质是当日已完成，计入 done，避免运行期间计数回落
-        int total = taskList.size();
+        List<HomeTaskRow> rows = new ArrayList<>(state.items.size());
         int done = 0;
         int failed = 0;
-        for (TaskItem item : taskList) {
+        for (TaskItem item : state.items) {
+            rows.add(new HomeTaskRow(item.getName(), toUiStatus(item.getStatus())));
+            // DONE 计数与小组件 done_ 口径一致，仅统计 COMPLETED + RETAINED。
+            // 「已签过」由服务端返回后任务正常走 COMPLETED；等待人机验证期间任务保持
+            // IN_PROGRESS，不计入。RETAINED（沿用上次结果）本质是当日已完成，计入 done，
+            // 避免运行期间计数回落。
             if (item.getStatus() == TaskItem.TaskStatus.COMPLETED
-                    || item.getStatus() == TaskItem.TaskStatus.RETAINED)
-                done++;
-            if (item.getStatus() == TaskItem.TaskStatus.ERROR)
-                failed++;
+                    || item.getStatus() == TaskItem.TaskStatus.RETAINED) done++;
+            if (item.getStatus() == TaskItem.TaskStatus.ERROR) failed++;
         }
-        if (retry_failed_count != null && retryVisible)
-            retry_failed_count.setText(getString(R.string.retry_failed_count_fmt, failed));
-        if (homeSubtitle != null)
-            homeSubtitle.setText(getString(R.string.home_subtitle_with_done,
-                    getString(R.string.home_subtitle),
-                    getResources().getQuantityString(
-                            R.plurals.home_done_fmt, done, done, total)));
-        if (taskDoneLabel != null)
-            taskDoneLabel.setText(getString(R.string.task_done_fmt, done, total));
+        int total = rows.size();
+        screenView.setTasks(rows);
+
+        // 运行形态与功能开关：按钮/下拉可见性全部由 Compose 依这两个值派生
+        screenView.setRunMode(toUiRunMode(state.runMode));
+        screenView.setBgFeatureEnabled(state.bgFeatureEnabled);
+
+        screenView.setBgButtonText(activity.getString(state.bgButtonShowsCancel()
+                ? R.string.cancel_task
+                : R.string.background_running));
+        screenView.setRunHint(getResources().getQuantityString(R.plurals.run_remaining, total, total));
+        screenView.setRetryCount(getResources().getQuantityString(R.plurals.retry_failed_count, failed, failed));
+        screenView.setSubtitle(activity.getString(R.string.home_subtitle_with_done,
+                activity.getString(R.string.home_subtitle),
+                getResources().getQuantityString(R.plurals.home_done_fmt, done, done, total)));
+        screenView.setDoneLabel(activity.getString(R.string.task_done_fmt, done, total));
+    }
+
+    /** TaskItem.TaskStatus → Compose 状态码（显式映射，不依赖枚举 ordinal）。 */
+    private static int toUiStatus(TaskItem.TaskStatus status) {
+        switch (status) {
+            case IN_PROGRESS: return HomeScreenKt.TASK_IN_PROGRESS;
+            case COMPLETED:   return HomeScreenKt.TASK_COMPLETED;
+            case ERROR:       return HomeScreenKt.TASK_ERROR;
+            case WARNING:     return HomeScreenKt.TASK_WARNING;
+            case CANCELLED:   return HomeScreenKt.TASK_CANCELLED;
+            case RETAINED:    return HomeScreenKt.TASK_RETAINED;
+            default:          return HomeScreenKt.TASK_PENDING;
+        }
+    }
+
+    /** HomeViewModel.RunMode → Compose 运行形态码。 */
+    private static int toUiRunMode(HomeViewModel.RunMode mode) {
+        switch (mode) {
+            case FOREGROUND: return HomeScreenKt.HOME_RUN_FOREGROUND;
+            case BACKGROUND: return HomeScreenKt.HOME_RUN_BACKGROUND;
+            default:         return HomeScreenKt.HOME_RUN_IDLE;
+        }
     }
 
     /**
@@ -727,50 +601,34 @@ public class HomeFragment extends Fragment {
         viewModel.updateTaskStatus(taskName, status);
     }
 
-    /** 渲染当前选中用户的头像：有自定义图则圆形加载，否则恢复默认人像图标。 */
+    /** 同步当前选中用户的头像（空用户名 = 默认人像图标，由 Compose 侧统一处理）。 */
     private void loadUserAvatar() {
-        if (homeUserAvatar != null)
-            AvatarStore.loadInto(requireContext(), viewModel.getCurrentUser(), homeUserAvatar);
+        if (screenView != null)
+            screenView.setAvatarUsername(viewModel.getCurrentUser());
     }
 
     /**
      * 账号上下文行显示文案：用户名 + 服务器后缀（如「t [国服]」，与设计稿一致）。
      */
     private String formatUserLabel(String username, boolean isOversea) {
-        String serverName = getString(isOversea ? R.string.server_os : R.string.server_cn);
+        String serverName = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
         return username + " [" + serverName + "]";
     }
 
-    /** 默认 hint 颜色（首次调用时缓存），空态结束后恢复。 */
-    private android.content.res.ColorStateList defaultHintColors;
-
     /**
-     * 无用户空态引导：当前服务器没有任何用户时，账号行显示「尚未添加用户 · 点击前往添加」，
-     * 点击整行跳转用户管理页（而非弹出一个空下拉——旧交互在这里是指引断链）；
-     * 有用户时恢复正常下拉行为。onCreateView 与 onResume 共用。
+     * 把当前服务器的用户列表灌给账号行与下拉：选中项、行内文案、头像一并更新。
+     *
+     * <p>替代原 `updateUserGuideState` + `user_dropdown.setAdapter(...)` 两段命令式代码：
+     * 空态（无用户）时的「尚未添加用户 · 点击前往添加」由 Compose 侧按列表为空派生，
+     * 点击行为由宿主注入的 {@code onJumpToUsers} 承担。</p>
      */
-    private void updateUserGuideState(List<String> usernames) {
-        if (user_dropdown == null || userSection == null) return;
-        if (defaultHintColors == null)
-            defaultHintColors = user_dropdown.getHintTextColors();
-        if (usernames != null && !usernames.isEmpty()) {
-            user_dropdown.setHint(null);
-            user_dropdown.setHintTextColor(defaultHintColors);
-            userSection.setOnClickListener(v -> user_dropdown.showDropDown());
-            user_dropdown.setOnClickListener(v -> user_dropdown.showDropDown());
-        } else {
-            user_dropdown.setHint(R.string.home_no_user_hint);
-            // 主题默认 hint 色是低透明度变体，压在背景图上几乎看不清——
-            // 空态提示必须显眼，改用全强度 onSurface 前景色
-            user_dropdown.setHintTextColor(com.google.android.material.color.MaterialColors
-                    .getColor(user_dropdown, com.google.android.material.R.attr.colorOnSurface));
-            View.OnClickListener jumpToUsers = v -> {
-                if (getActivity() instanceof MainActivity)
-                    ((MainActivity) getActivity()).navigateToPage(1);
-            };
-            userSection.setOnClickListener(jumpToUsers);
-            user_dropdown.setOnClickListener(jumpToUsers);
-        }
+    private void applyUserList(List<String> usernames, boolean isOversea) {
+        if (screenView == null) return;
+        currentUsernames = usernames == null ? new ArrayList<>() : new ArrayList<>(usernames);
+        String current = viewModel.getCurrentUser();
+        screenView.setUsers(currentUsernames, currentUsernames.indexOf(current));
+        screenView.setUserLabel(current.isEmpty() ? "" : formatUserLabel(current, isOversea));
+        loadUserAvatar();
     }
 
     /**
@@ -779,11 +637,9 @@ public class HomeFragment extends Fragment {
      */
     private boolean interceptIfNoUser() {
         if (!viewModel.getCurrentUser().isEmpty()) return false;
-        View root = getView();
-        if (root != null)
-            tools.showCustomSnackbar(root, requireContext(), getString(R.string.home_no_user_hint));
-        if (getActivity() instanceof MainActivity)
-            ((MainActivity) getActivity()).navigateToPage(1);
+        if (screenView != null)
+            tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.home_no_user_hint));
+        activity.navigateToPage(1);
         return true;
     }
 
@@ -791,37 +647,41 @@ public class HomeFragment extends Fragment {
     private void checkAndStartTask(String userId) {
         // 定时任务执行中不允许叠加后台运行：两路 TaskExecutor 的状态写入会互相覆盖
         if (DailyTaskWorker.isRunning()) {
-            tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.err_scheduled_task_running));
+            tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.err_scheduled_task_running));
             return;
         }
-        TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+        Context context = activity;
+        TaskSettings settings = TaskSettings.fromPreferences(context);
         if (settings.hasAnyTaskDisabled()) {
-            show_warning_dialog(requireContext(), getString(R.string.err_set_task_first));
+            show_warning_dialog(context, activity.getString(R.string.err_set_task_first));
             return;
         }
         if (userId == null || userId.isEmpty()) {
-            show_warning_dialog(requireContext(), getString(R.string.msg_select_user_first));
+            show_warning_dialog(context, activity.getString(R.string.msg_select_user_first));
             return;
         }
 
-        Notification notification = new Notification(requireContext());
+        Notification notification = new Notification(context);
         if (notification.areNotificationsDisabled()) {
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(getString(R.string.dialog_need_notification_permission))
-                    .setMessage(getString(R.string.msg_notification_required_for_background))
-                    .setPositiveButton(getString(R.string.btn_go_to_settings), (d, w) -> startActivity(notification.getNotificationSettingsIntent()))
-                    .setNegativeButton(getString(R.string.btn_cancel), null)
-                    .show();
+            VenusDialogs.confirm(
+                    activity,
+                    activity.getString(R.string.dialog_need_notification_permission),
+                    activity.getString(R.string.msg_notification_required_for_background),
+                    activity.getString(R.string.btn_go_to_settings),
+                    () -> activity.startActivity(notification.getNotificationSettingsIntent()),
+                    activity.getString(R.string.btn_cancel));
             return;
         }
 
-        if (!BatteryHelper.isIgnoringBatteryOptimizations(requireContext())) {
-            new MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(getString(R.string.dialog_need_battery_optimization))
-                    .setMessage(getString(R.string.msg_battery_optimization_hint))
-                    .setPositiveButton(getString(R.string.btn_go_to_settings), (d, w) -> BatteryHelper.openVendorBatterySettings(requireContext()))
-                    .setNegativeButton(getString(R.string.btn_ignore), (d, w) -> startTaskService(userId))
-                    .show();
+        if (!BatteryHelper.isIgnoringBatteryOptimizations(context)) {
+            VenusDialogs.confirm(
+                    activity,
+                    activity.getString(R.string.dialog_need_battery_optimization),
+                    activity.getString(R.string.msg_battery_optimization_hint),
+                    activity.getString(R.string.btn_go_to_settings),
+                    () -> BatteryHelper.openVendorBatterySettings(context),
+                    activity.getString(R.string.btn_ignore),
+                    () -> startTaskService(userId));
             return;
         }
 
@@ -830,10 +690,10 @@ public class HomeFragment extends Fragment {
 
     /** 真正启动前台任务 Service，并切到 BACKGROUND 运行态、提示已启动。 */
     private void startTaskService(String userId) {
-        Intent serviceIntent = new Intent(requireContext(), ForegroundTaskService.class);
+        Intent serviceIntent = new Intent(activity, ForegroundTaskService.class);
         serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
         serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
-        androidx.core.content.ContextCompat.startForegroundService(requireContext(), serviceIntent);
+        androidx.core.content.ContextCompat.startForegroundService(activity, serviceIntent);
         // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（与前台启动口径一致）
         viewModel.resetForNewRun();
         // 清空触达集合后切 BACKGROUND 并重建列表：未触达的已完成任务按「沿用上次结果」展示
@@ -841,14 +701,20 @@ public class HomeFragment extends Fragment {
         // 单一状态切换取代原 updateBgButtonState(true)：后台按钮文案/可见性由 UiState 派生
         viewModel.setRunMode(HomeViewModel.RunMode.BACKGROUND);
         viewModel.refreshTaskItems();
-        tools.showCustomSnackbar(getView(), requireContext(), getString(R.string.snack_bg_task_started));
+        tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_bg_task_started));
     }
 
-    /** 恢复时注册状态广播、按真实运行状态对齐 UI、刷新用户下拉框与小组件，并通知宿主已就绪（触发后台验证）。 */
+    /** 页面成为当前选中页 / Activity 恢复：注册状态广播、按真实运行状态对齐 UI、刷新用户下拉框与小组件，并通知宿主已就绪（触发后台验证）。 */
     @Override
-    public void onResume() {
-        super.onResume();
+    public void show() {
+        // 外壳 Pager 的初始页回调可能先于 createView（viewModel 尚未就绪）到达：
+        // 挂起待补发（见 createView 末尾），避免 NPE
+        if (viewModel == null) {
+            pendingShow = true;
+            return;
+        }
         // 注册后台任务状态广播接收器
+        Context context = activity;
         taskStateReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -859,9 +725,9 @@ public class HomeFragment extends Fragment {
         };
         IntentFilter filter = new IntentFilter(ForegroundTaskService.ACTION_TASK_STATE_CHANGED);
         androidx.core.content.ContextCompat.registerReceiver(
-                requireContext(), taskStateReceiver, filter,
+                context, taskStateReceiver, filter,
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
-        // onResume 对齐真实运行状态：前台线程是否存活 + 后台服务是否在跑（前台优先），并刷新后台按钮开关
+        // show 对齐真实运行状态：前台线程是否存活 + 后台服务是否在跑（前台优先），并刷新后台按钮开关
         viewModel.syncRunMode(isTaskRunning(), ForegroundTaskService.isRunning());
 
         // 注册后台任务逐条状态广播接收器（LocalBroadcast 等价：仅本应用、RECEIVER_NOT_EXPORTED），
@@ -884,66 +750,57 @@ public class HomeFragment extends Fragment {
         };
         IntentFilter statusFilter = new IntentFilter(ForegroundTaskService.ACTION_TASK_STATUS_UPDATED);
         androidx.core.content.ContextCompat.registerReceiver(
-                requireContext(), taskStatusReceiver, statusFilter,
+                context, taskStatusReceiver, statusFilter,
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // 更新下拉框中的用户列表（当前用户单一来源为 ViewModel）
-        if (userManager != null && user_dropdown != null) {
+        // 更新账号行与下拉中的用户列表（当前用户单一来源为 ViewModel）
+        if (userManager != null && screenView != null) {
             viewModel.setCurrentUser(userManager.getCurrentUser());
-            loadUserAvatar();
-            String currentUser = viewModel.getCurrentUser();
-            boolean isOversea = MiHoYoBBSConstants.is_oversea(requireContext());
+            boolean isOversea = MiHoYoBBSConstants.is_oversea(context);
             List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-            user_dropdown.setAdapter(new UserDropdownAdapter(requireContext(), usernames));
-
-            // 恢复之前选中的用户（如果仍然存在于列表中）
-            if (!currentUser.isEmpty() && usernames.contains(currentUser))
-                user_dropdown.setText(formatUserLabel(currentUser, isOversea), false);
-            else if (!usernames.isEmpty())
-                user_dropdown.setText(formatUserLabel(usernames.get(0), isOversea), false);
-            else
-                user_dropdown.setText("", false);
-
-            // 从用户管理页添加/删除用户回来后，同步空态引导状态
-            updateUserGuideState(usernames);
+            // 从用户管理页添加/删除用户回来后，列表、空态与头像一并刷新
+            applyUserList(usernames, isOversea);
         }
 
         // 刷新小组件
-        TaskWidgetProvider.refreshAllWidgets(requireContext());
+        TaskWidgetProvider.refreshAllWidgets(context);
 
         if (!isTaskRunning()) {
             // 始终触发 TaskStatusManager.ensureToday()：跨天回到前台时即使任务集合与脏标记都无变化，
             // 也必须重建列表并清除昨日状态（否则日期变更后「已完成」会被当成当日状态沿用）。
-            TaskSettings settings = TaskSettings.fromPreferences(requireContext());
+            TaskSettings settings = TaskSettings.fromPreferences(context);
             viewModel.refreshTaskItems(settings);
         }
 
-        // 通知宿主 Activity 本 Fragment 已就绪（用于触发后台人机验证，替代 postDelayed 轮询）
-        getParentFragmentManager().setFragmentResult(RESULT_HOME_READY, new Bundle());
+        // 通知宿主本控制器已就绪（用于触发后台人机验证，替代 postDelayed 轮询）
+        if (homeReadyCallback != null) homeReadyCallback.run();
+
+        // 补发就绪前到达的 show（外壳初始页回调早于 createView 的竞态，见 show() 守卫）
+        if (pendingShow) {
+            pendingShow = false;
+            show();
+        }
     }
 
-    /** 暂停时注销后台任务状态广播接收器，避免泄漏。 */
+    /** 页面失去选中 / Activity 暂停：注销后台任务状态广播接收器，避免泄漏。 */
     @Override
-    public void onPause() {
-        super.onPause();
+    public void hide() {
         if (taskStateReceiver != null) {
-            requireContext().unregisterReceiver(taskStateReceiver);
+            activity.unregisterReceiver(taskStateReceiver);
             taskStateReceiver = null;
         }
         if (taskStatusReceiver != null) {
-            requireContext().unregisterReceiver(taskStatusReceiver);
+            activity.unregisterReceiver(taskStatusReceiver);
             taskStatusReceiver = null;
         }
     }
 
-    /** 销毁时清理极验按钮资源（共享线程池不可 shutdown）。 */
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        // 注意：AppExecutors 为进程级共享线程池，禁止在生命周期回调中 shutdown。
-
-        // 清理GT相关资源
+    /** 销毁：解除底栏订阅与 UiState 观察，清空宿主引用（Activity 销毁时由 MainActivity 调用）。 */
+    public void release() {
+        BottomBarOverlay.removeListener(bottomBarListener);
+        if (viewModel != null) viewModel.getUiState().removeObserver(uiObserver);
         controller.destroyButton();
+        screenView = null;
     }
 
     /**
@@ -960,17 +817,20 @@ public class HomeFragment extends Fragment {
     private Set<String> collectFailedTaskNames() {
         String user = viewModel.getCurrentUser();
         if (user == null || user.isEmpty()) return java.util.Collections.emptySet();
-        Map<String, String> statuses = new TaskStatusManager(requireContext()).getAllStatuses(user);
+        Map<String, String> statuses = new TaskStatusManager(activity).getAllStatuses(user);
         Set<String> failed = new HashSet<>();
         for (Map.Entry<String, String> e : statuses.entrySet())
             if (TaskStatusManager.STATUS_ERROR.equals(e.getValue())) failed.add(e.getKey());
         return failed;
     }
 
-    /** 在宿主 Activity 的主线程执行；Fragment 已 detach 时静默忽略（后台线程回传 UI 的统一出口）。 */
+    /** 在主线程执行；Activity 已销毁时静默忽略（后台线程回传 UI 的统一出口）。 */
     private void runOnUi(Runnable action) {
-        android.app.Activity activity = getActivity();
-        if (activity != null) activity.runOnUiThread(action);
+        activity.runOnUiThread(action);
+    }
+
+    private android.content.res.Resources getResources() {
+        return activity.getResources();
     }
 
     /**

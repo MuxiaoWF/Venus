@@ -366,15 +366,15 @@ public class CaptureService extends VpnService {
         Log.w(TAG, "Native error " + error + ": " + message);
     }
 
-    @SuppressWarnings("unused") // Called from native code
+    @SuppressWarnings({"unused", "EmptyMethod"}) // Called from native code
     private void logPacket(CaptureModels.Packet packet) {
     }
 
-    @SuppressWarnings("unused") // Called from native code
+    @SuppressWarnings({"unused", "EmptyMethod"}) // Called from native code
     private void dnsResolved(CaptureModels.ResourceRecord rr) {
     }
 
-    @SuppressWarnings("unused") // Called from native code
+    @SuppressWarnings({"unused", "SameReturnValue"}) // Called from native code；恒 false 为 C 层契约占位
     private boolean isDomainBlocked(String name) {
         return false;
     }
@@ -446,7 +446,7 @@ public class CaptureService extends VpnService {
         return found;
     }
 
-    @SuppressWarnings("unused") // Called from native code
+    @SuppressWarnings({"unused", "EmptyMethod"}) // Called from native code
     private void accountUsage(CaptureModels.Usage usage) {
     }
 

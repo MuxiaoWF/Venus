@@ -16,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import kotlin.OptIn;
+import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
 /**
  * 任务状态仓储（单一可信数据源，底层 DataStore）。
@@ -27,6 +29,7 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable;
  * DataStore 按文件应为单例：调用方存在 new TaskStatusRepository(context) 多次实例化的情况，
  * 故 DS / 缓存均按 prefs 名静态共享，避免“同一文件多 DataStore 实例”异常。
  */
+@OptIn(markerClass = ExperimentalCoroutinesApi.class)
 public class TaskStatusRepository {
 
     private static final String PREFS_NAME = "task_status_prefs";

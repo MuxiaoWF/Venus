@@ -78,39 +78,13 @@ public class HomeViewModel extends AndroidViewModel {
             return new TaskUiState(items, runMode, enabled);
         }
 
-        /** 用户下拉框：仅前台任务运行时隐藏（后台运行时仍可切换用户，与原行为一致）。 */
-        public boolean userDropdownVisible() {
-            return runMode != RunMode.FOREGROUND;
-        }
-
-        /** 取消按钮：仅前台任务运行时出现。 */
-        public boolean cancelButtonVisible() {
-            return runMode == RunMode.FOREGROUND;
-        }
-
-        /** 启动按钮：仅空闲时出现。 */
-        public boolean startButtonVisible() {
-            return runMode == RunMode.IDLE;
-        }
-
         /**
-         * 重试失败任务按钮：空闲且当日列表中存在失败任务时出现。
-         * 由 items 派生（状态更新发布新快照后自动出现/消失），空闲约束与启动按钮一致，
-         * 避免运行中重入。
+         * 后台按钮文案：后台运行中显示「取消任务」，否则显示「后台运行」。
+         *
+         * <p>注意：可见性（下拉框 / 启动 / 取消 / 重试 / 后台行）的派生已随主页迁移到 Compose，
+         * 见 {@code common/ui/compose/HomeScreen.kt} 顶部的私有扩展属性——规则只有那一份。
+         * 这里保留运行形态本身，供 Java 侧判定文案与流程分支。</p>
          */
-        public boolean retryButtonVisible() {
-            if (runMode != RunMode.IDLE) return false;
-            for (TaskItem item : items)
-                if (item.getStatus() == TaskItem.TaskStatus.ERROR) return true;
-            return false;
-        }
-
-        /** 后台按钮：设置开启且非前台运行时出现。 */
-        public boolean bgButtonVisible() {
-            return bgFeatureEnabled && runMode != RunMode.FOREGROUND;
-        }
-
-        /** 后台按钮文案：后台运行中显示「取消任务」，否则显示「后台运行」。 */
         public boolean bgButtonShowsCancel() {
             return runMode == RunMode.BACKGROUND;
         }

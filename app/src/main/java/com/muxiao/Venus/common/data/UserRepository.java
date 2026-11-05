@@ -16,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import kotlin.OptIn;
+import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
 /**
  * 用户数据仓储（单一可信数据源，底层 DataStore）。
@@ -37,6 +39,7 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable;
  * ANR 风险。如后续版本希望回收旧 SP 文件，可改用
  * androidx.datastore.rxjava3.RxSharedPreferencesMigration（builder.addDataMigration(...)）。
  */
+@OptIn(markerClass = ExperimentalCoroutinesApi.class)
 public class UserRepository {
 
     private final Context context;
