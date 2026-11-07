@@ -437,7 +437,25 @@
     <string name="login_password_start">Starting login task…\nSubmitting account and password…</string>
     <string name="login_password_token_ok">Credentials accepted, stoken and mid retrieved\n</string>
     <string name="login_password_failed">Password login failed (RETCODE = %1$d), response: %2$s</string>
-    <string name="login_password_need_captcha">This account requires GeeTest verification (aigis), which password login does not support yet. Please switch to QR code login.</string>
+    <!-- Cookie import login (bypasses captcha) -->
+    <string name="login_tab_cookie">Cookie</string>
+    <string name="login_cookie_hint">Paste Cookie</string>
+    <string name="login_cookie_desc">Log in to miyoushe.com in a desktop browser, press F12 → Network, open any request and copy the whole Cookie header (starting with ltuid/ltoken) into the field above. The Cookie is used locally only and never uploaded.</string>
+    <string name="login_cookie_empty">Please paste a Cookie first</string>
+    <string name="login_cookie_invalid">The Cookie has no ltuid or ltoken/stoken. Copy the full Cookie from a browser that is logged in to miyoushe.com.</string>
+    <string name="login_cookie_expired">The Cookie has expired. Log in to miyoushe.com again and copy a fresh one.</string>
+    <string name="login_cookie_stoken_expired">Failed to exchange stoken for ltoken. The stoken may have expired; copy a fresh Cookie.</string>
+    <string name="login_cookie_start">Starting login task…\nParsing Cookie…</string>
+    <string name="login_cookie_parsed">Cookie parsed\n</string>
+    <string name="login_cookie_no_stoken">No stoken in this Cookie. With ltoken alone the API returns -100, so check-in may fail entirely.
+</string>
+    <string name="login_cookie_verify_warn">Credential check returned retcode=%1$d (not a login failure; possibly rate-limited or captcha-triggered). Tasks will retry at runtime.\n</string>
+    <string name="login_cookie_ltoken_rejected">The API rejected this ltoken with -100: BBS and check-in APIs require stoken. Use QR login, or import a Cookie that contains stoken.</string>
+    <string name="login_cookie_token_ok">Cookie verified, credentials saved\n</string>
+    <string name="login_password_need_captcha">This account requires GeeTest verification (aigis). Please complete the verification.</string>
+    <string name="login_aigis_start">Human verification (aigis) detected. Please complete the GeeTest verification in the pop-up window…\n</string>
+    <string name="login_aigis_failed">Human verification was not completed or was canceled. Login failed.\n</string>
+    <string name="login_aigis_v4_unsupported">This account requires the newer GeeTest verification (v4), which this version does not support. Please sign in via QR code or Cookie import instead.</string>
     <string name="login_password_realname">Note: this account requires real-name or face verification. Please complete it in the MiYouShe app first.\n</string>
     <string name="login_password_encrypt_failed">Failed to encrypt credentials: %s</string>
     <string name="login_password_no_token">Response is missing the token field: %s</string>

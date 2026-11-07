@@ -431,7 +431,25 @@
     <string name="login_password_start">開始執行登入任務…\n正在提交帳號密碼…</string>
     <string name="login_password_token_ok">帳號密碼驗證通過，已取得 stoken 與 mid\n</string>
     <string name="login_password_failed">帳號密碼登入失敗(RETCODE = %1$d)，回傳資訊為：%2$s</string>
-    <string name="login_password_need_captcha">該帳號觸發了極驗人機驗證（aigis），帳號密碼登入暫不支援，請切換至掃碼登入</string>
+    <!-- Cookie 匯入登入（繞開極驗） -->
+    <string name="login_tab_cookie">Cookie 匯入</string>
+    <string name="login_cookie_hint">貼上 Cookie</string>
+    <string name="login_cookie_desc">在電腦瀏覽器登入 miyoushe.com 後按 F12 → Network（網路）→ 任選一個請求，複製請求標頭中以 ltuid/ltoken 開頭的整段 Cookie 貼到上方。Cookie 只在本機使用，不會上傳。</string>
+    <string name="login_cookie_empty">請先貼上 Cookie</string>
+    <string name="login_cookie_invalid">Cookie 中缺少 ltuid 或 ltoken/stoken，請在已登入米遊社的瀏覽器重新複製完整 Cookie</string>
+    <string name="login_cookie_expired">Cookie 已失效，請重新登入米遊社後複製新的 Cookie</string>
+    <string name="login_cookie_stoken_expired">stoken 換取 ltoken 失敗，stoken 可能已失效，請重新登入米遊社後複製新的 Cookie</string>
+    <string name="login_cookie_start">開始執行登入任務…\n正在解析 Cookie…</string>
+    <string name="login_cookie_parsed">Cookie 解析完成\n</string>
+    <string name="login_cookie_no_stoken">Cookie 中沒有 stoken：實測僅憑 ltoken 會被介面拒絕（-100），簽到可能全部失敗
+</string>
+    <string name="login_cookie_verify_warn">憑證校驗返回 retcode=%1$d（非登入態失效，可能被限流或觸發人機驗證），任務執行時會重試\n</string>
+    <string name="login_cookie_ltoken_rejected">Cookie 中的 ltoken 被介面判定為登入失效（-100）：BBS 與簽到介面需要 stoken。請改用掃碼登入，或匯入包含 stoken 的 Cookie</string>
+    <string name="login_cookie_token_ok">Cookie 校驗通過，憑證已儲存\n</string>
+    <string name="login_password_need_captcha">該帳號觸發了極驗人機驗證（aigis），請完成驗證</string>
+    <string name="login_aigis_start">偵測到人機驗證（aigis），請在彈出視窗中完成極驗驗證…\n</string>
+    <string name="login_aigis_failed">人機驗證未完成或已取消，登入失敗\n</string>
+    <string name="login_aigis_v4_unsupported">該帳號觸發了新版極驗驗證（v4），目前版本暫不支援。請改用「掃碼登入」或「Cookie 匯入」方式登入</string>
     <string name="login_password_realname">提示：該帳號需要實名認證或人臉驗證，請先在米遊社 APP 內完成\n</string>
     <string name="login_password_encrypt_failed">帳號密碼加密失敗：%s</string>
     <string name="login_password_no_token">回應中缺少 token 欄位：%s</string>

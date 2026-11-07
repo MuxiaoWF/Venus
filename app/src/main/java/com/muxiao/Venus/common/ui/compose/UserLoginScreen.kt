@@ -63,6 +63,8 @@ import com.muxiao.Venus.R
 const val LOGIN_MODE_QRCODE = 0
 /** 登录方式：账号密码（与 `UserLoginActivity.MODE_PASSWORD` 对齐）。 */
 const val LOGIN_MODE_PASSWORD = 1
+/** 登录方式：浏览器 Cookie 导入（与 `UserLoginActivity.MODE_COOKIE` 对齐，仅国服）。 */
+const val LOGIN_MODE_COOKIE = 2
 
 /**
  * 国服用户登录页（原 res/layout/activity_user_login.xml）。
@@ -88,6 +90,7 @@ fun UserLoginScreen(
     username: String,
     account: String,
     password: String,
+    cookie: String,
     qrVisible: Boolean,
     qrBitmap: Bitmap?,
     log: String,
@@ -96,12 +99,14 @@ fun UserLoginScreen(
     onUsernameChange: (String) -> Unit,
     onAccountChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
+    onCookieChange: (String) -> Unit,
     onLoginClick: () -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val isPasswordMode = loginMode == LOGIN_MODE_PASSWORD
+    val isCookieMode = loginMode == LOGIN_MODE_COOKIE
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -153,6 +158,8 @@ fun UserLoginScreen(
                     val loginOptions = listOf(
                         stringResource(R.string.login_tab_qrcode) to LOGIN_MODE_QRCODE,
                         stringResource(R.string.login_tab_password) to LOGIN_MODE_PASSWORD,
+                        // Cookie 导入同样只对国服有效（国际服走 HoYoLAB 授权页）
+                        stringResource(R.string.login_tab_cookie) to LOGIN_MODE_COOKIE,
                     )
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier
@@ -252,6 +259,30 @@ fun UserLoginScreen(
                             style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         )
                     }
+                    if (isCookieMode) {
+                        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+                        // Cookie 整段可能很长（十几个键值对），给多行输入框而不是单行
+                        OutlinedTextField(
+                            value = cookie,
+                            onValueChange = onCookieChange,
+                            label = { Text(stringResource(R.string.login_cookie_hint)) },
+                            enabled = inputsEnabled,
+                            minLines = 3,
+                            maxLines = 6,
+                            shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Done,
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+                        Text(
+                            text = stringResource(R.string.login_cookie_desc),
+                            style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        )
+                    }
                     Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
                     Button(
                         onClick = onLoginClick,
@@ -263,6 +294,7 @@ fun UserLoginScreen(
                             text = when {
                                 reloginMode -> stringResource(R.string.login_relogin_button, reloginUsername)
                                 isPasswordMode -> stringResource(R.string.login_tab_password)
+                                isCookieMode -> stringResource(R.string.login_tab_cookie)
                                 else -> stringResource(R.string.login)
                             },
                             style = textStyles.labelMedium,
@@ -418,6 +450,7 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     private val usernameState = mutableStateOf("")
     private val accountState = mutableStateOf("")
     private val passwordState = mutableStateOf("")
+    private val cookieState = mutableStateOf("")
     private val qrVisibleState = mutableStateOf(false)
     private val qrBitmapState = mutableStateOf<Bitmap?>(null)
     private val logState = mutableStateOf("")
@@ -461,6 +494,9 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
 
     fun getPassword(): String = passwordState.value
 
+    /** 浏览器粘贴的整段 Cookie（Cookie 导入模式使用）。 */
+    fun getCookie(): String = cookieState.value
+
     fun setQrVisible(visible: Boolean) {
         qrVisibleState.value = visible
     }
@@ -495,6 +531,7 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     username = usernameState.value,
                     account = accountState.value,
                     password = passwordState.value,
+                    cookie = cookieState.value,
                     qrVisible = qrVisibleState.value,
                     qrBitmap = qrBitmapState.value,
                     log = logState.value,
@@ -502,12 +539,13 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     onModeSelect = { mode ->
                         // 受控组件：先落自身状态再回调，Java 侧据此切换业务模式
                         modeState.intValue = mode
-                        if (mode == LOGIN_MODE_PASSWORD) qrVisibleState.value = false
+                        if (mode != LOGIN_MODE_QRCODE) qrVisibleState.value = false
                         onModeSelectListener?.accept(mode)
                     },
                     onUsernameChange = { usernameState.value = it },
                     onAccountChange = { accountState.value = it },
                     onPasswordChange = { passwordState.value = it },
+                    onCookieChange = { cookieState.value = it },
                     onLoginClick = { onLoginClickListener?.run() },
                     onSubmit = { onSubmitListener?.run() },
                 )
@@ -545,6 +583,7 @@ private fun UserLoginScreenPreview() {
             username = "muxiao",
             account = "user@example.com",
             password = "secret",
+            cookie = "ltuid_v2=306118684; ltoken_v2=xxx",
             qrVisible = false,
             qrBitmap = null,
             log = stringResource(R.string.waiting),
@@ -553,6 +592,7 @@ private fun UserLoginScreenPreview() {
             onUsernameChange = {},
             onAccountChange = {},
             onPasswordChange = {},
+            onCookieChange = {},
             onLoginClick = {},
             onSubmit = {},
         )

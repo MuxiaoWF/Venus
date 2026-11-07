@@ -20,6 +20,10 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.geetest.sdk.GT3ConfigBean;
+import com.geetest.sdk.GT3ErrorBean;
+import com.geetest.sdk.GT3GeetestUtils;
+import com.geetest.sdk.GT3Listener;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
@@ -28,9 +32,12 @@ import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +57,8 @@ public class UserLoginActivity extends BaseActivity {
     private static final int MODE_QRCODE = 0;
     /** 登录方式：账号密码 */
     private static final int MODE_PASSWORD = 1;
+    /** 登录方式：浏览器 Cookie 导入（仅国服，绕开极验） */
+    private static final int MODE_COOKIE = 2;
 
     /** Compose 版页面宿主：输入框 / 二维码 / 状态日志都在这里。 */
     private com.muxiao.Venus.common.ui.compose.UserLoginScreenView pane;
@@ -153,6 +162,10 @@ public class UserLoginActivity extends BaseActivity {
                 return;
             }
         }
+        if (login_mode == MODE_COOKIE && pane.getCookie().trim().isEmpty()) {
+            status_notifier.notifyListeners(getString(R.string.login_cookie_empty));
+            return;
+        }
         if (!relogin_mode && user_manager.getUsers().containsKey(username)) {
             // 检查用户是否属于当前服务器类型
             if (!user_manager.isUserMatchingServerType(username, isOversea)) {
@@ -171,10 +184,11 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         change_component_status(false);
-        // 明文账号密码仅在本次任务的内存中传递，不写入任何持久化存储
+        // 明文账号密码 / Cookie 仅在本次任务的内存中传递，不写入任何持久化存储
         String account = login_mode == MODE_PASSWORD ? pane.getAccount().trim() : null;
         String password = login_mode == MODE_PASSWORD ? pane.getPassword() : null;
-        LoginTask login_task = new LoginTask(this, login_mode, account, password);
+        String cookie = login_mode == MODE_COOKIE ? pane.getCookie().trim() : null;
+        LoginTask login_task = new LoginTask(this, login_mode, account, password, cookie);
         executor_service.execute(login_task);
     }
 
@@ -213,14 +227,17 @@ public class UserLoginActivity extends BaseActivity {
         private final int mode;
         private final String account;
         private final String password;
+        /** Cookie 导入模式下的原始 Cookie 文本（仅内存持有，不落盘、不打印） */
+        private final String cookie;
 
-        public LoginTask(Context context, int mode, String account, String password) {
+        public LoginTask(Context context, int mode, String account, String password, String cookie) {
             this.context = context;
             this.header_manager = new HeaderManager(context);
             this.isOversea = MiHoYoBBSConstants.is_oversea(context);
             this.mode = mode;
             this.account = account;
             this.password = password;
+            this.cookie = cookie;
         }
 
         @Override
@@ -234,6 +251,8 @@ public class UserLoginActivity extends BaseActivity {
 
                 if (mode == MODE_PASSWORD)
                     run_password_login();
+                else if (mode == MODE_COOKIE)
+                    run_cookie_login();
                 else
                     run_qrcode_login();
             } catch (Exception e) {
@@ -272,8 +291,23 @@ public class UserLoginActivity extends BaseActivity {
             try {
                 result = PasswordLogin.login(context, header_manager, account, password, null);
             } catch (PasswordLogin.AigisRequiredException e) {
-                // 触发极验时给出明确指引，而不是静默失败
-                throw new RuntimeException(e.getMessage());
+                // 拉起极验完成人机验证，拿到重提头后重新提交同一登录请求
+                PasswordLogin.AigisInfo info = e.getAigisInfo();
+                // v4（GTCaptcha4）无 challenge，必须由 v4 SDK 申请 captchaId 才能出验证结果，
+                // 本项目的 GT3 链路无法完成。此处不再尝试重提，直接引导用户改用其他登录方式，
+                // 避免反复撞风控把账号推到更严的名单里。
+                if (info.useV4)
+                    throw new RuntimeException(getString(R.string.login_aigis_v4_unsupported));
+                String aigisHeader;
+                try {
+                    aigisHeader = solveAigis(info);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ie.getMessage(), ie);
+                }
+                if (aigisHeader == null)
+                    throw new RuntimeException(getString(R.string.login_aigis_failed));
+                result = PasswordLogin.login(context, header_manager, account, password, aigisHeader);
             }
             status_notifier.notifyListeners(getString(R.string.login_password_token_ok));
 
@@ -288,6 +322,123 @@ public class UserLoginActivity extends BaseActivity {
 
             get_ltoken_by_stoken();
             finish_login_success();
+        }
+
+        /**
+         * Cookie 导入登录：解析浏览器粘贴的米游社 Cookie，得到 stuid/mid/stoken/ltoken，
+         * 与扫码、密码登录写入同一组凭证槽位，下游任务无需区分来源。
+         * 全程不经过极验（aigis），是密码登录被 -3102 风控拦下时的兜底入口。
+         */
+        private void run_cookie_login() {
+            status_notifier.notifyListeners("\n" + getString(R.string.login_cookie_start) + "\n");
+            CookieLogin.Result result = CookieLogin.importFromCookie(context, header_manager, cookie);
+
+            // 只覆盖本次真实拿到的字段：空值不写，避免把已有可用凭证清空
+            tools.write(context, username, "stuid", result.stuid);
+            if (result.mid != null && !result.mid.isEmpty())
+                tools.write(context, username, "mid", result.mid);
+            if (result.stoken != null && !result.stoken.isEmpty())
+                tools.write(context, username, "stoken", result.stoken);
+            if (result.ltoken != null && !result.ltoken.isEmpty())
+                tools.write(context, username, "ltoken", result.ltoken);
+            if (result.cookieToken != null && !result.cookieToken.isEmpty())
+                tools.write(context, username, "cookie_token", result.cookieToken);
+
+            status_notifier.notifyListeners(getString(R.string.login_cookie_parsed));
+            // 只有 ltoken 时社区签到可用；游戏签到与抽卡链接依赖 stoken，明确提示而不是假装成功
+            if (result.onlyLtoken())
+                status_notifier.notifyListeners(getString(R.string.login_cookie_no_stoken));
+            if (result.verifyRetcode != 0)
+                status_notifier.notifyListeners(
+                        getString(R.string.login_cookie_verify_warn, result.verifyRetcode));
+            status_notifier.notifyListeners(getString(R.string.login_cookie_token_ok));
+            finish_login_success();
+        }
+
+        /**
+         * 在前台拉起极验（GT3 自定义流程，无需按钮）并阻塞后台线程等待结果。
+         * 成功返回组装好的 x-rpc-aigis 重提头；用户关闭、验证失败或超时返回 null。
+         */
+        private String solveAigis(PasswordLogin.AigisInfo info) throws InterruptedException {
+            status_notifier.notifyListeners(getString(R.string.login_aigis_start));
+            final CountDownLatch latch = new CountDownLatch(1);
+            // 极验三参数：[0]=challenge [1]=validate [2]=seccode，由极验内部线程回调写入
+            final String[] geetest = new String[3];
+            final GT3GeetestUtils[] utilsHolder = new GT3GeetestUtils[1];
+
+            runOnUiThread(() -> {
+                GT3GeetestUtils utils = new GT3GeetestUtils(UserLoginActivity.this);
+                utilsHolder[0] = utils;
+                GT3ConfigBean bean = new GT3ConfigBean();
+                bean.setPattern(1);
+                bean.setLang("zh");
+                bean.setCanceledOnTouchOutside(false);
+                bean.setListener(new GT3Listener() {
+                    @Override
+                    public void onButtonClick() {
+                        // gt/challenge 来自 aigis 响应头，直接配置后调起验证窗口
+                        Map<String, Object> api1 = new HashMap<>();
+                        api1.put("gt", info.gt);
+                        api1.put("challenge", info.challenge);
+                        api1.put("success", 1);
+                        bean.setApi1Json(new JSONObject(api1));
+                        utils.getGeetest();
+                    }
+
+                    @Override
+                    public void onDialogResult(String result) {
+                        // 回调在极验内部线程，残缺结果时保持 null 走失败分支
+                        try {
+                            JsonObject obj = JsonParser.parseString(result).getAsJsonObject();
+                            geetest[0] = obj.get("geetest_challenge").getAsString();
+                            geetest[1] = obj.get("geetest_validate").getAsString();
+                            geetest[2] = obj.get("geetest_seccode").getAsString();
+                        } catch (RuntimeException e) {
+                            geetest[0] = null;
+                        }
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onClosed(int i) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailed(GT3ErrorBean errorBean) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onReceiveCaptchaCode(int i) {
+                    }
+
+                    @Override
+                    public void onStatistics(String s) {
+                    }
+
+                    @Override
+                    public void onSuccess(String s) {
+                    }
+                });
+                utils.init(bean);
+                // 自定义流程：内部触发 onButtonClick → getGeetest 弹窗
+                utils.startCustomFlow();
+            });
+
+            // 阻塞后台线程，最多等待 5 分钟；超时后 geetest 仍为 null，返回 null
+            latch.await(5, TimeUnit.MINUTES);
+            // 回到后台线程后在主线程释放 SDK 资源
+            runOnUiThread(() -> {
+                if (utilsHolder[0] != null) {
+                    utilsHolder[0].destory();
+                    utilsHolder[0] = null;
+                }
+            });
+
+            if (geetest[0] == null || geetest[1] == null || geetest[2] == null)
+                return null;
+            return PasswordLogin.buildAigisHeader(info, geetest[0], geetest[1], geetest[2]);
         }
 
         /**

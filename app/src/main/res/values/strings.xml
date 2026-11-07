@@ -440,7 +440,25 @@
     <string name="login_password_start">开始执行登录任务…\n正在提交账号密码…</string>
     <string name="login_password_token_ok">账号密码校验通过，已获取 stoken 与 mid\n</string>
     <string name="login_password_failed">账号密码登录失败(RETCODE = %1$d)，返回信息为：%2$s</string>
-    <string name="login_password_need_captcha">该账号触发了极验人机验证（aigis），账号密码登录暂不支持，请切换到扫码登录</string>
+    <!-- Cookie 导入登录（绕开极验） -->
+    <string name="login_tab_cookie">Cookie 导入</string>
+    <string name="login_cookie_hint">粘贴 Cookie</string>
+    <string name="login_cookie_desc">在电脑浏览器登录 miyoushe.com 后按 F12 → Network（网络）→ 任选一个请求，复制请求头中以 ltuid/ltoken 开头的整段 Cookie 粘贴到上方。Cookie 只在本机使用，不会上传。</string>
+    <string name="login_cookie_empty">请先粘贴 Cookie</string>
+    <string name="login_cookie_invalid">Cookie 中缺少 ltuid 或 ltoken/stoken，请在已登录米游社的浏览器中重新复制完整 Cookie</string>
+    <string name="login_cookie_expired">Cookie 已失效，请重新登录米游社后复制新的 Cookie</string>
+    <string name="login_cookie_stoken_expired">stoken 换取 ltoken 失败，stoken 可能已失效，请重新登录米游社后复制新的 Cookie</string>
+    <string name="login_cookie_start">开始执行登录任务…\n正在解析 Cookie…</string>
+    <string name="login_cookie_parsed">Cookie 解析完成\n</string>
+    <string name="login_cookie_no_stoken">Cookie 中没有 stoken：实测仅凭 ltoken 会被接口拒绝（-100），签到可能全部失败
+</string>
+    <string name="login_cookie_verify_warn">凭证校验返回 retcode=%1$d（非登录态失效，可能被限流或触发人机验证），任务运行时会重试\n</string>
+    <string name="login_cookie_ltoken_rejected">Cookie 中的 ltoken 被接口判定为登录失效（-100）：BBS 与签到接口需要 stoken。请改用扫码登录，或导入包含 stoken 的 Cookie</string>
+    <string name="login_cookie_token_ok">Cookie 校验通过，凭证已保存\n</string>
+    <string name="login_password_need_captcha">该账号触发了极验人机验证（aigis），请完成验证</string>
+    <string name="login_aigis_start">检测到人机验证（aigis），请在弹出的窗口中完成极验验证…\n</string>
+    <string name="login_aigis_failed">人机验证未完成或已取消，登录失败\n</string>
+    <string name="login_aigis_v4_unsupported">该账号触发了新版极验验证（v4），当前版本暂不支持。请改用「扫码登录」或「Cookie 导入」方式登录</string>
     <string name="login_password_realname">提示：该账号需要实名认证或人脸验证，请先在米游社 APP 内完成\n</string>
     <string name="login_password_encrypt_failed">账号密码加密失败：%s</string>
     <string name="login_password_no_token">响应中缺少 token 字段：%s</string>

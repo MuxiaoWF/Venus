@@ -63,10 +63,37 @@ public final class PasswordLogin {
         public boolean needRealperson;
     }
 
-    /** 需要极验验证时抛出，便于调用方给出针对性提示 */
+    /**
+     * 从 x-rpc-aigis 响应头解析出的极验任务信息。
+     * sessionId 用于重提，gt/challenge 用于配置 GT3 弹窗。
+     * v4 只有 gt（captchaId）、无 challenge；本项目不支持 v4，仅用 useV4 标记以引导用户换登录方式。
+     */
+    public static class AigisInfo {
+        public final String sessionId;
+        public final String gt;
+        public final String challenge;
+        /** 是否为极验第四代（v4）。v4 无 challenge，gt 即 captchaId；本项目不实现 v4 验证 */
+        public final boolean useV4;
+
+        AigisInfo(String sessionId, String gt, String challenge, boolean useV4) {
+            this.sessionId = sessionId;
+            this.gt = gt;
+            this.challenge = challenge;
+            this.useV4 = useV4;
+        }
+    }
+
+    /** 需要极验验证时抛出，携带解析出的任务信息，便于调用方拉起验证后重提 */
     public static class AigisRequiredException extends RuntimeException {
-        AigisRequiredException(String message) {
+        private final AigisInfo aigisInfo;
+
+        AigisRequiredException(String message, AigisInfo aigisInfo) {
             super(message);
+            this.aigisInfo = aigisInfo;
+        }
+
+        public AigisInfo getAigisInfo() {
+            return aigisInfo;
         }
     }
 
@@ -97,10 +124,16 @@ public final class PasswordLogin {
                 ? result.get("message").getAsString() : "";
 
         if (retcode != 0) {
-            String aigisChallenge = response.header("x-rpc-aigis");
-            if (retcode == RETCODE_NEED_AIGIS || (aigisChallenge != null && !aigisChallenge.isEmpty()))
-                throw new AigisRequiredException(
-                        context.getString(R.string.login_password_need_captcha));
+            String aigisHeader = response.header("x-rpc-aigis");
+            boolean needAigis = retcode == RETCODE_NEED_AIGIS
+                    || (aigisHeader != null && !aigisHeader.isEmpty());
+            if (needAigis) {
+                // 解析出 session_id/gt/challenge 后由调用方拉起极验；解析失败则落到普通失败兜底
+                AigisInfo info = parseAigis(aigisHeader);
+                if (info != null)
+                    throw new AigisRequiredException(
+                            context.getString(R.string.login_password_need_captcha), info);
+            }
             throw new RuntimeException(context.getString(
                     R.string.login_password_failed, retcode,
                     message.isEmpty() ? response.body : message));
@@ -134,6 +167,71 @@ public final class PasswordLogin {
                 && data.get("need_realperson").getAsBoolean();
 
         return parsed;
+    }
+
+    /**
+     * 解析 x-rpc-aigis 响应头。真实响应头外层是一个 JSON 数组（取首个元素），
+     * 元素含 session_id，data 是嵌套的 JSON 字符串：
+     * <ul>
+     *   <li>v3：含 gt/challenge，配置 GT3 弹窗；</li>
+     *   <li>v4：use_v4=true，只有 gt（captchaId）、无 challenge，本项目不支持。</li>
+     * </ul>
+     * 任何字段缺失或格式异常均返回 null，由调用方走普通失败分支，避免风控残缺 JSON 崩溃。
+     */
+    static AigisInfo parseAigis(String header) {
+        if (header == null || header.isEmpty())
+            return null;
+        try {
+            JsonElement parsed = JsonParser.parseString(header);
+            JsonObject outer;
+            // 外层可能是数组（真实抓包为 [{...}]），也可能直接是对象，两者都兼容
+            if (parsed.isJsonArray()) {
+                if (parsed.getAsJsonArray().size() == 0)
+                    return null;
+                outer = parsed.getAsJsonArray().get(0).getAsJsonObject();
+            } else {
+                outer = parsed.getAsJsonObject();
+            }
+            if (!outer.has("session_id") || outer.get("session_id").isJsonNull())
+                return null;
+            String sessionId = outer.get("session_id").getAsString();
+            if (!outer.has("data") || outer.get("data").isJsonNull())
+                return null;
+            JsonObject inner = JsonParser.parseString(
+                    outer.get("data").getAsString()).getAsJsonObject();
+            if (!inner.has("gt") || inner.get("gt").isJsonNull())
+                return null;
+            String gt = inner.get("gt").getAsString();
+            boolean useV4 = inner.has("use_v4") && !inner.get("use_v4").isJsonNull()
+                    && inner.get("use_v4").getAsBoolean();
+            if (useV4)
+                // v4 只有 captchaId（gt），challenge 由 SDK 内部向极验申请；此处不提供验证能力，
+                // 仅把 useV4 标记交给调用方，由上层引导用户改用扫码或 Cookie 导入登录
+                return new AigisInfo(sessionId, gt, null, true);
+            // v3 必须有 challenge
+            if (!inner.has("challenge") || inner.get("challenge").isJsonNull())
+                return null;
+            return new AigisInfo(sessionId, gt, inner.get("challenge").getAsString(), false);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 用极验 SDK 返回的三参数组装重提头：
+     * {@code session_id + ";" + base64(极验结果JSON)}。
+     * Base64 采用无换行的标准编码（与官方 StdEncoding 一致）。
+     */
+    public static String buildAigisHeader(AigisInfo info, String geetestChallenge,
+                                          String geetestValidate, String geetestSeccode) {
+        Map<String, String> geetest = new LinkedHashMap<>();
+        geetest.put("geetest_challenge", geetestChallenge);
+        geetest.put("geetest_validate", geetestValidate);
+        geetest.put("geetest_seccode", geetestSeccode);
+        String geetestJson = GSON.toJson(geetest);
+        String base64Geetest = Base64.encodeToString(
+                geetestJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        return info.sessionId + ";" + base64Geetest;
     }
 
     /**
