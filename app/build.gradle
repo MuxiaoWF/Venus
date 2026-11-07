@@ -27,8 +27,8 @@ android {
         applicationId = "com.muxiao.Venus"
         minSdk = 24
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.0.8"
+        versionCode = 9
+        versionName = "0.0.9"
 
         buildConfigField "int", "VERSION_CODE", "${defaultConfig.versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${defaultConfig.versionName}\""

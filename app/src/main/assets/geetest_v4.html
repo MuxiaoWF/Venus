@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>极验验证</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            /* 透明背景：由宿主 Dialog 绘制半透明遮罩，极验弹层浮在其上 */
+            background: transparent;
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: #e6e6e6;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        #status {
+            padding: 16px 16px 8px;
+            font-size: 14px;
+            color: #d0d0d0;
+            text-align: center;
+        }
+        #captcha {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 8px 0;
+        }
+        .dot::after {
+            content: "";
+            animation: dots 1.2s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0% { content: ""; }
+            25% { content: "."; }
+            50% { content: ".."; }
+            75% { content: "..."; }
+        }
+        @media (prefers-color-scheme: light) {
+            #status { color: #666666; }
+        }
+    </style>
+</head>
+<body>
+<div id="status">正在加载验证组件<span class="dot"></span></div>
+<div id="captcha"></div>
+<script>
+    (function () {
+        "use strict";
+
+        // Java 侧通过 addJavascriptInterface 注入；页面在普通浏览器里打开时为空，做降级提示
+        var bridge = window.VenusBridge || null;
+        var sdkReady = false;
+        var started = false;
+
+        function emit(name, arg) {
+            try {
+                if (bridge && typeof bridge[name] === "function") {
+                    if (arg === undefined) bridge[name]();
+                    else bridge[name](String(arg));
+                }
+            } catch (e) {
+                // 桥接异常不影响页面自身流程
+            }
+        }
+
+        function setStatus(text) {
+            var el = document.getElementById("status");
+            if (el) el.textContent = text;
+        }
+
+        function onSdkLoaded() {
+            sdkReady = true;
+            if (typeof initGeetest4 !== "function") {
+                setStatus("验证组件初始化失败");
+                emit("onClose", "sdk-init-missing");
+                return;
+            }
+            setStatus("请完成下方验证");
+            emit("onReady");
+        }
+
+        function onSdkFailed() {
+            setStatus("验证组件加载失败，请检查网络后重试");
+            emit("onClose", "sdk-load-failed");
+        }
+
+        function loadSdk() {
+            var script = document.createElement("script");
+            // 极验第四代官方 Web SDK，与 TeyvatGuide 使用同一来源
+            script.src = "https://static.geetest.com/v4/gt4.js";
+            script.async = true;
+            script.onload = onSdkLoaded;
+            script.onerror = onSdkFailed;
+            document.head.appendChild(script);
+        }
+
+        /**
+         * 由 Java 侧在收到 onReady 后调用，注入米游社下发的验证参数。
+         * 参数与 TeyvatGuide 的 initGeetest4 调用保持一致：
+         *   captchaId ← aigis.data.gt
+         *   riskType  ← aigis.data.risk_type
+         *   userInfo.session_id ← aigis.session_id（服务端据此关联本次风控会话）
+         */
+        window.venusStart = function (configJson) {
+            if (started) return;
+            if (!sdkReady) {
+                setStatus("验证组件尚未就绪");
+                emit("onClose", "sdk-not-ready");
+                return;
+            }
+            var cfg;
+            try {
+                cfg = typeof configJson === "string" ? JSON.parse(configJson) : configJson;
+            } catch (e) {
+                setStatus("验证参数异常");
+                emit("onClose", "bad-config");
+                return;
+            }
+            if (!cfg || !cfg.captchaId) {
+                setStatus("验证参数缺失");
+                emit("onClose", "missing-captcha-id");
+                return;
+            }
+            started = true;
+
+            var options = {
+                captchaId: cfg.captchaId,
+                product: "popup",
+                nextWidth: "250px",
+                lang: "zho",
+                userInfo: JSON.stringify({ session_id: cfg.sessionId || "" }),
+                https: true,
+                protocol: "https"
+            };
+            // risk_type 决定验证形式（滑块 / 点选 / 图标等），缺失时交给极验自行决定
+            if (cfg.riskType) options.riskType = cfg.riskType;
+
+            try {
+                initGeetest4(options, function (captchaObj) {
+                    var container = document.getElementById("captcha");
+                    if (container) container.innerHTML = "";
+                    try {
+                        captchaObj.appendTo("#captcha");
+                    } catch (e) {
+                        // popup 模式下 appendTo 失败不影响自动弹出
+                    }
+
+                    captchaObj.onReady(function () {
+                        setStatus("请完成下方验证");
+                    });
+
+                    // v4 的验证结果在 onSuccess 里取（v3 是 onClose），这一步不能沿用 GT3 逻辑
+                    captchaObj.onSuccess(function () {
+                        var validate;
+                        try {
+                            validate = captchaObj.getValidate();
+                        } catch (e) {
+                            validate = null;
+                        }
+                        if (!validate) {
+                            emit("onClose", "empty-validate");
+                            return;
+                        }
+                        setStatus("验证通过");
+                        emit("onSuccess", JSON.stringify(validate));
+                    });
+
+                    captchaObj.onClose(function () {
+                        emit("onClose", "user-closed");
+                    });
+
+                    if (typeof captchaObj.onError === "function") {
+                        captchaObj.onError(function (err) {
+                            emit("onClose", "error:" + (err && err.code ? err.code : "unknown"));
+                        });
+                    }
+                });
+            } catch (e) {
+                setStatus("验证初始化失败");
+                emit("onClose", "init-throw");
+            }
+        };
+
+        if (document.readyState === "complete") loadSdk();
+        else window.addEventListener("load", loadSdk);
+    })();
+</script>
+</body>
+</html>

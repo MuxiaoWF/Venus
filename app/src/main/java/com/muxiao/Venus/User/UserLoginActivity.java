@@ -4,10 +4,10 @@ import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
 
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.MotionEvent;
@@ -35,7 +35,6 @@ import com.muxiao.Venus.common.tools;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -284,28 +283,65 @@ public class UserLoginActivity extends BaseActivity {
 
 
     /**
-     * 极验统一入口：v4 直接引导用户改用其他登录方式（本项目不实现 v4 验证）；
-     * v3 拉起 GT3 弹窗并在验证完成后返回 x-rpc-aigis 重提头。
+     * 极验统一入口：v4 走 WebView 加载极验官方 gt4.js，v3 走 sensebot（GT3）弹窗，
+     * 两者都返回可直接重提的 x-rpc-aigis 头。
      * <p>
      * 账密登录、短信发码、短信登录三个入口共用——它们都可能在响应头里收到 aigis 任务。
      * 需在后台线程调用（内部会阻塞等待前台验证结果）。
      */
     private String resolveAigisHeader(PasswordLogin.AigisInfo info) {
-        // v4（GTCaptcha4）无 challenge，必须由 v4 SDK 申请 captchaId 才能出验证结果，
-        // 本项目的 GT3 链路无法完成。此处不再尝试重提，直接引导用户改用其他登录方式，
-        // 避免反复撞风控把账号推到更严的名单里。
-        if (info.useV4)
-            throw new RuntimeException(getString(R.string.login_aigis_v4_unsupported));
         String header;
         try {
-            header = solveAigis(info);
+            header = info.useV4 ? solveAigisV4(info) : solveAigis(info);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie.getMessage(), ie);
         }
         if (header == null)
-            throw new RuntimeException(getString(R.string.login_aigis_failed));
+            throw new RuntimeException(getString(info.useV4
+                    ? R.string.login_aigis_v4_failed : R.string.login_aigis_failed));
         return header;
+    }
+
+    /**
+     * 在前台用 WebView 拉起极验第四代（v4）并阻塞后台线程等待结果。
+     * <p>
+     * v4 与 v3 的差异（详见 {@link GeetestV4Dialog}）：无 challenge、参数是
+     * captchaId + riskType + session_id，结果在 onSuccess 里取。
+     * 成功返回组装好的重提头；用户关闭、加载失败或超时返回 null。
+     */
+    private String solveAigisV4(PasswordLogin.AigisInfo info) throws InterruptedException {
+        status_notifier.notifyListeners(getString(R.string.login_aigis_v4_start));
+        final CountDownLatch latch = new CountDownLatch(1);
+        // 极验 validate JSON，由 WebView 的 JS 桥回调写入（null = 未通过）
+        final String[] validate = new String[1];
+        final Dialog[] dialogHolder = new Dialog[1];
+
+        runOnUiThread(() -> {
+            Dialog dialog = GeetestV4Dialog.show(UserLoginActivity.this, info, json -> {
+                validate[0] = json;
+                latch.countDown();
+            });
+            dialogHolder[0] = dialog;
+            // 宿主 Activity 不可用（已在退出）时直接结束等待，避免卡满 5 分钟
+            if (dialog == null)
+                latch.countDown();
+        });
+
+        // 与 GT3 链路一致：最多等待 5 分钟
+        boolean completed = latch.await(5, TimeUnit.MINUTES);
+        if (!completed) {
+            // 超时后收起弹窗，让 WebView 随 Dialog 一起销毁
+            runOnUiThread(() -> {
+                Dialog dialog = dialogHolder[0];
+                if (dialog != null && dialog.isShowing())
+                    dialog.dismiss();
+            });
+            return null;
+        }
+        if (validate[0] == null || validate[0].isEmpty())
+            return null;
+        return PasswordLogin.buildAigisV4Header(info, validate[0]);
     }
 
     /**
@@ -770,7 +806,7 @@ public class UserLoginActivity extends BaseActivity {
             String stoken = null;
             if (data.has("tokens") && data.get("tokens").isJsonArray()) {
                 JsonArray tokens = data.getAsJsonArray("tokens");
-                if (tokens.size() > 0 && tokens.get(0).isJsonObject())
+                if (!tokens.isEmpty() && tokens.get(0).isJsonObject())
                     stoken = opt_string(tokens.get(0).getAsJsonObject(), "token");
             }
             JsonObject user_info = data.has("user_info") && data.get("user_info").isJsonObject()

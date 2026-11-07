@@ -428,7 +428,6 @@
     <string name="login_ltoken_failed">ltoken retrieval failed-getLTokenBySToken (RETCODE = %1$d), response: %2$s</string>
 
     <!-- Login method: QR code / account and password -->
-    <string name="login_tab_qrcode">QR Code</string>
     <string name="login_tab_qrcode_short">QR</string>
     <string name="login_tab_password_short">Password</string>
     <string name="login_tab_sms_short">SMS</string>
@@ -478,7 +477,8 @@
     <string name="login_password_need_captcha">This account requires GeeTest verification (aigis). Please complete the verification.</string>
     <string name="login_aigis_start">Human verification (aigis) detected. Please complete the GeeTest verification in the pop-up window…\n</string>
     <string name="login_aigis_failed">Human verification was not completed or was canceled. Login failed.\n</string>
-    <string name="login_aigis_v4_unsupported">This account requires the newer GeeTest verification (v4), which this version does not support. Please sign in via QR code or Cookie import instead.</string>
+    <string name="login_aigis_v4_start">Newer human verification (v4) detected. Loading the verification component…\n</string>
+    <string name="login_aigis_v4_failed">The newer human verification was not completed or was canceled. Login failed. If this keeps happening, sign in via QR code or Cookie import.</string>
     <string name="login_password_realname">Note: this account requires real-name or face verification. Please complete it in the MiYouShe app first.\n</string>
     <string name="login_password_encrypt_failed">Failed to encrypt credentials: %s</string>
     <string name="login_password_no_token">Response is missing the token field: %s</string>

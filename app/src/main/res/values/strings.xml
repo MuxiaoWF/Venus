@@ -431,7 +431,6 @@
     <string name="login_ltoken_failed">获取ltoken失败-getLTokenBySToken(RETCODE = %1$d),返回信息为：%2$s</string>
 
     <!-- 登录方式：扫码 / 账号密码 -->
-    <string name="login_tab_qrcode">扫码登录</string>
     <!-- 登录方式 Tab 用短名称：4 段在窄屏上要能完整显示，完整名称留给按钮文案 -->
     <string name="login_tab_qrcode_short">扫码</string>
     <string name="login_tab_password_short">密码</string>
@@ -482,7 +481,8 @@
     <string name="login_password_need_captcha">该账号触发了极验人机验证（aigis），请完成验证</string>
     <string name="login_aigis_start">检测到人机验证（aigis），请在弹出的窗口中完成极验验证…\n</string>
     <string name="login_aigis_failed">人机验证未完成或已取消，登录失败\n</string>
-    <string name="login_aigis_v4_unsupported">该账号触发了新版极验验证（v4），当前版本暂不支持。请改用「扫码登录」或「Cookie 导入」方式登录</string>
+    <string name="login_aigis_v4_start">检测到新版人机验证（v4），正在加载验证组件…\n</string>
+    <string name="login_aigis_v4_failed">新版人机验证未完成或已取消，登录失败。若反复失败，可改用「扫码登录」或「Cookie 导入」</string>
     <string name="login_password_realname">提示：该账号需要实名认证或人脸验证，请先在米游社 APP 内完成\n</string>
     <string name="login_password_encrypt_failed">账号密码加密失败：%s</string>
     <string name="login_password_no_token">响应中缺少 token 字段：%s</string>

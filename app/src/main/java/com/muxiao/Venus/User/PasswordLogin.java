@@ -66,20 +66,23 @@ public final class PasswordLogin {
     /**
      * 从 x-rpc-aigis 响应头解析出的极验任务信息。
      * sessionId 用于重提，gt/challenge 用于配置 GT3 弹窗。
-     * v4 只有 gt（captchaId）、无 challenge；本项目不支持 v4，仅用 useV4 标记以引导用户换登录方式。
+     * v4 只有 gt（captchaId）、无 challenge，额外带 riskType（验证形式）。
      */
     public static class AigisInfo {
         public final String sessionId;
         public final String gt;
         public final String challenge;
-        /** 是否为极验第四代（v4）。v4 无 challenge，gt 即 captchaId；本项目不实现 v4 验证 */
+        /** 是否为极验第四代（v4）。v4 无 challenge，gt 即 captchaId */
         public final boolean useV4;
+        /** v4 指定的验证形式（滑块 / 点选 / 图标等），v3 为 null */
+        public final String riskType;
 
-        AigisInfo(String sessionId, String gt, String challenge, boolean useV4) {
+        AigisInfo(String sessionId, String gt, String challenge, boolean useV4, String riskType) {
             this.sessionId = sessionId;
             this.gt = gt;
             this.challenge = challenge;
             this.useV4 = useV4;
+            this.riskType = riskType;
         }
     }
 
@@ -174,7 +177,7 @@ public final class PasswordLogin {
      * 元素含 session_id，data 是嵌套的 JSON 字符串：
      * <ul>
      *   <li>v3：含 gt/challenge，配置 GT3 弹窗；</li>
-     *   <li>v4：use_v4=true，只有 gt（captchaId）、无 challenge，本项目不支持。</li>
+     *   <li>v4：use_v4=true，只有 gt（captchaId）、无 challenge，额外带 risk_type。</li>
      * </ul>
      * 任何字段缺失或格式异常均返回 null，由调用方走普通失败分支，避免风控残缺 JSON 崩溃。
      */
@@ -186,7 +189,7 @@ public final class PasswordLogin {
             JsonObject outer;
             // 外层可能是数组（真实抓包为 [{...}]），也可能直接是对象，两者都兼容
             if (parsed.isJsonArray()) {
-                if (parsed.getAsJsonArray().size() == 0)
+                if (parsed.getAsJsonArray().isEmpty())
                     return null;
                 outer = parsed.getAsJsonArray().get(0).getAsJsonObject();
             } else {
@@ -204,14 +207,16 @@ public final class PasswordLogin {
             String gt = inner.get("gt").getAsString();
             boolean useV4 = inner.has("use_v4") && !inner.get("use_v4").isJsonNull()
                     && inner.get("use_v4").getAsBoolean();
-            if (useV4)
-                // v4 只有 captchaId（gt），challenge 由 SDK 内部向极验申请；此处不提供验证能力，
-                // 仅把 useV4 标记交给调用方，由上层引导用户改用扫码或 Cookie 导入登录
-                return new AigisInfo(sessionId, gt, null, true);
+            if (useV4) {
+                // v4 只有 captchaId（gt）与 risk_type，challenge 由 SDK 内部向极验申请
+                String riskType = inner.has("risk_type") && !inner.get("risk_type").isJsonNull()
+                        ? inner.get("risk_type").getAsString() : null;
+                return new AigisInfo(sessionId, gt, null, true, riskType);
+            }
             // v3 必须有 challenge
             if (!inner.has("challenge") || inner.get("challenge").isJsonNull())
                 return null;
-            return new AigisInfo(sessionId, gt, inner.get("challenge").getAsString(), false);
+            return new AigisInfo(sessionId, gt, inner.get("challenge").getAsString(), false, null);
         } catch (RuntimeException e) {
             return null;
         }
@@ -232,6 +237,20 @@ public final class PasswordLogin {
         String base64Geetest = Base64.encodeToString(
                 geetestJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
         return info.sessionId + ";" + base64Geetest;
+    }
+
+    /**
+     * 组装 v4 的重提头：{@code session_id + ";" + base64(validate JSON)}。
+     * <p>
+     * 与 v3 不同，v4 的 validate 是极验 SDK 直接给出的原生对象
+     * （lot_number / captcha_output / pass_token / gen_time / captcha_id / sign_token），
+     * 不做字段重排、不挑字段，整体 base64 即可——顺序与内容都参与极验服务端校验。
+     * 该字符串由 WebView 中的 {@code getValidate()} 序列化得到，非空即为验证通过。
+     */
+    public static String buildAigisV4Header(AigisInfo info, String validateJson) {
+        String base64Validate = Base64.encodeToString(
+                validateJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        return info.sessionId + ";" + base64Validate;
     }
 
     /**

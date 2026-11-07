@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 /** 登录方式：扫码（与 `UserLoginActivity.MODE_QRCODE` 对齐）。 */
 const val LOGIN_MODE_QRCODE = 0
@@ -124,7 +125,7 @@ fun UserLoginScreen(
     LaunchedEffect(codeCountdown) {
         codeRemain = codeCountdown
         while (codeRemain > 0) {
-            delay(1_000)
+            delay(1_000.milliseconds)
             codeRemain--
         }
     }
