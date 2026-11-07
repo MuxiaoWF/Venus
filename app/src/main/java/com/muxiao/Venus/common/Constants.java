@@ -34,9 +34,8 @@ public class Constants {
         // 极验验证码：API1获取gt/challenge，API2二次验证
         public static final String GEETEST_API1_URL = BBS_BASE_URL + "/misc/api/createVerification?is_high=true";
         public static final String GEETEST_API2_URL = BBS_BASE_URL + "/misc/api/verifyVerification";
-        // 扫码登录：fetch生成二维码，query轮询扫码状态
-        public static final String LOGIN_QR_URL = "https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/fetch";
-        public static final String LOGIN_CHECK_URL = "https://hk4e-sdk.mihoyo.com/hk4e_cn/combo/panda/qrcode/query";
+        // 扫码登录：国服已迁到 passport 的 ma-cn-passport（见下方 QR_LOGIN_*），
+        // hk4e-sdk 的 combo/panda 旧接口仅国际服仍在用（见 OS_LOGIN_QR_URL / OS_LOGIN_CHECK_URL）
         public static final String STOKEN_URL = BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
 
         // 国际服登录
@@ -47,6 +46,10 @@ public class Constants {
         public static final String LTOKEN_URL = "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken";
         // 账号密码登录（国服 passport，返回的 token 即 stoken，user_info 中含 mid）
         public static final String PASSWORD_LOGIN_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByPassword";
+        // 扫码登录（国服 passport 版）：createQRLogin 取码，queryQRLoginStatus 轮询。
+        // Confirmed 时响应里直接带 tokens[]（stoken）与 user_info.mid/aid，无需再走 getTokenByGameToken。
+        public static final String QR_LOGIN_CREATE_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin";
+        public static final String QR_LOGIN_QUERY_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus";
         public static final String FP_URL = "https://public-data-api.mihoyo.com/device-fp/api/getFp";
 
         public static final String BBS_TASK_URL = BBS_BASE_URL + "/apihub/sapi/getUserMissionsState";

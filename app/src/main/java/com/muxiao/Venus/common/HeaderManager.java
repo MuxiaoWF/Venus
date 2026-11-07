@@ -288,6 +288,36 @@ public class HeaderManager {
     }
 
     /**
+     * 国服扫码登录（passport ma-cn-passport：createQRLogin + queryQRLoginStatus）请求头。
+     * <p>
+     * <ul>
+     *   <li>DS 走 X4 salt + 带 body 的 DS2（见 {@link #getDS_4x}），body 与实际请求体逐字节一致；</li>
+     *   <li>app_version / sdk_version / account_version 三者同值。</li>
+     * </ul>
+     *
+     * @param body 与实际发出的请求体逐字节一致的 JSON 字符串
+     */
+    public Map<String, String> get_passport_qr_headers(String body) {
+        Map<String, String> h = new HashMap<>();
+        h.put("User-Agent", "Mozilla/5.0 miHoYoBBS/" + BBSconstants.bbs_version + " Capture/2.2.0");
+        h.put("Accept", "*/*");
+        h.put("Accept-Language", "zh-cn");
+        h.put("Content-Type", "application/json");
+        h.put("x-rpc-client_type", "3");
+        h.put("x-rpc-app_version", BBSconstants.bbs_version);
+        h.put("x-rpc-sdk_version", BBSconstants.bbs_version);
+        h.put("x-rpc-account_version", BBSconstants.bbs_version);
+        h.put("x-rpc-app_id", currentAppId);
+        h.put("x-rpc-game_biz", isOversea ? "bbs_os" : "bbs_cn");
+        h.put("x-rpc-device_id", getDeviceId());
+        h.put("x-rpc-device_fp", getFp());
+        h.put("x-rpc-device_name", sanitizeHeaderValue(Build.DEVICE));
+        h.put("x-rpc-device_model", sanitizeHeaderValue(Build.MODEL));
+        h.put("DS", getDS_4x(body));
+        return h;
+    }
+
+    /**
      * 抽卡记录 authkey 获取接口请求头，DS 使用 LK2 salt。
      */
     public Map<String, String> get_authkey_headers() {
@@ -394,6 +424,30 @@ public class HeaderManager {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
             messageDigest.update(("salt=" + BBSconstants.SALT_PASSPORT + "&t=" + currentTimeMillis + "&r=" + r + "&b=" + body + "&q=").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return currentTimeMillis + "," + r + "," + tools.bytesToHex(messageDigest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 网页/PC 端扫码（passport ma-cn-passport）专用 DS：X4 salt + 带 body 的 DS2 算法。
+     * <p>
+     * 与签到用的 SALT_6X、账密登录用的 SALT_PASSPORT 都不是同一把 salt；
+     * 传入的 body 必须与实际发出的请求体逐字节一致（取码为 {@code "{}"}，
+     * 轮询为 {@code {"ticket":"..."}}，字段顺序也要一致）。
+     */
+    public String getDS_4x(String body) {
+        long currentTimeMillis = System.currentTimeMillis() / 1000;
+        StringBuilder r = new StringBuilder();
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (int i = 0; i < 6; i++)
+            r.append(chars.charAt(RANDOM.nextInt(chars.length())));
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            messageDigest.update(("salt=" + BBSconstants.SALT_4X + "&t=" + currentTimeMillis
+                    + "&r=" + r + "&b=" + body + "&q=")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
             return currentTimeMillis + "," + r + "," + tools.bytesToHex(messageDigest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);

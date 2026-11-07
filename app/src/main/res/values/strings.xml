@@ -417,6 +417,7 @@
     <string name="login_start_task">开始执行登录任务…\n开始获取二维码…</string>
     <string name="login_qr_generated">二维码已生成，等待扫描…\n请自行截图并使用米游社APP-我-左上角扫描二维码…\n</string>
     <string name="login_qr_timeout">等待扫码超时，请重新获取二维码</string>
+    <string name="login_qr_expired">二维码已过期，正在重新获取…\n</string>
     <string name="login_failed">登录失败</string>
     <string name="login_waiting_scan">等待扫码</string>
     <string name="login_waiting_confirm">等待确认</string>

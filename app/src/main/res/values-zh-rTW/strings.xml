@@ -408,6 +408,7 @@
     <string name="login_start_task">開始執行登入任務…\n開始取得二維碼…</string>
     <string name="login_qr_generated">二維碼已產生，等待掃描…\n請自行截圖並使用米遊社APP-我-左上角掃描二維碼…\n</string>
     <string name="login_qr_timeout">等待掃碼逾時，請重新取得二維碼</string>
+    <string name="login_qr_expired">二維碼已過期，正在重新取得…\n</string>
     <string name="login_failed">登入失敗</string>
     <string name="login_waiting_scan">等待掃碼</string>
     <string name="login_waiting_confirm">等待確認</string>

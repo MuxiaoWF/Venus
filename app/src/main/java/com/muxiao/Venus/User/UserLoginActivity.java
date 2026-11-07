@@ -14,6 +14,7 @@ import android.view.MotionEvent;
 
 import androidx.activity.EdgeToEdge;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.zxing.BarcodeFormat;
@@ -61,6 +62,15 @@ public class UserLoginActivity extends BaseActivity {
     private static final int MODE_COOKIE = 2;
     /** 登录方式：短信验证码（仅国服，走 passport ma-cn-verifier / ma-cn-passport） */
     private static final int MODE_SMS = 3;
+
+    /** 单张二维码最多轮询次数（约 2 分钟，间隔见 {@link #QR_POLL_INTERVAL_MS}） */
+    private static final int MAX_QR_POLL_COUNT = 120;
+    /** 二维码过期后自动换码的最大次数（新版 passport 用 -106 表达过期） */
+    private static final int MAX_QR_REFRESH_COUNT = 3;
+    /** 新版扫码轮询间隔，与参考实现一致取 1s */
+    private static final long QR_POLL_INTERVAL_MS = 1000L;
+    /** 二维码已过期（passport queryQRLoginStatus） */
+    private static final int RETCODE_QR_EXPIRED = -106;
 
     /** Compose 版页面宿主：输入框 / 二维码 / 状态日志都在这里。 */
     private com.muxiao.Venus.common.ui.compose.UserLoginScreenView pane;
@@ -438,8 +448,8 @@ public class UserLoginActivity extends BaseActivity {
     public class LoginTask implements Runnable {
         private final Context context;
         private final HeaderManager header_manager;
+        /** 旧版扫码接口（国际服）用的 app_id；国服已走 passport，不再使用该值 */
         private final String app_id = "2";
-        private String ticket;
         private String device_id;
         private final boolean isOversea;
         private final int mode;
@@ -486,20 +496,23 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 扫码登录：生成二维码 → 轮询状态 → gameToken 换 stoken
+         * 扫码登录：取码 → 渲染 → 轮询。
+         * 国服走 passport 新版（createQRLogin / queryQRLoginStatus），二维码过期（-106）自动换码重来；
+         * 国际服仍走 hk4e-sdk 的 combo/panda 旧接口（其 ticket 需要从二维码 URL 里截取）。
          */
         private void run_qrcode_login() throws Exception {
             status_notifier.notifyListeners("\n" + getString(R.string.login_start_task) + "\n");
-            byte[] qr_code_data = get_qr_code_data();
-            runOnUiThread(() -> {
-                // 显示二维码
-                Bitmap qr_code_bitmap = BitmapFactory.decodeByteArray(qr_code_data, 0, qr_code_data.length);
-                pane.setQrBitmap(qr_code_bitmap);
-                pane.setQrVisible(true);
-            });
-            status_notifier.notifyListeners(getString(R.string.login_qr_generated));
-            // 循环检查登录状态
-            check_login();
+            for (int round = 0; round <= MAX_QR_REFRESH_COUNT; round++) {
+                QrSession session = isOversea ? fetch_qr_oversea() : fetch_qr_cn();
+                show_qr_code(session.url);
+                status_notifier.notifyListeners(getString(R.string.login_qr_generated));
+                // 返回 true 表示已确认，凭证落库与收尾都已在轮询方法内完成
+                if (isOversea ? poll_qr_oversea(session) : poll_qr_cn(session))
+                    return;
+                // 返回 false = 二维码过期，换一张继续等
+                status_notifier.notifyListeners(getString(R.string.login_qr_expired) + "\n");
+            }
+            throw new RuntimeException(getString(R.string.login_qr_timeout));
         }
 
         /**
@@ -623,109 +636,219 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 获取二维码图片，并返回二维码的数组
-         *
-         * @return 二维码的byte[]
+         * 一次扫码会话：二维码内容 + 轮询凭证。
+         * 新版 passport 接口的 ticket 由响应直接给出，不再需要从二维码 URL 里截取。
          */
-        public byte[] get_qr_code_data() throws Exception {
-            Map<String, Object> body = new HashMap<>();
-            body.put("app_id", app_id);
-            body.put("device", device_id);
-            String qrUrl = isOversea ? Constants.Urls.OS_LOGIN_QR_URL : Constants.Urls.LOGIN_QR_URL;
-            String response = tools.sendPostRequest(qrUrl, new HashMap<>(), body);
+        private final class QrSession {
+            final String url;
+            final String ticket;
+
+            QrSession(String url, String ticket) {
+                this.url = url;
+                this.ticket = ticket;
+            }
+        }
+
+        /** 把二维码内容渲染成图片并推到前台。 */
+        private void show_qr_code(String url) {
+            try {
+                QRCodeWriter qrCodeWriter = new QRCodeWriter();
+                Map<EncodeHintType, Object> hints = new HashMap<>();
+                hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
+                // 根据屏幕密度调整二维码大小
+                int qrSize = (int) (getResources().getDisplayMetrics().density * 200);
+                int size = Math.max(qrSize, 300);
+                BitMatrix bitMatrix = qrCodeWriter.encode(url, BarcodeFormat.QR_CODE, size, size, hints);
+                Bitmap bitmap = Bitmap.createBitmap(bitMatrix.getWidth(), bitMatrix.getHeight(), Bitmap.Config.RGB_565);
+                for (int x = 0; x < bitMatrix.getWidth(); x++)
+                    for (int y = 0; y < bitMatrix.getHeight(); y++)
+                        bitmap.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
+                // 直接交给 Compose 侧的 state，避免原来的「压 PNG → UI 线程再解一遍」额外开销。
+                // 视图会持有它，所以这里不能 recycle；下一次换码或 onDestroy 时自然被替换/回收。
+                runOnUiThread(() -> {
+                    pane.setQrBitmap(bitmap);
+                    pane.setQrVisible(true);
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed,
+                        -1, tools.describeError(e)), e);
+            }
+        }
+
+        /**
+         * 国服取码：passport {@code createQRLogin}，body 固定 {@code "{}"}，
+         * DS 用 X4 salt + 该 body（见 HeaderManager#get_passport_qr_headers）。
+         */
+        private QrSession fetch_qr_cn() {
+            String body = "{}";
+            Map<String, String> headers = header_manager.get_passport_qr_headers(body);
+            String response = tools.postJson(Constants.Urls.QR_LOGIN_CREATE_URL, headers, body).body;
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
             int retcode = retcodeOf(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
-            // data.url 缺失时不再以 NPE 收场，而是走同一条「获取二维码失败」链路
-            JsonObject qrData = result.has("data") && result.get("data").isJsonObject()
-                    ? result.getAsJsonObject("data") : null;
-            String qr_url = qrData != null && qrData.has("url") && !qrData.get("url").isJsonNull()
-                    ? qrData.get("url").getAsString() : null;
-            if (qr_url == null)
+            JsonObject data = data_of(result);
+            String url = opt_string(data, "url");
+            String ticket = opt_string(data, "ticket");
+            if (url == null || ticket == null)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
-            String[] ticketParts = qr_url.split("ticket=");
-            if (ticketParts.length < 2)
-                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, "URL does not contain ticket parameter"));
-            this.ticket = ticketParts[1];
-            QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            Map<EncodeHintType, Object> hints = new HashMap<>();
-            hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
-            // 根据屏幕密度调整二维码大小
-            int qrSize = (int) (getResources().getDisplayMetrics().density * 200);
-            BitMatrix bitMatrix = qrCodeWriter.encode(qr_url, BarcodeFormat.QR_CODE, Math.max(qrSize, 300), Math.max(qrSize, 300), hints);
-            Bitmap bitmap = Bitmap.createBitmap(bitMatrix.getWidth(), bitMatrix.getHeight(), Bitmap.Config.RGB_565);
-            for (int x = 0; x < bitMatrix.getWidth(); x++)
-                for (int y = 0; y < bitMatrix.getHeight(); y++)
-                    bitmap.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-            // 回收Bitmap资源
-            bitmap.recycle();
-            return baos.toByteArray();
+            return new QrSession(url, ticket);
         }
 
-    /**
-     * 轮询扫码登录态（Init/Scanned/Confirmed），Confirmed 时取出 game_token 并走共用收尾。
-     * 轮询次数受当前约束（约 4 分钟），避免二维码过期后线程无限空转。
-     */
-    private static final int MAX_QR_POLL_COUNT = 120;
+        /** 国际服取码：hk4e-sdk 旧接口，ticket 需从二维码 URL 的 ticket= 参数里截取。 */
+        private QrSession fetch_qr_oversea() {
+            Map<String, Object> body = new HashMap<>();
+            body.put("app_id", app_id);
+            body.put("device", device_id);
+            String response = tools.sendPostRequest(Constants.Urls.OS_LOGIN_QR_URL, new HashMap<>(), body);
+            JsonObject result = JsonParser.parseString(response).getAsJsonObject();
+            int retcode = retcodeOf(result);
+            if (retcode != 0)
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
+            JsonObject data = data_of(result);
+            String url = opt_string(data, "url");
+            if (url == null)
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
+            String[] parts = url.split("ticket=");
+            if (parts.length < 2)
+                throw new RuntimeException(getString(R.string.login_stoken_create_failed,
+                        retcode, "URL does not contain ticket parameter"));
+            // 旧接口的 URL 里 ticket 后面还跟着 & 参数，截到 & 为止
+            return new QrSession(url, parts[1].split("&")[0]);
+        }
 
-    private void check_login() throws Exception {
-            int times = 0;
-            // 用于跟踪上一个状态，避免重复显示相同状态
+        /**
+         * 国服轮询：{@code queryQRLoginStatus}，body 为 {"ticket":"..."}（DS 必须与该 body 一致）。
+         * 状态机 Init / Created / Scanned / Confirmed；Confirmed 时响应直接带 tokens[] 与 user_info，
+         * 因此不再需要 game_token → getTokenByGameToken 的二次换票。
+         *
+         * @return true = 已确认并完成落库与收尾；false = 二维码过期，需换码
+         */
+        private boolean poll_qr_cn(QrSession session) throws Exception {
             String last_status = "";
-            String checkUrl = isOversea ? Constants.Urls.OS_LOGIN_CHECK_URL : Constants.Urls.LOGIN_CHECK_URL;
-            while (times < MAX_QR_POLL_COUNT) {
-                times++;
+            for (int times = 1; times <= MAX_QR_POLL_COUNT; times++) {
+                JsonObject body_json = new JsonObject();
+                body_json.addProperty("ticket", session.ticket);
+                String body = body_json.toString();
+                Map<String, String> headers = header_manager.get_passport_qr_headers(body);
+                String response = tools.postJson(Constants.Urls.QR_LOGIN_QUERY_URL, headers, body).body;
+                JsonObject result = JsonParser.parseString(response).getAsJsonObject();
+                int retcode = retcodeOf(result);
+                // -106：二维码已过期（新版接口用它表达过期，旧接口没有这个码）
+                if (retcode == RETCODE_QR_EXPIRED)
+                    return false;
+                if (retcode != 0)
+                    throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
+                JsonObject data = data_of(result);
+                String status = opt_string(data, "status");
+                if (status == null) status = "";
+                if ("Init".equals(status) || "Created".equals(status) || "Scanned".equals(status)) {
+                    // 状态不变时不重复刷日志
+                    if (!status.equals(last_status)) {
+                        status_notifier.notifyListeners(getString(
+                                "Scanned".equals(status) ? R.string.login_waiting_confirm : R.string.login_waiting_scan) + times);
+                        last_status = status;
+                    }
+                    TimeUnit.MILLISECONDS.sleep(QR_POLL_INTERVAL_MS);
+                    continue;
+                }
+                if ("Confirmed".equals(status)) {
+                    save_cn_qr_credentials(data);
+                    return true;
+                }
+                status_notifier.notifyListeners(getString(R.string.login_unknown_status) + status + times);
+                throw new RuntimeException(getString(R.string.login_unknown_status) + status + times);
+            }
+            throw new RuntimeException(getString(R.string.login_qr_timeout));
+        }
+
+        /**
+         * 新版扫码 Confirmed 的凭证落库：{@code tokens[0].token} 即 stoken，
+         * {@code user_info} 里有 mid 与 aid（aid 等价于旧链路的 stuid）。
+         */
+        private void save_cn_qr_credentials(JsonObject data) {
+            if (data == null)
+                throw new RuntimeException(getString(R.string.login_payload_missing));
+            String stoken = null;
+            if (data.has("tokens") && data.get("tokens").isJsonArray()) {
+                JsonArray tokens = data.getAsJsonArray("tokens");
+                if (tokens.size() > 0 && tokens.get(0).isJsonObject())
+                    stoken = opt_string(tokens.get(0).getAsJsonObject(), "token");
+            }
+            JsonObject user_info = data.has("user_info") && data.get("user_info").isJsonObject()
+                    ? data.getAsJsonObject("user_info") : null;
+            String mid = opt_string(user_info, "mid");
+            String aid = opt_string(user_info, "aid");
+            if (stoken == null || mid == null || aid == null)
+                throw new RuntimeException(getString(R.string.login_payload_missing));
+            tools.write(context, username, "stoken", stoken);
+            tools.write(context, username, "mid", mid);
+            tools.write(context, username, "stuid", aid);
+            get_ltoken_by_stoken();
+            finish_login_success();
+        }
+
+        /**
+         * 国际服轮询：旧接口，状态字段是 {@code stat}，Confirmed 时从 {@code payload.raw}
+         * 里取 game_token 与 uid，再去换 stoken。
+         *
+         * @return true = 已确认并完成落库与收尾；旧接口没有过期码，恒为 true 或抛异常
+         */
+        private boolean poll_qr_oversea(QrSession session) throws Exception {
+            String last_status = "";
+            for (int times = 1; times <= MAX_QR_POLL_COUNT; times++) {
                 Map<String, Object> body = new HashMap<>();
                 body.put("app_id", app_id);
-                body.put("ticket", ticket);
+                body.put("ticket", session.ticket);
                 body.put("device", device_id);
-                String response = tools.sendPostRequest(checkUrl, null, body);
+                String response = tools.sendPostRequest(Constants.Urls.OS_LOGIN_CHECK_URL, null, body);
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();
                 int retcode = retcodeOf(result);
                 if (retcode != 0)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                JsonObject data = result.has("data") && result.get("data").isJsonObject()
-                        ? result.getAsJsonObject("data") : null;
+                JsonObject data = data_of(result);
                 if (data == null)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                String stat = data.has("stat") && !data.get("stat").isJsonNull() ? data.get("stat").getAsString() : "";
-                // Init（等待扫码）与 Scanned（等待确认）仅提示文案不同，合并处理；状态不变时不重复通知
+                String stat = opt_string(data, "stat");
+                if (stat == null) stat = "";
+                // Init（等待扫码）与 Scanned（等待确认）仅提示文案不同，合并处理
                 if ("Init".equals(stat) || "Scanned".equals(stat)) {
                     if (!stat.equals(last_status)) {
                         status_notifier.notifyListeners(getString(
                                 "Init".equals(stat) ? R.string.login_waiting_scan : R.string.login_waiting_confirm) + times);
                         last_status = stat;
                     }
-                } else if ("Confirmed".equals(stat)) {
-                    // 检查 payload 和 raw 是否存在且不为 null
+                    TimeUnit.MILLISECONDS.sleep((int) (Math.random() * 500 + 1500));
+                    continue;
+                }
+                if ("Confirmed".equals(stat)) {
                     if (!data.has("payload") || !data.get("payload").isJsonObject())
                         throw new RuntimeException(getString(R.string.login_payload_missing));
                     JsonObject payload = data.getAsJsonObject("payload");
-                    if (!payload.has("raw") || payload.get("raw").isJsonNull())
+                    String raw_text = opt_string(payload, "raw");
+                    if (raw_text == null)
                         throw new RuntimeException(getString(R.string.login_raw_missing));
-                    JsonObject raw = JsonParser.parseString(payload.get("raw").getAsString()).getAsJsonObject();
-                    if (!raw.has("token") || raw.get("token").isJsonNull()
-                            || !raw.has("uid") || raw.get("uid").isJsonNull())
+                    JsonObject raw = JsonParser.parseString(raw_text).getAsJsonObject();
+                    String uid = opt_string(raw, "uid");
+                    String game_token = opt_string(raw, "token");
+                    if (uid == null || game_token == null)
                         throw new RuntimeException(getString(R.string.login_raw_missing));
-                    get_stoken_by_game_token(raw.get("uid").getAsString(), raw.get("token").getAsString());
-                    // 登录流程完成，走共用收尾
+                    get_stoken_by_game_token(uid, game_token);
                     finish_login_success();
-                    return;
-                } else {
-                    status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
-                    throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
+                    return true;
                 }
-                TimeUnit.MILLISECONDS.sleep((int) (Math.random() * 500 + 1500));
+                status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
+                throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
             }
             throw new RuntimeException(getString(R.string.login_qr_timeout));
         }
 
-    /**
-     * 通过game_token获取stoken，通过check_login()方法登录成功获取game_token后调用
-     */
+        /**
+         * 用 game_token 换 stoken。
+         * <p>
+         * 仅国际服链路使用：hk4e-sdk 的旧扫码只下发 game_token。国服已迁到 passport 新版扫码，
+         * Confirmed 响应直接给出 stoken 与 mid，不再需要这一步。
+         */
         private void get_stoken_by_game_token(String stuid, String game_token) {
             Map<String, Object> body = new HashMap<>();
             body.put("account_id", Long.parseLong(stuid));
@@ -774,6 +897,24 @@ public class UserLoginActivity extends BaseActivity {
                 throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
             String ltoken = ltokenData.get("ltoken").getAsString();
             tools.write(context, username, "ltoken", ltoken);
+        }
+    }
+
+    /** 安全读取 data 对象：缺失、JsonNull 或非对象时返回 null。 */
+    private static JsonObject data_of(JsonObject json) {
+        if (json == null || !json.has("data") || json.get("data").isJsonNull())
+            return null;
+        return json.get("data").isJsonObject() ? json.getAsJsonObject("data") : null;
+    }
+
+    /** 安全读取字符串字段：缺失、JsonNull 或类型不符时返回 null。 */
+    private static String opt_string(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull())
+            return null;
+        try {
+            return json.get(key).getAsString();
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 

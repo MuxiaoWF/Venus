@@ -414,6 +414,7 @@
     <string name="login_start_task">Starting login task…\nFetching QR code…</string>
     <string name="login_qr_generated">QR code generated, waiting for scan…\nPlease take a screenshot and use the Miyoushe app (Me - top left) to scan the QR code…\n</string>
     <string name="login_qr_timeout">Timed out waiting for the QR code to be scanned; please refresh it</string>
+    <string name="login_qr_expired">The QR code has expired, fetching a new one…\n</string>
     <string name="login_failed">Login failed</string>
     <string name="login_waiting_scan">Waiting for scan</string>
     <string name="login_waiting_confirm">Waiting for confirmation</string>

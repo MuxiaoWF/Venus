@@ -29,24 +29,24 @@ import java.util.Map;
 public class MiHoYoBBSConstants {
     /** 不可变快照，volatile 保证跨线程可见性，整体替换保证一致性 */
     public static class ConfigSnapshot {
-        public final String SALT_6X, LK2, K2, SALT_PASSPORT, bbs_version;
-        ConfigSnapshot(String s6x, String lk2, String k2, String passport, String ver) {
-            this.SALT_6X = s6x; this.LK2 = lk2; this.K2 = k2;
+        public final String SALT_6X, SALT_4X, LK2, K2, SALT_PASSPORT, bbs_version;
+        ConfigSnapshot(String s6x, String s4x, String lk2, String k2, String passport, String ver) {
+            this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2;
             this.SALT_PASSPORT = passport; this.bbs_version = ver;
         }
     }
     private static volatile ConfigSnapshot snapshot = new ConfigSnapshot(
-            "t0qEgfub6cvueAPgR5m9aQWWVciEer7v",
-            "dd6d1560beaf2ed93d84ded0a5aabe70", "897878226392bd988a289cb7a589ee52",
-            "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS", "2.113.1");
+            "t0qEgfub6cvueAPgR5m9aQWWVciEer7v", "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs",
+            "4751cb5557bfad5e249e58462c39fb0a", "9c7b896d7483e9070b27c55f1959c4d5",
+            "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS", "2.117.0");
 
     // 实例字段：从 snapshot 读取，保持向后兼容
-    public String SALT_6X, LK2, K2, SALT_PASSPORT, bbs_version;
+    public String SALT_6X, SALT_4X, LK2, K2, SALT_PASSPORT, bbs_version;
 
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
     public static final String SALT_4X_final = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
-    public static final String LK2_final = "dd6d1560beaf2ed93d84ded0a5aabe70";
-    public static final String K2_final = "897878226392bd988a289cb7a589ee52";
+    public static final String LK2_final = "4751cb5557bfad5e249e58462c39fb0a";
+    public static final String K2_final = "9c7b896d7483e9070b27c55f1959c4d5";
     /**
      * 账号 SDK（passport / ma-cn-passport）专用 salt，与 K2 / LK2 / SALT_6X 均不同。
      * 用于 loginByPassword 等 passport-api 接口，签名走「带 body 的 DS2」算法：
@@ -54,10 +54,11 @@ public class MiHoYoBBSConstants {
      * 该值已由真实抓包 DS 反算验证（MD5 完全命中）。
      */
     public static final String SALT_PASSPORT_final = "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS";
-    public static final String bbs_version_final = "2.113.1";
+    /** 内置米游社版本线；K2/LK2/UA/x-rpc-app_version 都以此为准 */
+    public static final String bbs_version_final = "2.117.0";
     /** 账号 SDK 版本，对应 x-rpc-sdk_version / x-rpc-account_version */
     public static final String ACCOUNT_SDK_VERSION = "2.42.0";
-    public static final String update_time = "2026.08.18";
+    public static final String update_time = "2026.11.07";
     public static final String PACKAGE_NAME = "com.mihoyo.hyperion";
     public static final String OS_PACKAGE_NAME = "com.mihoyo.hoyolab";
     private final Context context;
@@ -66,6 +67,7 @@ public class MiHoYoBBSConstants {
         this.context = context;
         ConfigSnapshot s = snapshot;
         this.SALT_6X = s.SALT_6X;
+        this.SALT_4X = s.SALT_4X;
         this.LK2 = s.LK2; this.K2 = s.K2;
         this.SALT_PASSPORT = s.SALT_PASSPORT; this.bbs_version = s.bbs_version;
         updateSalt();
@@ -139,14 +141,15 @@ public class MiHoYoBBSConstants {
     private void updateSalt() {
         ConfigRepository configRepo = new ConfigRepository(context);
         String s6x = configRepo.get(SALT_6X_PREF, SALT_6X_final);
+        String s4x = configRepo.get(SALT_4X_PREF, SALT_4X_final);
         String lk2 = configRepo.get(LK2_PREF, LK2_final);
         String k2 = configRepo.get(K2_PREF, K2_final);
         String passport = configRepo.get(SALT_PASSPORT_PREF, SALT_PASSPORT_final);
         String ver = configRepo.get(BBS_VERSION_PREF, bbs_version_final);
         // 原子替换快照，保证所有字段一致性
-        snapshot = new ConfigSnapshot(s6x, lk2, k2, passport, ver);
+        snapshot = new ConfigSnapshot(s6x, s4x, lk2, k2, passport, ver);
         // 同步实例字段（兼容直接字段访问）
-        this.SALT_6X = s6x; this.LK2 = lk2; this.K2 = k2;
+        this.SALT_6X = s6x; this.SALT_4X = s4x; this.LK2 = lk2; this.K2 = k2;
         this.SALT_PASSPORT = passport; this.bbs_version = ver;
     }
 
