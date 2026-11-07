@@ -443,7 +443,7 @@
     <!-- Cookie 导入登录（绕开极验） -->
     <string name="login_tab_cookie">Cookie 导入</string>
     <string name="login_cookie_hint">粘贴 Cookie</string>
-    <string name="login_cookie_desc">在电脑浏览器登录 miyoushe.com 后按 F12 → Network（网络）→ 任选一个请求，复制请求头中以 ltuid/ltoken 开头的整段 Cookie 粘贴到上方。Cookie 只在本机使用，不会上传。</string>
+    <string name="login_cookie_desc">在电脑浏览器登录 miyoushe.com 后按 F12 → Application（应用）→ Cookies → https://www.miyoushe.com，把整段 Cookie 复制到上方。必须包含 stoken（只有 ltoken 会被接口拒绝）以及 ltuid_v2 / account_mid_v2。Cookie 只在本机使用，不会上传。</string>
     <string name="login_cookie_empty">请先粘贴 Cookie</string>
     <string name="login_cookie_invalid">Cookie 中缺少 ltuid 或 ltoken/stoken，请在已登录米游社的浏览器中重新复制完整 Cookie</string>
     <string name="login_cookie_expired">Cookie 已失效，请重新登录米游社后复制新的 Cookie</string>
@@ -455,6 +455,23 @@
     <string name="login_cookie_verify_warn">凭证校验返回 retcode=%1$d（非登录态失效，可能被限流或触发人机验证），任务运行时会重试\n</string>
     <string name="login_cookie_ltoken_rejected">Cookie 中的 ltoken 被接口判定为登录失效（-100）：BBS 与签到接口需要 stoken。请改用扫码登录，或导入包含 stoken 的 Cookie</string>
     <string name="login_cookie_token_ok">Cookie 校验通过，凭证已保存\n</string>
+    <string name="login_tab_sms">短信登录</string>
+    <string name="login_sms_phone_hint">手机号（+86）</string>
+    <string name="login_sms_code_hint">短信验证码</string>
+    <string name="login_sms_send">获取验证码</string>
+    <string name="login_sms_resend">重新获取 (%1$d)</string>
+    <string name="login_sms_desc">短信验证码登录仅支持国服 +86 手机号。若该账号被风控要求极验，或始终收不到验证码，请改用扫码登录或 Cookie 导入。</string>
+    <string name="login_sms_sending">正在发送短信验证码…\n</string>
+    <string name="login_sms_sent">验证码已发送至 %1$s，请查收短信\n</string>
+    <string name="login_sms_phone_invalid">请输入正确的 11 位手机号</string>
+    <string name="login_sms_code_empty">请输入收到的短信验证码</string>
+    <string name="login_sms_not_sent">请先点击「获取验证码」，且获取后不要修改手机号</string>
+    <string name="login_sms_only_cn">短信验证码登录仅支持国服账号</string>
+    <string name="login_sms_start">开始执行短信验证码登录…\n</string>
+    <string name="login_sms_token_ok">短信验证码登录成功，已获取 stoken\n</string>
+    <string name="login_sms_captcha_failed">获取验证码失败（retcode=%1$d）：%2$s</string>
+    <string name="login_sms_login_failed">短信验证码登录失败（retcode=%1$d）：%2$s</string>
+    <string name="login_sms_no_mid">登录响应中缺少 mid 字段：%1$s</string>
     <string name="login_password_need_captcha">该账号触发了极验人机验证（aigis），请完成验证</string>
     <string name="login_aigis_start">检测到人机验证（aigis），请在弹出的窗口中完成极验验证…\n</string>
     <string name="login_aigis_failed">人机验证未完成或已取消，登录失败\n</string>

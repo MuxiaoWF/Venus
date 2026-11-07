@@ -235,9 +235,11 @@ public final class PasswordLogin {
     }
 
     /**
-     * RSA/ECB/PKCS1Padding 加密后 Base64（单行，无换行）
+     * RSA/ECB/PKCS1Padding 加密后 Base64（单行，无换行）。
+     * <p>
+     * 包内可见：{@link SmsLogin} 也用同一把账号 SDK 公钥加密 area_code 与手机号。
      */
-    private static String rsaEncrypt(Context context, String plain) {
+    static String rsaEncrypt(Context context, String plain) {
         try {
             byte[] keyBytes = Base64.decode(LOGIN_RSA_PUBLIC_KEY, Base64.DEFAULT);
             PublicKey publicKey = KeyFactory.getInstance("RSA")

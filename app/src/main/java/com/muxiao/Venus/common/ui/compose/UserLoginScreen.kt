@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
+import kotlinx.coroutines.delay
 
 /** 登录方式：扫码（与 `UserLoginActivity.MODE_QRCODE` 对齐）。 */
 const val LOGIN_MODE_QRCODE = 0
@@ -65,6 +66,8 @@ const val LOGIN_MODE_QRCODE = 0
 const val LOGIN_MODE_PASSWORD = 1
 /** 登录方式：浏览器 Cookie 导入（与 `UserLoginActivity.MODE_COOKIE` 对齐，仅国服）。 */
 const val LOGIN_MODE_COOKIE = 2
+/** 登录方式：短信验证码（与 `UserLoginActivity.MODE_SMS` 对齐，仅国服）。 */
+const val LOGIN_MODE_SMS = 3
 
 /**
  * 国服用户登录页（原 res/layout/activity_user_login.xml）。
@@ -91,6 +94,9 @@ fun UserLoginScreen(
     account: String,
     password: String,
     cookie: String,
+    phone: String,
+    smsCode: String,
+    codeCountdown: Int,
     qrVisible: Boolean,
     qrBitmap: Bitmap?,
     log: String,
@@ -100,6 +106,9 @@ fun UserLoginScreen(
     onAccountChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onCookieChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
+    onSmsCodeChange: (String) -> Unit,
+    onSendCodeClick: () -> Unit,
     onLoginClick: () -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
@@ -107,6 +116,18 @@ fun UserLoginScreen(
     val textStyles = LocalVenusTextStyles.current
     val isPasswordMode = loginMode == LOGIN_MODE_PASSWORD
     val isCookieMode = loginMode == LOGIN_MODE_COOKIE
+    val isSmsMode = loginMode == LOGIN_MODE_SMS
+
+    // 验证码重发倒计时：宿主在发码成功后下发秒数，这里每秒递减。
+    // 状态放在函数顶层而非短信分支内，切到其他 Tab 再切回来不会把倒计时清零。
+    var codeRemain by remember { mutableIntStateOf(0) }
+    LaunchedEffect(codeCountdown) {
+        codeRemain = codeCountdown
+        while (codeRemain > 0) {
+            delay(1_000)
+            codeRemain--
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -158,6 +179,8 @@ fun UserLoginScreen(
                     val loginOptions = listOf(
                         stringResource(R.string.login_tab_qrcode) to LOGIN_MODE_QRCODE,
                         stringResource(R.string.login_tab_password) to LOGIN_MODE_PASSWORD,
+                        // 短信验证码走 passport 账号 SDK，同样只对国服有效
+                        stringResource(R.string.login_tab_sms) to LOGIN_MODE_SMS,
                         // Cookie 导入同样只对国服有效（国际服走 HoYoLAB 授权页）
                         stringResource(R.string.login_tab_cookie) to LOGIN_MODE_COOKIE,
                     )
@@ -283,6 +306,50 @@ fun UserLoginScreen(
                             style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         )
                     }
+                    if (isSmsMode) {
+                        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+                        VenusTextField(
+                            value = phone,
+                            onValueChange = onPhoneChange,
+                            label = stringResource(R.string.login_sms_phone_hint),
+                            enabled = inputsEnabled,
+                            keyboardType = KeyboardType.Phone,
+                            onSubmit = onSubmit,
+                        )
+                        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                VenusTextField(
+                                    value = smsCode,
+                                    onValueChange = onSmsCodeChange,
+                                    label = stringResource(R.string.login_sms_code_hint),
+                                    enabled = inputsEnabled,
+                                    keyboardType = KeyboardType.Number,
+                                    onSubmit = onSubmit,
+                                )
+                            }
+                            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
+                            // 倒计时用服务端下发的秒数；归零前禁用，避免短时间内反复请求短信
+                            TextButton(
+                                onClick = onSendCodeClick,
+                                enabled = inputsEnabled && codeRemain == 0,
+                            ) {
+                                Text(
+                                    text = if (codeRemain > 0)
+                                        stringResource(R.string.login_sms_resend, codeRemain)
+                                    else
+                                        stringResource(R.string.login_sms_send),
+                                    style = textStyles.labelMedium,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+                        Text(
+                            text = stringResource(R.string.login_sms_desc),
+                            style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        )
+                    }
                     Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
                     Button(
                         onClick = onLoginClick,
@@ -295,6 +362,7 @@ fun UserLoginScreen(
                                 reloginMode -> stringResource(R.string.login_relogin_button, reloginUsername)
                                 isPasswordMode -> stringResource(R.string.login_tab_password)
                                 isCookieMode -> stringResource(R.string.login_tab_cookie)
+                                isSmsMode -> stringResource(R.string.login_tab_sms)
                                 else -> stringResource(R.string.login)
                             },
                             style = textStyles.labelMedium,
@@ -451,6 +519,9 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     private val accountState = mutableStateOf("")
     private val passwordState = mutableStateOf("")
     private val cookieState = mutableStateOf("")
+    private val phoneState = mutableStateOf("")
+    private val smsCodeState = mutableStateOf("")
+    private val codeCountdownState = mutableIntStateOf(0)
     private val qrVisibleState = mutableStateOf(false)
     private val qrBitmapState = mutableStateOf<Bitmap?>(null)
     private val logState = mutableStateOf("")
@@ -459,6 +530,7 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     private var onModeSelectListener: IndexConsumer? = null
     private var onLoginClickListener: Runnable? = null
     private var onSubmitListener: Runnable? = null
+    private var onSendCodeClickListener: Runnable? = null
 
     /** 当前登录方式（0 扫码 / 1 账号密码）。 */
     var loginMode: Int
@@ -497,6 +569,22 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     /** 浏览器粘贴的整段 Cookie（Cookie 导入模式使用）。 */
     fun getCookie(): String = cookieState.value
 
+    /** 短信登录：手机号（不含 +86，区号固定由业务侧补）。 */
+    fun getPhone(): String = phoneState.value
+
+    /** 短信登录：用户输入的验证码。 */
+    fun getSmsCode(): String = smsCodeState.value
+
+    /** 下发成功后由宿主设置重发倒计时秒数，UI 侧自行递减。 */
+    fun setCodeCountdown(seconds: Int) {
+        codeCountdownState.intValue = seconds.coerceAtLeast(0)
+    }
+
+    /** 清空验证码输入（登录成功后避免一次性验证码长期驻留界面）。 */
+    fun clearSmsCode() {
+        smsCodeState.value = ""
+    }
+
     fun setQrVisible(visible: Boolean) {
         qrVisibleState.value = visible
     }
@@ -532,6 +620,9 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     account = accountState.value,
                     password = passwordState.value,
                     cookie = cookieState.value,
+                    phone = phoneState.value,
+                    smsCode = smsCodeState.value,
+                    codeCountdown = codeCountdownState.intValue,
                     qrVisible = qrVisibleState.value,
                     qrBitmap = qrBitmapState.value,
                     log = logState.value,
@@ -546,6 +637,9 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     onAccountChange = { accountState.value = it },
                     onPasswordChange = { passwordState.value = it },
                     onCookieChange = { cookieState.value = it },
+                    onPhoneChange = { phoneState.value = it },
+                    onSmsCodeChange = { smsCodeState.value = it },
+                    onSendCodeClick = { onSendCodeClickListener?.run() },
                     onLoginClick = { onLoginClickListener?.run() },
                     onSubmit = { onSubmitListener?.run() },
                 )
@@ -568,6 +662,11 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     fun setOnSubmitListener(listener: Runnable?) {
         onSubmitListener = listener
     }
+
+    /** 短信登录的「获取验证码」按钮回调（与登录提交分开派发）。 */
+    fun setOnSendCodeClickListener(listener: Runnable?) {
+        onSendCodeClickListener = listener
+    }
 }
 
 @Preview(name = "用户登录", showBackground = true)
@@ -584,6 +683,9 @@ private fun UserLoginScreenPreview() {
             account = "user@example.com",
             password = "secret",
             cookie = "ltuid_v2=306118684; ltoken_v2=xxx",
+            phone = "13800138000",
+            smsCode = "123456",
+            codeCountdown = 0,
             qrVisible = false,
             qrBitmap = null,
             log = stringResource(R.string.waiting),
@@ -593,6 +695,9 @@ private fun UserLoginScreenPreview() {
             onAccountChange = {},
             onPasswordChange = {},
             onCookieChange = {},
+            onPhoneChange = {},
+            onSmsCodeChange = {},
+            onSendCodeClick = {},
             onLoginClick = {},
             onSubmit = {},
         )

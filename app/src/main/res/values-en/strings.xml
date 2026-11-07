@@ -440,7 +440,7 @@
     <!-- Cookie import login (bypasses captcha) -->
     <string name="login_tab_cookie">Cookie</string>
     <string name="login_cookie_hint">Paste Cookie</string>
-    <string name="login_cookie_desc">Log in to miyoushe.com in a desktop browser, press F12 → Network, open any request and copy the whole Cookie header (starting with ltuid/ltoken) into the field above. The Cookie is used locally only and never uploaded.</string>
+    <string name="login_cookie_desc">Sign in to miyoushe.com in a desktop browser, press F12 → Application → Cookies → https://www.miyoushe.com, then copy the whole cookie string into the field above. It must contain stoken (ltoken alone is rejected by the API) plus ltuid_v2 / account_mid_v2. The cookie is used locally only and never uploaded.</string>
     <string name="login_cookie_empty">Please paste a Cookie first</string>
     <string name="login_cookie_invalid">The Cookie has no ltuid or ltoken/stoken. Copy the full Cookie from a browser that is logged in to miyoushe.com.</string>
     <string name="login_cookie_expired">The Cookie has expired. Log in to miyoushe.com again and copy a fresh one.</string>
@@ -452,6 +452,23 @@
     <string name="login_cookie_verify_warn">Credential check returned retcode=%1$d (not a login failure; possibly rate-limited or captcha-triggered). Tasks will retry at runtime.\n</string>
     <string name="login_cookie_ltoken_rejected">The API rejected this ltoken with -100: BBS and check-in APIs require stoken. Use QR login, or import a Cookie that contains stoken.</string>
     <string name="login_cookie_token_ok">Cookie verified, credentials saved\n</string>
+    <string name="login_tab_sms">SMS</string>
+    <string name="login_sms_phone_hint">Phone (+86)</string>
+    <string name="login_sms_code_hint">SMS code</string>
+    <string name="login_sms_send">Send code</string>
+    <string name="login_sms_resend">Resend (%1$d)</string>
+    <string name="login_sms_desc">SMS sign-in only supports mainland China (+86) numbers. If the account is flagged for GeeTest verification, or the code never arrives, use QR sign-in or Cookie import instead.</string>
+    <string name="login_sms_sending">Sending SMS code…\n</string>
+    <string name="login_sms_sent">Code sent to %1$s, please check your messages\n</string>
+    <string name="login_sms_phone_invalid">Please enter a valid 11-digit phone number</string>
+    <string name="login_sms_code_empty">Please enter the SMS code you received</string>
+    <string name="login_sms_not_sent">Tap Send code first, and do not change the phone number afterwards</string>
+    <string name="login_sms_only_cn">SMS sign-in is only available for China mainland accounts</string>
+    <string name="login_sms_start">Starting SMS code sign-in…\n</string>
+    <string name="login_sms_token_ok">Signed in with SMS code, stoken acquired\n</string>
+    <string name="login_sms_captcha_failed">Failed to send the code (retcode=%1$d): %2$s</string>
+    <string name="login_sms_login_failed">SMS sign-in failed (retcode=%1$d): %2$s</string>
+    <string name="login_sms_no_mid">The login response has no mid field: %1$s</string>
     <string name="login_password_need_captcha">This account requires GeeTest verification (aigis). Please complete the verification.</string>
     <string name="login_aigis_start">Human verification (aigis) detected. Please complete the GeeTest verification in the pop-up window…\n</string>
     <string name="login_aigis_failed">Human verification was not completed or was canceled. Login failed.\n</string>

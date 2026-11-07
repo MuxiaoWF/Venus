@@ -434,7 +434,7 @@
     <!-- Cookie 匯入登入（繞開極驗） -->
     <string name="login_tab_cookie">Cookie 匯入</string>
     <string name="login_cookie_hint">貼上 Cookie</string>
-    <string name="login_cookie_desc">在電腦瀏覽器登入 miyoushe.com 後按 F12 → Network（網路）→ 任選一個請求，複製請求標頭中以 ltuid/ltoken 開頭的整段 Cookie 貼到上方。Cookie 只在本機使用，不會上傳。</string>
+    <string name="login_cookie_desc">在電腦瀏覽器登入 miyoushe.com 後按 F12 → Application（應用）→ Cookies → https://www.miyoushe.com，把整段 Cookie 複製到上方。必須包含 stoken（只有 ltoken 會被介面拒絕）以及 ltuid_v2 / account_mid_v2。Cookie 只在本機使用，不會上傳。</string>
     <string name="login_cookie_empty">請先貼上 Cookie</string>
     <string name="login_cookie_invalid">Cookie 中缺少 ltuid 或 ltoken/stoken，請在已登入米遊社的瀏覽器重新複製完整 Cookie</string>
     <string name="login_cookie_expired">Cookie 已失效，請重新登入米遊社後複製新的 Cookie</string>
@@ -446,6 +446,23 @@
     <string name="login_cookie_verify_warn">憑證校驗返回 retcode=%1$d（非登入態失效，可能被限流或觸發人機驗證），任務執行時會重試\n</string>
     <string name="login_cookie_ltoken_rejected">Cookie 中的 ltoken 被介面判定為登入失效（-100）：BBS 與簽到介面需要 stoken。請改用掃碼登入，或匯入包含 stoken 的 Cookie</string>
     <string name="login_cookie_token_ok">Cookie 校驗通過，憑證已儲存\n</string>
+    <string name="login_tab_sms">簡訊登入</string>
+    <string name="login_sms_phone_hint">手機號（+86）</string>
+    <string name="login_sms_code_hint">簡訊驗證碼</string>
+    <string name="login_sms_send">取得驗證碼</string>
+    <string name="login_sms_resend">重新取得 (%1$d)</string>
+    <string name="login_sms_desc">簡訊驗證碼登入僅支援國服 +86 手機號。若該帳號被風控要求極驗，或始終收不到驗證碼，請改用掃碼登入或 Cookie 匯入。</string>
+    <string name="login_sms_sending">正在發送簡訊驗證碼…\n</string>
+    <string name="login_sms_sent">驗證碼已發送至 %1$s，請查收簡訊\n</string>
+    <string name="login_sms_phone_invalid">請輸入正確的 11 位手機號</string>
+    <string name="login_sms_code_empty">請輸入收到的簡訊驗證碼</string>
+    <string name="login_sms_not_sent">請先點擊「取得驗證碼」，且取得後不要修改手機號</string>
+    <string name="login_sms_only_cn">簡訊驗證碼登入僅支援國服帳號</string>
+    <string name="login_sms_start">開始執行簡訊驗證碼登入…\n</string>
+    <string name="login_sms_token_ok">簡訊驗證碼登入成功，已取得 stoken\n</string>
+    <string name="login_sms_captcha_failed">取得驗證碼失敗（retcode=%1$d）：%2$s</string>
+    <string name="login_sms_login_failed">簡訊驗證碼登入失敗（retcode=%1$d）：%2$s</string>
+    <string name="login_sms_no_mid">登入回應中缺少 mid 欄位：%1$s</string>
     <string name="login_password_need_captcha">該帳號觸發了極驗人機驗證（aigis），請完成驗證</string>
     <string name="login_aigis_start">偵測到人機驗證（aigis），請在彈出視窗中完成極驗驗證…\n</string>
     <string name="login_aigis_failed">人機驗證未完成或已取消，登入失敗\n</string>

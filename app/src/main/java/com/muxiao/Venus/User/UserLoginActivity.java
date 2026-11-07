@@ -59,6 +59,8 @@ public class UserLoginActivity extends BaseActivity {
     private static final int MODE_PASSWORD = 1;
     /** 登录方式：浏览器 Cookie 导入（仅国服，绕开极验） */
     private static final int MODE_COOKIE = 2;
+    /** 登录方式：短信验证码（仅国服，走 passport ma-cn-verifier / ma-cn-passport） */
+    private static final int MODE_SMS = 3;
 
     /** Compose 版页面宿主：输入框 / 二维码 / 状态日志都在这里。 */
     private com.muxiao.Venus.common.ui.compose.UserLoginScreenView pane;
@@ -69,6 +71,14 @@ public class UserLoginActivity extends BaseActivity {
     private boolean relogin_mode = false; // 是否为重新登录模式
     private String relogin_username = null; // 重新登录的用户名
     private int login_mode = MODE_QRCODE; // 当前登录方式
+
+    /** 短信验证码登录：sendCaptcha 返回的 action_type，登录时必须原样回传（一次性） */
+    private volatile String sms_action_type = null;
+    /** action_type 对应的手机号：登录时手机号若已改动，视为需重新获取验证码 */
+    private volatile String sms_action_phone = null;
+    /** 本次短信登录提交的手机号与验证码（主线程写入，后台任务读取） */
+    private volatile String sms_phone_input = null;
+    private volatile String sms_code_input = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -122,6 +132,8 @@ public class UserLoginActivity extends BaseActivity {
             pane.clearLog();
             handleLogin();
         });
+        // 短信登录：获取验证码是独立于「登录」提交的第二个动作，由宿主单独派发
+        pane.setOnSendCodeClickListener(this::handleSendCode);
     }
 
     /**
@@ -166,6 +178,26 @@ public class UserLoginActivity extends BaseActivity {
             status_notifier.notifyListeners(getString(R.string.login_cookie_empty));
             return;
         }
+        if (login_mode == MODE_SMS) {
+            if (isOversea) {
+                status_notifier.notifyListeners(getString(R.string.login_sms_only_cn));
+                return;
+            }
+            String phone = pane.getPhone().trim();
+            if (!isValidPhone(phone)) {
+                status_notifier.notifyListeners(getString(R.string.login_sms_phone_invalid));
+                return;
+            }
+            if (pane.getSmsCode().trim().isEmpty()) {
+                status_notifier.notifyListeners(getString(R.string.login_sms_code_empty));
+                return;
+            }
+            // action_type 与手机号绑定：发码后又改过手机号，旧的 action_type 已经对不上了
+            if (sms_action_type == null || !phone.equals(sms_action_phone)) {
+                status_notifier.notifyListeners(getString(R.string.login_sms_not_sent));
+                return;
+            }
+        }
         if (!relogin_mode && user_manager.getUsers().containsKey(username)) {
             // 检查用户是否属于当前服务器类型
             if (!user_manager.isUserMatchingServerType(username, isOversea)) {
@@ -184,12 +216,38 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         change_component_status(false);
-        // 明文账号密码 / Cookie 仅在本次任务的内存中传递，不写入任何持久化存储
+        // 明文账号密码 / Cookie / 短信验证码仅在本次任务的内存中传递，不写入任何持久化存储
         String account = login_mode == MODE_PASSWORD ? pane.getAccount().trim() : null;
         String password = login_mode == MODE_PASSWORD ? pane.getPassword() : null;
         String cookie = login_mode == MODE_COOKIE ? pane.getCookie().trim() : null;
+        sms_phone_input = login_mode == MODE_SMS ? pane.getPhone().trim() : null;
+        sms_code_input = login_mode == MODE_SMS ? pane.getSmsCode().trim() : null;
         LoginTask login_task = new LoginTask(this, login_mode, account, password, cookie);
         executor_service.execute(login_task);
+    }
+
+    /**
+     * 「获取验证码」：校验手机号后单独派发短信下发任务。
+     * 与登录提交共用一个单线程池，因此登录进行中点击会排队而不是并发打接口。
+     */
+    private void handleSendCode() {
+        if (MiHoYoBBSConstants.is_oversea(this)) {
+            status_notifier.notifyListeners(getString(R.string.login_sms_only_cn));
+            return;
+        }
+        String phone = pane.getPhone().trim();
+        if (!isValidPhone(phone)) {
+            status_notifier.notifyListeners(getString(R.string.login_sms_phone_invalid));
+            return;
+        }
+        pane.clearLog();
+        change_component_status(false);
+        executor_service.execute(new SendCodeTask(this, phone));
+    }
+
+    /** 国服短信登录只接受 11 位大陆手机号（1 开头，第二位 3-9）。 */
+    private static boolean isValidPhone(String phone) {
+        return phone != null && phone.matches("1[3-9]\\d{9}");
     }
 
     /**
@@ -216,6 +274,166 @@ public class UserLoginActivity extends BaseActivity {
         }
     }
 
+
+    /**
+     * 极验统一入口：v4 直接引导用户改用其他登录方式（本项目不实现 v4 验证）；
+     * v3 拉起 GT3 弹窗并在验证完成后返回 x-rpc-aigis 重提头。
+     * <p>
+     * 账密登录、短信发码、短信登录三个入口共用——它们都可能在响应头里收到 aigis 任务。
+     * 需在后台线程调用（内部会阻塞等待前台验证结果）。
+     */
+    private String resolveAigisHeader(PasswordLogin.AigisInfo info) {
+        // v4（GTCaptcha4）无 challenge，必须由 v4 SDK 申请 captchaId 才能出验证结果，
+        // 本项目的 GT3 链路无法完成。此处不再尝试重提，直接引导用户改用其他登录方式，
+        // 避免反复撞风控把账号推到更严的名单里。
+        if (info.useV4)
+            throw new RuntimeException(getString(R.string.login_aigis_v4_unsupported));
+        String header;
+        try {
+            header = solveAigis(info);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(ie.getMessage(), ie);
+        }
+        if (header == null)
+            throw new RuntimeException(getString(R.string.login_aigis_failed));
+        return header;
+    }
+
+    /**
+     * 在前台拉起极验（GT3 自定义流程，无需按钮）并阻塞后台线程等待结果。
+     * 成功返回组装好的 x-rpc-aigis 重提头；用户关闭、验证失败或超时返回 null。
+     */
+    private String solveAigis(PasswordLogin.AigisInfo info) throws InterruptedException {
+        status_notifier.notifyListeners(getString(R.string.login_aigis_start));
+        final CountDownLatch latch = new CountDownLatch(1);
+        // 极验三参数：[0]=challenge [1]=validate [2]=seccode，由极验内部线程回调写入
+        final String[] geetest = new String[3];
+        final GT3GeetestUtils[] utilsHolder = new GT3GeetestUtils[1];
+
+        runOnUiThread(() -> {
+            GT3GeetestUtils utils = new GT3GeetestUtils(UserLoginActivity.this);
+            utilsHolder[0] = utils;
+            GT3ConfigBean bean = new GT3ConfigBean();
+            bean.setPattern(1);
+            bean.setLang("zh");
+            bean.setCanceledOnTouchOutside(false);
+            bean.setListener(new GT3Listener() {
+                @Override
+                public void onButtonClick() {
+                    // gt/challenge 来自 aigis 响应头，直接配置后调起验证窗口
+                    Map<String, Object> api1 = new HashMap<>();
+                    api1.put("gt", info.gt);
+                    api1.put("challenge", info.challenge);
+                    api1.put("success", 1);
+                    bean.setApi1Json(new JSONObject(api1));
+                    utils.getGeetest();
+                }
+
+                @Override
+                public void onDialogResult(String result) {
+                    // 回调在极验内部线程，残缺结果时保持 null 走失败分支
+                    try {
+                        JsonObject obj = JsonParser.parseString(result).getAsJsonObject();
+                        geetest[0] = obj.get("geetest_challenge").getAsString();
+                        geetest[1] = obj.get("geetest_validate").getAsString();
+                        geetest[2] = obj.get("geetest_seccode").getAsString();
+                    } catch (RuntimeException e) {
+                        geetest[0] = null;
+                    }
+                    latch.countDown();
+                }
+
+                @Override
+                public void onClosed(int i) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailed(GT3ErrorBean errorBean) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onReceiveCaptchaCode(int i) {
+                }
+
+                @Override
+                public void onStatistics(String s) {
+                }
+
+                @Override
+                public void onSuccess(String s) {
+                }
+            });
+            utils.init(bean);
+            // 自定义流程：内部触发 onButtonClick → getGeetest 弹窗
+            utils.startCustomFlow();
+        });
+
+        // 阻塞后台线程，最多等待 5 分钟；超时后 geetest 仍为 null，返回 null
+        latch.await(5, TimeUnit.MINUTES);
+        // 回到后台线程后在主线程释放 SDK 资源
+        runOnUiThread(() -> {
+            if (utilsHolder[0] != null) {
+                utilsHolder[0].destory();
+                utilsHolder[0] = null;
+            }
+        });
+
+        if (geetest[0] == null || geetest[1] == null || geetest[2] == null)
+            return null;
+        return PasswordLogin.buildAigisHeader(info, geetest[0], geetest[1], geetest[2]);
+    }
+
+    /**
+     * 下发短信验证码任务。与 {@link LoginTask} 分开，因为它是 UI 上的第二个提交入口
+     * （「获取验证码」按钮），且返回的 action_type 要留给随后的登录任务使用。
+     */
+    public class SendCodeTask implements Runnable {
+        private final Context context;
+        private final HeaderManager header_manager;
+        private final String phone;
+
+        SendCodeTask(Context context, String phone) {
+            this.context = context;
+            this.header_manager = new HeaderManager(context);
+            this.phone = phone;
+        }
+
+        @Override
+        public void run() {
+            try {
+                // 与登录任务一致：先确保设备 ID 就绪（设备类请求头依赖它）
+                new DeviceUtils(context).waitForDeviceId();
+                status_notifier.notifyListeners("\n" + getString(R.string.login_sms_sending) + "\n");
+
+                SmsLogin.CaptchaResult result;
+                try {
+                    result = SmsLogin.sendCaptcha(context, header_manager, phone, null);
+                } catch (PasswordLogin.AigisRequiredException e) {
+                    // 发码被要求极验：拉起 GT3 后带同一个手机号重提
+                    result = SmsLogin.sendCaptcha(context, header_manager, phone,
+                            resolveAigisHeader(e.getAigisInfo()));
+                }
+
+                // action_type 与手机号一起记下：登录时校验两者是否仍然匹配
+                sms_action_type = result.actionType;
+                sms_action_phone = phone;
+                // 服务端给了倒计时就照用，没给按 60s 兜底；UI 据此禁用重发按钮
+                int seconds = result.countdown > 0 ? result.countdown : 60;
+                status_notifier.notifyListeners(getString(R.string.login_sms_sent, phone) + "\n");
+                runOnUiThread(() -> {
+                    pane.setCodeCountdown(seconds);
+                    change_component_status(true);
+                });
+            } catch (Exception e) {
+                String error_message = e.getMessage() != null ? e.getMessage() : e.toString();
+                status_notifier.notifyListeners("\n" + getString(R.string.dialog_error) + ": " + error_message + "\n\n");
+                runOnUiThread(() -> change_component_status(true));
+            }
+        }
+    }
 
     public class LoginTask implements Runnable {
         private final Context context;
@@ -253,6 +471,8 @@ public class UserLoginActivity extends BaseActivity {
                     run_password_login();
                 else if (mode == MODE_COOKIE)
                     run_cookie_login();
+                else if (mode == MODE_SMS)
+                    run_sms_login();
                 else
                     run_qrcode_login();
             } catch (Exception e) {
@@ -292,22 +512,8 @@ public class UserLoginActivity extends BaseActivity {
                 result = PasswordLogin.login(context, header_manager, account, password, null);
             } catch (PasswordLogin.AigisRequiredException e) {
                 // 拉起极验完成人机验证，拿到重提头后重新提交同一登录请求
-                PasswordLogin.AigisInfo info = e.getAigisInfo();
-                // v4（GTCaptcha4）无 challenge，必须由 v4 SDK 申请 captchaId 才能出验证结果，
-                // 本项目的 GT3 链路无法完成。此处不再尝试重提，直接引导用户改用其他登录方式，
-                // 避免反复撞风控把账号推到更严的名单里。
-                if (info.useV4)
-                    throw new RuntimeException(getString(R.string.login_aigis_v4_unsupported));
-                String aigisHeader;
-                try {
-                    aigisHeader = solveAigis(info);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(ie.getMessage(), ie);
-                }
-                if (aigisHeader == null)
-                    throw new RuntimeException(getString(R.string.login_aigis_failed));
-                result = PasswordLogin.login(context, header_manager, account, password, aigisHeader);
+                result = PasswordLogin.login(context, header_manager, account, password,
+                        resolveAigisHeader(e.getAigisInfo()));
             }
             status_notifier.notifyListeners(getString(R.string.login_password_token_ok));
 
@@ -319,6 +525,42 @@ public class UserLoginActivity extends BaseActivity {
                 tools.write(context, username, "login_ticket", result.loginTicket);
             if (result.realnameRequired || result.needRealperson)
                 status_notifier.notifyListeners(getString(R.string.login_password_realname));
+
+            get_ltoken_by_stoken();
+            finish_login_success();
+        }
+
+        /**
+         * 短信验证码登录：用发码阶段拿到的 action_type + 用户输入的验证码换取 stoken，
+         * 之后与账密登录走同一套收尾（写凭证 → 换 ltoken）。
+         */
+        private void run_sms_login() {
+            status_notifier.notifyListeners("\n" + getString(R.string.login_sms_start) + "\n");
+            SmsLogin.Result result;
+            try {
+                result = SmsLogin.login(context, header_manager, sms_phone_input,
+                        sms_code_input, sms_action_type, null);
+            } catch (PasswordLogin.AigisRequiredException e) {
+                // 登录这一步同样可能被要求极验，重提时带上同一个 action_type 与验证码
+                result = SmsLogin.login(context, header_manager, sms_phone_input,
+                        sms_code_input, sms_action_type, resolveAigisHeader(e.getAigisInfo()));
+            }
+            status_notifier.notifyListeners(getString(R.string.login_sms_token_ok));
+
+            tools.write(context, username, "stoken", result.stoken);
+            tools.write(context, username, "mid", result.mid);
+            if (result.aid != null)
+                tools.write(context, username, "stuid", result.aid);
+            if (result.loginTicket != null && !result.loginTicket.isEmpty())
+                tools.write(context, username, "login_ticket", result.loginTicket);
+            if (result.realnameRequired || result.needRealperson)
+                status_notifier.notifyListeners(getString(R.string.login_password_realname));
+
+            // 验证码与 action_type 都是一次性的，用掉即失效，避免回退后重复提交
+            sms_action_type = null;
+            sms_action_phone = null;
+            sms_code_input = null;
+            runOnUiThread(() -> pane.clearSmsCode());
 
             get_ltoken_by_stoken();
             finish_login_success();
@@ -355,91 +597,6 @@ public class UserLoginActivity extends BaseActivity {
             finish_login_success();
         }
 
-        /**
-         * 在前台拉起极验（GT3 自定义流程，无需按钮）并阻塞后台线程等待结果。
-         * 成功返回组装好的 x-rpc-aigis 重提头；用户关闭、验证失败或超时返回 null。
-         */
-        private String solveAigis(PasswordLogin.AigisInfo info) throws InterruptedException {
-            status_notifier.notifyListeners(getString(R.string.login_aigis_start));
-            final CountDownLatch latch = new CountDownLatch(1);
-            // 极验三参数：[0]=challenge [1]=validate [2]=seccode，由极验内部线程回调写入
-            final String[] geetest = new String[3];
-            final GT3GeetestUtils[] utilsHolder = new GT3GeetestUtils[1];
-
-            runOnUiThread(() -> {
-                GT3GeetestUtils utils = new GT3GeetestUtils(UserLoginActivity.this);
-                utilsHolder[0] = utils;
-                GT3ConfigBean bean = new GT3ConfigBean();
-                bean.setPattern(1);
-                bean.setLang("zh");
-                bean.setCanceledOnTouchOutside(false);
-                bean.setListener(new GT3Listener() {
-                    @Override
-                    public void onButtonClick() {
-                        // gt/challenge 来自 aigis 响应头，直接配置后调起验证窗口
-                        Map<String, Object> api1 = new HashMap<>();
-                        api1.put("gt", info.gt);
-                        api1.put("challenge", info.challenge);
-                        api1.put("success", 1);
-                        bean.setApi1Json(new JSONObject(api1));
-                        utils.getGeetest();
-                    }
-
-                    @Override
-                    public void onDialogResult(String result) {
-                        // 回调在极验内部线程，残缺结果时保持 null 走失败分支
-                        try {
-                            JsonObject obj = JsonParser.parseString(result).getAsJsonObject();
-                            geetest[0] = obj.get("geetest_challenge").getAsString();
-                            geetest[1] = obj.get("geetest_validate").getAsString();
-                            geetest[2] = obj.get("geetest_seccode").getAsString();
-                        } catch (RuntimeException e) {
-                            geetest[0] = null;
-                        }
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onClosed(int i) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailed(GT3ErrorBean errorBean) {
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onReceiveCaptchaCode(int i) {
-                    }
-
-                    @Override
-                    public void onStatistics(String s) {
-                    }
-
-                    @Override
-                    public void onSuccess(String s) {
-                    }
-                });
-                utils.init(bean);
-                // 自定义流程：内部触发 onButtonClick → getGeetest 弹窗
-                utils.startCustomFlow();
-            });
-
-            // 阻塞后台线程，最多等待 5 分钟；超时后 geetest 仍为 null，返回 null
-            latch.await(5, TimeUnit.MINUTES);
-            // 回到后台线程后在主线程释放 SDK 资源
-            runOnUiThread(() -> {
-                if (utilsHolder[0] != null) {
-                    utilsHolder[0].destory();
-                    utilsHolder[0] = null;
-                }
-            });
-
-            if (geetest[0] == null || geetest[1] == null || geetest[2] == null)
-                return null;
-            return PasswordLogin.buildAigisHeader(info, geetest[0], geetest[1], geetest[2]);
-        }
 
         /**
          * 两种登录方式共用的收尾：写入服务器类型、登记用户、恢复界面

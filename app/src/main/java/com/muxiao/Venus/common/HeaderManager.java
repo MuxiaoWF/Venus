@@ -257,6 +257,37 @@ public class HeaderManager {
     }
 
     /**
+     * 短信验证码登录请求头，供
+     * {@code ma-cn-verifier/verifier/createLoginCaptcha} 与
+     * {@code ma-cn-passport/app/loginByMobileCaptcha} 共用。
+     * <p>
+     * 与 {@link #get_password_headers} 的差异：这两个接口**不带 DS 签名**。
+     * 依据是 TeyvatGuide v0.13.0 的 passportReq（createLoginCaptcha / loginByMobileCaptcha
+     * 均只发 app_id / client_type / device_* 与 aigis，无 ds 字段）在线上长期可用。
+     * 若日后服务端收紧，只需在此补 {@code h.put("DS", getDS_passport(body))} 并把 body 传进来。
+     *
+     * @param aigis 极验完成后回填的 x-rpc-aigis，首次请求传 null 或空串
+     */
+    public Map<String, String> get_sms_headers(String aigis) {
+        Map<String, String> h = new HashMap<>();
+        h.put("Accept", "application/json");
+        h.put("Content-Type", "application/json");
+        h.put("User-Agent", user_agent);
+        h.put("Referer", isOversea ? "https://user.hoyolab.com/" : "https://user.miyoushe.com/");
+        h.put("x-rpc-app_id", currentAppId);
+        h.put("x-rpc-client_type", "2");
+        h.put("x-rpc-app_version", BBSconstants.bbs_version);
+        h.put("x-rpc-device_id", getDeviceId());
+        h.put("x-rpc-device_fp", getFp());
+        h.put("x-rpc-device_name", sanitizeHeaderValue(Build.DEVICE));
+        h.put("x-rpc-device_model", sanitizeHeaderValue(Build.MODEL));
+        h.put("x-rpc-sys_version", Build.VERSION.RELEASE);
+        h.put("x-rpc-game_biz", isOversea ? "bbs_os" : "bbs_cn");
+        h.put("x-rpc-aigis", aigis != null ? aigis : "");
+        return h;
+    }
+
+    /**
      * 抽卡记录 authkey 获取接口请求头，DS 使用 LK2 salt。
      */
     public Map<String, String> get_authkey_headers() {
