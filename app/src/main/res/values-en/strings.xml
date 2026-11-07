@@ -429,6 +429,11 @@
 
     <!-- Login method: QR code / account and password -->
     <string name="login_tab_qrcode">QR Code</string>
+    <string name="login_tab_qrcode_short">QR</string>
+    <string name="login_tab_password_short">Password</string>
+    <string name="login_tab_sms_short">SMS</string>
+    <string name="login_tab_cookie_short">Cookie</string>
+    <string name="login_local_notice">Sign-in runs entirely on this device: we never sign in remotely, and your account and credentials are never uploaded to any server</string>
     <string name="login_tab_password">Password</string>
     <string name="login_account_hint">Phone number / Email</string>
     <string name="login_password_hint">Password</string>

@@ -117,16 +117,14 @@ public class UserLoginActivity extends BaseActivity {
         if (relogin_mode && relogin_username != null)
             pane.setRelogin(relogin_username);
 
-        // 登录方式切换：账号密码登录仅国服可用，国际服隐藏切换入口
-        // 国服默认使用账号密码登录
-        // 登录方式切换：账号密码登录仅国服可用，国际服隐藏切换入口
+        // 登录方式切换：账号密码/短信/Cookie 均仅国服可用，国际服隐藏切换入口
         if (MiHoYoBBSConstants.is_oversea(this)) {
             pane.setOversea(true);
             applyLoginMode(MODE_QRCODE);
         } else {
             pane.setOnModeSelectListener(this::applyLoginMode);
-            // 国服默认「账号密码」登录
-            applyLoginMode(MODE_PASSWORD);
+            // 国服默认「扫码登录」
+            applyLoginMode(MODE_QRCODE);
         }
 
         // Notifier更新信息

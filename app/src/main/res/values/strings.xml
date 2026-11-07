@@ -432,6 +432,12 @@
 
     <!-- 登录方式：扫码 / 账号密码 -->
     <string name="login_tab_qrcode">扫码登录</string>
+    <!-- 登录方式 Tab 用短名称：4 段在窄屏上要能完整显示，完整名称留给按钮文案 -->
+    <string name="login_tab_qrcode_short">扫码</string>
+    <string name="login_tab_password_short">密码</string>
+    <string name="login_tab_sms_short">短信</string>
+    <string name="login_tab_cookie_short">Cookie</string>
+    <string name="login_local_notice">登录全程在本机完成：不会远程登录，账号与凭证也不会上传到任何服务器</string>
     <string name="login_tab_password">账号密码</string>
     <string name="login_account_hint">手机号 / 邮箱</string>
     <string name="login_password_hint">密码</string>

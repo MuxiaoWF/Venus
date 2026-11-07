@@ -423,6 +423,11 @@
 
     <!-- 登入方式：掃碼 / 帳號密碼 -->
     <string name="login_tab_qrcode">掃碼登入</string>
+    <string name="login_tab_qrcode_short">掃碼</string>
+    <string name="login_tab_password_short">密碼</string>
+    <string name="login_tab_sms_short">簡訊</string>
+    <string name="login_tab_cookie_short">Cookie</string>
+    <string name="login_local_notice">登入全程在本機完成：不會遠端登入，帳號與憑證也不會上傳到任何伺服器</string>
     <string name="login_tab_password">帳號密碼</string>
     <string name="login_account_hint">手機號 / 電子郵件</string>
     <string name="login_password_hint">密碼</string>

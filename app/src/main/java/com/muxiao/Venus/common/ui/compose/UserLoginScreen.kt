@@ -174,15 +174,25 @@ fun UserLoginScreen(
         ) {
             BrandHeader()
 
-            // 登录方式切换：账号密码仅国服可用，国际服整卡隐藏
+            // 安全承诺：登录全程在本机完成，避免用户误以为应用会远程代登录
+            Text(
+                text = stringResource(R.string.login_local_notice),
+                style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = dimensionResource(R.dimen.space_4)),
+            )
+
+            // 登录方式切换：账号密码/短信/Cookie 仅国服可用，国际服整卡隐藏
             if (!oversea) {
+                    // Tab 用短名称（扫码/密码/短信/Cookie），否则 4 段在窄屏上会被截断；
+                    // 按钮文案仍用完整名称，见下方 Button 的 when 分支
                     val loginOptions = listOf(
-                        stringResource(R.string.login_tab_qrcode) to LOGIN_MODE_QRCODE,
-                        stringResource(R.string.login_tab_password) to LOGIN_MODE_PASSWORD,
-                        // 短信验证码走 passport 账号 SDK，同样只对国服有效
-                        stringResource(R.string.login_tab_sms) to LOGIN_MODE_SMS,
-                        // Cookie 导入同样只对国服有效（国际服走 HoYoLAB 授权页）
-                        stringResource(R.string.login_tab_cookie) to LOGIN_MODE_COOKIE,
+                        stringResource(R.string.login_tab_qrcode_short) to LOGIN_MODE_QRCODE,
+                        stringResource(R.string.login_tab_password_short) to LOGIN_MODE_PASSWORD,
+                        stringResource(R.string.login_tab_sms_short) to LOGIN_MODE_SMS,
+                        stringResource(R.string.login_tab_cookie_short) to LOGIN_MODE_COOKIE,
                     )
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier
