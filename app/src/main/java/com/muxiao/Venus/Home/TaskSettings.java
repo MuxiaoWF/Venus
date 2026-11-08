@@ -1,5 +1,8 @@
 package com.muxiao.Venus.Home;
 
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_GENSHIN;
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
@@ -8,6 +11,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR2;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR3;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_SRG;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_WEIDING;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_XINGBUGUDI;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_GENSHIN;
@@ -39,18 +43,27 @@ public class TaskSettings {
     private final boolean gameDailyEnabled;
     private final boolean sklandArknightsEnabled;
     private final boolean sklandEndfieldEnabled;
+    /**
+     * 云游戏「总开关」状态，与 {@link #cloudGames}（具体勾选了哪几款）是两回事：
+     * 总开关开着但一款都没勾时，列表里不会有云游戏任务，运行入口会据此给出可读提示。
+     */
+    private final boolean cloudGameEnabled;
     private final String[] dailyForums;
     private final String[] gameDailyGames;
+    private final String[] cloudGames;
 
     private TaskSettings(boolean dailyEnabled, boolean gameDailyEnabled,
                          boolean sklandArknightsEnabled, boolean sklandEndfieldEnabled,
-                         String[] dailyForums, String[] gameDailyGames) {
+                         boolean cloudGameEnabled,
+                         String[] dailyForums, String[] gameDailyGames, String[] cloudGames) {
         this.dailyEnabled = dailyEnabled;
         this.gameDailyEnabled = gameDailyEnabled;
         this.sklandArknightsEnabled = sklandArknightsEnabled;
         this.sklandEndfieldEnabled = sklandEndfieldEnabled;
+        this.cloudGameEnabled = cloudGameEnabled;
         this.dailyForums = dailyForums;
         this.gameDailyGames = gameDailyGames;
+        this.cloudGames = cloudGames;
     }
 
     /**
@@ -76,6 +89,7 @@ public class TaskSettings {
         if (prefs.getBoolean(DAILY_WEIDING, false)) daily.add("未定事件簿");
         if (prefs.getBoolean(DAILY_DABIEYE, true)) daily.add("大别野");
         if (prefs.getBoolean(DAILY_HNA, false)) daily.add("崩坏因缘精灵");
+        if (prefs.getBoolean(DAILY_XINGBUGUDI, false)) daily.add("星布谷地");
 
         ArrayList<String> gameDaily = new ArrayList<>();
         if (prefs.getBoolean(GAME_DAILY_GENSHIN, false)) gameDaily.add("原神");
@@ -85,9 +99,18 @@ public class TaskSettings {
         if (!isOversea && prefs.getBoolean(GAME_DAILY_HR2, false)) gameDaily.add("崩坏2");
         if (!isOversea && prefs.getBoolean(GAME_DAILY_WEIDING, false)) gameDaily.add("未定事件簿");
 
+        // 云游戏：云绝区零无国际服钱包接口，国服限定；云原神双服均可
+        boolean cloudGameEnabled = prefs.getBoolean(CLOUD_GAME_ENABLED, false);
+        ArrayList<String> cloudGames = new ArrayList<>();
+        if (cloudGameEnabled) {
+            if (prefs.getBoolean(CLOUD_GAME_GENSHIN, false)) cloudGames.add(CloudGameDaily.GAME_GENSHIN);
+            if (!isOversea && prefs.getBoolean(CLOUD_GAME_ZZZ, false)) cloudGames.add(CloudGameDaily.GAME_ZZZ);
+        }
+
         return new TaskSettings(dailyEnabled, gameDailyEnabled,
-                sklandArknightsEnabled, sklandEndfieldEnabled,
-                daily.toArray(new String[0]), gameDaily.toArray(new String[0]));
+                sklandArknightsEnabled, sklandEndfieldEnabled, cloudGameEnabled,
+                daily.toArray(new String[0]), gameDaily.toArray(new String[0]),
+                cloudGames.toArray(new String[0]));
     }
 
     public boolean isDailyEnabled() {
@@ -114,11 +137,23 @@ public class TaskSettings {
         return gameDailyGames;
     }
 
+    /** 已勾选的云游戏（元素为 {@link CloudGameDaily#GAME_GENSHIN} / {@link CloudGameDaily#GAME_ZZZ}）。 */
+    public String[] getCloudGames() {
+        return cloudGames;
+    }
+
+    /** 云游戏总开关是否开启（与「是否勾选了具体游戏」无关，见 {@link #getCloudGames()}）。 */
+    public boolean isCloudGameEnabled() {
+        return cloudGameEnabled;
+    }
+
     /**
-     * 是否所有任务大类（米游币/游戏签到/森空岛）均被关闭，用于提示用户未选择任何任务。
+     * 是否所有任务大类（米游币/游戏签到/云游戏/森空岛）均被关闭，用于提示用户未选择任何任务。
+     * 云游戏按「总开关」判定：开了总开关即视为用户已选择该大类（未勾具体游戏由运行入口另行提示）。
      */
     public boolean hasAnyTaskDisabled() {
-        return !dailyEnabled && !gameDailyEnabled && !sklandArknightsEnabled && !sklandEndfieldEnabled;
+        return !dailyEnabled && !gameDailyEnabled && !cloudGameEnabled
+                && !sklandArknightsEnabled && !sklandEndfieldEnabled;
     }
 
     /**
@@ -130,6 +165,9 @@ public class TaskSettings {
         if (gameDailyEnabled && gameDailyGames != null)
             for (String g : gameDailyGames)
                 names.add(context.getString(R.string.task_name_game_sign_in, MiHoYoBBSConstants.game_to_display_name(context, g)));
+        if (cloudGames != null)
+            for (String g : cloudGames)
+                names.add(CloudGameDaily.taskName(context, g));
         if (sklandArknightsEnabled) names.add(context.getString(R.string.task_name_skland_arknights));
         if (sklandEndfieldEnabled) names.add(context.getString(R.string.task_name_skland_endfield));
         return names;

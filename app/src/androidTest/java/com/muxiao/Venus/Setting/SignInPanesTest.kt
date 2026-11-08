@@ -33,7 +33,7 @@ class SignInPanesTest {
                 DailySettingPane(
                     switchChecked = true,
                     onSwitchChange = {},
-                    chipChecked = List(8) { false },
+                    chipChecked = List(9) { false },
                     onChipToggle = { index, checked ->
                         toggledIndex = index
                         toggledValue = checked

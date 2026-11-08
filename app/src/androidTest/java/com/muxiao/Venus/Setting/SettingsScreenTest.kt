@@ -22,7 +22,7 @@ import org.junit.Test
  * 迁移回归测试：确保 Compose 版设置页与原 `CollapsibleCardView` 行为等价。
  *
  * 覆盖点：
- * 1. 12 个抽屉标题全部渲染（顺序即版式，漏一个就是版式错位）
+ * 1. 13 个抽屉标题全部渲染（顺序即版式，漏一个就是版式错位）
  * 2. 默认折叠 → 点击标题展开内容 → 再点收起
  * 3. 折叠态摘要（`setValue`）与标题同排显示
  * 4. `setVisibility(GONE)` 收起整扇抽屉（国际服隐藏米游币签到用）
@@ -34,19 +34,21 @@ class SettingsScreenTest {
 
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    /** 顺序须与 [SettingsScreen] 的版式一致：米游币 → 游戏签到 → 云游戏 → … */
     private fun cards() = listOf(
-        SettingsCard(R.string.miyoushe_coin_sign_in),
-        SettingsCard(R.string.game_sign_in),
-        SettingsCard(R.string.server_type),
-        SettingsCard(R.string.config_info),
-        SettingsCard(R.string.update),
-        SettingsCard(R.string.cache),
-        SettingsCard(R.string.language),
-        SettingsCard(R.string.theme),
-        SettingsCard(R.string.background),
-        SettingsCard(R.string.background_running),
-        SettingsCard(R.string.skland_sign_in),
-        SettingsCard(R.string.about),
+        SettingsCard(R.string.miyoushe_coin_sign_in),   // 0
+        SettingsCard(R.string.game_sign_in),            // 1
+        SettingsCard(R.string.cloud_game_sign_in),      // 2
+        SettingsCard(R.string.server_type),             // 3
+        SettingsCard(R.string.config_info),             // 4
+        SettingsCard(R.string.update),                  // 5
+        SettingsCard(R.string.cache),                   // 6
+        SettingsCard(R.string.language),                // 7
+        SettingsCard(R.string.theme),                   // 8
+        SettingsCard(R.string.background),              // 9
+        SettingsCard(R.string.background_running),      // 10
+        SettingsCard(R.string.skland_sign_in),          // 11
+        SettingsCard(R.string.about),                   // 12
     )
 
     private fun setScreen(list: List<SettingsCard>) {
@@ -56,16 +58,17 @@ class SettingsScreenTest {
                     state = SettingsUiState().apply { versionChip = "v2.4.0" },
                     daily = list[0],
                     gameDaily = list[1],
-                    server = list[2],
-                    config = list[3],
-                    update = list[4],
-                    cache = list[5],
-                    language = list[6],
-                    theme = list[7],
-                    background = list[8],
-                    notification = list[9],
-                    skland = list[10],
-                    about = list[11],
+                    cloudGame = list[2],
+                    server = list[3],
+                    config = list[4],
+                    update = list[5],
+                    cache = list[6],
+                    language = list[7],
+                    theme = list[8],
+                    background = list[9],
+                    notification = list[10],
+                    skland = list[11],
+                    about = list[12],
                     onImageClick = {},
                 )
             }
@@ -76,12 +79,13 @@ class SettingsScreenTest {
         TextView(context).apply { text = "缓存 12.4 MB" }
 
     @Test
-    fun allTwelveDrawersAreRendered() {
+    fun allThirteenDrawersAreRendered() {
         val list = cards()
         setScreen(list)
 
         composeRule.onNodeWithText(context.getString(R.string.miyoushe_coin_sign_in)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.game_sign_in)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.cloud_game_sign_in)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.server_type)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.about)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.view_miyoushe_ranking)).assertIsDisplayed()
@@ -90,7 +94,7 @@ class SettingsScreenTest {
     @Test
     fun tappingTitleTogglesContent() {
         val list = cards()
-        list[5].setContent(paneContent())
+        list[6].setContent(paneContent())
         setScreen(list)
 
         // 默认全部折叠：没有任何抽屉内容在场
@@ -106,7 +110,7 @@ class SettingsScreenTest {
     @Test
     fun collapsedValueIsShownNextToTitle() {
         val list = cards()
-        list[5].setValue("12.4 MB")
+        list[6].setValue("12.4 MB")
         setScreen(list)
 
         composeRule.onNodeWithText("12.4 MB").assertIsDisplayed()

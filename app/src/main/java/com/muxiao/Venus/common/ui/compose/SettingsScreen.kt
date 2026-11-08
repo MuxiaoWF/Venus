@@ -133,7 +133,7 @@ class SettingsUiState {
  * 结构等价于原 XML：页眉固定 + 正文滚动；正文按「签到 / 配置 / 应用 / 其他」四组，
  * 每组以 mono 区块标签开头，组内每行之间一条发丝线，组尾多留 space_2。
  *
- * 12 个 [SettingsCard] 由宿主按固定顺序构造并逐个传入——顺序即版式，
+ * 13 个 [SettingsCard] 由宿主按固定顺序构造并逐个传入——顺序即版式，
  * 与原来 XML 里的书写顺序一一对应。
  */
 @Composable
@@ -141,6 +141,7 @@ fun SettingsScreen(
     state: SettingsUiState,
     daily: SettingsCard,
     gameDaily: SettingsCard,
+    cloudGame: SettingsCard,
     server: SettingsCard,
     config: SettingsCard,
     update: SettingsCard,
@@ -185,6 +186,8 @@ fun SettingsScreen(
             SettingsCardItem(daily)
             VenusDivider()
             SettingsCardItem(gameDaily)
+            VenusDivider()
+            SettingsCardItem(cloudGame)
             VenusDivider()
 
             SectionLabel(
@@ -428,9 +431,9 @@ private fun rememberReducedMotion(): Boolean {
 /**
  * 设置页的 Compose 宿主。
  *
- * 12 个抽屉在此**急切构造**并对外暴露：`SettingsFragment` 的用法与原
+ * 13 个抽屉在此**急切构造**并对外暴露：`SettingsFragment` 的用法与原
  * `CollapsibleCardView` 完全一致（`setContent` / `setValue` / `setValueColor` /
- * `setVisibility`），因此那 12 套窗格的状态与回调逻辑一行都不用改。
+ * `setVisibility`），因此那 13 套窗格的状态与回调逻辑一行都不用改。
  */
 class SettingsScreenView(context: Context) : AbstractComposeView(context) {
 
@@ -438,6 +441,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
 
     val dailyCard = SettingsCard(R.string.miyoushe_coin_sign_in)
     val gameDailyCard = SettingsCard(R.string.game_sign_in)
+    val cloudGameCard = SettingsCard(R.string.cloud_game_sign_in)
     val serverCard = SettingsCard(R.string.server_type)
     val configCard = SettingsCard(R.string.config_info)
     val updateCard = SettingsCard(R.string.update)
@@ -458,6 +462,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
                 state = uiState,
                 daily = dailyCard,
                 gameDaily = gameDailyCard,
+                cloudGame = cloudGameCard,
                 server = serverCard,
                 config = configCard,
                 update = updateCard,
@@ -495,6 +500,7 @@ private fun SettingsScreenPreview() {
         listOf(
             SettingsCard(R.string.miyoushe_coin_sign_in),
             SettingsCard(R.string.game_sign_in),
+            SettingsCard(R.string.cloud_game_sign_in),
             SettingsCard(R.string.server_type),
             SettingsCard(R.string.config_info),
             SettingsCard(R.string.update),
@@ -512,16 +518,17 @@ private fun SettingsScreenPreview() {
             state = SettingsUiState().apply { versionChip = "v2.4.0" },
             daily = cards[0].apply { setValue("已开启"); setValueColor(0xFF146511.toInt()) },
             gameDaily = cards[1].apply { setValue("4/5 已开启") },
-            server = cards[2].apply { setValue("国服") },
-            config = cards[3].apply { setValue("已配置") },
-            update = cards[4].apply { setValue("自动检查") },
-            cache = cards[5].apply { setValue("12.4 MB") },
-            language = cards[6].apply { setValue("简体中文") },
-            theme = cards[7].apply { setValue("默认 · 跟随系统") },
-            background = cards[8].apply { setValue("默认") },
-            notification = cards[9].apply { setValue("已开启") },
-            skland = cards[10].apply { setValue("已关闭") },
-            about = cards[11].apply { setValue("开源许可 · 隐私政策") },
+            cloudGame = cards[2].apply { setValue("已关闭") },
+            server = cards[3].apply { setValue("国服") },
+            config = cards[4].apply { setValue("已配置") },
+            update = cards[5].apply { setValue("自动检查") },
+            cache = cards[6].apply { setValue("12.4 MB") },
+            language = cards[7].apply { setValue("简体中文") },
+            theme = cards[8].apply { setValue("默认 · 跟随系统") },
+            background = cards[9].apply { setValue("默认") },
+            notification = cards[10].apply { setValue("已开启") },
+            skland = cards[11].apply { setValue("已关闭") },
+            about = cards[12].apply { setValue("开源许可 · 隐私政策") },
             onImageClick = {},
         )
     }

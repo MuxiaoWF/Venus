@@ -163,11 +163,15 @@ public class MainActivity extends BaseActivity {
         ActivityResultLauncher<Intent> settingsBatteryLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> settingsController.updateBatteryOptValue());
+        // 设置页：云游戏 Token 抓取页（返回后刷新「已配置」角标）
+        ActivityResultLauncher<Intent> settingsCloudTokenLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> settingsController.onCloudTokenFetched());
         // 分发（控制器在视图创建前只持有引用，attach 后使用）
         linkController.setLaunchers(linkVpnLauncher, linkBatteryLauncher);
         usersController.setAvatarPicker(userAvatarPicker);
         settingsController.setLaunchers(settingsPickMedia, settingsSelectImageLauncher,
-            settingsCropLauncher, settingsBatteryLauncher);
+            settingsCropLauncher, settingsBatteryLauncher, settingsCloudTokenLauncher);
     }
 
     // ===== 页面控制器生命周期（对齐 FragmentStateAdapter maxLifecycle） =====

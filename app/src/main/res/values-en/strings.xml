@@ -20,6 +20,7 @@
     <string name="background_running_desc">Shows a background running button for signing in and sending notifications while the app is in the background (limited utility)</string>
     <string name="bbs_daily_tip">Select one community shared by all accounts (e.g., Da Bieye), or have each account follow the same community first</string>
     <string name="bengyuanling">Honkai: Twine Anima</string>
+    <string name="xingbugudi">Xingbugudi</string>
     <string name="cache">Cache</string>
     <string name="cancel_task">Cancel Task</string>
     <string name="retry_failed_tasks">Retry Failed Tasks</string>
@@ -403,6 +404,7 @@
     <string name="task_game_sign_in">Game Sign-In</string>
     <string name="task_game_sign_in_no_game">Game Sign-In failed, please select at least one game in Settings</string>
     <string name="task_sign_preparing">%s sign-in preparing…</string>
+    <string name="task_cloud_game_no_game">Cloud Game Sign-In: no game selected, please pick at least one in Settings</string>
     <string name="task_game_sign_in_done">Game Sign-In all completed</string>
     <string name="task_completed">Task completed</string>
     <string name="task_cancelled">Task cancelled</string>
@@ -490,6 +492,7 @@
     <string name="bbs_captcha_needed">Captcha verification required</string>
     <string name="bbs_captcha_failed">Captcha verification failed, no result obtained</string>
     <string name="bbs_cookie_expired">Miyoushe Coin Sign-In failed, cookie may have expired, please reset cookie</string>
+    <string name="bbs_cookie_refreshed">Miyoushe Coin Sign-In session refreshed automatically</string>
     <string name="bbs_signin_failed">Miyoushe Coin Sign-In failed</string>
     <string name="bbs_unknown_error">Unknown error</string>
     <string name="bbs_signin_retrying">Miyoushe Coin Sign-In retrying, attempt %d</string>
@@ -602,9 +605,44 @@
     <string name="task_name_bbs_daily">Miyoushe Coin Sign-In</string>
     <string name="task_name_skland_arknights">Skland · Arknights Sign-In</string>
     <string name="task_name_skland_endfield">Skland · Endfield Sign-In</string>
+    <string name="task_name_cloud_game_sign_in">%s Cloud Game Sign-In</string>
 
     <!-- Notification title formats -->
     <string name="notif_title_game_sign">%s Game Sign-In</string>
+    <string name="notif_title_cloud_game">%s Cloud Game Sign-In</string>
+
+    <!-- Cloud game sign-in -->
+    <string name="cloud_game_sign_in">Cloud Game Sign-In</string>
+    <string name="cloud_game_genshin">Genshin Cloud</string>
+    <string name="cloud_game_zzz">ZZZ Cloud</string>
+    <string name="cloud_game_genshin_coin">Miyun Coins</string>
+    <string name="cloud_game_zzz_coin">Bangboo Points</string>
+    <string name="cloud_game_tip">Cloud game sign-in is independent of your Miyoushe session; only a cloud game token is required. The Genshin Cloud and ZZZ Cloud tokens are not interchangeable, so each is saved separately — one fetch captures both, or you can paste them manually.</string>
+    <string name="cloud_game_token_dialog_title">%1$s Token</string>
+    <string name="cloud_game_token_hint">Paste X-Rpc-Combo_token</string>
+    <string name="cloud_game_token_required">Token cannot be empty</string>
+    <string name="cloud_game_token_saved">%1$s token saved</string>
+    <string name="cloud_game_token_captured">%1$s token captured and saved</string>
+    <string name="cloud_game_login_required">Not signed in — no token captured. Please sign in first, then open the cloud game.</string>
+    <string name="cloud_game_fetch_token">Fetch Token</string>
+    <string name="cloud_game_token_manual">Enter manually</string>
+    <string name="cloud_game_select_game">Select the cloud game to configure</string>
+    <string name="cloud_game_configured_summary">%1$d/%2$d configured</string>
+    <string name="cloud_game_missing_tokens">Not configured: %1$s</string>
+    <string name="cloud_game_fetch_prompt">Sign in with the currently selected account, then open Genshin Cloud or ZZZ Cloud — the token is saved automatically</string>
+    <string name="cloud_game_token_missing">%1$s has no token configured, please set it in Settings</string>
+    <string name="cloud_game_token_expired">%1$s token expired, please obtain a new one</string>
+    <string name="cloud_game_unsupported">%1$s is not supported on the current server</string>
+    <string name="cloud_game_bad_response">Unexpected cloud game API response, please retry later</string>
+    <string name="cloud_game_failed">%1$s sign-in failed: %2$s (retcode=%3$d)</string>
+    <string name="cloud_game_sign_success">Sign-in success, %1$d minutes of free time granted</string>
+    <string name="cloud_game_already_signed">No free time granted; already signed in or at the cap</string>
+    <string name="cloud_game_status">Remaining %1$s · Play card %2$s · %3$s %4$d</string>
+    <string name="cloud_game_play_card_unknown">Unknown</string>
+    <string name="cloud_game_duration_minutes">%1$d min</string>
+    <string name="cloud_game_duration_hours">%1$d h</string>
+    <string name="cloud_game_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="cloud_game_need_login">Please sign in to a Miyoushe account before configuring cloud game tokens</string>
 
     <!-- BBSGameDaily additional -->
     <string name="game_thread_error">Thread error: %s</string>

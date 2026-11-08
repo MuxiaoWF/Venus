@@ -20,6 +20,7 @@
     <string name="background_running_desc">顯示背景執行按鈕，可在背景執行簽到任務並傳送通知（較為雞肋的功能）</string>
     <string name="bbs_daily_tip">建議只勾選所有帳號均存在的一個（例如大別墅），或將每個帳號都先關注相同社群</string>
     <string name="bengyuanling">崩壞：因緣精靈</string>
+    <string name="xingbugudi">星布谷地</string>
     <string name="cache">快取</string>
     <string name="cancel_task">取消任務</string>
     <string name="retry_failed_tasks">重試失敗任務</string>
@@ -397,6 +398,7 @@
     <string name="task_game_sign_in">遊戲簽到</string>
     <string name="task_game_sign_in_no_game">遊戲簽到 失敗，請先在設定中勾選至少一個遊戲</string>
     <string name="task_sign_preparing">%s簽到 正在準備…</string>
+    <string name="task_cloud_game_no_game">雲遊戲簽到 未勾選任何遊戲，請先在設定中至少選擇一款</string>
     <string name="task_game_sign_in_done">遊戲簽到 全部完成</string>
     <string name="task_completed">任務完成</string>
     <string name="task_cancelled">任務已取消</string>
@@ -484,6 +486,7 @@
     <string name="bbs_captcha_needed">需要進行人機驗證</string>
     <string name="bbs_captcha_failed">人機驗證失敗，未取得驗證結果</string>
     <string name="bbs_cookie_expired">米遊幣簽到 失敗，cookie可能已過期，請重新設定cookie</string>
+    <string name="bbs_cookie_refreshed">米遊幣簽到 登入狀態已自動續期</string>
     <string name="bbs_signin_failed">米遊幣簽到 失敗</string>
     <string name="bbs_unknown_error">未知錯誤</string>
     <string name="bbs_signin_retrying">米遊幣簽到 正在重試，第%d次嘗試</string>
@@ -591,9 +594,44 @@
     <string name="task_name_bbs_daily">米遊幣簽到</string>
     <string name="task_name_skland_arknights">森空島·明日方舟簽到</string>
     <string name="task_name_skland_endfield">森空島·終末地簽到</string>
+    <string name="task_name_cloud_game_sign_in">%s雲遊戲簽到</string>
 
     <!-- 通知標題格式 -->
     <string name="notif_title_game_sign">%s 遊戲簽到</string>
+    <string name="notif_title_cloud_game">%s 雲遊戲簽到</string>
+
+    <!-- 雲遊戲簽到 -->
+    <string name="cloud_game_sign_in">雲遊戲簽到</string>
+    <string name="cloud_game_genshin">雲原神</string>
+    <string name="cloud_game_zzz">雲絕區零</string>
+    <string name="cloud_game_genshin_coin">米雲幣</string>
+    <string name="cloud_game_zzz_coin">邦邦點</string>
+    <string name="cloud_game_tip">雲遊戲簽到與米遊社登入狀態無關，只需雲遊戲 token。雲原神與雲絕區零的 token 互不通用，一鍵取得後會按遊戲分別儲存；也可手動貼上 X-Rpc-Combo_token。</string>
+    <string name="cloud_game_token_dialog_title">%1$s Token</string>
+    <string name="cloud_game_token_hint">貼上 X-Rpc-Combo_token</string>
+    <string name="cloud_game_token_required">Token 不能為空</string>
+    <string name="cloud_game_token_saved">%1$s Token 已儲存</string>
+    <string name="cloud_game_token_captured">已取得 %1$s Token 並儲存</string>
+    <string name="cloud_game_login_required">尚未登入，未取得 Token。請先登入，再進入雲遊戲</string>
+    <string name="cloud_game_fetch_token">一鍵取得 Token</string>
+    <string name="cloud_game_token_manual">手動填寫</string>
+    <string name="cloud_game_select_game">選擇要填寫的雲遊戲</string>
+    <string name="cloud_game_configured_summary">%1$d/%2$d 已設定</string>
+    <string name="cloud_game_missing_tokens">未設定：%1$s</string>
+    <string name="cloud_game_fetch_prompt">請用目前選取的米遊社帳號登入，進入雲原神或雲絕區零後 Token 會自動儲存</string>
+    <string name="cloud_game_token_missing">%1$s 未設定 Token，請前往設定填寫</string>
+    <string name="cloud_game_token_expired">%1$s Token 已失效，請重新取得並填寫</string>
+    <string name="cloud_game_unsupported">%1$s 不支援目前伺服器</string>
+    <string name="cloud_game_bad_response">雲遊戲介面回應異常，請稍後再試</string>
+    <string name="cloud_game_failed">%1$s 簽到失敗：%2$s (retcode=%3$d)</string>
+    <string name="cloud_game_sign_success">簽到成功，獲得 %1$d 分鐘免費時長</string>
+    <string name="cloud_game_already_signed">未獲得免費時長，可能今日已簽到或已達上限</string>
+    <string name="cloud_game_status">剩餘 %1$s · 暢玩卡 %2$s · %3$s %4$d 枚</string>
+    <string name="cloud_game_play_card_unknown">未知</string>
+    <string name="cloud_game_duration_minutes">%1$d 分鐘</string>
+    <string name="cloud_game_duration_hours">%1$d 小時</string>
+    <string name="cloud_game_duration_hours_minutes">%1$d 小時 %2$d 分鐘</string>
+    <string name="cloud_game_need_login">請先登入米遊社帳號再設定雲遊戲 Token</string>
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_thread_error">執行緒異常: %s</string>

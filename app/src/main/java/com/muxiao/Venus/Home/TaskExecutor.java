@@ -104,6 +104,18 @@ public class TaskExecutor {
             if (!games.isEmpty())
                 futures.add(AppExecutors.get().submit(() -> executeGameDaily(games)));
         }
+        // 云游戏：每个游戏独立提交（无「父任务阻塞等待子任务」结构），
+        // 因此与游戏签到共用共享池也不会造成线程饥饿；单次仅 1~2 个轻量 GET 请求。
+        if (settings.isCloudGameEnabled()) {
+            List<String> cloudGames = filterCloudGames(settings.getCloudGames(), onlyNames, runAll);
+            if (cloudGames.isEmpty()) {
+                // 总开关开着但一款都没勾：与「游戏签到」同口径给出可读提示，而不是静默无任务
+                if (runAll) notifier.notifyListeners(context.getString(R.string.task_cloud_game_no_game));
+            } else {
+                for (String gameName : cloudGames)
+                    futures.add(AppExecutors.get().submit(() -> executeCloudGame(gameName)));
+            }
+        }
         if (settings.isSklandArknightsEnabled() && (runAll
                 || onlyNames.contains(context.getString(R.string.task_name_skland_arknights))))
             futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
@@ -257,6 +269,33 @@ public class TaskExecutor {
         }
         if (!awaitAll(futures)) return;
         notifier.notifyListeners(context.getString(R.string.task_game_sign_in_done));
+    }
+
+    /**
+     * 云游戏按名称过滤：口径同 {@link #filterGames}，任务名为
+     * {@code R.string.task_name_cloud_game_sign_in + 云游戏名}。
+     */
+    private List<String> filterCloudGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
+        List<String> result = new ArrayList<>();
+        if (games == null) return result;
+        for (String game : games) {
+            if (runAll || onlyNames.contains(CloudGameDaily.taskName(context, game)))
+                result.add(game);
+        }
+        return result;
+    }
+
+    /**
+     * 执行单个云游戏签到（云原神 / 云绝区零）。
+     * token 未配置、失效等均以异常形式抛出，由 {@link #executeTask} 统一记为 ERROR。
+     */
+    private void executeCloudGame(String gameName) {
+        String displayName = CloudGameDaily.displayName(context, gameName);
+        executeTask(CloudGameDaily.taskName(context, gameName), () -> {
+            CloudGameDaily cloudGame = new CloudGameDaily(context, userId, gameName, notifier);
+            notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
+            cloudGame.run();
+        });
     }
 
     /** 执行森空岛签到（指定游戏：明日方舟或终末地）。 */

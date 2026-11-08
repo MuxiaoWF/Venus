@@ -113,13 +113,15 @@ public class BBSDaily {
     private final tools.StatusNotifier notifier;
     private final Notification notification;
     private final HeaderManager headerManager;
-    private final String cookie;
+    private String cookie;
+    private final String userId;
     private final CaptchaVerificationHelper captchaHelper;
     private final boolean isOversea;
     private final Context context;
 
     public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, GeetestController gt3Controller) {
         this.context = context;
+        this.userId = userId;
         this.notification = new Notification(context);
         this.captchaHelper = new CaptchaVerificationHelper(context, gt3Controller, notifier, this.notification);
         this.headerManager = new HeaderManager(context);
@@ -185,11 +187,63 @@ public class BBSDaily {
     }
 
     /**
+     * 登录态自动续期：用 stoken/ltoken 换发 cookie_token，并把会话 Cookie 切换为
+     * {@code cookie_token} 形态（米游币接口同样接受该形态，游戏签到侧长期使用此形态）。
+     *
+     * <p>能救回的典型场景：{@code stoken=} 形态的 Cookie 被判失效，但 stoken 本身仍有效。
+     * 换发失败（凭证缺失 / stoken 真失效 / 网络异常）时返回 false，由调用方按原错误上报。
+     *
+     * @return {@code true} 表示已换到可用 Cookie，可带新 Cookie 重试
+     */
+    private boolean refreshCookie() {
+        String stoken = tools.read(context, userId, "stoken");
+        String ltoken = tools.read(context, userId, "ltoken");
+        String stuid = tools.read(context, userId, "stuid");
+        String mid = tools.read(context, userId, "mid");
+        String token = (stoken != null && !stoken.isEmpty()) ? stoken : ltoken;
+        String tokenKey = (stoken != null && !stoken.isEmpty()) ? "stoken" : "ltoken";
+        if (token == null || token.isEmpty() || stuid == null || stuid.isEmpty()) return false;
+
+        try {
+            Map<String, String> headers = headerManager.get_bbs_headers();
+            headers.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token
+                    + (mid != null ? ";mid=" + mid : ""));
+            String url = isOversea
+                    ? Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL : Constants.Urls.COOKIE_TOKEN_STOKEN_URL;
+            String response = tools.sendGetRequest(url, headers, null);
+            JsonObject res = JsonParser.parseString(response).getAsJsonObject();
+            if (JsonAccess.retcode(res) != 0) return false;
+            String cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
+            if (cookieToken == null) return false;
+            // 回写存储供游戏签到等链路复用，避免各自重复换发
+            tools.write(context, userId, "cookie_token", cookieToken);
+            cookie = "cookie_token=" + cookieToken + ";ltuid=" + stuid + ";account_id=" + stuid
+                    + (ltoken != null ? ";ltoken=" + ltoken : "");
+            return true;
+        } catch (RuntimeException e) {
+            // 网络异常等：续期只是尽力而为，失败不改变原有错误语义
+            Logger.debug("VenusBBS", "BBSDaily: cookie 续期失败 " + e);
+            return false;
+        }
+    }
+
+    /**
      * 拉取今日任务列表。
      * 通过 can_get_points 判断今日是否已无可得米游币（=0 视为全部完成）并返回 null，
-     * 否则返回任务数据供后续解析；retcode 非 0 视为 Cookie 失效并抛错。
+     * 否则返回任务数据供后续解析。
+     *
+     * <p>登录态失效（-100）时先尝试一次自动续期——用 stoken/ltoken 换取 cookie_token 并
+     * 切换 Cookie 形态后重试；续期失败才按「Cookie 失效」上报，避免把可自愈的过期
+     * 误报成需要用户重新登录。
      */
     private JsonObject checkTasksList() {
+        return checkTasksList(false);
+    }
+
+    /**
+     * @param retried 是否已经走过一次自动续期（防止刷新后仍失败时无限递归）
+     */
+    private JsonObject checkTasksList(boolean retried) {
         notifier.notifyListeners(context.getString(R.string.bbs_getting_task_list));
         Map<String, String> bbsHeaders = getBbsHeaders();
         String taskUrl = isOversea ? Constants.Urls.OS_BBS_TASK_URL : Constants.Urls.BBS_TASK_URL;
@@ -197,6 +251,11 @@ public class BBSDaily {
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         int retcode = JsonAccess.retcode(data);
         if (retcode != 0) {
+            // 登录态失效：先自动续期一次，续期成功则带新 Cookie 重试
+            if (retcode == RETCODE_LOGIN_EXPIRED && !retried && refreshCookie()) {
+                notifier.notifyListeners(context.getString(R.string.bbs_cookie_refreshed));
+                return checkTasksList(true);
+            }
             // 仅登录态失效（-100）才提示重设 cookie；其余（1034 人机验证 / 429 限流 / 风控等）
             // 原样透传 retcode 与 message——这类瞬时失败重跑即可恢复，
             // 报成「cookie 过期」会误导用户重新登录

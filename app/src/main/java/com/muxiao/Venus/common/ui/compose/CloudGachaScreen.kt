@@ -63,6 +63,7 @@ const val CLOUD_STAGE_ERROR = 2
  * @param onCloseClick 关闭页面
  * @param onRetryClick 加载失败后重试
  * @param onWebViewCreated WebView 首次创建完成（Activity 在此配置并 loadUrl）
+ * @param promptText 提示行文案；null 时用默认的「登录后自动复制抽卡链接」
  */
 @Composable
 fun CloudGachaScreen(
@@ -71,6 +72,7 @@ fun CloudGachaScreen(
     onRetryClick: () -> Unit,
     onWebViewCreated: (WebView) -> Unit,
     modifier: Modifier = Modifier,
+    promptText: String? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
     // 首帧之后再挂载 WebView（等价于原 root.post { setupWebView() }）
@@ -132,7 +134,7 @@ fun CloudGachaScreen(
             )
             Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
             Text(
-                text = stringResource(R.string.gacha_login_prompt),
+                text = promptText ?: stringResource(R.string.gacha_login_prompt),
                 style = textStyles.body.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
             )
         }
@@ -203,6 +205,7 @@ private fun CloudErrorContent(onRetryClick: () -> Unit) {
 class CloudGachaScreenView(context: Context) : AbstractComposeView(context) {
 
     private val stageState = mutableIntStateOf(CLOUD_STAGE_LOADING)
+    private val promptTextState = mutableStateOf<String?>(null)
     private var onCloseClickListener: Runnable? = null
     private var onRetryClickListener: Runnable? = null
     private var onWebViewCreatedListener: WebViewConsumer? = null
@@ -214,6 +217,11 @@ class CloudGachaScreenView(context: Context) : AbstractComposeView(context) {
             stageState.intValue = value
         }
 
+    /** 提示行文案；null 用默认（抽卡链接场景）。抓 Token 场景由 Activity 注入不同文案。 */
+    fun setPromptText(text: String?) {
+        promptTextState.value = text
+    }
+
     @Composable
     override fun Content() {
         VenusTheme {
@@ -223,6 +231,7 @@ class CloudGachaScreenView(context: Context) : AbstractComposeView(context) {
                     onCloseClick = { onCloseClickListener?.run() },
                     onRetryClick = { onRetryClickListener?.run() },
                     onWebViewCreated = { view -> onWebViewCreatedListener?.accept(view) },
+                    promptText = promptTextState.value,
                 )
             }
         }

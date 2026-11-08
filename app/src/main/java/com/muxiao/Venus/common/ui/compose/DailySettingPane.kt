@@ -27,16 +27,17 @@ private val DAILY_CHIP_LABEL_RES = intArrayOf(
     R.string.tears_of_themis,
     R.string.dabieye,
     R.string.bengyuanling,
+    R.string.xingbugudi,
 )
 
 /**
  * 设置页「米游币签到」抽屉内容（原 res/layout/item_setting_bbs_daily.xml）。
  *
- * 结构：启用开关 + 说明副文本 + 8 个多选 FilterChip（米游社签到可覆盖的游戏）。
+ * 结构：启用开关 + 说明副文本 + 9 个多选 FilterChip（米游社签到可覆盖的游戏）。
  *
  * @param switchChecked 总开关
  * @param onSwitchChange 总开关变更回调
- * @param chipChecked 各游戏勾选态（长度 8，顺序见 [DAILY_CHIP_LABEL_RES]）
+ * @param chipChecked 各游戏勾选态（长度 9，顺序见 [DAILY_CHIP_LABEL_RES]）
  * @param onChipToggle 某游戏勾选变更回调
  * @param chipsEnabled 整组 Chip 是否可点（国际服等场景由外部禁用）
  */

@@ -7,6 +7,9 @@ import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PRESET;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_GENSHIN;
+import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
@@ -15,6 +18,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR2;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR3;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_SRG;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_WEIDING;
+import static com.muxiao.Venus.common.Constants.Prefs.DAILY_XINGBUGUDI;
 import static com.muxiao.Venus.common.Constants.Prefs.DAILY_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY;
 import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_GENSHIN;
@@ -65,8 +69,10 @@ import androidx.core.content.ContextCompat;
 
 import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.Home.DailyTaskScheduler;
+import com.muxiao.Venus.Home.CloudGameDaily;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Link.CloudGachaActivity;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.AppExecutors;
@@ -78,6 +84,8 @@ import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneKt;
 import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.BbsUtilsSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.CacheSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.CloudGameSettingPaneKt;
+import com.muxiao.Venus.common.ui.compose.CloudGameSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.DailySettingPaneView;
 import com.muxiao.Venus.common.ui.compose.GameDailySettingPaneView;
 import com.muxiao.Venus.common.ui.compose.GameDailySettingPaneKt;
@@ -97,6 +105,7 @@ import com.muxiao.Venus.common.ui.compose.SettingsCard;
 import com.muxiao.Venus.common.ui.compose.SettingsScreenView;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.User.UserManager;
 import com.yalantis.ucrop.UCrop;
 
 import java.io.File;
@@ -132,6 +141,7 @@ public class SettingsFragment implements PageController {
     private SettingsCard themeCard;
     private SettingsCard notificationCard;
     private SettingsCard sklandCard;
+    private SettingsCard cloudGameCard;
     /** Compose 宿主（本页唯一 UI 入口）。 */
     private SettingsScreenView screenView;
     /** 底栏覆盖高度订阅（弱引用持有，必须由本类强持有并在 release 解除）。 */
@@ -144,6 +154,7 @@ public class SettingsFragment implements PageController {
     // 「配置信息」抽屉内容为 Compose。
     private BbsUtilsSettingPaneView utilsPane;
     private SklandSettingPaneView sklandPane;
+    private CloudGameSettingPaneView cloudGamePane;
     // 「通知 / 后台运行」抽屉内容为 Compose。
     private NotificationSettingPaneView notificationPane;
     // 「米游币签到」「游戏签到」抽屉内容为 Compose。
@@ -158,20 +169,31 @@ public class SettingsFragment implements PageController {
     private ActivityResultLauncher<PickVisualMediaRequest> pickMedia; // Photo Picker (API33+)
     private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
     private ActivityResultLauncher<Intent> batteryOptLauncher; // 电池优化豁免授权
+    private ActivityResultLauncher<Intent> cloudTokenLauncher; // 云游戏 Token 抓取页
 
     public SettingsFragment(MainActivity activity) {
         this.activity = activity;
     }
 
-    /** 注入 MainActivity 注册的启动器（图片选择/裁剪/电池优化豁免）。 */
+    /** 注入 MainActivity 注册的启动器（图片选择/裁剪/电池优化豁免/云游戏 Token 抓取）。 */
     public void setLaunchers(ActivityResultLauncher<PickVisualMediaRequest> pickMedia,
                              ActivityResultLauncher<Intent> selectImage,
                              ActivityResultLauncher<Intent> cropImage,
-                             ActivityResultLauncher<Intent> batteryOpt) {
+                             ActivityResultLauncher<Intent> batteryOpt,
+                             ActivityResultLauncher<Intent> cloudToken) {
         this.pickMedia = pickMedia;
         this.selectImageLauncher = selectImage;
         this.cropImageLauncher = cropImage;
         this.batteryOptLauncher = batteryOpt;
+        this.cloudTokenLauncher = cloudToken;
+    }
+
+    /**
+     * 云游戏 Token 抓取页返回：无论抓到的是不是目标游戏都刷新角标
+     * （抓取页会把顺手抓到的另一款也落库）。
+     */
+    public void onCloudTokenFetched() {
+        if (cloudGamePane != null) refreshCloudGameTokens();
     }
 
     /** Photo Picker 选择结果（MainActivity 的 launcher 转发）：进入裁剪。 */
@@ -232,6 +254,7 @@ public class SettingsFragment implements PageController {
         SettingsCard notificationCardView = root.getNotificationCard();
         SettingsCard aboutCard = root.getAboutCard();
         SettingsCard sklandCardView = root.getSklandCard();
+        SettingsCard cloudGameCardView = root.getCloudGameCard();
         dailyCard = bbsCard;
         gameDailyCard = bbsGameCard;
         serverCard = serverCardView;
@@ -241,6 +264,7 @@ public class SettingsFragment implements PageController {
         themeCard = themeCardView;
         notificationCard = notificationCardView;
         sklandCard = sklandCardView;
+        cloudGameCard = cloudGameCardView;
 
         dailyPane = new DailySettingPaneView(context);
         bbsCard.setContent(dailyPane);
@@ -266,6 +290,8 @@ public class SettingsFragment implements PageController {
         aboutCard.setContent(aboutPane);
         sklandPane = new SklandSettingPaneView(context);
         sklandCardView.setContent(sklandPane);
+        cloudGamePane = new CloudGameSettingPaneView(context);
+        cloudGameCardView.setContent(cloudGamePane);
 
 
         // 静态行值摘要（设计稿：配置信息=已配置、关于=开源许可 · 隐私政策、背景按设置）
@@ -293,8 +319,9 @@ public class SettingsFragment implements PageController {
         final String[] dailyKeys = {
                 DAILY_GENSHIN, DAILY_ZZZ, DAILY_SRG, DAILY_HR3,
                 DAILY_HR2, DAILY_WEIDING, DAILY_DABIEYE, DAILY_HNA,
+                DAILY_XINGBUGUDI,
         };
-        final boolean[] dailyDefaults = {false, false, false, false, false, false, true, false};
+        final boolean[] dailyDefaults = {false, false, false, false, false, false, true, false, false};
         for (int i = 0; i < dailyKeys.length; i++)
             dailyPane.setChipChecked(i, sharedPreferences.getBoolean(dailyKeys[i], dailyDefaults[i]));
         dailyPane.setOnChipChangeListener((index, checked) -> {
@@ -524,6 +551,8 @@ public class SettingsFragment implements PageController {
                         showCustomSnackbar(screenView, context, activity.getString(R.string.snack_skland_content_saved));
                     });
         });
+        // 云游戏签到（Compose 版内容）：token 按当前用户存储，与米游社登录态无关
+        setupCloudGameSettings(context);
         return root;
     }
 
@@ -535,6 +564,8 @@ public class SettingsFragment implements PageController {
             notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
             updateNotificationCardValue(notificationPane.getBackgroundChecked());
         }
+        // 用户可能在「用户管理」页切换过账号：云游戏 token 按用户存放，需重新判定已配置状态
+        if (cloudGamePane != null) refreshCloudGameTokens();
     }
 
     /** 页面失去选中 / Activity 暂停（无逐帧资源，无操作）。 */
@@ -702,6 +733,10 @@ public class SettingsFragment implements PageController {
         bbsCard.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
         // 国际服隐藏不支持的游戏签到（崩坏2 / 未定事件簿）
         setOverseaChipsVisible(gamePane, serverType == 0);
+        // 国际服无云绝区零钱包接口；且两服的云原神 token 互不通用，需按服刷新已配置状态
+        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, serverType == 0);
+        refreshCloudGameTokens();
+        updateCloudGameCardValue();
 
         // 先设初始选中（此时监听器尚未注册，不会触发回调/弹 Snackbar），
         // 再由下面的监听器接管后续交互。
@@ -716,6 +751,9 @@ public class SettingsFragment implements PageController {
             updateServerCardValue(newType == 0);
             bbsCard.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
             setOverseaChipsVisible(gamePane, newType == 0);
+            cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, newType == 0);
+            refreshCloudGameTokens();
+            updateCloudGameCardValue();
             showCustomSnackbar(view, activity,
                     activity.getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
         });
@@ -1163,6 +1201,162 @@ public class SettingsFragment implements PageController {
 
     private void updateSklandCardValue(boolean enabled) {
         setCardValue(sklandCard, activity.getString(enabled ? R.string.value_enabled : R.string.value_disabled), enabled);
+    }
+
+    // ===== 云游戏签到 =====
+
+    /**
+     * 装配「云游戏签到」抽屉：总开关、两款游戏的勾选（决定任务是否进入列表）、
+     * token 配置入口与已配置状态。token 按当前选中用户存放（{@code user_{id}}），
+     * 国际服隐藏云绝区零。
+     */
+    private void setupCloudGameSettings(Context context) {
+        boolean cloudEnabled = sharedPreferences.getBoolean(CLOUD_GAME_ENABLED, false);
+        cloudGamePane.setEnabledChecked(cloudEnabled);
+        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ,
+                !MiHoYoBBSConstants.is_oversea(context));
+        refreshCloudGameTokens();
+        updateCloudGameCardValue();
+        cloudGamePane.setOnEnabledChangeListener(isChecked -> {
+            if (blockIfTaskRunning(() -> cloudGamePane.setEnabledChecked(!isChecked))) return;
+            sharedPreferences.edit().putBoolean(CLOUD_GAME_ENABLED, isChecked).apply();
+            updateCloudGameCardValue();
+        });
+        // chip-pref 映射：下标顺序与 Compose 侧 CLOUD_GAME_CHIP_LABEL_RES 一致
+        final String[] cloudGameKeys = {CLOUD_GAME_GENSHIN, CLOUD_GAME_ZZZ};
+        for (int i = 0; i < cloudGameKeys.length; i++)
+            cloudGamePane.setChipChecked(i, sharedPreferences.getBoolean(cloudGameKeys[i], false));
+        cloudGamePane.setOnChipChangeListener((index, checked) -> {
+            if (blockIfTaskRunning(() -> cloudGamePane.setChipChecked(index, !checked))) return;
+            sharedPreferences.edit().putBoolean(cloudGameKeys[index], checked).apply();
+            updateCloudGameCardValue();
+        });
+        // 两款云游戏共用同一个获取入口：token 本身互不通用（按云游戏服务签发），
+        // 但都源自同一份通行证登录态，一次 WebView 会话即可先后抓到两份，
+        // 由抓取页按请求域名自动识别归属，无需先选游戏。
+        cloudGamePane.setOnFetchClickListener(this::launchCloudTokenFetch);
+        cloudGamePane.setOnManualClickListener(this::showCloudGameManualPicker);
+    }
+
+    /**
+     * 刷新 token 配置进度（按当前选中用户读取，未登录时均视为未配置）。
+     *
+     * <p>国际服只有云原神一个可用项，分母随之为 1——否则「1/2 已配置」会让人误以为漏配。
+     */
+    private void refreshCloudGameTokens() {
+        String userId = new UserManager(activity).getCurrentUser();
+        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        String[] games = oversea
+                ? new String[]{CloudGameDaily.GAME_GENSHIN}
+                : new String[]{CloudGameDaily.GAME_GENSHIN, CloudGameDaily.GAME_ZZZ};
+        int configured = 0;
+        StringBuilder missing = new StringBuilder();
+        for (String game : games) {
+            if (hasCloudGameToken(userId, CloudGameDaily.tokenKey(game, oversea))) {
+                configured++;
+            } else {
+                if (missing.length() > 0) missing.append(", ");
+                missing.append(CloudGameDaily.displayName(activity, game));
+            }
+        }
+        cloudGamePane.setTokenStatus(configured, games.length,
+                missing.length() > 0 ? missing.toString() : null);
+    }
+
+    /**
+     * 是否已配置可用 token。用形态校验而非判空：历史上被占位值（{@code undefined}/{@code null}）
+     * 写脏的条目要显示为「未配置」，否则用户会以为配好了、任务却一直在报 token 失效。
+     */
+    private boolean hasCloudGameToken(String userId, String key) {
+        if (userId == null || userId.isEmpty()) return false;
+        return CloudGameDaily.isValidToken(tools.read(activity, userId, key));
+    }
+
+    /**
+     * 手动填写入口（自动抓取失败时的兜底）：token 两份互不通用，需先选游戏。
+     * 国际服只有云原神一项，跳过选择直接进输入框。
+     */
+    private void showCloudGameManualPicker() {
+        String userId = new UserManager(activity).getCurrentUser();
+        if (userId == null || userId.isEmpty()) {
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
+            return;
+        }
+        if (MiHoYoBBSConstants.is_oversea(activity)) {
+            showCloudGameTokenInput(CloudGameDaily.GAME_GENSHIN, userId);
+            return;
+        }
+        VenusDialogs.items(
+                activity,
+                activity.getString(R.string.cloud_game_select_game),
+                java.util.Arrays.asList(
+                        CloudGameDaily.displayName(activity, CloudGameDaily.GAME_GENSHIN),
+                        CloudGameDaily.displayName(activity, CloudGameDaily.GAME_ZZZ)),
+                index -> showCloudGameTokenInput(
+                        index == CloudGameSettingPaneKt.CLOUD_GAME_INDEX_GENSHIN
+                                ? CloudGameDaily.GAME_GENSHIN : CloudGameDaily.GAME_ZZZ,
+                        userId),
+                activity.getString(R.string.btn_cancel));
+    }
+
+    /**
+     * 打开云游戏 WebView 页自动抓取 token（复用抽卡链接页的页面外壳）。
+     * 不指定目标游戏：抓取页按请求域名自动识别是云原神还是云绝区零，抓到哪个存哪个。
+     */
+    private void launchCloudTokenFetch() {
+        String userId = new UserManager(activity).getCurrentUser();
+        if (userId == null || userId.isEmpty()) {
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
+            return;
+        }
+        Intent intent = new Intent(activity, CloudGachaActivity.class);
+        intent.putExtra(CloudGachaActivity.EXTRA_MODE, CloudGachaActivity.MODE_CLOUD_TOKEN);
+        cloudTokenLauncher.launch(intent);
+    }
+
+    /**
+     * 手动填写云游戏 token。token（{@code X-Rpc-Combo_token}）与米游社登录态无关，
+     * 但按用户存放，故 userId 由入口处取好传入。
+     */
+    private void showCloudGameTokenInput(String gameName, String userId) {
+        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        String key = CloudGameDaily.tokenKey(gameName, oversea);
+        String displayName = CloudGameDaily.displayName(activity, gameName);
+        VenusDialogs.input(
+                activity,
+                activity.getString(R.string.cloud_game_token_dialog_title, displayName),
+                null,
+                tools.read(activity, userId, key),
+                activity.getString(R.string.cloud_game_token_hint),
+                activity.getString(R.string.btn_save),
+                activity.getString(R.string.btn_cancel),
+                true,
+                text -> text == null || text.trim().isEmpty()
+                        ? activity.getString(R.string.cloud_game_token_required) : null,
+                text -> {
+                    tools.write(activity, userId, key, text.trim());
+                    refreshCloudGameTokens();
+                    showCustomSnackbar(screenView, activity,
+                            activity.getString(R.string.cloud_game_token_saved, displayName));
+                });
+    }
+
+    /**
+     * 云游戏行值摘要：总开关关闭显示「已关闭」，开启显示「N/M 已开启」。
+     * M 取当前服务器实际可用的云游戏数（国际服没有云绝区零）。
+     */
+    private void updateCloudGameCardValue() {
+        if (cloudGameCard == null || sharedPreferences == null) return;
+        if (!sharedPreferences.getBoolean(CLOUD_GAME_ENABLED, false)) {
+            setCardValue(cloudGameCard, activity.getString(R.string.value_off), false);
+            return;
+        }
+        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        int total = oversea ? 1 : 2;
+        int enabledCount = sharedPreferences.getBoolean(CLOUD_GAME_GENSHIN, false) ? 1 : 0;
+        if (!oversea && sharedPreferences.getBoolean(CLOUD_GAME_ZZZ, false)) enabledCount++;
+        setCardValue(cloudGameCard,
+                activity.getString(R.string.game_enabled_fmt, enabledCount, total), enabledCount > 0);
     }
 
     private void updateUpdateCardValue(boolean auto) {

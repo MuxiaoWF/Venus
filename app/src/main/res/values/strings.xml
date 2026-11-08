@@ -20,6 +20,7 @@
     <string name="background_running_desc">显示后台运行按钮，可在后台执行签到任务并发送通知（较为鸡肋的功能）</string>
     <string name="bbs_daily_tip">建议只勾选所有账号均有的一个（例如大别野），或将每个账号都先关注相同社区</string>
     <string name="bengyuanling">崩缘灵</string>
+    <string name="xingbugudi">星布谷地</string>
     <string name="cache">缓存</string>
     <string name="cancel_task">取消任务</string>
     <string name="retry_failed_tasks">重试失败任务</string>
@@ -406,6 +407,7 @@
     <string name="task_game_sign_in">游戏签到</string>
     <string name="task_game_sign_in_no_game">游戏签到 失败，请先在设置中勾选至少一个游戏</string>
     <string name="task_sign_preparing">%s签到 正在准备…</string>
+    <string name="task_cloud_game_no_game">云游戏签到 未勾选任何游戏，请先在设置中至少选择一款</string>
     <string name="task_game_sign_in_done">游戏签到 全部完成</string>
     <string name="task_completed">任务完成</string>
     <string name="task_cancelled">任务已取消</string>
@@ -494,6 +496,7 @@
     <string name="bbs_captcha_needed">需要进行人机验证</string>
     <string name="bbs_captcha_failed">人机验证失败，未获取到验证结果</string>
     <string name="bbs_cookie_expired">米游币签到 失败，cookie可能已过期，请重新设置cookie</string>
+    <string name="bbs_cookie_refreshed">米游币签到 登录态已自动续期</string>
     <string name="bbs_signin_failed">米游币签到 失败</string>
     <string name="bbs_unknown_error">未知错误</string>
     <string name="bbs_signin_retrying">米游币签到 正在重试，第%d次尝试</string>
@@ -602,9 +605,44 @@
     <string name="task_name_bbs_daily">米游币签到</string>
     <string name="task_name_skland_arknights">森空岛·明日方舟签到</string>
     <string name="task_name_skland_endfield">森空岛·终末地签到</string>
+    <string name="task_name_cloud_game_sign_in">%s云游戏签到</string>
 
     <!-- 通知标题格式 -->
     <string name="notif_title_game_sign">%s 游戏签到</string>
+    <string name="notif_title_cloud_game">%s 云游戏签到</string>
+
+    <!-- 云游戏签到 -->
+    <string name="cloud_game_sign_in">云游戏签到</string>
+    <string name="cloud_game_genshin">云原神</string>
+    <string name="cloud_game_zzz">云绝区零</string>
+    <string name="cloud_game_genshin_coin">米云币</string>
+    <string name="cloud_game_zzz_coin">邦邦点</string>
+    <string name="cloud_game_tip">云游戏签到与米游社登录态无关，只需云游戏 token。云原神与云绝区零的 token 互不通用，一键获取后会按游戏分别保存；也可手动粘贴 X-Rpc-Combo_token。</string>
+    <string name="cloud_game_token_dialog_title">%1$s Token</string>
+    <string name="cloud_game_token_hint">粘贴 X-Rpc-Combo_token</string>
+    <string name="cloud_game_token_required">Token 不能为空</string>
+    <string name="cloud_game_token_saved">%1$s Token 已保存</string>
+    <string name="cloud_game_token_captured">已获取 %1$s Token 并保存</string>
+    <string name="cloud_game_login_required">尚未登录，未获取到 Token。请先登录，再进入云游戏</string>
+    <string name="cloud_game_fetch_token">一键获取 Token</string>
+    <string name="cloud_game_token_manual">手动填写</string>
+    <string name="cloud_game_select_game">选择要填写的云游戏</string>
+    <string name="cloud_game_configured_summary">%1$d/%2$d 已配置</string>
+    <string name="cloud_game_missing_tokens">未配置：%1$s</string>
+    <string name="cloud_game_fetch_prompt">请用当前选中的米游社账号登录，进入云原神或云绝区零后 Token 会自动保存</string>
+    <string name="cloud_game_token_missing">%1$s 未配置 Token，请前往设置填写</string>
+    <string name="cloud_game_token_expired">%1$s Token 已失效，请重新获取并填写</string>
+    <string name="cloud_game_unsupported">%1$s 不支持当前服务器</string>
+    <string name="cloud_game_bad_response">云游戏接口返回异常，请稍后重试</string>
+    <string name="cloud_game_failed">%1$s 签到失败：%2$s (retcode=%3$d)</string>
+    <string name="cloud_game_sign_success">签到成功，获得 %1$d 分钟免费时长</string>
+    <string name="cloud_game_already_signed">未获得免费时长，可能今日已签到或已达上限</string>
+    <string name="cloud_game_status">剩余 %1$s · 畅玩卡 %2$s · %3$s %4$d 枚</string>
+    <string name="cloud_game_play_card_unknown">未知</string>
+    <string name="cloud_game_duration_minutes">%1$d 分钟</string>
+    <string name="cloud_game_duration_hours">%1$d 小时</string>
+    <string name="cloud_game_duration_hours_minutes">%1$d 小时 %2$d 分钟</string>
+    <string name="cloud_game_need_login">请先登录米游社账号再配置云游戏 Token</string>
 
     <!-- 用户头像 -->
     <string name="avatar_action_title">设置头像</string>

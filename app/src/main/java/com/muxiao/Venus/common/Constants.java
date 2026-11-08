@@ -68,6 +68,12 @@ public class Constants {
         public static final String BBS_GAME_FORUM_POST_LIST_TYPE_URL = BBS_BASE_URL + "/forum/api/getImagePostListType";
         public static final String BBS_GAME_HOT_POST_LIST_URL = BBS_BASE_URL + "/painter/api/getHotForumPostList";
 
+        // 云游戏签到（钱包接口本身即签到：每日首次调用发放免费时长）。
+        // 与游戏签到链路完全独立——只需云游戏 token（x-rpc-combo_token），
+        // 不依赖 cookie/stoken，也不需要 DS 签名。
+        public static final String CLOUD_GAME_GENSHIN_URL = "https://api-cloudgame.mihoyo.com/hk4e_cg_cn/wallet/wallet/get";
+        public static final String CLOUD_GAME_ZZZ_URL = "https://cg-nap-api.mihoyo.com/nap_cn/cg/wallet/wallet/get";
+
         // 国际服 API
         public static final String OS_COOKIE_TOKEN_STOKEN_URL = OS_BASE_URL + "/auth/api/getCookieAccountInfoBySToken";
         public static final String OS_ACCOUNT_LIST_URL = OS_BASE_URL + "/binding/api/getUserGameRolesByCookie";
@@ -77,6 +83,8 @@ public class Constants {
 
         public static final String OS_BBS_TASK_URL = OS_BBS_BASE_URL + "/apihub/sapi/getUserMissionsState";
         public static final String OS_BBS_SIGN_IN_URL = OS_BBS_BASE_URL + "/apihub/app/api/signIn";
+        // 国际服云游戏签到：仅云原神（云绝区零国际服无对应钱包接口）
+        public static final String OS_CLOUD_GAME_GENSHIN_URL = "https://sg-cg-api.hoyoverse.com/hk4e_global/cg/wallet/wallet/get";
         public static final String YSH_GACHA_URL = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?win_mode=fullscreen&authkey_ver=1&sign_type=2&auth_appid=webview_gacha&init_type=301&lang=zh-cn&region=cn_gf01&authkey=";
         public static final String ZZZ_GACHA_URL = "https://public-operation-nap.mihoyo.com/common/gacha_record/api/getGachaLog?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&win_mode=fullscreen&init_log_gacha_type=2001&init_log_gacha_base_type=2&ui_layout=&button_mode=default&plat_type=3&authkey=";
 
@@ -115,6 +123,7 @@ public class Constants {
         public static final String DAILY_WEIDING = "daily_checkbox_weiding";
         public static final String DAILY_DABIEYE = "daily_checkbox_dabieye";
         public static final String DAILY_HNA = "daily_checkbox_hna";
+        public static final String DAILY_XINGBUGUDI = "daily_checkbox_xingbugudi";
         public static final String GAME_DAILY = "game_daily_switch_button";
         public static final String GAME_DAILY_GENSHIN = "game_daily_checkbox_genshin";
         public static final String GAME_DAILY_ZZZ = "game_daily_checkbox_zzz";
@@ -122,6 +131,10 @@ public class Constants {
         public static final String GAME_DAILY_HR3 = "game_daily_checkbox_hr3";
         public static final String GAME_DAILY_HR2 = "game_daily_checkbox_hr2";
         public static final String GAME_DAILY_WEIDING = "game_daily_checkbox_weiding";
+        // 云游戏签到（云原神 / 云绝区零），token 按用户存于 user_{id}，键见 CloudGameDaily.tokenKey
+        public static final String CLOUD_GAME_ENABLED = "cloud_game_switch_button";
+        public static final String CLOUD_GAME_GENSHIN = "cloud_game_checkbox_genshin";
+        public static final String CLOUD_GAME_ZZZ = "cloud_game_checkbox_zzz";
         public static final String NOTIFICATION = "notification_switch"; // 通知
         public static final String BACKGROUND_TASK_ENABLED = "background_task_enabled"; // 后台运行
         public static final String SCHEDULED_TASK_ENABLED = "scheduled_task_enabled"; // 定时签到
