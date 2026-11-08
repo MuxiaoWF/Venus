@@ -596,12 +596,6 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 更新特定任务的状态（持久化 + 发布快照 + 刷新小组件均下沉到 ViewModel）。
-     *
-     * @param taskName 任务名称
-     * @param status   任务状态
-     */
-    /**
      * 点了任务列表里的「未配置」项：跳到设置页对应凭证抽屉并展开。
      *
      * <p>任务名是本地化字符串，只能按「同一 getString 口径」反查：云游戏逐个游戏名比对，

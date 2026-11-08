@@ -630,7 +630,7 @@
     <string name="cloud_game_zzz">ZZZ Cloud</string>
     <string name="cloud_game_genshin_coin">Miyun Coins</string>
     <string name="cloud_game_zzz_coin">Bangboo Points</string>
-    <string name="cloud_game_tip">Cloud game sign-in is independent of your Miyoushe session; only a cloud game token is required. The Genshin Cloud and ZZZ Cloud tokens are not interchangeable, so each is saved separately — one fetch captures both, or you can paste them manually.</string>
+    <string name="cloud_game_tip">Cloud game sign-in is independent of your Miyoushe session; only a cloud game token is required. Genshin Cloud and ZZZ Cloud tokens are not interchangeable. Genshin Cloud can be fetched automatically; ZZZ Cloud has no web client — capture X-Rpc-Combo_token from request headers with a packet sniffer and paste it manually.</string>
     <string name="cloud_game_token_dialog_title">%1$s Token</string>
     <string name="cloud_game_token_hint">Paste X-Rpc-Combo_token</string>
     <string name="cloud_game_token_required">Token cannot be empty</string>
@@ -642,7 +642,7 @@
     <string name="cloud_game_select_game">Select the cloud game to configure</string>
     <string name="cloud_game_configured_summary">%1$d/%2$d configured</string>
     <string name="cloud_game_missing_tokens">Not configured: %1$s</string>
-    <string name="cloud_game_fetch_prompt">Sign in with the currently selected account, then open Genshin Cloud or ZZZ Cloud — the token is saved automatically</string>
+    <string name="cloud_game_fetch_prompt">Sign in with the currently selected account and open Genshin Cloud — the token is saved automatically</string>
     <string name="cloud_game_token_missing">%1$s has no token configured, please set it in Settings</string>
     <string name="cloud_game_token_expired">%1$s token expired, please obtain a new one</string>
     <string name="cloud_game_unsupported">%1$s is not supported on the current server</string>

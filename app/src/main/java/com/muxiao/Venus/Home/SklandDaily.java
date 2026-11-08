@@ -91,8 +91,7 @@ public class SklandDaily {
         if (token == null) return false;
         String t = token.trim();
         if (t.length() < 16) return false;
-        if (t.indexOf(' ') >= 0) return false;
-        return !"undefined".equalsIgnoreCase(t) && !"null".equalsIgnoreCase(t);
+        return t.indexOf(' ') < 0;
     }
 
     /**

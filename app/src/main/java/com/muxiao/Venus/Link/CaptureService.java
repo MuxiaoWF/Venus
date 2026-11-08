@@ -29,8 +29,13 @@ import java.io.FileDescriptor;
 /**
  * 本地 VPN 抓包服务（复刻自 SRGachaLink，GPLv3，其 C 层源自 NetGuard）。
  * 链路：游戏流量 → VpnService TUN（白名单星铁各渠道包）→ Unix socketpair 双向中转 →
- * netguard JNI 用户态协议栈转发到真实网络；转发过程中每包旁路镜像给 PacketAnalyzer。
- * 仅需要星铁的 KCP 链接，authkey 捕获到即广播 ACTION_GET_AUTHKEY 并可停止。
+ * netguard JNI 用户态协议栈转发到真实网络；转发过程中每包旁路镜像给 PacketAnalyzer
+ * 过滤分析。星铁需要的是 KCP 链接，authkey 捕获到即广播 ACTION_GET_AUTHKEY。
+ * <p>
+ * 曾实验过在白名单加入云绝区零 App（com.miHoYo.cloudgames.Nap）并观测其全流量以
+ * 获取云游戏凭证（combo_token），实测结论：不可行——云游戏 API 全走 HTTPS，纯转发型
+ * VPN 不做 TLS 中间人看不到请求头，串流/DNS 通道亦无明文泄露（详见
+ * docs/module-network-auth.md §7），实验代码已撤除，云游戏 token 走 WebView 抓取。
  */
 @SuppressLint("VpnServicePolicy")
 public class CaptureService extends VpnService {
@@ -250,7 +255,8 @@ public class CaptureService extends VpnService {
         forward(remotePfd, pfd, analyzer);
     }
 
-    private void forward(ParcelFileDescriptor src, ParcelFileDescriptor dst, PacketAnalyzer analyzer) {
+    private void forward(ParcelFileDescriptor src, ParcelFileDescriptor dst,
+                         PacketAnalyzer analyzer) {
         Thread t = new Thread(() -> {
             byte[] buffer = new byte[MAX_PACKET_SIZE];
             try (ParcelFileDescriptor.AutoCloseInputStream in =
@@ -404,7 +410,8 @@ public class CaptureService extends VpnService {
 
     @SuppressWarnings("unused") // Called from native code
     private CaptureModels.Allowed isAddressAllowed(CaptureModels.Packet packet) {
-        // 新 UDP 会话建立时记录「客户端源端口 → 渠道包名」，供 PacketAnalyzer 判定 authkey 渠道
+        // 新 UDP/TCP 会话建立时记录「客户端源端口 → 包名」：
+        // 新 UDP/TCP 会话建立时记录「客户端源端口 → 包名」，供 PacketAnalyzer 判定 authkey 渠道
         if (packet.protocol == 17)
             recordPortPackage(packet.sport, packet.uid);
         return new CaptureModels.Allowed();

@@ -52,14 +52,18 @@ public class CloudGachaActivity extends BaseActivity {
     /**
      * 可选：指定关心的云游戏（{@code CloudGameDaily.GAME_GENSHIN} / {@code GAME_ZZZ}），
      * 仅影响「完成」判据（回传 RESULT_OK 的时机），不影响入口网址——
-     * 抓取始终走云游戏平台页，任意一款命中都会落库。
+     * 抓取按请求域名自动识别归属，非目标游戏的 token 也会落库。
      */
     public static final String EXTRA_CLOUD_GAME = "extra_cloud_game";
 
     /** 抽卡模式入口：米哈游云游戏平台（含原神/星铁/绝区零入口）。 */
     private static final String GACHA_URL = "https://mhyy.mihoyo.com/";
-    /** 抓 Token 模式入口：与抽卡同为云游戏平台页——它是唯一同时含两款云游戏入口的页面。 */
-    private static final String PLATFORM_URL = "https://mhyy.mihoyo.com/";
+    /**
+     * 抓 Token 模式入口：云原神网页版（登录后即发 api-cloudgame 的 wallet 请求）。
+     * 仅此一款有官方网页版——云绝区零没有网页版（zzz.mihoyo.com/cloud-feat 并不存在），
+     * 其 token 无法在本页抓取，只能手动填写。
+     */
+    private static final String GENSHIN_CLOUD_URL = "https://ys.mihoyo.com/cloud/";
 
     private WebView webView;
     /** Compose 版页面宿主：顶栏 / 提示行 / 内容区三态都由它绘制。 */
@@ -124,7 +128,8 @@ public class CloudGachaActivity extends BaseActivity {
         if (!MODE_CLOUD_TOKEN.equals(getIntent().getStringExtra(EXTRA_MODE))) return;
         mode = MODE_CLOUD_TOKEN;
         targetGame = getIntent().getStringExtra(EXTRA_CLOUD_GAME);
-        targetUrl = PLATFORM_URL;
+        // 两款云游戏各有官方网页版，直连各自入口（比平台页少一步跳转，且平台页无云绝区零入口）
+        targetUrl = GENSHIN_CLOUD_URL; // 抓 Token 模式仅云原神有网页版可抓
         pane.setPromptText(getString(R.string.cloud_game_fetch_prompt));
     }
 

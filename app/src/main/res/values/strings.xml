@@ -630,7 +630,7 @@
     <string name="cloud_game_zzz">云绝区零</string>
     <string name="cloud_game_genshin_coin">米云币</string>
     <string name="cloud_game_zzz_coin">邦邦点</string>
-    <string name="cloud_game_tip">云游戏签到与米游社登录态无关，只需云游戏 token。云原神与云绝区零的 token 互不通用，一键获取后会按游戏分别保存；也可手动粘贴 X-Rpc-Combo_token。</string>
+    <string name="cloud_game_tip">云游戏签到与米游社登录态无关，只需云游戏 token。云原神与云绝区零的 token 互不通用；云原神可一键自动获取，云绝区零没有网页版，请用抓包工具取请求头 X-Rpc-Combo_token 后手动粘贴。</string>
     <string name="cloud_game_token_dialog_title">%1$s Token</string>
     <string name="cloud_game_token_hint">粘贴 X-Rpc-Combo_token</string>
     <string name="cloud_game_token_required">Token 不能为空</string>
@@ -642,7 +642,7 @@
     <string name="cloud_game_select_game">选择要填写的云游戏</string>
     <string name="cloud_game_configured_summary">%1$d/%2$d 已配置</string>
     <string name="cloud_game_missing_tokens">未配置：%1$s</string>
-    <string name="cloud_game_fetch_prompt">请用当前选中的米游社账号登录，进入云原神或云绝区零后 Token 会自动保存</string>
+    <string name="cloud_game_fetch_prompt">请用当前选中的米游社账号登录并进入云原神，Token 会自动保存</string>
     <string name="cloud_game_token_missing">%1$s 未配置 Token，请前往设置填写</string>
     <string name="cloud_game_token_expired">%1$s Token 已失效，请重新获取并填写</string>
     <string name="cloud_game_unsupported">%1$s 不支持当前服务器</string>

@@ -96,8 +96,7 @@ public class CloudGameDaily {
         if (token == null) return false;
         String t = token.trim();
         if (t.length() < 32) return false;
-        if (t.indexOf(' ') >= 0) return false;
-        return !"undefined".equalsIgnoreCase(t) && !"null".equalsIgnoreCase(t);
+        return t.indexOf(' ') < 0;
     }
 
     /** 日志用脱敏预览：只留前 6 位，避免把完整凭据写进日志文件。 */

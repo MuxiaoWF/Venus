@@ -1258,7 +1258,7 @@ public class SettingsFragment implements PageController {
         // 两款云游戏共用同一个获取入口：token 本身互不通用（按云游戏服务签发），
         // 但都源自同一份通行证登录态，一次 WebView 会话即可先后抓到两份，
         // 由抓取页按请求域名自动识别归属，无需先选游戏。
-        cloudGamePane.setOnFetchClickListener(this::launchCloudTokenFetch);
+        cloudGamePane.setOnFetchClickListener(this::showCloudGameFetchPicker);
         cloudGamePane.setOnManualClickListener(this::showCloudGameManualPicker);
     }
 
@@ -1343,16 +1343,25 @@ public class SettingsFragment implements PageController {
 
     /**
      * 打开云游戏 WebView 页自动抓取 token（复用抽卡链接页的页面外壳）。
-     * 不指定目标游戏：抓取页按请求域名自动识别是云原神还是云绝区零，抓到哪个存哪个。
+     * 仅支持云原神——它是唯一有官方网页版（ys.mihoyo.com/cloud）的云游戏；
+     * **云绝区零没有网页版**（此前误判的 zzz.mihoyo.com/cloud-feat 并不存在），
+     * 其 token 只能经「手动填写」录入。抓取页按请求域名自动识别归属，
+     * 页面里若进入其他云游戏抓到的 token 也会一并落库。
      */
-    private void launchCloudTokenFetch() {
+    private void showCloudGameFetchPicker() {
         String userId = new UserManager(activity).getCurrentUser();
         if (userId == null || userId.isEmpty()) {
             showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
             return;
         }
+        launchCloudTokenFetch(CloudGameDaily.GAME_GENSHIN);
+    }
+
+    /** 打开指定云游戏的官方网页版并自动抓取 token。 */
+    private void launchCloudTokenFetch(String gameName) {
         Intent intent = new Intent(activity, CloudGachaActivity.class);
         intent.putExtra(CloudGachaActivity.EXTRA_MODE, CloudGachaActivity.MODE_CLOUD_TOKEN);
+        intent.putExtra(CloudGachaActivity.EXTRA_CLOUD_GAME, gameName);
         cloudTokenLauncher.launch(intent);
     }
 
@@ -1373,8 +1382,8 @@ public class SettingsFragment implements PageController {
                 activity.getString(R.string.btn_save),
                 activity.getString(R.string.btn_cancel),
                 true,
-                text -> text == null || text.trim().isEmpty()
-                        ? activity.getString(R.string.cloud_game_token_required) : null,
+            text -> text.trim().isEmpty()
+                    ? activity.getString(R.string.cloud_game_token_required) : null,
                 text -> {
                     tools.write(activity, userId, key, text.trim());
                     refreshCloudGameTokens();
