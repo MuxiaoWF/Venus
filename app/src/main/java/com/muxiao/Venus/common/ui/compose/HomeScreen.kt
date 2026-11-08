@@ -62,6 +62,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
@@ -87,9 +88,23 @@ const val TASK_CANCELLED = 5
 /** 仅展示态：当日已完成但本轮未执行到（绿色沿用上次结果）。 */
 const val TASK_RETAINED = 6
 
-/** 一条任务行（名称 + 状态码）。 */
+/** Java 友好的「传任务名」回调（minSdk 23 下不用 java.util.function）。 */
+fun interface TaskNameConsumer {
+    fun accept(taskName: String)
+}
+
+/**
+ * 一条任务行（名称 + 状态码 + 是否可执行）。
+ *
+ * [disabled] 表示「开关开着但凭证没配」：列表里以删除线 + 灰色呈现，运行入口直接跳过。
+ * 它与 [status] 正交——配置补上后无需等下一轮运行，重新渲染即恢复常态。
+ */
 @Immutable
-class HomeTaskRow(val name: String, val status: Int)
+class HomeTaskRow(
+    val name: String,
+    val status: Int,
+    val disabled: Boolean = false,
+)
 
 /**
  * 主页的全部可变状态。
@@ -105,6 +120,11 @@ class HomeUiState {
     /** 账号行展示文案（用户名 + 服务器后缀）；无用户时为空。 */
     var userLabel by mutableStateOf("")
     var avatarUsername by mutableStateOf<String?>(null)
+    /**
+     * 头像刷新令牌：每次头像文件被替换后自增，喂给 [VenusAvatar] 的 refreshToken。
+     * 文件路径不变（按用户名定址），没有这个令牌时 Compose 不会重组、Glide 也会命中旧缓存。
+     */
+    var avatarVersion by mutableIntStateOf(0)
     var dateChip by mutableStateOf("")
     var subtitle by mutableStateOf("")
     var doneLabel by mutableStateOf("")
@@ -153,6 +173,7 @@ fun HomeScreen(
     onRetryFailed: () -> Unit,
     onBackgroundClick: () -> Unit,
     onViewLog: () -> Unit,
+    onDisabledTaskClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -293,6 +314,8 @@ fun HomeScreen(
                 TaskRow(
                     task = task,
                     showDivider = index > 0,
+                    // 只有「未配置」的项可点：点它直达对应配置抽屉，把「看到问题」接到「去解决」
+                    onClick = { onDisabledTaskClick(task.name) },
                     modifier = if (reducedMotion) Modifier else Modifier.animateItem(),
                 )
             }
@@ -355,6 +378,7 @@ private fun UserRow(
                 VenusAvatar(
                     username = state.avatarUsername,
                     size = dimensionResource(R.dimen.icon_badge_md),
+                    refreshToken = state.avatarVersion,
                 )
             }
             Text(
@@ -380,7 +404,9 @@ private fun UserRow(
             state.users.forEachIndexed { index, username ->
                 DropdownMenuItem(
                     text = { Text(text = username, style = textStyles.bodyLarge) },
-                    leadingIcon = { VenusAvatar(username = username) },
+                    leadingIcon = {
+                        VenusAvatar(username = username, refreshToken = state.avatarVersion)
+                    },
                     onClick = {
                         expanded = false
                         onUserSelected(index)
@@ -597,6 +623,7 @@ private fun TaskListEmpty() {
 private fun TaskRow(
     task: HomeTaskRow,
     showDivider: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -616,7 +643,13 @@ private fun TaskRow(
     val chipColor: Color?
     val chipTextColor: Color?
 
-    when (task.status) {
+    val disabled = task.disabled
+    if (disabled) {
+        // 功能已开启但凭证未配置：统一走中性灰 + 右侧说明性文案，不占用任何「结果」语义色
+        stroke = outlineVariant; iconRes = R.drawable.ic_dot; iconTint = neutral; strike = false
+        progressText = stringResource(R.string.task_status_not_configured); progressColor = neutral
+        chipText = null; chipColor = null; chipTextColor = null
+    } else when (task.status) {
         TASK_IN_PROGRESS, TASK_WARNING -> {
             stroke = primary; iconRes = R.drawable.ic_dot; iconTint = primary; strike = false
             progressText = stringResource(R.string.task_status_running); progressColor = primary
@@ -664,6 +697,7 @@ private fun TaskRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = dimensionResource(R.dimen.row_min_height))
+                .clickable(enabled = task.disabled, onClick = onClick)
                 .padding(vertical = dimensionResource(R.dimen.gutter_card)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -683,6 +717,9 @@ private fun TaskRow(
             Text(
                 text = task.name,
                 style = textStyles.rowTitle,
+                // 仅在不可执行时改色/划线；其余状态保持 style 自带颜色（Color.Unspecified）
+                color = if (disabled) neutral else Color.Unspecified,
+                textDecoration = if (disabled) TextDecoration.LineThrough else null,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -803,6 +840,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     private var onRetryFailedListener: Runnable? = null
     private var onBackgroundClickListener: Runnable? = null
     private var onViewLogListener: Runnable? = null
+    private var onDisabledTaskClickListener: TaskNameConsumer? = null
 
     @Composable
     override fun Content() {
@@ -817,8 +855,14 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
                 onRetryFailed = { onRetryFailedListener?.run() },
                 onBackgroundClick = { onBackgroundClickListener?.run() },
                 onViewLog = { onViewLogListener?.run() },
+                onDisabledTaskClick = { onDisabledTaskClickListener?.accept(it) },
             )
         }
+    }
+
+    /** 点击「未配置」任务项：跳到设置页对应凭证抽屉。 */
+    fun setOnDisabledTaskClickListener(listener: TaskNameConsumer?) {
+        onDisabledTaskClickListener = listener
     }
 
     /** 填充账号下拉：原始用户名列表 + 当前选中下标（-1 = 无选中）。 */
@@ -835,6 +879,16 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     /** 账号行头像对应的用户名（null/空 = 无用户空态，显示默认人像）。 */
     fun setAvatarUsername(username: String?) {
         uiState.avatarUsername = username
+    }
+
+    /**
+     * 强制重载头像。
+     *
+     * <p>头像文件按用户名定址、换头像时是原地覆盖，路径与用户名都没变——
+     * 只调 [setAvatarUsername] 不会触发重组，Glide 也会命中旧缓存。
+     */
+    fun refreshAvatar() {
+        uiState.avatarVersion++
     }
 
     /** 页眉右上角 chip 文案（`MM/dd E`）。 */
@@ -948,6 +1002,7 @@ private fun HomeScreenPreview() {
                     HomeTaskRow("崩坏：星穹铁道", TASK_IN_PROGRESS),
                     HomeTaskRow("绝区零", TASK_ERROR),
                     HomeTaskRow("崩坏3", TASK_PENDING),
+                    HomeTaskRow("云原神云游戏签到", TASK_PENDING, disabled = true),
                 )
             },
             geetestContainer = geetest,
@@ -958,6 +1013,7 @@ private fun HomeScreenPreview() {
             onRetryFailed = {},
             onBackgroundClick = {},
             onViewLog = {},
+            onDisabledTaskClick = {},
         )
     }
 }

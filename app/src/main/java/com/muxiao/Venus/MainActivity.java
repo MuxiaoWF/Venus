@@ -186,6 +186,8 @@ public class MainActivity extends BaseActivity {
         shownPage = index;
         if (previous >= 0) controllerAt(previous).hide();
         controllerAt(index).show();
+        // 页面已就绪再展开目标抽屉：抽屉宿主是页面首次组合时才装配的
+        if (index == 3) consumePendingSettingsPane();
     }
 
     private PageController controllerAt(int index) {
@@ -286,6 +288,58 @@ public class MainActivity extends BaseActivity {
      */
     public void navigateToPage(int position) {
         shell.setCurrentPage(position, true);
+    }
+
+    /** 待展开的设置抽屉（0 = 无），见 {@link #openSettingsPane(int)}。 */
+    private int pendingSettingsPane = 0;
+
+    /**
+     * 当前账号被本页之外改动（用户管理页的凭证 chip 会先切账号、再跳设置页）。
+     *
+     * <p>必须立刻通知首页：账号行文案是控制器直接写进 Compose 状态的，不经过
+     * ViewModel 的 UiState，只等首页下次 show() 的话，切页动画期间会露出旧账号，
+     * 看起来像「切了号但主页没变」。
+     */
+    public void onCurrentUserChanged() {
+        homeController.refreshUserContext();
+    }
+
+    /**
+     * 当前账号的头像被更换或重置：首页需显式重载。
+     *
+     * <p>头像文件按用户名定址、内容被原地覆盖，用户名与路径都不变——
+     * 不通知的话首页会一直显示旧图（Compose 不重组 + Glide 命中缓存）。
+     */
+    public void onAvatarChanged() {
+        homeController.refreshAvatar();
+        // 抽卡页也展示当前账号头像，同一份文件、同样原地覆盖
+        linkController.refreshAvatar();
+    }
+
+    /**
+     * 切到设置页并展开指定抽屉——「凭证快捷配置」的统一入口。
+     *
+     * <p>两个调用方：用户管理页每张用户卡上的云游戏/森空岛状态 chip、
+     * 首页任务列表里未配置的划线项。展开动作必须等页面 show() 之后执行，
+     * 因为抽屉宿主视图是设置页首次组合时才装配的。
+     *
+     * @param pane {@link SettingsFragment#PANE_CLOUD_GAME} / {@link SettingsFragment#PANE_SKLAND}
+     */
+    public void openSettingsPane(int pane) {
+        pendingSettingsPane = pane;
+        if (shownPage == 3) {
+            // 已在设置页：setShownPage 不会被触发，直接消费
+            consumePendingSettingsPane();
+        } else {
+            navigateToPage(3);
+        }
+    }
+
+    private void consumePendingSettingsPane() {
+        int pane = pendingSettingsPane;
+        if (pane == 0) return;
+        pendingSettingsPane = 0;
+        settingsController.expandPane(pane);
     }
 
     // ===== 背景预合成管线（原 ImageView 版逻辑平移到 Compose 背景） =====

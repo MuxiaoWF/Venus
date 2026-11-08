@@ -110,6 +110,24 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
     fun toggle() {
         isExpanded = !isExpanded
     }
+
+    /**
+     * 跳转定位请求计数：每次自增即让本抽屉执行一次 bringIntoView。
+     *
+     * 与 [isExpanded] 解耦的原因：抽屉此前已展开时，`LaunchedEffect(isExpanded)`
+     * 不会再次触发，跨页跳转就无法把卡片滚进视口。
+     */
+    internal var scrollRequest by mutableIntStateOf(0)
+        private set
+
+    /**
+     * 展开本抽屉并滚动到可见（供跨页跳转定位：用户管理页点凭证状态、任务列表点未配置项）。
+     * 幂等：已展开时只补一次滚动。
+     */
+    fun expand() {
+        isExpanded = true
+        scrollRequest++
+    }
 }
 
 /**
@@ -279,6 +297,13 @@ private fun SettingsCardItem(card: SettingsCard) {
     // 「减少动态效果」下退化为等一帧，与原实现 `post { ... }` 的时序一致。
     LaunchedEffect(card.isExpanded) {
         if (!card.isExpanded) return@LaunchedEffect
+        delay((if (reducedMotion) 16L else duration.toLong()).milliseconds)
+        bringIntoView.bringIntoView()
+    }
+
+    // 跨页跳转定位：抽屉此前已展开时上面的 effect 不会再触发，这里按请求计数补一次滚动
+    LaunchedEffect(card.scrollRequest) {
+        if (card.scrollRequest == 0) return@LaunchedEffect
         delay((if (reducedMotion) 16L else duration.toLong()).milliseconds)
         bringIntoView.bringIntoView()
     }

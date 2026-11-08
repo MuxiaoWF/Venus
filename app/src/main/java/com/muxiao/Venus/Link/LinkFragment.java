@@ -466,6 +466,16 @@ public class LinkFragment implements PageController {
         if (linkPane != null) linkPane.setAvatarUsername(currentUserId);
     }
 
+    /**
+     * 头像文件被替换/重置后强制重载。
+     *
+     * <p>头像按用户名定址、换头像时原地覆盖文件，用户名与路径都没变——
+     * 只调 {@link #loadUserAvatar()} 不会触发重组，Glide 也会命中旧缓存。
+     */
+    public void refreshAvatar() {
+        if (linkPane != null) linkPane.refreshAvatar();
+    }
+
     /** 页面成为当前选中页 / Activity 恢复：更新下拉框并同步 VPN 行状态与常驻结果区。 */
     @Override
     public void show() {

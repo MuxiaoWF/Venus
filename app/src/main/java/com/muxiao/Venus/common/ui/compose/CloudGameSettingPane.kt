@@ -70,6 +70,7 @@ fun CloudGameSettingPane(
     onManualClick: () -> Unit,
     modifier: Modifier = Modifier,
     chipVisible: List<Boolean> = List(CLOUD_GAME_CHIP_LABEL_RES.size) { true },
+    accountLabel: String? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val tipStyle = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -79,6 +80,14 @@ fun CloudGameSettingPane(
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
+        // token 按用户存放：不标出当前账号，切号后会以为配置丢了
+        if (accountLabel != null) {
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+            Text(
+                text = stringResource(R.string.credential_account, accountLabel),
+                style = tipStyle,
+            )
+        }
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         Text(text = stringResource(R.string.cloud_game_tip), style = tipStyle)
         Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
@@ -136,6 +145,7 @@ class CloudGameSettingPaneView(context: Context) : AbstractComposeView(context) 
     private val configuredCountState = mutableIntStateOf(0)
     private val configuredTotalState = mutableIntStateOf(CLOUD_GAME_CHIP_LABEL_RES.size)
     private val missingGamesState = mutableStateOf<String?>(null)
+    private val accountLabelState = mutableStateOf<String?>(null)
 
     private var onEnabledChangeListener: BooleanConsumer? = null
     private var onChipChangeListener: IndexedCheckedConsumer? = null
@@ -190,8 +200,14 @@ class CloudGameSettingPaneView(context: Context) : AbstractComposeView(context) 
                 onFetchClick = { onFetchClickListener?.run() },
                 onManualClick = { onManualClickListener?.run() },
                 chipVisible = visibleState.toList(),
+                accountLabel = accountLabelState.value,
             )
         }
+    }
+
+    /** 当前账号名（token 按用户存放，界面需标明归属）；null 表示未登录。 */
+    fun setAccountLabel(label: String?) {
+        accountLabelState.value = label
     }
 
     fun setOnEnabledChangeListener(listener: BooleanConsumer?) {

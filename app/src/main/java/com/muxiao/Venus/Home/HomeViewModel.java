@@ -241,7 +241,9 @@ public class HomeViewModel extends AndroidViewModel {
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
             if (!a.get(i).getName().equals(b.get(i).getName())
-                    || a.get(i).getStatus() != b.get(i).getStatus())
+                    || a.get(i).getStatus() != b.get(i).getStatus()
+                    // 配置变动（补填 token）要能触发列表重建，否则划线不会消失
+                    || a.get(i).isRunnable() != b.get(i).isRunnable())
                 return false;
         }
         return true;
@@ -265,9 +267,14 @@ public class HomeViewModel extends AndroidViewModel {
         Context context = getApplication();
         TaskStatusManager statusManager = new TaskStatusManager(context);
         List<TaskItem> items = new ArrayList<>();
+        // 凭证未配齐的任务仍留在列表里（用户看得见自己开了什么），只是标记为不可执行：
+        // 列表划线灰显、运行入口直接跳过，不发请求也不报错。
+        java.util.Map<String, Boolean> readiness = settings.getTaskReadiness(context, currentUser);
         // 状态按用户分桶：列表始终反映当前选中用户自己的完成情况
         for (String taskName : settings.getTaskNames(context)) {
             TaskItem item = new TaskItem(taskName);
+            Boolean ready = readiness.get(taskName);
+            item.setRunnable(ready == null || ready);
             item.setStatus(deriveDisplayStatus(taskName,
                     TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, taskName))));
             items.add(item);

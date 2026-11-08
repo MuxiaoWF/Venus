@@ -153,6 +153,15 @@
         <item quantity="other">Manage logged-in accounts · %1$d total</item>
     </plurals>
     <string name="user_logged_in_status">Signed in</string>
+    <string name="user_cred_cloud_game">Cloud game</string>
+    <string name="user_cred_skland">Skland</string>
+    <string name="user_cred_disabled">Off</string>
+    <string name="user_cred_missing">Not configured</string>
+    <string name="user_cred_ready">Configured</string>
+    <string name="user_cred_partial">%1$d/%2$d</string>
+    <string name="user_cred_format">%1$s %2$s</string>
+    <string name="credential_account">Account: %1$s</string>
+    <string name="credential_account_status">Account: %1$s · %2$s</string>
     <string name="user_chip_default">Default</string>
     <string name="task_chip_done">Done</string>
     <string name="task_chip_failed">Failed</string>
@@ -160,6 +169,9 @@
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">CANCELLED</string>
+    <string name="task_status_not_configured">NOT CONFIGURED</string>
+    <string name="task_skipped_unconfigured">%1$s skipped, credentials not configured</string>
+    <string name="common_need_login">Please sign in first</string>
     <string name="value_on">On</string>
     <string name="value_off">Off</string>
     <string name="value_enabled">Enabled</string>
@@ -274,6 +286,7 @@
     <string name="snack_task_running_cannot_relogin">Task running, cannot re-login</string>
     <string name="snack_task_running_cannot_rename">Task running, cannot rename user</string>
     <string name="snack_task_running_cannot_delete">Task running, cannot delete user</string>
+    <string name="snack_task_running_cannot_switch">Task running, cannot switch user</string>
     <string name="snack_username_exists">Username already exists</string>
     <string name="snack_user_renamed">User renamed to: %s</string>
     <string name="snack_user_deleted">User deleted: %s</string>

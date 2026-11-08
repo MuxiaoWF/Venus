@@ -149,6 +149,15 @@
         <item quantity="other">管理登入帳號 · 共 %1$d 個帳號</item>
     </plurals>
     <string name="user_logged_in_status">已登入</string>
+    <string name="user_cred_cloud_game">雲遊戲</string>
+    <string name="user_cred_skland">森空島</string>
+    <string name="user_cred_disabled">未開啟</string>
+    <string name="user_cred_missing">未設定</string>
+    <string name="user_cred_ready">已設定</string>
+    <string name="user_cred_partial">%1$d/%2$d</string>
+    <string name="user_cred_format">%1$s %2$s</string>
+    <string name="credential_account">目前帳號：%1$s</string>
+    <string name="credential_account_status">目前帳號：%1$s · %2$s</string>
     <string name="user_chip_default">預設</string>
     <string name="task_chip_done">已簽</string>
     <string name="task_chip_failed">失敗</string>
@@ -156,6 +165,9 @@
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">已取消</string>
+    <string name="task_status_not_configured">未設定</string>
+    <string name="task_skipped_unconfigured">%1$s 未設定憑證，已略過</string>
+    <string name="common_need_login">請先登入帳號</string>
     <string name="value_on">已開啟</string>
     <string name="value_off">已關閉</string>
     <string name="value_enabled">已啟用</string>
@@ -270,6 +282,7 @@
     <string name="snack_task_running_cannot_relogin">任務執行中，無法重新登入</string>
     <string name="snack_task_running_cannot_rename">任務執行中，無法重新命名使用者</string>
     <string name="snack_task_running_cannot_delete">任務執行中，無法刪除使用者</string>
+    <string name="snack_task_running_cannot_switch">任務執行中，無法切換使用者</string>
     <string name="snack_username_exists">使用者名稱已存在</string>
     <string name="snack_user_renamed">使用者已重新命名為：%s</string>
     <string name="snack_user_deleted">使用者已刪除：%s</string>

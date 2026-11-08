@@ -72,6 +72,7 @@ import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.CloudGameDaily;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Link.CloudGachaActivity;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
@@ -132,6 +133,11 @@ public class SettingsFragment implements PageController {
     private static final int THEME_VARIANT_DARK = 2;
 
     // 折叠行右侧 mono 值摘要（命令台设计稿行值）所需的卡片引用
+    /** 抽屉定位标识：供用户管理页「凭证状态」与任务列表「未配置」项跳转展开。 */
+    public static final int PANE_CLOUD_GAME = 1;
+    /** 抽屉定位标识：森空岛签到。 */
+    public static final int PANE_SKLAND = 2;
+
     private SettingsCard dailyCard;
     private SettingsCard gameDailyCard;
     private SettingsCard serverCard;
@@ -532,8 +538,13 @@ public class SettingsFragment implements PageController {
         sklandPane.setOnCookieLinkClickListener(() -> activity.startActivity(
                 new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_COOKIE_URL))));
         sklandPane.setOnSaveClickListener(() -> {
-            // 获取当前保存的森空岛token值
-            String currentToken = sharedPreferences.getString(SKLAND_COOKIE, "");
+            String userId = new UserManager(activity).getCurrentUser();
+            if (userId == null || userId.isEmpty()) {
+                showCustomSnackbar(screenView, activity, activity.getString(R.string.common_need_login));
+                return;
+            }
+            // token 按用户存放（与米游社登录态、云游戏 token 同口径）：切换账号后自动切换
+            String currentToken = tools.read(activity, userId, SKLAND_COOKIE);
             // Token 输入对话框（Compose 版输入框）
             VenusDialogs.input(
                     activity,
@@ -546,8 +557,7 @@ public class SettingsFragment implements PageController {
                     true,
                     null,
                     newToken -> {
-                        // 保存到SharedPreferences
-                        sharedPreferences.edit().putString(SKLAND_COOKIE, newToken).apply();
+                        tools.write(activity, userId, SKLAND_COOKIE, newToken.trim());
                         showCustomSnackbar(screenView, context, activity.getString(R.string.snack_skland_content_saved));
                     });
         });
@@ -571,6 +581,20 @@ public class SettingsFragment implements PageController {
     /** 页面失去选中 / Activity 暂停（无逐帧资源，无操作）。 */
     @Override
     public void hide() {
+    }
+
+    /**
+     * 展开并滚动到指定抽屉。
+     *
+     * <p>供「凭证快捷配置」两个入口复用：用户管理页的凭证状态 chip、任务列表里
+     * 未配置的划线项。调用方（{@code MainActivity.openSettingsPane}）保证本页视图
+     * 已创建、且当前页已切到设置页。
+     *
+     * @param pane {@link #PANE_CLOUD_GAME} 或 {@link #PANE_SKLAND}
+     */
+    public void expandPane(int pane) {
+        if (pane == PANE_CLOUD_GAME && cloudGameCard != null) cloudGameCard.expand();
+        else if (pane == PANE_SKLAND && sklandCard != null) sklandCard.expand();
     }
 
     /** 销毁：解除底栏订阅，清空宿主引用（Activity 销毁时由 MainActivity 调用）。 */
@@ -1261,6 +1285,24 @@ public class SettingsFragment implements PageController {
         }
         cloudGamePane.setTokenStatus(configured, games.length,
                 missing.length() > 0 ? missing.toString() : null);
+        refreshCredentialAccountLabels();
+    }
+
+    /**
+     * 刷新两个凭证抽屉的「当前账号」归属与森空岛配置状态。
+     *
+     * <p>凭证按用户存放，而这个页面每次显示都可能换了账号（用户在用户管理页切换过），
+     * 所以归属文案不能只在装配时写一次。
+     */
+    private void refreshCredentialAccountLabels() {
+        String userId = new UserManager(activity).getCurrentUser();
+        boolean hasUser = userId != null && !userId.isEmpty();
+        if (cloudGamePane != null) cloudGamePane.setAccountLabel(hasUser ? userId : null);
+        if (sklandPane != null) {
+            sklandPane.setAccountLabel(hasUser ? userId : null);
+            sklandPane.setTokenConfigured(hasUser
+                    && SklandDaily.isValidToken(tools.read(activity, userId, SKLAND_COOKIE)));
+        }
     }
 
     /**

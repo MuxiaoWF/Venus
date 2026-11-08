@@ -105,6 +105,8 @@ class LinkUiState {
     var selectedUserIndex by mutableIntStateOf(-1)
     var oversea by mutableStateOf(false)
     var avatarUsername by mutableStateOf<String?>(null)
+    /** 头像刷新令牌：换头像后自增，头像文件按用户名定址、原地覆盖，无此令牌不会重载。 */
+    var avatarVersion by mutableIntStateOf(0)
     var vpnStatusText by mutableStateOf("")
     var vpnStatusState by mutableIntStateOf(VPN_STATUS_DEFAULT)
     var vpnResult by mutableStateOf<LinkRow?>(null)
@@ -286,7 +288,7 @@ private fun AccountRow(
                 .padding(vertical = dimensionResource(R.dimen.space_2)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            VenusAvatar(username = state.avatarUsername)
+            VenusAvatar(username = state.avatarUsername, refreshToken = state.avatarVersion)
             Text(
                 text = label,
                 style = textStyles.bodyLarge,
@@ -720,6 +722,11 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
     /** 账号行头像对应的用户名（null/空 = 无用户空态，显示默认人像）。 */
     fun setAvatarUsername(username: String?) {
         uiState.avatarUsername = username
+    }
+
+    /** 强制重载头像（换头像/重置后文件原地覆盖，仅刷新用户名不会更新图片）。 */
+    fun refreshAvatar() {
+        uiState.avatarVersion++
     }
 
     /** 设来源行状态（[LINK_CHIP_PENDING] / [LINK_CHIP_FETCHING] / [LINK_CHIP_FETCHED]）。 */

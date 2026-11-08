@@ -62,6 +62,13 @@ class UserCardRow(
     val displayName: String,
     /** 当前默认账号：名称后显示「默认」chip。 */
     val isDefault: Boolean,
+    /** 云游戏凭证状态文案（「1/2」「未配置」「未开启」），点击 chip 直达该账号的配置。 */
+    val cloudGameLabel: String = "",
+    /** 云游戏凭证是否全部就绪（决定 chip 配色，与功能开关无关）。 */
+    val cloudGameReady: Boolean = false,
+    /** 森空岛凭证状态文案。 */
+    val sklandLabel: String = "",
+    val sklandReady: Boolean = false,
 )
 
 /**
@@ -78,6 +85,11 @@ class UserManagementUiState {
     /** 空态文案；非空即显示空态并隐藏区块标签。 */
     var emptyText by mutableStateOf<String?>(null)
     var bottomClearancePx by mutableIntStateOf(0)
+    /**
+     * 头像刷新令牌：换头像后自增，喂给每张卡的 [VenusAvatar]。
+     * 头像文件按用户名定址、原地覆盖，没有这个令牌列表里的旧图不会更新。
+     */
+    var avatarVersion by mutableIntStateOf(0)
 }
 
 /** Java 友好的「传用户名」回调（minSdk 23 下不用 java.util.function）。 */
@@ -106,6 +118,8 @@ fun UserManagementScreen(
     onRenameClick: (String) -> Unit,
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
+    onCloudGameClick: (String) -> Unit,
+    onSklandClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -153,10 +167,13 @@ fun UserManagementScreen(
                 ) { index, user ->
                     UserCard(
                         user = user,
+                        avatarVersion = state.avatarVersion,
                         onAvatarClick = onAvatarClick,
                         onRenameClick = onRenameClick,
                         onReloginClick = onReloginClick,
                         onDeleteClick = onDeleteClick,
+                        onCloudGameClick = onCloudGameClick,
+                        onSklandClick = onSklandClick,
                         // 结构性增删/重排的让位动画：与 View 侧 LayoutTransition 同一用途。
                         // 「减少动态效果」下不挂，避免列表整体位移。
                         modifier = Modifier
@@ -238,10 +255,13 @@ private fun EmptyUserPrompt(text: String) {
 @Composable
 private fun UserCard(
     user: UserCardRow,
+    avatarVersion: Int,
     onAvatarClick: (String) -> Unit,
     onRenameClick: (String) -> Unit,
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
+    onCloudGameClick: (String) -> Unit,
+    onSklandClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -277,6 +297,7 @@ private fun UserCard(
                     VenusAvatar(
                         username = user.username,
                         size = dimensionResource(R.dimen.icon_avatar_md),
+                        refreshToken = avatarVersion,
                     )
                 }
 
@@ -297,6 +318,11 @@ private fun UserCard(
                         if (user.isDefault) DefaultChip()
                     }
                     LoggedInStatus()
+                    CredentialChips(
+                        user = user,
+                        onCloudGameClick = onCloudGameClick,
+                        onSklandClick = onSklandClick,
+                    )
                 }
 
                 // 原 XML 的 android:rotation="270"：chevron 向下 → 指向右
@@ -339,10 +365,64 @@ private fun UserCard(
     }
 }
 
+/**
+ * 凭证状态 chip 组：云游戏 / 森空岛。
+ *
+ * 点 chip 即跳到设置页对应抽屉并展开——让「看到某账号没配」和「去配」之间没有断点。
+ * 两个 chip 独立可点，与卡片信息行（整行点击 = 重命名）互不干扰：内层 clickable 优先消费。
+ */
+@Composable
+private fun CredentialChips(
+    user: UserCardRow,
+    onCloudGameClick: (String) -> Unit,
+    onSklandClick: (String) -> Unit,
+) {
+    Row(modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2))) {
+        CredentialChip(
+            label = user.cloudGameLabel,
+            ready = user.cloudGameReady,
+            onClick = { onCloudGameClick(user.username) },
+        )
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.space_2)))
+        CredentialChip(
+            label = user.sklandLabel,
+            ready = user.sklandReady,
+            onClick = { onSklandClick(user.username) },
+        )
+    }
+}
+
+/**
+ * 单个凭证状态 chip。
+ *
+ * 配色只表达「这个账号的凭证齐不齐」：齐 = 成功容器色，不齐（未配置 / 未开启）= 中性；
+ * 功能是否开启由文案区分，不交给颜色，避免两种含义挤在同一种视觉里。
+ */
+@Composable
+private fun CredentialChip(label: String, ready: Boolean, onClick: () -> Unit) {
+    val textColor = if (ready) colorResource(R.color.status_on_success_container)
+    else MaterialTheme.colorScheme.onSurfaceVariant
+    val container = if (ready) colorResource(R.color.status_success_container)
+    else MaterialTheme.colorScheme.surfaceVariant
+    Text(
+        text = label,
+        style = LocalVenusTextStyles.current.monoValue,
+        color = textColor,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(container)
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = dimensionResource(R.dimen.space_2),
+                vertical = dimensionResource(R.dimen.space_hairline),
+            ),
+    )
+}
+
 /** 「已登录」状态行：成功绿 check + 同色 mono 文案。 */
 @Composable
-private fun LoggedInStatus() {
-    val success = colorResource(R.color.status_success)
+private fun LoggedInStatus() {    val success = colorResource(R.color.status_success)
     Row(
         modifier = Modifier.padding(top = dimensionResource(R.dimen.space_hairline)),
         verticalAlignment = Alignment.CenterVertically,
@@ -439,6 +519,8 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
     private var onRenameClickListener: UsernameConsumer? = null
     private var onReloginClickListener: UsernameConsumer? = null
     private var onDeleteClickListener: UsernameConsumer? = null
+    private var onCloudGameClickListener: UsernameConsumer? = null
+    private var onSklandClickListener: UsernameConsumer? = null
 
     @Composable
     override fun Content() {
@@ -450,6 +532,8 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
                 onRenameClick = { onRenameClickListener?.accept(it) },
                 onReloginClick = { onReloginClickListener?.accept(it) },
                 onDeleteClick = { onDeleteClickListener?.accept(it) },
+                onCloudGameClick = { onCloudGameClickListener?.accept(it) },
+                onSklandClick = { onSklandClickListener?.accept(it) },
             )
         }
     }
@@ -472,6 +556,11 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
     /** 空态文案；传 null 收起空态、显示区块标签。 */
     fun setEmptyText(text: String?) {
         uiState.emptyText = text
+    }
+
+    /** 强制重载用户卡头像（换头像/重置后文件原地覆盖，仅刷新列表不会更新图片）。 */
+    fun refreshAvatar() {
+        uiState.avatarVersion++
     }
 
     /** 底栏覆盖高度（px）：列表底部留白与 FAB 底距同时跟随。 */
@@ -498,6 +587,16 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
     fun setOnDeleteClickListener(listener: UsernameConsumer?) {
         onDeleteClickListener = listener
     }
+
+    /** 点云游戏凭证 chip：跳设置页「云游戏签到」抽屉。 */
+    fun setOnCloudGameClickListener(listener: UsernameConsumer?) {
+        onCloudGameClickListener = listener
+    }
+
+    /** 点森空岛凭证 chip：跳设置页「森空岛签到」抽屉。 */
+    fun setOnSklandClickListener(listener: UsernameConsumer?) {
+        onSklandClickListener = listener
+    }
 }
 
 @Preview(name = "用户管理 · 有账号", showBackground = true)
@@ -509,8 +608,12 @@ private fun UserManagementScreenPreview() {
                 dateChip = "11/05 周三"
                 subtitle = "管理登录账号 · 共 2 个账号"
                 users = listOf(
-                    UserCardRow("muxiao", "muxiao · 国服", true),
-                    UserCardRow("venus", "venus · 国际服", false),
+                    UserCardRow("muxiao", "muxiao · 国服", true,
+                        cloudGameLabel = "云游戏 2/2", cloudGameReady = true,
+                        sklandLabel = "森空岛 已配置", sklandReady = true),
+                    UserCardRow("venus", "venus · 国际服", false,
+                        cloudGameLabel = "云游戏 未配置",
+                        sklandLabel = "森空岛 未开启"),
                 )
             },
             onAddUserClick = {},
@@ -518,6 +621,8 @@ private fun UserManagementScreenPreview() {
             onRenameClick = {},
             onReloginClick = {},
             onDeleteClick = {},
+            onCloudGameClick = {},
+            onSklandClick = {},
         )
     }
 }
@@ -537,6 +642,8 @@ private fun UserManagementScreenEmptyPreview() {
             onRenameClick = {},
             onReloginClick = {},
             onDeleteClick = {},
+            onCloudGameClick = {},
+            onSklandClick = {},
         )
     }
 }

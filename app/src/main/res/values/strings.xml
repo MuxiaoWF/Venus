@@ -146,6 +146,15 @@
         <item quantity="other">管理登录账号 · 共 %1$d 个账号</item>
     </plurals>
     <string name="user_logged_in_status">已登录</string>
+    <string name="user_cred_cloud_game">云游戏</string>
+    <string name="user_cred_skland">森空岛</string>
+    <string name="user_cred_disabled">未开启</string>
+    <string name="user_cred_missing">未配置</string>
+    <string name="user_cred_ready">已配置</string>
+    <string name="user_cred_partial">%1$d/%2$d</string>
+    <string name="user_cred_format">%1$s %2$s</string>
+    <string name="credential_account">当前账号：%1$s</string>
+    <string name="credential_account_status">当前账号：%1$s · %2$s</string>
     <string name="user_chip_default">默认</string>
     <string name="task_chip_done">已签</string>
     <string name="task_chip_failed">失败</string>
@@ -153,6 +162,9 @@
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">已取消</string>
+    <string name="task_status_not_configured">未配置</string>
+    <string name="task_skipped_unconfigured">%1$s 未配置凭证，已跳过</string>
+    <string name="common_need_login">请先登录账号</string>
     <string name="value_on">已开启</string>
     <string name="value_off">已关闭</string>
     <string name="value_enabled">已启用</string>
@@ -279,6 +291,7 @@
     <string name="snack_task_running_cannot_relogin">任务运行中，无法重新登录</string>
     <string name="snack_task_running_cannot_rename">任务运行中，无法重命名用户</string>
     <string name="snack_task_running_cannot_delete">任务运行中，无法删除用户</string>
+    <string name="snack_task_running_cannot_switch">任务运行中，无法切换用户</string>
     <string name="snack_username_exists">用户名已存在</string>
     <string name="snack_user_renamed">用户已重命名为: %s</string>
     <string name="snack_user_deleted">用户已删除: %s</string>

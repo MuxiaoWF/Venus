@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 
 import com.google.android.material.color.DynamicColors;
 import com.muxiao.Venus.Home.DailyTaskScheduler;
+import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.HeaderManager;
@@ -78,5 +79,15 @@ public class VenusApplication extends Application {
         // 在进程死亡/清除数据后可能断链，这里以 KEEP 幂等兜底：已有待执行调度则不动作，
         // 断链则按「当天必跑一次」口径重建（见 DailyTaskScheduler）。
         AppExecutors.get().execute(() -> DailyTaskScheduler.ensureScheduled(this));
+
+        // 森空岛 token 从「全局一份」改为「按用户存放」：启动时把历史值迁给当前账号。
+        // 走后台线程：首次访问会触发该用户数据仓储的冷盘预热（同步读），不宜占用主线程。
+        AppExecutors.get().execute(() -> {
+            try {
+                SklandDaily.migrateLegacyToken(this);
+            } catch (Throwable ignored) {
+                // 迁移失败不应影响启动；用户在设置页重新填写即可
+            }
+        });
     }
 }

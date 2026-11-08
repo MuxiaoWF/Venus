@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.AbstractComposeView
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -36,8 +37,11 @@ const val SKLAND_INDEX_ENDFIELD = 1
 /**
  * 设置页「森空岛」抽屉内容（原 res/layout/item_setting_skland.xml）。
  *
- * 结构：启用开关 → 两份游戏复选框（随开关整体启用/禁用）→ 两条外链 →
+ * 结构：启用开关 → 当前账号与凭证状态 → 两份游戏复选框（随开关整体启用/禁用）→ 两条外链 →
  * 三条说明副文本 → 居中「保存森空岛设置」按钮（点击弹出 token 输入框）。
+ *
+ * <p>为什么要把账号显示出来：token **按用户存放**，切换账号后这里看到的是另一个人的配置。
+ * 不标注归属的话，用户会以为「刚配好的 token 凭空消失了」。
  *
  * @param enabled 功能总开关
  * @param onEnabledChange 总开关回调
@@ -47,6 +51,8 @@ const val SKLAND_INDEX_ENDFIELD = 1
  * @param onLoginLinkClick 点击「前往森空岛登录」
  * @param onCookieLinkClick 点击「前往获取内容」
  * @param onSaveClick 点击保存按钮（弹出 token 对话框）
+ * @param accountLabel 当前账号名；为 null 时隐藏归属行（未登录）
+ * @param tokenConfigured 该账号是否已配置 token
  */
 @Composable
 fun SklandSettingPane(
@@ -59,6 +65,8 @@ fun SklandSettingPane(
     onCookieLinkClick: () -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier,
+    accountLabel: String? = null,
+    tokenConfigured: Boolean = false,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
@@ -69,6 +77,22 @@ fun SklandSettingPane(
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
+
+        if (accountLabel != null) {
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+            Text(
+                text = stringResource(
+                    R.string.credential_account_status,
+                    accountLabel,
+                    stringResource(
+                        if (tokenConfigured) R.string.user_cred_ready else R.string.user_cred_missing
+                    ),
+                ),
+                style = textStyles.bodySmall.copy(
+                    color = if (tokenConfigured) colorResource(R.color.status_success) else secondary
+                ),
+            )
+        }
 
         Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
         // 原 XML 用 ChipGroup 包两个 MaterialCheckBox（padding=space_3），等价于可折行的 Checkbox 行
@@ -189,6 +213,8 @@ class SklandSettingPaneView(context: Context) : AbstractComposeView(context) {
     private val enabledState = mutableStateOf(false)
     private val arknightsState = mutableStateOf(false)
     private val endfieldState = mutableStateOf(false)
+    private val accountLabelState = mutableStateOf<String?>(null)
+    private val tokenConfiguredState = mutableStateOf(false)
 
     private var onEnabledChangeListener: BooleanConsumer? = null
     private var onSubItemChangeListener: IndexedCheckedConsumer? = null
@@ -234,8 +260,20 @@ class SklandSettingPaneView(context: Context) : AbstractComposeView(context) {
                 onLoginLinkClick = { onLoginLinkClickListener?.run() },
                 onCookieLinkClick = { onCookieLinkClickListener?.run() },
                 onSaveClick = { onSaveClickListener?.run() },
+                accountLabel = accountLabelState.value,
+                tokenConfigured = tokenConfiguredState.value,
             )
         }
+    }
+
+    /** 当前账号名（凭证按用户存放，界面必须标明归属）；null 表示未登录。 */
+    fun setAccountLabel(label: String?) {
+        accountLabelState.value = label
+    }
+
+    /** 当前账号是否已配置森空岛 token。 */
+    fun setTokenConfigured(configured: Boolean) {
+        tokenConfiguredState.value = configured
     }
 
     fun setOnEnabledChangeListener(listener: BooleanConsumer?) {

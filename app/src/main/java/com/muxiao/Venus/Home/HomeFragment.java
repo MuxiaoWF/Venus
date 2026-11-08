@@ -19,6 +19,7 @@ import com.geetest.sdk.GT3GeetestUtils;
 import com.geetest.sdk.views.GT3GeetestButton;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.PageController;
@@ -156,9 +157,9 @@ public class HomeFragment implements PageController {
             String picked = currentUsernames.get(index);
             viewModel.setCurrentUser(picked);
             userManager.setCurrentUser(picked);
-            // 切换账号：按新用户重建任务状态与头像
-            loadUserAvatar();
-            viewModel.refreshTaskItems();
+            // 切换账号：账号行文案、下拉选中项、头像与按账号分桶的任务列表一起重建。
+            // 只刷新头像与任务列表会漏掉账号行文案——那一个是独立写进 Compose 状态的。
+            renderUserContext();
         });
         // 无用户空态引导：账号行点击跳转用户管理页（而非弹出一个空下拉）
         root.setOnJumpToUsersListener(() -> activity.navigateToPage(1));
@@ -312,6 +313,9 @@ public class HomeFragment implements PageController {
                     notifier.notifyListeners(activity.getString(R.string.task_cancelled));
                 },
                 activity.getString(R.string.btn_continue_task)));
+
+        // 点「未配置」任务项：直达设置页对应凭证抽屉（划线只提示不解决，这里补上后半程）
+        root.setOnDisabledTaskClickListener(this::onDisabledTaskClick);
 
         // 后台运行/取消按钮
         root.setOnBackgroundClickListener(() -> {
@@ -542,7 +546,7 @@ public class HomeFragment implements PageController {
         int done = 0;
         int failed = 0;
         for (TaskItem item : state.items) {
-            rows.add(new HomeTaskRow(item.getName(), toUiStatus(item.getStatus())));
+            rows.add(new HomeTaskRow(item.getName(), toUiStatus(item.getStatus()), !item.isRunnable()));
             // DONE 计数与小组件 done_ 口径一致，仅统计 COMPLETED + RETAINED。
             // 「已签过」由服务端返回后任务正常走 COMPLETED；等待人机验证期间任务保持
             // IN_PROGRESS，不计入。RETAINED（沿用上次结果）本质是当日已完成，计入 done，
@@ -597,6 +601,26 @@ public class HomeFragment implements PageController {
      * @param taskName 任务名称
      * @param status   任务状态
      */
+    /**
+     * 点了任务列表里的「未配置」项：跳到设置页对应凭证抽屉并展开。
+     *
+     * <p>任务名是本地化字符串，只能按「同一 getString 口径」反查：云游戏逐个游戏名比对，
+     * 森空岛两款任务共用同一个 token、指向同一个抽屉。
+     */
+    private void onDisabledTaskClick(String taskName) {
+        TaskSettings settings = TaskSettings.fromPreferences(activity);
+        for (String game : settings.getCloudGames()) {
+            if (taskName.equals(CloudGameDaily.taskName(activity, game))) {
+                activity.openSettingsPane(SettingsFragment.PANE_CLOUD_GAME);
+                return;
+            }
+        }
+        if (taskName.equals(activity.getString(R.string.task_name_skland_arknights))
+                || taskName.equals(activity.getString(R.string.task_name_skland_endfield))) {
+            activity.openSettingsPane(SettingsFragment.PANE_SKLAND);
+        }
+    }
+
     private void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         viewModel.updateTaskStatus(taskName, status);
     }
@@ -605,6 +629,16 @@ public class HomeFragment implements PageController {
     private void loadUserAvatar() {
         if (screenView != null)
             screenView.setAvatarUsername(viewModel.getCurrentUser());
+    }
+
+    /**
+     * 头像文件被替换或重置后强制重载。
+     *
+     * <p>头像按用户名定址、换头像时是原地覆盖文件，用户名与路径都没变——
+     * 只调 {@link #loadUserAvatar()} 不会触发重组，Glide 也会命中旧缓存。
+     */
+    public void refreshAvatar() {
+        if (screenView != null) screenView.refreshAvatar();
     }
 
     /**
@@ -629,6 +663,43 @@ public class HomeFragment implements PageController {
         screenView.setUsers(currentUsernames, currentUsernames.indexOf(current));
         screenView.setUserLabel(current.isEmpty() ? "" : formatUserLabel(current, isOversea));
         loadUserAvatar();
+    }
+
+    /**
+     * 从持久化读回当前账号并重建账号上下文。
+     *
+     * <p>用于「当前账号可能在页面外被改动」的时机：本页 show（用户可能刚从用户管理页切了账号）
+     * 与用户管理页凭证 chip 的跨页切换。与 {@link #renderUserContext()} 的分工是数据流向——
+     * 这里 SP → ViewModel，后者直接用 ViewModel 现值渲染。
+     */
+    public void refreshUserContext() {
+        if (viewModel == null) return;
+        if (userManager == null) userManager = new UserManager(activity);
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(activity);
+        List<String> usernames = userManager.getUsernamesByServerType(isOversea);
+        String current = userManager.getCurrentUser();
+        // 当前账号可能已被删除（removeUser 会清掉当前用户标记）或被改名：回落到第一个可用账号。
+        // 与 createView 的初始兜底同口径——不兜底会让账号行空着、任务按已不存在的用户分桶。
+        if (!usernames.contains(current)) {
+            current = usernames.isEmpty() ? "" : usernames.get(0);
+            if (!current.isEmpty()) userManager.setCurrentUser(current);
+        }
+        viewModel.setCurrentUser(current);
+        renderUserContext();
+    }
+
+    /**
+     * 按 ViewModel 的当前账号重建账号行文案 / 下拉选中项 / 头像，并重算按账号分桶的任务列表。
+     *
+     * <p>三个入口共用：本页 show、首页下拉切换、用户管理页的凭证 chip 切换。
+     * 集中在一处的原因——漏掉任意一项都会留下「账号已切、界面还是旧账号」的残影：
+     * 账号行文案是直接写进 Compose 状态的，不走 ViewModel 的 UiState。
+     */
+    private void renderUserContext() {
+        if (screenView == null || userManager == null || viewModel == null) return;
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(activity);
+        applyUserList(userManager.getUsernamesByServerType(isOversea), isOversea);
+        viewModel.refreshTaskItems();
     }
 
     /**
@@ -754,13 +825,7 @@ public class HomeFragment implements PageController {
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
 
         // 更新账号行与下拉中的用户列表（当前用户单一来源为 ViewModel）
-        if (userManager != null && screenView != null) {
-            viewModel.setCurrentUser(userManager.getCurrentUser());
-            boolean isOversea = MiHoYoBBSConstants.is_oversea(context);
-            List<String> usernames = userManager.getUsernamesByServerType(isOversea);
-            // 从用户管理页添加/删除用户回来后，列表、空态与头像一并刷新
-            applyUserList(usernames, isOversea);
-        }
+        refreshUserContext();
 
         // 刷新小组件
         TaskWidgetProvider.refreshAllWidgets(context);

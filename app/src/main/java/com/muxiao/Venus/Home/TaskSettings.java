@@ -22,6 +22,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_WEIDING;
 import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ARKNIGHTS_ENABLED;
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENDFIELD_ENABLED;
 
@@ -30,9 +31,12 @@ import android.content.SharedPreferences;
 
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.tools;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 从 SharedPreferences 读取用户配置的任务开关，组装成不可变的任务列表。
@@ -48,19 +52,22 @@ public class TaskSettings {
      * 总开关开着但一款都没勾时，列表里不会有云游戏任务，运行入口会据此给出可读提示。
      */
     private final boolean cloudGameEnabled;
+    /** 当前服务器类型：决定云游戏 token 的存储键（两服云原神 token 不通用）。 */
+    private final boolean isOversea;
     private final String[] dailyForums;
     private final String[] gameDailyGames;
     private final String[] cloudGames;
 
     private TaskSettings(boolean dailyEnabled, boolean gameDailyEnabled,
                          boolean sklandArknightsEnabled, boolean sklandEndfieldEnabled,
-                         boolean cloudGameEnabled,
+                         boolean cloudGameEnabled, boolean isOversea,
                          String[] dailyForums, String[] gameDailyGames, String[] cloudGames) {
         this.dailyEnabled = dailyEnabled;
         this.gameDailyEnabled = gameDailyEnabled;
         this.sklandArknightsEnabled = sklandArknightsEnabled;
         this.sklandEndfieldEnabled = sklandEndfieldEnabled;
         this.cloudGameEnabled = cloudGameEnabled;
+        this.isOversea = isOversea;
         this.dailyForums = dailyForums;
         this.gameDailyGames = gameDailyGames;
         this.cloudGames = cloudGames;
@@ -108,7 +115,7 @@ public class TaskSettings {
         }
 
         return new TaskSettings(dailyEnabled, gameDailyEnabled,
-                sklandArknightsEnabled, sklandEndfieldEnabled, cloudGameEnabled,
+                sklandArknightsEnabled, sklandEndfieldEnabled, cloudGameEnabled, isOversea,
                 daily.toArray(new String[0]), gameDaily.toArray(new String[0]),
                 cloudGames.toArray(new String[0]));
     }
@@ -171,5 +178,38 @@ public class TaskSettings {
         if (sklandArknightsEnabled) names.add(context.getString(R.string.task_name_skland_arknights));
         if (sklandEndfieldEnabled) names.add(context.getString(R.string.task_name_skland_endfield));
         return names;
+    }
+
+    /**
+     * 返回「任务名 → 是否具备执行条件」映射，供任务列表划线提示与执行期跳过使用。
+     *
+     * <p>只覆盖<b>需要额外凭证</b>的两类：云游戏 token、森空岛 token。米游币签到与游戏签到
+     * 依赖的是账号登录态本身——未登录时用户列表里没有该账号、也就不会有它的任务，故恒为可执行。
+     *
+     * <p>键为本地化任务名，与 {@link #getTaskNames(Context)} 严格同源（同一批 getString 口径），
+     * 调用方按名字查即可；未出现在映射里的任务视为可执行。
+     *
+     * @param userId 当前选中用户；为空时云游戏与森空岛一律视为未配置
+     */
+    public Map<String, Boolean> getTaskReadiness(Context context, String userId) {
+        Map<String, Boolean> readiness = new HashMap<>();
+        boolean hasUser = userId != null && !userId.isEmpty();
+        if (cloudGames != null) {
+            for (String g : cloudGames) {
+                String token = hasUser
+                        ? tools.read(context, userId, CloudGameDaily.tokenKey(g, isOversea)) : null;
+                readiness.put(CloudGameDaily.taskName(context, g), CloudGameDaily.isValidToken(token));
+            }
+        }
+        if (sklandArknightsEnabled || sklandEndfieldEnabled) {
+            String token = hasUser ? tools.read(context, userId, SKLAND_COOKIE) : null;
+            boolean ready = SklandDaily.isValidToken(token);
+            // 两款游戏共用同一个森空岛 token，配置状态必然一致
+            if (sklandArknightsEnabled)
+                readiness.put(context.getString(R.string.task_name_skland_arknights), ready);
+            if (sklandEndfieldEnabled)
+                readiness.put(context.getString(R.string.task_name_skland_endfield), ready);
+        }
+        return readiness;
     }
 }

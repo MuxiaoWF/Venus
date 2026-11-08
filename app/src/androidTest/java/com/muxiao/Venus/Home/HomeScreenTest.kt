@@ -2,6 +2,7 @@ package com.muxiao.Venus.Home
 
 import android.widget.LinearLayout
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -18,6 +19,7 @@ import com.muxiao.Venus.common.ui.compose.TASK_COMPLETED
 import com.muxiao.Venus.common.ui.compose.TASK_ERROR
 import com.muxiao.Venus.common.ui.compose.TASK_PENDING
 import com.muxiao.Venus.common.ui.compose.VenusTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -64,6 +66,7 @@ class HomeScreenTest {
         state: HomeUiState,
         onStartDaily: () -> Unit = {},
         onJumpToUsers: () -> Unit = {},
+        onDisabledTaskClick: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             VenusTheme {
@@ -77,6 +80,7 @@ class HomeScreenTest {
                     onRetryFailed = {},
                     onBackgroundClick = {},
                     onViewLog = {},
+                    onDisabledTaskClick = onDisabledTaskClick,
                 )
             }
         }
@@ -144,5 +148,29 @@ class HomeScreenTest {
 
         composeRule.onNodeWithText(context.getString(R.string.home_no_user_hint)).performClick()
         assertTrue(jumped)
+    }
+
+    /**
+     * 「未配置」的项要能直接点去配置，可执行的项不能挂点击
+     * （否则误触会跳页，而正常项点了没有任何理由发生跳转）。
+     */
+    @Test
+    fun onlyDisabledTaskRowIsClickable() {
+        val clicked = ArrayList<String>()
+        setScreen(
+            baseState().apply {
+                tasks = listOf(
+                    HomeTaskRow("云原神云游戏签到", TASK_PENDING, disabled = true),
+                    HomeTaskRow("米游社签到", TASK_PENDING),
+                )
+            },
+            onDisabledTaskClick = { clicked.add(it) },
+        )
+
+        composeRule.onNodeWithText("云原神云游戏签到").performClick()
+        assertEquals(listOf("云原神云游戏签到"), clicked)
+
+        composeRule.onNodeWithText("米游社签到").assertHasNoClickAction()
+        assertEquals(1, clicked.size)
     }
 }

@@ -7,6 +7,7 @@ import static com.muxiao.Venus.common.tools.sendPostRequest;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -14,6 +15,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.User.UserManager;
+import com.muxiao.Venus.VenusApplication;
 import com.muxiao.Venus.common.DeviceUtils;
 import com.muxiao.Venus.common.tools;
 
@@ -63,10 +66,13 @@ public class SklandDaily {
     private final int gameId;
     private final String deviceID;
 
-    public SklandDaily(Context context, tools.StatusNotifier notifier, int gameId) {
+    public SklandDaily(Context context, String userId, tools.StatusNotifier notifier, int gameId) {
         this.context = context;
-        this.token = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE).getString(SKLAND_COOKIE, "");
-        if (token.isEmpty())
+        // token 按用户存放（与米游社登录态、云游戏 token 同口径）：切换账号后自动使用
+        // 该账号自己的 token。旧版是 SETTINGS_PREFS_NAME 里的一份全局定值，切换账号不会跟着变，
+        // 结果就是用 A 账号的 token 给 B 账号签到。
+        this.token = tools.read(context, userId, SKLAND_COOKIE);
+        if (!isValidToken(token))
             throw new RuntimeException(context.getString(R.string.skland_content_not_set));
         this.notifier = notifier;
         this.gameId = gameId;
@@ -75,6 +81,36 @@ public class SklandDaily {
         if (deviceID == null || deviceID.isEmpty()) {
             throw new RuntimeException("获取设备ID失败(deviceID is null)，请检查权限或重启应用");
         }
+    }
+
+    /**
+     * 森空岛 token 形态是否可信：同时拦住「未填写」与前端拼进去的占位值
+     * （{@code undefined} / {@code null}），语义与 {@link CloudGameDaily#isValidToken} 一致。
+     */
+    public static boolean isValidToken(String token) {
+        if (token == null) return false;
+        String t = token.trim();
+        if (t.length() < 16) return false;
+        if (t.indexOf(' ') >= 0) return false;
+        return !"undefined".equalsIgnoreCase(t) && !"null".equalsIgnoreCase(t);
+    }
+
+    /**
+     * 把旧版全局存放的森空岛 token 迁移给当前选中账号，并删除全局键。
+     *
+     * <p>旧版所有账号共用一份定值，这份值究竟属于哪个账号无从判断，取「当前选中账号」
+     * 是最合理的推断；其余账号各自在设置里重新配置即可。幂等：迁移后全局键即被移除，
+     * 重复调用无副作用（由 {@link VenusApplication#onCreate} 在进程启动时兜底触发）。
+     */
+    public static void migrateLegacyToken(Context context) {
+        SharedPreferences global = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+        String legacy = global.getString(SKLAND_COOKIE, "");
+        if (!isValidToken(legacy)) return;
+        String userId = new UserManager(context).getCurrentUser();
+        if (userId == null || userId.isEmpty()) return;
+        if (!isValidToken(tools.read(context, userId, SKLAND_COOKIE)))
+            tools.write(context, userId, SKLAND_COOKIE, legacy.trim());
+        global.edit().remove(SKLAND_COOKIE).apply();
     }
 
     /** 森空岛签到主流程：换取 cred → 拉取绑定角色 → 按 gameId 过滤 → 逐个签到。 */

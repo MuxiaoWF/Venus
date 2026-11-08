@@ -53,6 +53,8 @@ class UserManagementScreenTest {
                     onRenameClick = {},
                     onReloginClick = {},
                     onDeleteClick = {},
+                    onCloudGameClick = {},
+                    onSklandClick = {},
                 )
             }
         }
@@ -79,6 +81,8 @@ class UserManagementScreenTest {
                     onRenameClick = {},
                     onReloginClick = {},
                     onDeleteClick = {},
+                    onCloudGameClick = {},
+                    onSklandClick = {},
                 )
             }
         }
@@ -99,12 +103,18 @@ class UserManagementScreenTest {
         composeRule.setContent {
             VenusTheme {
                 UserManagementScreen(
-                    state = state(users = listOf(UserCardRow("muxiao", "muxiao · 国服", true))),
+                    state = state(users = listOf(UserCardRow(
+                        "muxiao", "muxiao · 国服", true,
+                        cloudGameLabel = "云游戏 未配置",
+                        sklandLabel = "森空岛 未开启",
+                    ))),
                     onAddUserClick = { added = true },
                     onAvatarClick = {},
                     onRenameClick = { renamed = it },
                     onReloginClick = { relogin = it },
                     onDeleteClick = { deleted = it },
+                    onCloudGameClick = {},
+                    onSklandClick = {},
                 )
             }
         }

@@ -92,6 +92,9 @@ public class TaskExecutor {
         boolean runAll = onlyNames == null || onlyNames.isEmpty();
         notifier.notifyListeners(context.getString(R.string.task_mgr_start, userId));
         List<Future<?>> futures = new ArrayList<>();
+        // 凭证就绪表：云游戏/森空岛未配置 token 的任务在列表里已划线，这里同样跳过，
+        // 既不浪费请求也不把「没配」误报成「失败」。
+        java.util.Map<String, Boolean> readiness = settings.getTaskReadiness(context, userId);
         // 统一线程池（AppExecutors）：米游币签到、游戏签到、森空岛签到可并行。
         // 注意：共享线程池不可 shutdown，取消时改为 future.cancel(true)。
         // 经 AppExecutors.submit() 门面提交：不暴露 ExecutorService（AutoCloseable），
@@ -112,16 +115,24 @@ public class TaskExecutor {
                 // 总开关开着但一款都没勾：与「游戏签到」同口径给出可读提示，而不是静默无任务
                 if (runAll) notifier.notifyListeners(context.getString(R.string.task_cloud_game_no_game));
             } else {
-                for (String gameName : cloudGames)
+                for (String gameName : cloudGames) {
+                    if (!isReady(readiness, CloudGameDaily.taskName(context, gameName), gameName)) continue;
                     futures.add(AppExecutors.get().submit(() -> executeCloudGame(gameName)));
+                }
             }
         }
         if (settings.isSklandArknightsEnabled() && (runAll
-                || onlyNames.contains(context.getString(R.string.task_name_skland_arknights))))
-            futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
+                || onlyNames.contains(context.getString(R.string.task_name_skland_arknights)))) {
+            String taskName = context.getString(R.string.task_name_skland_arknights);
+            if (isReady(readiness, taskName, taskName))
+                futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
+        }
         if (settings.isSklandEndfieldEnabled() && (runAll
-                || onlyNames.contains(context.getString(R.string.task_name_skland_endfield))))
-            futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
+                || onlyNames.contains(context.getString(R.string.task_name_skland_endfield)))) {
+            String taskName = context.getString(R.string.task_name_skland_endfield);
+            if (isReady(readiness, taskName, taskName))
+                futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
+        }
 
         // 过滤后无任何可执行目标（如失败任务已被用户改配置移除）：不空跑，直接走完成回调
         if (futures.isEmpty()) {
@@ -132,6 +143,23 @@ public class TaskExecutor {
         if (!callback.isCancelled()) {
             callback.onAllTasksCompleted();
         }
+    }
+
+    /**
+     * 凭证未配置的任务直接跳过。
+     *
+     * <p>任务列表里已用删除线标出，这里再补一条进度提示：否则用户看到项还在、
+     * 运行结束后状态仍是「待执行」，会以为是漏跑。
+     *
+     * @param taskName 就绪表中的键（本地化任务名）
+     * @param label    提示里展示的名字（云游戏用游戏名，森空岛用任务名本身）
+     * @return true 表示可以执行
+     */
+    private boolean isReady(java.util.Map<String, Boolean> readiness, String taskName, String label) {
+        Boolean ready = readiness.get(taskName);
+        if (ready == null || ready) return true;
+        notifier.notifyListeners(context.getString(R.string.task_skipped_unconfigured, label));
+        return false;
     }
 
     /**
@@ -304,7 +332,7 @@ public class TaskExecutor {
                 ? context.getString(R.string.task_name_skland_arknights)
                 : context.getString(R.string.task_name_skland_endfield);
         executeTask(taskName, () -> {
-            SklandDaily skland = new SklandDaily(context, notifier, gameId);
+            SklandDaily skland = new SklandDaily(context, userId, notifier, gameId);
             skland.run();
         });
     }

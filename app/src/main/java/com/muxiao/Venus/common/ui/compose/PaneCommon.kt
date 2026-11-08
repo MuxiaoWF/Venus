@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
+import com.bumptech.glide.signature.ObjectKey
 import com.muxiao.Venus.R
 import com.muxiao.Venus.User.AvatarStore
 
@@ -294,18 +295,23 @@ private fun HeaderChip(text: String) {
  * 否则会残留上一用户的头像状态。
  */
 @Composable
-internal fun VenusAvatar(username: String?, size: Dp = 32.dp) {
+internal fun VenusAvatar(username: String?, size: Dp = 32.dp, refreshToken: Int = 0) {
     val context = LocalContext.current
-    key(username) {
-        val hasCustom = remember(username, context) {
+    // refreshToken 参与 key/remember/LaunchedEffect：头像文件会被原地覆盖（路径不变），
+    // 只靠 username 做 key 的话，换完头像这里不会重载，界面仍是旧图。
+    key(username, refreshToken) {
+        val hasCustom = remember(username, refreshToken) {
             !username.isNullOrEmpty() && AvatarStore.hasAvatar(context, username)
         }
-        var bitmap by remember(username) { mutableStateOf<Bitmap?>(null) }
-        LaunchedEffect(username, hasCustom) {
+        var bitmap by remember(username, refreshToken) { mutableStateOf<Bitmap?>(null) }
+        LaunchedEffect(username, hasCustom, refreshToken) {
             if (hasCustom && username != null) {
+                val file = AvatarStore.avatarFile(context, username)
                 Glide.with(context)
                     .asBitmap()
-                    .load(AvatarStore.avatarFile(context, username))
+                    .load(file)
+                    // 路径不变但内容会变：用修改时间做签名，否则 Glide 命中内存缓存直接返回旧图
+                    .signature(ObjectKey(file.lastModified()))
                     .circleCrop()
                     .into(object : CustomTarget<Bitmap>() {
                         override fun onResourceReady(

@@ -1,5 +1,6 @@
 package com.muxiao.Venus.User;
 
+import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 
 import android.content.Context;
@@ -11,12 +12,17 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 
+import com.muxiao.Venus.Home.CloudGameDaily;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Home.SklandDaily;
+import com.muxiao.Venus.Home.TaskSettings;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.PageController;
+import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 import com.muxiao.Venus.common.ui.compose.UserCardRow;
@@ -78,6 +84,11 @@ public class UserManagementFragment implements PageController {
         root.setOnRenameClickListener(this::onRenameClick);
         root.setOnReloginClickListener(this::performRelogin);
         root.setOnDeleteClickListener(this::showDeleteUserDialog);
+        // 凭证状态 chip：一键跳到设置页对应抽屉，省去「去设置里找哪一页」的来回
+        root.setOnCloudGameClickListener(username ->
+                openCredentialPane(username, SettingsFragment.PANE_CLOUD_GAME));
+        root.setOnSklandClickListener(username ->
+                openCredentialPane(username, SettingsFragment.PANE_SKLAND));
 
         // 页眉日期 chip：MM/dd 周几（与设计稿一致）
         root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
@@ -153,15 +164,93 @@ public class UserManagementFragment implements PageController {
         String currentUsername = userManager.getCurrentUser();
         // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
         String serverType = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
+        // 功能开关是全局配置、凭证是按账号的，所以每张卡的状态要按「开关 × 该账号 token」算
+        TaskSettings settings = TaskSettings.fromPreferences(getContext());
         List<UserCardRow> rows = new ArrayList<>(users.size());
         for (String username : users) {
+            Credential cloud = cloudGameCredential(settings, username, isOversea);
+            Credential skland = sklandCredential(settings, username);
             rows.add(new UserCardRow(
                     username,
                     activity.getString(R.string.user_label_with_server, username, serverType),
                     // 当前用户标注「默认」chip（设计稿语义）
-                    username.equals(currentUsername)));
+                    username.equals(currentUsername),
+                    cloud.label, cloud.ready,
+                    skland.label, skland.ready));
         }
         screenView.setUsers(rows);
+    }
+
+    /** 一张用户卡上的单项凭证状态：展示文案 + 是否就绪（决定 chip 配色）。 */
+    private static final class Credential {
+        final String label;
+        final boolean ready;
+
+        Credential(String label, boolean ready) {
+            this.label = label;
+            this.ready = ready;
+        }
+    }
+
+    /**
+     * 云游戏凭证状态。
+     *
+     * <p>开关是全局的、token 是按账号的，两者必须一起看：开关没开显示「未开启」，
+     * 开了但该账号没配显示「未配置」，配齐显示「已配置」，部分配置给出 n/m 进度。
+     */
+    private Credential cloudGameCredential(TaskSettings settings, String username, boolean isOversea) {
+        String name = activity.getString(R.string.user_cred_cloud_game);
+        if (!settings.isCloudGameEnabled())
+            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_disabled)), false);
+        String[] games = settings.getCloudGames();
+        if (games == null || games.length == 0)
+            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_missing)), false);
+        int ready = 0;
+        for (String game : games) {
+            if (CloudGameDaily.isValidToken(
+                    tools.read(getContext(), username, CloudGameDaily.tokenKey(game, isOversea)))) ready++;
+        }
+        if (ready == games.length)
+            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_ready)), true);
+        return new Credential(
+                formatCredential(name, activity.getString(R.string.user_cred_partial, ready, games.length)), false);
+    }
+
+    /** 森空岛凭证状态（两款游戏共用同一个 token，状态必然一致）。 */
+    private Credential sklandCredential(TaskSettings settings, String username) {
+        String name = activity.getString(R.string.user_cred_skland);
+        if (!settings.isSklandArknightsEnabled() && !settings.isSklandEndfieldEnabled())
+            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_disabled)), false);
+        boolean ready = SklandDaily.isValidToken(tools.read(getContext(), username, SKLAND_COOKIE));
+        return new Credential(
+                formatCredential(name, activity.getString(
+                        ready ? R.string.user_cred_ready : R.string.user_cred_missing)), ready);
+    }
+
+    private String formatCredential(String name, String status) {
+        return activity.getString(R.string.user_cred_format, name, status);
+    }
+
+    /**
+     * 点凭证 chip：先把当前账号切到这张卡的用户，再跳设置页展开对应抽屉。
+     *
+     * <p>必须先切账号——凭证按账号存放，不切就会把 token 配到另一个人名下。
+     * 任务运行中禁止切换，与其它用户操作同口径（运行时 userId 已固定在任务执行器里）。
+     */
+    private void openCredentialPane(String username, int pane) {
+        if (isTaskRunning()) {
+            showCustomSnackbar(screenView, getContext(),
+                    activity.getString(R.string.snack_task_running_cannot_switch));
+            return;
+        }
+        if (!username.equals(userManager.getCurrentUser())) {
+            userManager.setCurrentUser(username);
+            // 立刻回灌首页：账号行不经过 ViewModel 的 UiState，不在这里通知的话，
+            // 用户切回首页时会先看到上一个账号的名字
+            activity.onCurrentUserChanged();
+            refreshUserList(); // 「默认」chip 与状态跟着换位
+        }
+        activity.openSettingsPane(pane);
     }
 
     /** 信息行点击 = 重命名（设计稿无独立重命名按钮，保留原入口能力）。 */
@@ -227,6 +316,8 @@ public class UserManagementFragment implements PageController {
             userManager.setCurrentUser(newUsername);
         userManager.removeUser(oldUsername);
         refreshUserList();
+        // 用户名变了，首页的账号行 / 下拉列表 / 按账号分桶的任务列表都要跟着重建
+        activity.onCurrentUserChanged();
         showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_renamed, newUsername));
     }
 
@@ -249,6 +340,10 @@ public class UserManagementFragment implements PageController {
                     } else {
                         AvatarStore.deleteAvatar(getContext(), username);
                         refreshUserList();
+                        screenView.refreshAvatar();
+                        // 重置的是当前账号时，首页头像也要跟着变回默认图
+                        if (username.equals(userManager.getCurrentUser()))
+                            activity.onAvatarChanged();
                     }
                 },
                 activity.getString(R.string.btn_cancel));
@@ -262,6 +357,10 @@ public class UserManagementFragment implements PageController {
             activity.runOnUiThread(() -> {
                 if (screenView == null) return;
                 refreshUserList();
+                // 头像文件按用户名定址、原地覆盖：必须显式让卡片与首页重载，否则显示旧图
+                screenView.refreshAvatar();
+                if (saved && username.equals(userManager.getCurrentUser()))
+                    activity.onAvatarChanged();
                 showCustomSnackbar(screenView, getContext(), activity.getString(saved
                         ? R.string.snack_avatar_saved
                         : R.string.err_avatar_save_failed));
@@ -289,6 +388,9 @@ public class UserManagementFragment implements PageController {
                     // 头像文件随用户一并清除，避免残留
                     AvatarStore.deleteAvatar(getContext(), username);
                     refreshUserList();
+                    // 删的可能正是当前账号（removeUser 会清掉当前用户标记）：
+                    // 首页据此回落到剩余账号，否则账号行会空着、任务按已删除的用户分桶
+                    activity.onCurrentUserChanged();
                     showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_deleted, username));
                 },
                 activity.getString(R.string.btn_cancel));
