@@ -2,7 +2,6 @@ package com.muxiao.Venus.common.ui.compose
 
 import android.content.Context
 import android.view.View
-import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -19,9 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -54,7 +51,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import com.muxiao.Venus.R
@@ -87,7 +83,19 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
 
     internal var isExpanded by mutableStateOf(false)
     internal var isVisible by mutableStateOf(true)
-    internal var contentView by mutableStateOf<View?>(null)
+
+    /**
+     * 展开内容的组合内容，由 [SettingsScreenView] 在构造时注入。
+     *
+     * 迁移前这里是 `contentView: View?`（Java 侧 `new XxxPaneView(context)` 再 `setContent(view)`），
+     * 展开时经 `AndroidView` 把那个 ComposeView 塞进本组合。那条路有两个固有代价：
+     * 1. 抽屉每折叠/展开一次就重建一个 AndroidView 节点，旧节点可能还没释放而目标 View 已挂在它名下
+     *    （所以原来必须手动 `(content.parent as ViewGroup).removeView(content)` 才不报
+     *    "The specified child already has a parent"）；
+     * 2. 内层 CompositionView 的测量要走 View→Compose 两趟，抽屉高度动画期间高度收敛慢一帧。
+     * 现在窗格只是一组 `mutableStateOf` + 一个 `@Composable fun Render()`，直接在本组合里渲染。
+     */
+    internal var paneContent by mutableStateOf<(@Composable () -> Unit)?>(null)
 
     fun setValue(value: CharSequence) {
         this.value = value.toString()
@@ -97,9 +105,9 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
         valueColorArgb = color
     }
 
-    /** 设置展开内容（Compose 宿主视图）。 */
-    fun setContent(view: View) {
-        contentView = view
+    /** 注入展开内容的组合内容（`SettingsScreenView` 内部调用，Java 侧不再直接持有窗格 View）。 */
+    fun setPaneContent(content: @Composable () -> Unit) {
+        paneContent = content
     }
 
     /** 显隐（对齐 `View.setVisibility`：仅 VISIBLE 视为显示）。 */
@@ -133,8 +141,9 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
 /**
  * 展开内容的测试标记。
  *
- * 抽屉内容是一个真实 View（窗格宿主经 [AndroidView] 桥接），Compose 的语义树看不进
- * View 内部，因此用标记表示「这一扇抽屉当前是展开的」——UI 测试据此断言折叠交互。
+ * 批次 C 之前，抽屉内容是一个经 `AndroidView` 桥接的真实 View，Compose 语义树看不进 View 内部，
+ * 只能靠标记判断「这一扇抽屉当前是展开的」；现在内容已是同一组合里的 Composable，
+ * 标记仍保留——用它断言「展开时有内容 / 折叠时没有」比逐条断言文案更稳定。
  */
 const val SETTINGS_DRAWER_CONTENT_TAG = "settings-drawer-content"
 
@@ -242,8 +251,10 @@ fun SettingsScreen(
             VenusDivider()
             SettingsCardItem(about)
 
-            // 查看榜单图：独立表面行按钮，与四个分组平级
-            GlassRowButton(
+            // 查看榜单图：独立表面行按钮，与四个分组平级。
+            // 复用 SettingRows.kt 的 GlassActionRow（原先这里是本文件私有的 GlassRowButton，
+            // 与配置信息窗格的行按钮是两套材质：一份 LensGlass、一份九宫格 drawable）
+            GlassActionRow(
                 iconRes = R.drawable.ic_image,
                 text = stringResource(R.string.view_miyoushe_ranking),
                 onClick = onImageClick,
@@ -280,8 +291,11 @@ private fun SettingsCardItem(card: SettingsCard) {
     val decelerate = rememberVenusEasing(R.anim.emphasized_decelerate)
     val inset = dimensionResource(R.dimen.space_2)
     val railWidthPx = with(density) { dimensionResource(R.dimen.space_hairline).toPx() }
-    // 竖线底端内缩：不与下方分隔横线相交，留出间隔
-    val railBottomInsetPx = with(density) { dimensionResource(R.dimen.space_2).toPx() }
+    // 引导线正好框住「内容本身」：上端让开 DrawerPane 的 4dp 顶部内边距，
+    // 下端让开同外壳的 drawer_content_bottom(16dp) 收尾留白。
+    // 否则抽屉底部一改，竖线就会伸出内容之外（旧值 8dp 就是这种错位）。
+    val railTopInsetPx = with(density) { dimensionResource(R.dimen.space_1).toPx() }
+    val railBottomInsetPx = with(density) { dimensionResource(R.dimen.drawer_content_bottom).toPx() }
     // 引导线颜色与 Widget.Venus.Divider 同源（outlineVariant）
     val railColor = MaterialTheme.colorScheme.outlineVariant
 
@@ -370,78 +384,38 @@ private fun SettingsCardItem(card: SettingsCard) {
                 exit = if (reducedMotion) fadeOut(tween(0))
                 else shrinkVertically(tween(duration, easing = decelerate)),
             ) {
-                val content = card.contentView
+                val content = card.paneContent
                 if (content != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag(SETTINGS_DRAWER_CONTENT_TAG)
                             .padding(start = inset)
-                            // 左侧引导线：2dp 竖线，表达抽屉内容从属于标题行；
-                            // 底端内缩 space_2，不与下方分隔横线相接
+                            // 左侧引导线：2dp 竖线，表达抽屉内容从属于标题行。
+                            // 高度 = 内容高度（上让 4dp、下让 16dp，与 DrawerPane 的内边距同源），
+                            // 既不穿过标题行，也不伸进分隔线前的收尾留白。
                             .drawBehind {
                                 drawRect(
                                     color = railColor,
-                                    topLeft = Offset.Zero,
-                                    size = Size(railWidthPx, size.height - railBottomInsetPx),
+                                    topLeft = Offset(0f, railTopInsetPx),
+                                    size = Size(
+                                        railWidthPx,
+                                        (size.height - railTopInsetPx - railBottomInsetPx)
+                                            .coerceAtLeast(0f),
+                                    ),
                                 )
                             },
                     ) {
-                        AndroidView(
-                            // 折叠→展开会重建 AndroidView 节点：旧节点可能尚未释放，
-                            // 目标 View 还挂在它名下，先摘下再交给新节点，避免
-                            // "The specified child already has a parent"
-                            factory = {
-                                (content.parent as? ViewGroup)?.removeView(content)
-                                content
-                            },
-                            // 内容在引导线右侧留出间距：竖线 2dp + space_2(8dp)，不紧贴竖线
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = dimensionResource(R.dimen.space_hairline) + dimensionResource(R.dimen.space_2)),
-                        )
+                        // 这里不再额外缩进：与引导线的间距由 DrawerPane 自身的 space_3(12) 提供
+                        // （竖直 2dp 线 → 内容 = 12 - 2 = 10dp）。
+                        // 早期版本是 `padding(start = 2 + 8)`，那是 AndroidView 桥接时代为了让内层
+                        // View 躲开竖线而加的；窗格自己已有 12dp，叠加后内容被推到 46dp、
+                        // 离竖线 20dp，竖线看起来"飘"在左边。批次 C 去掉桥接后这段缩进成了纯冗余。
+                        // 这里仍是同一组合内的直接调用：展开/折叠不会重建节点。
+                        content()
                     }
                 }
             }
-        }
-    }
-}
-
-/** 表面行按钮（`Widget.Venus.RowButton`）：液态玻璃 8dp 圆角 + 行内图标 + 文案。 */
-@Composable
-private fun GlassRowButton(
-    iconRes: Int,
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val density = LocalDensity.current
-    val cornerPx = with(density) { dimensionResource(R.dimen.shape_corner_xs).toPx() }
-    Box(modifier = modifier.fillMaxWidth()) {
-        LensGlass(
-            modifier = Modifier.matchParentSize(),
-            cornerRadiusPx = cornerPx,
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = dimensionResource(R.dimen.touch_target_min))
-                .clickable(onClick = onClick)
-                .padding(horizontal = dimensionResource(R.dimen.space_4)),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
-            )
-            Text(
-                text = text,
-                style = LocalVenusTextStyles.current.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = dimensionResource(R.dimen.space_3)),
-            )
         }
     }
 }
@@ -456,9 +430,12 @@ private fun rememberReducedMotion(): Boolean {
 /**
  * 设置页的 Compose 宿主。
  *
- * 13 个抽屉在此**急切构造**并对外暴露：`SettingsFragment` 的用法与原
- * `CollapsibleCardView` 完全一致（`setContent` / `setValue` / `setValueColor` /
- * `setVisibility`），因此那 13 套窗格的状态与回调逻辑一行都不用改。
+ * 13 个抽屉与 13 个窗格状态宿主都在此**急切构造**并对外暴露：
+ * - 抽屉（[SettingsCard]）给 `SettingsFragment` 调 `setValue` / `setValueColor` / `setVisibility` / `expand`；
+ * - 窗格宿主（`XxxSettingPaneView`，已不再是 View）给 `SettingsFragment` 调 `setXxx(...)` 回填状态。
+ *
+ * 两者的接线在本类构造时完成：`card.setPaneContent { pane.Render() }`。这样抽屉展开时
+ * 窗格的组合直接长在设置页的组合里（同一 composition），不再经 `AndroidView` 桥接。
  */
 class SettingsScreenView(context: Context) : AbstractComposeView(context) {
 
@@ -477,6 +454,37 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     val notificationCard = SettingsCard(R.string.background_running)
     val sklandCard = SettingsCard(R.string.skland_sign_in)
     val aboutCard = SettingsCard(R.string.about)
+
+    // 窗格状态宿主：只持有 mutableStateOf 与回调，由 Java 侧 setXxx(...) 驱动
+    val dailyPane = DailySettingPaneView()
+    val gameDailyPane = GameDailySettingPaneView()
+    val cloudGamePane = CloudGameSettingPaneView()
+    val serverPane = ServerSettingPaneView()
+    val configPane = BbsUtilsSettingPaneView()
+    val updatePane = UpdateSettingPaneView()
+    val cachePane = CacheSettingPaneView()
+    val languagePane = LanguageSettingPaneView()
+    val themePane = ThemeSettingPaneView()
+    val backgroundPane = BackgroundSettingPaneView()
+    val notificationPane = NotificationSettingPaneView()
+    val sklandPane = SklandSettingPaneView()
+    val aboutPane = AboutSettingPaneView()
+
+    init {
+        dailyCard.setPaneContent { dailyPane.Render() }
+        gameDailyCard.setPaneContent { gameDailyPane.Render() }
+        cloudGameCard.setPaneContent { cloudGamePane.Render() }
+        serverCard.setPaneContent { serverPane.Render() }
+        configCard.setPaneContent { configPane.Render() }
+        updateCard.setPaneContent { updatePane.Render() }
+        cacheCard.setPaneContent { cachePane.Render() }
+        languageCard.setPaneContent { languagePane.Render() }
+        themeCard.setPaneContent { themePane.Render() }
+        backgroundCard.setPaneContent { backgroundPane.Render() }
+        notificationCard.setPaneContent { notificationPane.Render() }
+        sklandCard.setPaneContent { sklandPane.Render() }
+        aboutCard.setPaneContent { aboutPane.Render() }
+    }
 
     private var onImageClickListener: Runnable? = null
 

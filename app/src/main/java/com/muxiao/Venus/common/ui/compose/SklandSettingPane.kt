@@ -1,33 +1,20 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.layout.wrapContentWidth
 import com.muxiao.Venus.R
 
 /** 森空岛子游戏复选框序号（与 Java 侧 SKLAND_ARKNIGHTS_ENABLED / SKLAND_ENDFIELD_ENABLED 顺序一致）。 */
@@ -37,11 +24,19 @@ const val SKLAND_INDEX_ENDFIELD = 1
 /**
  * 设置页「森空岛」抽屉内容（原 res/layout/item_setting_skland.xml）。
  *
- * 结构：启用开关 → 当前账号与凭证状态 → 两份游戏复选框（随开关整体启用/禁用）→ 两条外链 →
- * 三条说明副文本 → 居中「保存森空岛设置」按钮（点击弹出 token 输入框）。
+ * 结构（密度版，纵向由约 300dp 收到约 195dp）：
+ * 开关行 → 当前账号与凭证状态 → 两个游戏复选行（随开关整体启用/禁用）→ 两条外链（同一行）
+ * → 三条说明合并为一段 → 玻璃动作行「保存森空岛设置」。
  *
  * <p>为什么要把账号显示出来：token **按用户存放**，切换账号后这里看到的是另一个人的配置。
  * 不标注归属的话，用户会以为「刚配好的 token 凭空消失了」。
+ *
+ * <p>密度口径：
+ * - 三条 tip（403 / 午夜 / 内容）本就是同一件事的三句补充，合并为一段按行分隔的说明，
+ *   省掉两处 `Spacer(8) + 独立 Text`；
+ * - 两个外链并排（各占一半），不再上下两条；
+ * - 复选行用 [SettingCheckRow]（整行可点、44dp），替代原先带 12dp 内边距的自定义行；
+ * - 保存按钮改 [GlassActionRow]，与页内其它玻璃动作行同一套材质。
  *
  * @param enabled 功能总开关
  * @param onEnabledChange 总开关回调
@@ -68,19 +63,16 @@ fun SklandSettingPane(
     accountLabel: String? = null,
     tokenConfigured: Boolean = false,
 ) {
-    val textStyles = LocalVenusTextStyles.current
-    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val tipStyle = textStyles.bodySmall.copy(color = secondary)
     DrawerPane(modifier) {
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_feature),
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_feature),
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
 
         if (accountLabel != null) {
-            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-            Text(
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+            SettingHint(
                 text = stringResource(
                     R.string.credential_account_status,
                     accountLabel,
@@ -88,127 +80,76 @@ fun SklandSettingPane(
                         if (tokenConfigured) R.string.user_cred_ready else R.string.user_cred_missing
                     ),
                 ),
-                style = textStyles.bodySmall.copy(
-                    color = if (tokenConfigured) colorResource(R.color.status_success) else secondary
-                ),
-            )
-        }
-
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
-        // 原 XML 用 ChipGroup 包两个 MaterialCheckBox（padding=space_3），等价于可折行的 Checkbox 行
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
-        ) {
-            SklandCheckbox(
-                text = stringResource(R.string.arknights),
-                checked = arknightsChecked,
-                enabled = enabled,
-                onCheckedChange = { onSubItemChange(SKLAND_INDEX_ARKNIGHTS, it) },
-            )
-            SklandCheckbox(
-                text = stringResource(R.string.endfield),
-                checked = endfieldChecked,
-                enabled = enabled,
-                onCheckedChange = { onSubItemChange(SKLAND_INDEX_ENDFIELD, it) },
+                tone = if (tokenConfigured) SettingTone.Success else SettingTone.Info,
             )
         }
 
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            SklandLink(
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+        ) {
+            SettingCheckRow(
+                title = stringResource(R.string.arknights),
+                checked = arknightsChecked,
+                onCheckedChange = { onSubItemChange(SKLAND_INDEX_ARKNIGHTS, it) },
+                enabled = enabled,
+                fillWidth = false,
+            )
+            SettingCheckRow(
+                title = stringResource(R.string.endfield),
+                checked = endfieldChecked,
+                onCheckedChange = { onSubItemChange(SKLAND_INDEX_ENDFIELD, it) },
+                enabled = enabled,
+                fillWidth = false,
+            )
+        }
+
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingLinkRow(
                 text = stringResource(R.string.go_to_login_skland),
                 onClick = onLoginLinkClick,
                 modifier = Modifier.weight(1f),
             )
-            // 原 XML：左链接 marginEnd=space_2、右链接 marginStart=space_2，合计 16dp
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_4)))
-            SklandLink(
+            Spacer(Modifier.width(dimensionResource(R.dimen.space_3)))
+            SettingLinkRow(
                 text = stringResource(R.string.go_to_get_content),
                 onClick = onCookieLinkClick,
                 modifier = Modifier.weight(1f),
             )
         }
 
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
-        Text(text = stringResource(R.string.skland_403_tip), style = tipStyle)
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Text(text = stringResource(R.string.skland_midnight_tip), style = tipStyle)
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Text(text = stringResource(R.string.skland_content_tip), style = tipStyle)
-
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        OutlinedButton(
-            onClick = onSaveClick,
-            shape = CircleShape,
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentWidth(Alignment.CenterHorizontally),
-        ) {
-            Text(
-                text = stringResource(R.string.save_skland_settings),
-                style = textStyles.labelMedium,
-            )
-        }
-    }
-}
-
-/** 复选框行：Checkbox + 文案，整体可点（对应 MaterialCheckBox 的文本点击区）。 */
-@Composable
-private fun SklandCheckbox(
-    text: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .clickable(enabled = enabled) { onCheckedChange(!checked) }
-            .padding(dimensionResource(R.dimen.space_3)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled,
+        // 三条补充说明合并为一段。注意必须用 inline 的 map 再 joinToString：
+        // joinToString 的 transform 是普通函数类型（非 inline），在里面调 stringResource 会报
+        // "@Composable invocations can only happen from the context of a @Composable function"
+        // maxLines 放到 6：三条中文按当前宽度最多换到 6 行，截断会丢"内容获取"这条关键提示
+        SettingHint(
+            text = listOf(
+                R.string.skland_403_tip,
+                R.string.skland_midnight_tip,
+                R.string.skland_content_tip,
+            ).map { stringResource(it) }.joinToString("\n"),
+            maxLines = 6,
         )
-        Text(
-            text = text,
-            style = LocalVenusTextStyles.current.body,
-            color = MaterialTheme.colorScheme.onSurface,
+
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        GlassActionRow(
+            text = stringResource(R.string.save_skland_settings),
+            onClick = onSaveClick,
         )
     }
 }
 
 /**
- * 外链行：下划线文案 + 尾随链接图标。
+ * [SklandSettingPane] 的状态宿主（原 View 互操作宿主）。
  *
- * 原 XML 用 `android:drawableEnd` 贴在 0dp/weight=1 的 TextView 尾部（即行右端），
- * 这里以「Text weight 撑开 + Image 靠右」还原，图标沿用 vector 自带的 colorPrimary。
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
  */
-@Composable
-private fun SklandLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text,
-            style = LocalVenusTextStyles.current.body.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textDecoration = TextDecoration.Underline,
-            ),
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
-        Image(
-            painter = painterResource(R.drawable.ic_link_url),
-            contentDescription = null,
-        )
-    }
-}
-
-/** [SklandSettingPane] 的 View 互操作宿主。 */
-class SklandSettingPaneView(context: Context) : AbstractComposeView(context) {
+class SklandSettingPaneView {
 
     private val enabledState = mutableStateOf(false)
     private val arknightsState = mutableStateOf(false)
@@ -242,7 +183,7 @@ class SklandSettingPaneView(context: Context) : AbstractComposeView(context) {
         }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             SklandSettingPane(
                 enabled = enabledState.value,
@@ -297,7 +238,18 @@ class SklandSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 森空岛", showBackground = true)
+@Preview(
+    name = "森空岛 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "森空岛 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun SklandSettingPanePreview() {
     VenusTheme {
@@ -310,6 +262,8 @@ private fun SklandSettingPanePreview() {
             onLoginLinkClick = {},
             onCookieLinkClick = {},
             onSaveClick = {},
+            accountLabel = "MuxiaoWF",
+            tokenConfigured = true,
         )
     }
 }

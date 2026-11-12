@@ -284,11 +284,7 @@
 
     <!-- ========== 液态玻璃（liquid glass）材质色（深色） ========== -->
     <!-- 深色玻璃 = 暗色半透明填充压暗背景保证浅色文字对比，rim/sheen 用白光提亮边缘。 -->
-    <color name="glass_fill_top">#66161920</color>
-    <color name="glass_fill_bottom">#40161920</color>
     <!-- RowButton 软光边（深色）：白光边语义保留（暗玻璃的提边光源），
          顶部 40%→30% 收敛、底部 6%→8% 微提，减弱光环与暗色填充的割裂感 -->
-    <color name="glass_rim_soft_top">#4DFFFFFF</color>
-    <color name="glass_rim_soft_bottom">#14FFFFFF</color>
     <!-- Kyant 材质栈（深色）：tint 更低（内容自透深色），高光稍强，内阴影更深 -->
 </resources>

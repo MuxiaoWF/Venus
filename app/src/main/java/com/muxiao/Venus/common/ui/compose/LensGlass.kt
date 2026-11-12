@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -50,6 +51,9 @@ import com.muxiao.Venus.R
  * @param circle true = 圆形透镜（如行首图标圆）
  * @param pill true = 药丸形，圆角取实际高度一半（对应状态 chip）
  * @param cornerRadiusPx 非 circle / pill 时使用的圆角半径（px）
+ * @param cornerRadiusDp 非 circle / pill 时使用的圆角半径（dp）。与 [cornerRadiusPx] 二选一：
+ *        资源里本来就是 dp，直接给 dp 可省掉调用处的 `with(density) { ...toPx() }` 换算，
+ *        新代码优先用它（[cornerRadiusPx] 保留给需要像素精确的旧调用点）
  * @param semanticStrokeColor 语义描边色（ARGB），0 = 不描边
  * @param backdrop 采样源。null（默认）= [LocalGlassBackdrop]（基础源：底色+壁纸，
  *                 页内玻璃用——基础源不含透镜，结构上无自引用）；底栏玻璃显式传
@@ -63,6 +67,7 @@ fun LensGlass(
     circle: Boolean = false,
     pill: Boolean = false,
     cornerRadiusPx: Float = 0f,
+    cornerRadiusDp: Dp? = null,
     semanticStrokeColor: Int = 0,
     backdrop: GlassBackdropState? = null,
     content: @Composable BoxScope.() -> Unit = {},
@@ -74,6 +79,7 @@ fun LensGlass(
     val shape: Shape = when {
         circle -> CircleShape
         pill -> RoundedCornerShape(50)
+        cornerRadiusDp != null -> RoundedCornerShape(cornerRadiusDp)
         else -> RoundedCornerShape(with(density) { cornerRadiusPx.toDp() })
     }
     val hairlineWidth = dimensionResource(R.dimen.stroke_width_hairline)

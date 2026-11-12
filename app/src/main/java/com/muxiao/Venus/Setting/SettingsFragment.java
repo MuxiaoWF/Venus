@@ -272,32 +272,21 @@ public class SettingsFragment implements PageController {
         sklandCard = sklandCardView;
         cloudGameCard = cloudGameCardView;
 
-        dailyPane = new DailySettingPaneView(context);
-        bbsCard.setContent(dailyPane);
-        gameDailyPane = new GameDailySettingPaneView(context);
-        bbsGameCard.setContent(gameDailyPane);
-        ServerSettingPaneView serverPane = new ServerSettingPaneView(context);
-        serverCardView.setContent(serverPane);
-        utilsPane = new BbsUtilsSettingPaneView(context);
-        bbsUtilsCard.setContent(utilsPane);
-        UpdateSettingPaneView updatePane = new UpdateSettingPaneView(context);
-        updateCardView.setContent(updatePane);
-        cachePane = new CacheSettingPaneView(context);
-        cacheCardView.setContent(cachePane);
-        LanguageSettingPaneView languagePane = new LanguageSettingPaneView(context);
-        languageCardView.setContent(languagePane);
-        ThemeSettingPaneView themePane = new ThemeSettingPaneView(context);
-        themeCardView.setContent(themePane);
-        BackgroundSettingPaneView backgroundPane = new BackgroundSettingPaneView(context);
-        backgroundCardView.setContent(backgroundPane);
-        notificationPane = new NotificationSettingPaneView(context);
-        notificationCardView.setContent(notificationPane);
-        AboutSettingPaneView aboutPane = new AboutSettingPaneView(context);
-        aboutCard.setContent(aboutPane);
-        sklandPane = new SklandSettingPaneView(context);
-        sklandCardView.setContent(sklandPane);
-        cloudGamePane = new CloudGameSettingPaneView(context);
-        cloudGameCardView.setContent(cloudGamePane);
+        // 窗格状态宿主由 SettingsScreenView 构造并已完成与抽屉的接线（card.setPaneContent）。
+        // 这里只取引用用于回填状态；窗格已不是 View，不再需要 setContent(...)。
+        dailyPane = root.getDailyPane();
+        gameDailyPane = root.getGameDailyPane();
+        utilsPane = root.getConfigPane();
+        cachePane = root.getCachePane();
+        notificationPane = root.getNotificationPane();
+        sklandPane = root.getSklandPane();
+        cloudGamePane = root.getCloudGamePane();
+        ServerSettingPaneView serverPane = root.getServerPane();
+        UpdateSettingPaneView updatePane = root.getUpdatePane();
+        LanguageSettingPaneView languagePane = root.getLanguagePane();
+        ThemeSettingPaneView themePane = root.getThemePane();
+        BackgroundSettingPaneView backgroundPane = root.getBackgroundPane();
+        AboutSettingPaneView aboutPane = root.getAboutPane();
 
 
         // 静态行值摘要（设计稿：配置信息=已配置、关于=开源许可 · 隐私政策、背景按设置）
@@ -434,7 +423,7 @@ public class SettingsFragment implements PageController {
         updateBatteryOptValue();
         notificationPane.setOnBatteryRowClickListener(() -> {
             if (BatteryHelper.isIgnoringBatteryOptimizations(context)) {
-                tools.showCustomSnackbar(notificationPane, context.getApplicationContext(),
+                tools.showCustomSnackbar(screenView, context.getApplicationContext(),
                         activity.getString(R.string.battery_already_exempted));
                 return;
             }
@@ -467,7 +456,7 @@ public class SettingsFragment implements PageController {
                         activity.getString(R.string.btn_ok));
                 return;
             }
-            updateConfig(utilsPane);
+            updateConfig();
         });
         // 显示当前配置值
         displayCurrentConfigValues();
@@ -711,7 +700,7 @@ public class SettingsFragment implements PageController {
             String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
             if (uriString == null) {
                 // 从未设置过背景时点「清除」：如实提示，不再谎报「已清除」
-                showCustomSnackbar(view, activity, activity.getString(R.string.snack_no_background_to_clear));
+                showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_no_background_to_clear));
                 return;
             }
             try {
@@ -728,7 +717,7 @@ public class SettingsFragment implements PageController {
                 show_error_dialog(activity, activity.getString(R.string.err_delete_background_error, e.toString()));
             }
             backgroundPreferences.edit().remove(BACKGROUND_IMAGE_URI).apply();
-            showCustomSnackbar(view, activity, activity.getString(R.string.snack_background_cleared));
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_background_cleared));
         });
 
         // 淡化风格预设档（0=轻盈 1=标准 2=浓郁）：控制解码时的图像预处理强度，
@@ -742,7 +731,7 @@ public class SettingsFragment implements PageController {
         view.setAlphaPercent(currentAlpha * 100);
         view.setOnAlphaChangeListener(percent ->
                 backgroundPreferences.edit().putFloat(BACKGROUND_ALPHA, percent / 100.0f).apply());
-        view.setOnAlphaChangeFinishedListener(() -> showCustomSnackbar(view, activity,
+        view.setOnAlphaChangeFinishedListener(() -> showCustomSnackbar(screenView, activity,
                 activity.getString(R.string.snack_opacity_set, (int) view.getAlphaPercent())));
     }
 
@@ -778,7 +767,7 @@ public class SettingsFragment implements PageController {
             cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, newType == 0);
             refreshCloudGameTokens();
             updateCloudGameCardValue();
-            showCustomSnackbar(view, activity,
+            showCustomSnackbar(screenView, activity,
                     activity.getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
         });
     }
@@ -1020,7 +1009,7 @@ public class SettingsFragment implements PageController {
     /**
      * 后台从网络拉取最新 salt/版本等配置，成功则刷新显示并提示，失败提示错误。
      */
-    private void updateConfig(View view) {
+    private void updateConfig() {
         // ApplicationContext 在 UI 线程取出：后台线程不访问 Activity 引用
         final Context appContext = activity.getApplicationContext();
         AppExecutors.get().execute(() -> {
@@ -1028,9 +1017,9 @@ public class SettingsFragment implements PageController {
             activity.runOnUiThread(() -> {
                 if (success) {
                     displayCurrentConfigValues();
-                    showCustomSnackbar(view, activity, activity.getString(R.string.snack_config_updated));
+                    showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_config_updated));
                 } else {
-                    showCustomSnackbar(view, activity, activity.getString(R.string.snack_config_update_failed));
+                    showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_config_update_failed));
                 }
             });
         });

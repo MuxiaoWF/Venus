@@ -1,15 +1,12 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,19 +47,15 @@ fun DailySettingPane(
     modifier: Modifier = Modifier,
     chipsEnabled: Boolean = true,
 ) {
-    val textStyles = LocalVenusTextStyles.current
     DrawerPane(modifier) {
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_feature),
+        // 说明（34 字，2~3 行）内联为开关行的副标题：原先是「开关 + Spacer + 独立 Text + Spacer」四段
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_feature),
             checked = switchChecked,
             onCheckedChange = onSwitchChange,
+            subtitle = stringResource(R.string.bbs_daily_tip),
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Text(
-            text = stringResource(R.string.bbs_daily_tip),
-            style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-        )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
         FilterChipFlow(
             labels = DAILY_CHIP_LABEL_RES.map { stringResource(it) },
             checked = chipChecked,
@@ -73,8 +66,14 @@ fun DailySettingPane(
     }
 }
 
-/** [DailySettingPane] 的 View 互操作宿主。 */
-class DailySettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [DailySettingPane] 的状态宿主。
+ *
+ * 迁移前是 `AbstractComposeView` 子类（由 Java 侧 `new DailySettingPaneView(context)` 再塞进
+ * `AndroidView`）；现在只是状态容器，`Render()` 直接由 `SettingsScreenView` 在设置页的
+ * 同一组合里调用，Java 侧只负责 `setXxx(...)` 回填状态。
+ */
+class DailySettingPaneView {
 
     private val switchState = mutableStateOf(true)
     private val chipsState = mutableStateListOf<Boolean>().apply {
@@ -96,7 +95,7 @@ class DailySettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             DailySettingPane(
                 switchChecked = switchState.value,
@@ -123,7 +122,18 @@ class DailySettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 米游币签到", showBackground = true)
+@Preview(
+    name = "米游币签到 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "米游币签到 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun DailySettingPanePreview() {
     VenusTheme {

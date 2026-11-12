@@ -1,13 +1,12 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -52,12 +51,12 @@ fun GameDailySettingPane(
     chipVisible: List<Boolean> = List(GAME_CHIP_LABEL_RES.size) { true },
 ) {
     DrawerPane(modifier) {
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_feature),
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_feature),
             checked = switchChecked,
             onCheckedChange = onSwitchChange,
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         FilterChipFlow(
             labels = GAME_CHIP_LABEL_RES.map { stringResource(it) },
             checked = chipChecked,
@@ -68,8 +67,12 @@ fun GameDailySettingPane(
     }
 }
 
-/** [GameDailySettingPane] 的 View 互操作宿主。 */
-class GameDailySettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [GameDailySettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class GameDailySettingPaneView {
 
     private val switchState = mutableStateOf(true)
     private val chipsState = mutableStateListOf<Boolean>().apply {
@@ -98,7 +101,7 @@ class GameDailySettingPaneView(context: Context) : AbstractComposeView(context) 
     }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             GameDailySettingPane(
                 switchChecked = switchState.value,
@@ -126,7 +129,18 @@ class GameDailySettingPaneView(context: Context) : AbstractComposeView(context) 
     }
 }
 
-@Preview(name = "设置 · 游戏签到", showBackground = true)
+@Preview(
+    name = "游戏签到 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "游戏签到 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun GameDailySettingPanePreview() {
     VenusTheme {

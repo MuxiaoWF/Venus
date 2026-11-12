@@ -1,34 +1,15 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.content.res.ResourcesCompat
 import com.muxiao.Venus.R
 
 /**
@@ -59,76 +40,38 @@ fun BbsUtilsSettingPane(
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
-    // 行按钮底是液态玻璃 layer-list（非 vector），painterResource 只认 vector / 位图，
-    // 这里直接取 Drawable 在 drawBehind 里绘制，观感与原 MaterialButton 的 background 一致。
-    // LocalResources 配置感知：语言/主题切换时重组并重取，避免 stale resources
-    val resources = LocalResources.current
-    val context = LocalContext.current
-    val rowButtonBackground = remember(resources) {
-        ResourcesCompat.getDrawable(resources, R.drawable.bg_glass_row_button, context.theme)
-    }
     DrawerPane(modifier) {
-        Text(
-            text = stringResource(R.string.refresh_tip),
-            style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-        )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+        SettingHint(text = stringResource(R.string.refresh_tip))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         Text(
             text = stringResource(R.string.current_config_value),
             style = textStyles.drawerLabel,
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+        // 7 行 KV 收口到 SettingValueRow（32dp 紧凑行），原先每行手写 Row + 40dp 行高
         CONFIG_KEY_LABEL_RES.forEachIndexed { index, labelRes ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = dimensionResource(R.dimen.space_2)),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(text = stringResource(labelRes), style = textStyles.drawerLabel)
-                Spacer(Modifier.width(dimensionResource(R.dimen.space_3)))
-                Text(
-                    text = values.getOrElse(index) { "" },
-                    style = textStyles.monoValue.copy(color = MaterialTheme.colorScheme.onSurface),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            SettingValueRow(
+                label = stringResource(labelRes),
+                value = values.getOrElse(index) { "" },
+            )
         }
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
-        // 表面行按钮：沿用原 bg_glass_row_button 九宫底，保证与 XML 版观感一致
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(dimensionResource(R.dimen.touch_target_min))
-                .drawBehind {
-                    val bg = rowButtonBackground ?: return@drawBehind
-                    bg.setBounds(0, 0, size.width.toInt(), size.height.toInt())
-                    bg.draw(drawContext.canvas.nativeCanvas)
-                }
-                .clickable(onClick = onUpdateClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_refresh),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-                Text(
-                    text = stringResource(R.string.update_config),
-                    style = textStyles.body.copy(color = MaterialTheme.colorScheme.onSurface),
-                )
-            }
-        }
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        // 原先是 drawBehind 画 bg_glass_row_button 九宫格（View 时代遗留），
+        // 与页内其它玻璃不是同一套材质；改用 GlassActionRow（LensGlass + GlassSpecs.Inset）
+        GlassActionRow(
+            text = stringResource(R.string.update_config),
+            iconRes = R.drawable.ic_refresh,
+            onClick = onUpdateClick,
+        )
     }
 }
 
-/** [BbsUtilsSettingPane] 的 View 互操作宿主。 */
-class BbsUtilsSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [BbsUtilsSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class BbsUtilsSettingPaneView {
 
     private val valuesState = mutableStateListOf<String>().apply {
         repeat(CONFIG_KEY_LABEL_RES.size) { add("") }
@@ -141,7 +84,7 @@ class BbsUtilsSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             BbsUtilsSettingPane(
                 values = valuesState.toList(),
@@ -155,7 +98,18 @@ class BbsUtilsSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 配置信息", showBackground = true)
+@Preview(
+    name = "配置信息 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "配置信息 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun BbsUtilsSettingPanePreview() {
     VenusTheme {

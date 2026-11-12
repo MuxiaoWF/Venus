@@ -1,6 +1,6 @@
 package com.muxiao.Venus.Setting
 
-import android.widget.TextView
+import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -75,8 +75,15 @@ class SettingsScreenTest {
         }
     }
 
-    private fun paneContent(): TextView =
-        TextView(context).apply { text = "缓存 12.4 MB" }
+    /**
+     * 抽屉展开内容。
+     *
+     * 迁移前这里塞一个 `TextView`（经 `AndroidView` 桥接，Compose 语义树看不进去）；
+     * 批次 C 后展开内容是同一组合里的 Composable，直接给一段文本即可被语义树识别。
+     */
+    private fun SettingsCard.setDummyPane() {
+        setPaneContent { Text("缓存 12.4 MB") }
+    }
 
     @Test
     fun allThirteenDrawersAreRendered() {
@@ -94,7 +101,7 @@ class SettingsScreenTest {
     @Test
     fun tappingTitleTogglesContent() {
         val list = cards()
-        list[6].setContent(paneContent())
+        list[6].setDummyPane()
         setScreen(list)
 
         // 默认全部折叠：没有任何抽屉内容在场

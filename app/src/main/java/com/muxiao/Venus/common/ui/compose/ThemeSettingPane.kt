@@ -1,6 +1,6 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,16 +9,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,15 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
@@ -79,11 +72,12 @@ fun ThemeSettingPane(
             text = stringResource(R.string.select_app_theme),
             style = textStyles.drawerLabel,
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
         FlowRow(
             modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.space_1)),
             horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_3)),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+            // 纵向 8→4：7 枚圆点在 360dp 上会折成两行，行距收紧后省 4dp
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_1)),
         ) {
             ThemeDot(
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -131,39 +125,23 @@ fun ThemeSettingPane(
             )
         }
 
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         Text(
             text = stringResource(R.string.theme_variant_setting),
             style = textStyles.drawerLabel,
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
         val variantOptions = listOf(
             stringResource(R.string.theme_follow),
             stringResource(R.string.theme_light),
             stringResource(R.string.theme_dark),
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            variantOptions.forEachIndexed { index, text ->
-                SegmentedButton(
-                    selected = selectedVariant == index,
-                    onClick = { onVariantSelect(index) },
-                    // 按位置给出形状：首尾圆角、中间段直角，相邻段共用边框
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = variantOptions.size,
-                    ),
-                    label = {
-                        Text(
-                            text = text,
-                            style = LocalVenusTextStyles.current.labelMedium,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                )
-            }
-        }
+        // 分段控件收口到 VenusSegmented（玻璃轨道 + 实心选中段）
+        VenusSegmented(
+            options = variantOptions,
+            selectedIndex = selectedVariant,
+            onSelect = onVariantSelect,
+        )
     }
 }
 
@@ -218,8 +196,12 @@ private fun ThemeDot(
     }
 }
 
-/** [ThemeSettingPane] 的 View 互操作宿主。 */
-class ThemeSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [ThemeSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class ThemeSettingPaneView {
 
     private val themeState = mutableIntStateOf(THEME_INDEX_SYSTEM)
     private val variantState = mutableIntStateOf(THEME_VARIANT_INDEX_FOLLOW)
@@ -242,7 +224,7 @@ class ThemeSettingPaneView(context: Context) : AbstractComposeView(context) {
         }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             ThemeSettingPane(
                 selectedTheme = themeState.intValue,
@@ -268,7 +250,18 @@ class ThemeSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 主题", showBackground = true)
+@Preview(
+    name = "主题 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "主题 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun ThemeSettingPanePreview() {
     VenusTheme {

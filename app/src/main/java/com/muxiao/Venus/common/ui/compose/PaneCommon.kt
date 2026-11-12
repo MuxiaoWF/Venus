@@ -26,7 +26,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,9 +54,25 @@ import com.muxiao.Venus.R
 import com.muxiao.Venus.User.AvatarStore
 
 /**
- * 设置抽屉内容的外壳（取代原 XML 的 `Widget.Venus.DrawerPane` 样式，该样式已随迁移删除）：
- * 左右 space_4、上下 gap_row 内边距 + 竖向排列。
+ * 设置抽屉内容的外壳（取代原 XML 的 `Widget.Venus.DrawerPane` 样式，该样式已随迁移删除）。
+ *
  * 各 `item_setting_*` 迁移后的 Composable 一律用它做根，保证抽屉外壳口径一致。
+ *
+ * <h3>内边距为什么是 12 / 8 / 4 / 16</h3>
+ * 迁移初版是「上下 gap_row(12) + 左右 space_4(16)」，与上游三层叠加后，内容被推到
+ * 左 50dp / 右 32dp，而抽屉标题行是 24/24dp——内容右端比标题右端多缩 8dp，
+ * 可点区域白窄 16dp，视觉上"内容悬在标题下方、右边收不齐"。
+ * 现在按「左悬挂、右对齐」重定：
+ * - 左 space_3(12)：引导线在 24dp（与标题文字左端齐），内容从 36dp 起（24 + 12），
+ *   竖线到内容留 10dp（12 - 2dp 线宽），保留从属层级的悬挂缩进；
+ * - 右 space_2(8)：内容右端与标题行右端同为 24dp，按钮/chip 的右边缘终于对得上；
+ * - 上 space_1(4)：标题行自带 16dp 下边距，这里再垫 12 会形成 28dp 空档，
+ *   展开后第一行与标题"脱节"。4dp 让内容紧贴标题行，密度由此开始；
+ * - 下 [R.dimen.drawer_content_bottom](16)：**上下不对称是刻意的**。标题行下方有 16dp 垫着，
+ *   内容底部却紧跟分隔线与下一条标题行的 16dp；底部若也只有 4dp，内容会紧贴分隔线，
+ *   形成「上 20 / 下 4」的失衡（抽屉看起来被切掉了下半段）。取 16dp 后分隔线正好居中。
+ *
+ * 调用方不要在外层再加左右/底部 padding（那正是错位与底部失衡的来源）。
  */
 @Composable
 internal fun DrawerPane(
@@ -68,10 +83,10 @@ internal fun DrawerPane(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                start = dimensionResource(R.dimen.space_4),
-                end = dimensionResource(R.dimen.space_4),
-                top = dimensionResource(R.dimen.gap_row),
-                bottom = dimensionResource(R.dimen.gap_row),
+                start = dimensionResource(R.dimen.space_3),
+                end = dimensionResource(R.dimen.space_2),
+                top = dimensionResource(R.dimen.space_1),
+                bottom = dimensionResource(R.dimen.drawer_content_bottom),
             ),
         content = content,
     )
@@ -98,29 +113,6 @@ fun interface FloatConsumer {
 }
 
 /**
- * 左文案 + 右开关的一行，等价于 `SwitchMaterial(text=..., textAppearance=DrawerLabel)`。
- */
-@Composable
-internal fun LabeledSwitchRow(
-    text: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text,
-            style = LocalVenusTextStyles.current.drawerLabel,
-            modifier = Modifier.weight(1f),
-        )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-/**
  * 多选题 Chip 流式布局，等价于 XML 的 `ChipGroup` + `Widget.Material3.Chip.Filter`：
  * 自动换行、多选、可整组禁用（国际服隐藏/禁用场景）。
  *
@@ -141,7 +133,8 @@ internal fun FilterChipFlow(
     FlowRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+        // 纵向 gap 收紧到 4dp：chip 组折行时（游戏签到最多 3 行）每行省 4dp，横向仍留 8dp 防误触
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_1)),
     ) {
         labels.forEachIndexed { index, label ->
             if (visible.getOrElse(index) { true }) {

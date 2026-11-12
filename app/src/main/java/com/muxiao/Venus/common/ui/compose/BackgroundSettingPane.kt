@@ -1,17 +1,11 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -20,11 +14,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
@@ -64,68 +55,32 @@ fun BackgroundSettingPane(
             text = stringResource(R.string.select_background_image),
             style = textStyles.drawerLabel,
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(
-                onClick = onSelectClick,
-                shape = CircleShape,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = stringResource(R.string.select_image),
-                    style = textStyles.labelMedium,
-                )
-            }
-            // 原 XML：左钮 marginEnd=space_1、右钮 marginStart=space_1，合计 8dp
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-            OutlinedButton(
-                onClick = onClearClick,
-                shape = CircleShape,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = stringResource(R.string.clear_background),
-                    style = textStyles.labelMedium,
-                )
-            }
-        }
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+        // 两个等宽按钮收口到 SettingButtonPairRow（更新窗格用的是同一个组件）
+        SettingButtonPairRow(
+            leftText = stringResource(R.string.select_image),
+            onLeftClick = onSelectClick,
+            rightText = stringResource(R.string.clear_background),
+            onRightClick = onClearClick,
+        )
 
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         Text(
             text = stringResource(R.string.background_style),
             style = textStyles.drawerLabel,
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
         val presetOptions = listOf(
-            stringResource(R.string.bg_preset_light) to BG_PRESET_INDEX_LIGHT,
-            stringResource(R.string.bg_preset_standard) to BG_PRESET_INDEX_STANDARD,
-            stringResource(R.string.bg_preset_rich) to BG_PRESET_INDEX_RICH,
+            stringResource(R.string.bg_preset_light),
+            stringResource(R.string.bg_preset_standard),
+            stringResource(R.string.bg_preset_rich),
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            presetOptions.forEachIndexed { index, (text, preset) ->
-                SegmentedButton(
-                    selected = presetIndex == preset,
-                    onClick = { onPresetSelect(preset) },
-                    // 按位置给出形状：首尾圆角、中间段直角，相邻段共用边框
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = presetOptions.size,
-                    ),
-                    label = {
-                        Text(
-                            text = text,
-                            style = textStyles.labelMedium,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                )
-            }
-        }
+        // 预设序号本身就是 0/1/2，与列表下标一致，可直接把 presetIndex 当选中下标
+        VenusSegmented(
+            options = presetOptions,
+            selectedIndex = presetIndex,
+            onSelect = onPresetSelect,
+        )
 
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         // 原 XML 用 showValue + floating label 表达「拖到哪了」；
@@ -161,8 +116,12 @@ fun BackgroundSettingPane(
     }
 }
 
-/** [BackgroundSettingPane] 的 View 互操作宿主。 */
-class BackgroundSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [BackgroundSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class BackgroundSettingPaneView {
 
     private val presetState = mutableIntStateOf(BG_PRESET_INDEX_STANDARD)
     private val alphaState = mutableFloatStateOf(45f)
@@ -188,7 +147,7 @@ class BackgroundSettingPaneView(context: Context) : AbstractComposeView(context)
         }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             BackgroundSettingPane(
                 presetIndex = presetState.intValue,
@@ -229,7 +188,18 @@ class BackgroundSettingPaneView(context: Context) : AbstractComposeView(context)
     }
 }
 
-@Preview(name = "设置 · 背景图片", showBackground = true)
+@Preview(
+    name = "背景图片 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "背景图片 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun BackgroundSettingPanePreview() {
     VenusTheme {

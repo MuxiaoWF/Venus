@@ -101,6 +101,22 @@ object GlassSpecs {
     )
 
     /**
+     * 页内**内嵌小元件**（设置抽屉的动作行、分段轨道、行内按钮等）：矮而宽的表面。
+     *
+     * 与 [Standard] 的差别都在「矮」上：折射厚度 10/8（16/12 在 40~44dp 高的条上会沿上下边
+     * 侵入内容区，边缘像被压扁）、模糊 4dp（托住文字对比）、表面 12%（比 Standard 更透，
+     * 因为它下面没有第二层玻璃）、**不挂外投影**（内嵌在滚动列表里，投影会压在上下分割线上）。
+     */
+    val Inset: GlassSpec = GlassSpec(
+        blurRadiusDp = 4f,
+        refractionHeightDp = 10f,
+        refractionAmountDp = 8f,
+        surfaceAlpha = 0.12f,
+        shadow = null,
+        innerShadow = null,
+    )
+
+    /**
      * 纯折射口径（官方滚动卡 / 控制中心）：**关闭模糊**、表面极轻，最通透、最贴近
      * Apple Liquid Glass 的清透感，适合壁纸本身干净、或想最大化折射表现时。
      */

@@ -1,21 +1,13 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -34,8 +26,8 @@ private val CLOUD_GAME_CHIP_LABEL_RES = intArrayOf(
 /**
  * 设置页「云游戏签到」抽屉内容。
  *
- * 结构：启用开关 → 说明副文本 → 2 个多选 FilterChip（决定哪些云游戏进入任务列表）
- * → 统一获取入口（一键抓取 + 手动填写兜底）→ 已配置进度与缺失提示。
+ * 结构（密度版，纵向由约 267dp 收到约 176dp）：
+ * 开关行（说明文本内联为副标题）→ 账号归属提示 → 云游戏多选 chip → 动作行（获取 + 手动填写同一行）。
  *
  * <p>**Token 为什么只有一个入口**：云游戏 token（`x-rpc-combo_token`）按云游戏服务签发，
  * 云原神（hk4e_cg_cn）与云绝区零（nap_cn）互不通用，所以存储上必须是两份；但两者共用
@@ -45,6 +37,11 @@ private val CLOUD_GAME_CHIP_LABEL_RES = intArrayOf(
  * <p>勾选与 Token 是两件事：**勾选决定任务是否执行，Token 决定能否签到成功**。
  * 只勾选不配 Token 时任务会以「未配置 Token」失败——这是有意为之的引导，
  * 比「静默跳过」更容易让用户发现漏配。
+ *
+ * <p>密度口径（与其它抽屉一致，详见 SettingRows.kt 文件头）：
+ * - 说明文本只留一条（`cloud_game_tip` 6 行，独立成 [SettingHint]；开关行不再垫副标题）；
+ * - 「N/M 已配置」是按钮的结果，作为主按钮的等宽徽标（`primaryBadge`），不再单占一行；
+ * - 「手动填写」是同一动作的兜底，与主按钮同一行（`secondaryText`）。
  *
  * @param enabled 功能总开关
  * @param onEnabledChange 总开关回调
@@ -56,6 +53,7 @@ private val CLOUD_GAME_CHIP_LABEL_RES = intArrayOf(
  * @param onFetchClick 一键获取（打开 WebView 自动抓取）
  * @param onManualClick 手动填写（先选游戏再粘贴）
  * @param chipVisible 国际服无云绝区零钱包接口，由外部置 false 隐藏
+ * @param accountLabel 当前账号名（token 按用户存放，界面需标明归属）；null 表示未登录
  */
 @Composable
 fun CloudGameSettingPane(
@@ -72,25 +70,22 @@ fun CloudGameSettingPane(
     chipVisible: List<Boolean> = List(CLOUD_GAME_CHIP_LABEL_RES.size) { true },
     accountLabel: String? = null,
 ) {
-    val textStyles = LocalVenusTextStyles.current
-    val tipStyle = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     DrawerPane(modifier) {
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_feature),
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_feature),
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
+        // cloud_game_tip 有 105 字（约 6 行）：不能塞进开关行做副标题，否则整段说明都成了
+        // 开关的点击区（误触）且会被 maxLines 截断。长说明一律独立成 [SettingHint]
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_hairline)))
+        SettingHint(text = stringResource(R.string.cloud_game_tip), maxLines = 6)
         // token 按用户存放：不标出当前账号，切号后会以为配置丢了
         if (accountLabel != null) {
-            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-            Text(
-                text = stringResource(R.string.credential_account, accountLabel),
-                style = tipStyle,
-            )
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+            SettingHint(text = stringResource(R.string.credential_account, accountLabel))
         }
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        Text(text = stringResource(R.string.cloud_game_tip), style = tipStyle)
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
         FilterChipFlow(
             labels = CLOUD_GAME_CHIP_LABEL_RES.map { stringResource(it) },
             checked = chipChecked,
@@ -98,42 +93,33 @@ fun CloudGameSettingPane(
             visible = chipVisible,
             onToggle = onChipToggle,
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
-        OutlinedButton(
-            onClick = onFetchClick,
-            shape = CircleShape,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = stringResource(R.string.cloud_game_fetch_token),
-                style = textStyles.labelMedium,
-            )
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-            Text(
-                text = stringResource(
-                    R.string.cloud_game_configured_summary, configuredCount, configuredTotal
-                ),
-                style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-            )
-        }
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        SettingActionRow(
+            primaryText = stringResource(R.string.cloud_game_fetch_token),
+            // 「N/M 已配置」是这次点击的结果，属于按钮本身，不再独占一行
+            primaryBadge = stringResource(
+                R.string.cloud_game_configured_summary, configuredCount, configuredTotal
+            ),
+            onPrimaryClick = onFetchClick,
+            secondaryText = stringResource(R.string.cloud_game_token_manual),
+            onSecondaryClick = onManualClick,
+        )
         if (missingGames != null) {
-            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-            Text(
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+            SettingHint(
                 text = stringResource(R.string.cloud_game_missing_tokens, missingGames),
-                style = tipStyle,
-            )
-        }
-        TextButton(onClick = onManualClick) {
-            Text(
-                text = stringResource(R.string.cloud_game_token_manual),
-                style = textStyles.labelMedium,
+                tone = SettingTone.Warning,
             )
         }
     }
 }
 
-/** [CloudGameSettingPane] 的 View 互操作宿主。 */
-class CloudGameSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [CloudGameSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class CloudGameSettingPaneView {
 
     private val enabledState = mutableStateOf(false)
     private val chipsState = mutableStateListOf<Boolean>().apply {
@@ -181,7 +167,7 @@ class CloudGameSettingPaneView(context: Context) : AbstractComposeView(context) 
     }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             CloudGameSettingPane(
                 enabled = enabledState.value,
@@ -229,7 +215,18 @@ class CloudGameSettingPaneView(context: Context) : AbstractComposeView(context) 
     }
 }
 
-@Preview(name = "设置 · 云游戏签到", showBackground = true)
+@Preview(
+    name = "云游戏 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "云游戏 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun CloudGameSettingPanePreview() {
     VenusTheme {

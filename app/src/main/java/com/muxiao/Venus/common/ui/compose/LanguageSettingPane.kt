@@ -1,9 +1,7 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
-import androidx.compose.foundation.layout.Spacer
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,7 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -45,11 +42,10 @@ fun LanguageSettingPane(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textStyles = LocalVenusTextStyles.current
     var expanded by remember { mutableStateOf(false) }
     DrawerPane(modifier) {
-        Text(text = stringResource(R.string.select_language), style = textStyles.drawerLabel)
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        // 原先这里先写一行「选择语言」标签、再放带同名 label 的输入框——两处都在重复抽屉标题。
+        // 密度版：标签行删除，输入框也不再带 floating label，直接显示当前语言
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it },
@@ -60,7 +56,7 @@ fun LanguageSettingPane(
                 onValueChange = {},
                 readOnly = true,
                 singleLine = true,
-                label = { Text(stringResource(R.string.select_language)) },
+                placeholder = { Text(stringResource(R.string.select_language)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -90,8 +86,12 @@ fun LanguageSettingPane(
     }
 }
 
-/** [LanguageSettingPane] 的 View 互操作宿主。 */
-class LanguageSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [LanguageSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class LanguageSettingPaneView {
 
     private val optionsState = mutableStateOf(emptyList<String>())
     private val selectedState = mutableIntStateOf(0)
@@ -110,7 +110,7 @@ class LanguageSettingPaneView(context: Context) : AbstractComposeView(context) {
         }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             LanguageSettingPane(
                 options = optionsState.value,
@@ -128,7 +128,18 @@ class LanguageSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 语言", showBackground = true)
+@Preview(
+    name = "语言 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "语言 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun LanguageSettingPanePreview() {
     val options = listOf(

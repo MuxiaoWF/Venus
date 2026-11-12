@@ -1,29 +1,17 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
@@ -31,7 +19,14 @@ import com.muxiao.Venus.R
 /**
  * 设置页「通知 / 后台运行」抽屉内容（原 res/layout/item_setting_notification.xml）。
  *
- * 结构：后台运行开关 + 说明；定时签到开关 + 说明 + 验证码提示 + 可选的时间行；电池优化豁免行。
+ * 结构（密度版，纵向由约 240dp 收到约 165dp）：
+ * 后台运行开关（说明内联为副标题）→ 定时签到开关（说明 + 验证码提醒同挂该行）
+ * → 执行时刻导航行 → 电池优化豁免导航行。
+ *
+ * <p>密度口径：
+ * - 每个开关只占一行，原「开关 32dp + 独立说明 Text + 前后 8dp」合成 44dp 单行；
+ * - 验证码提醒（警告色）作为 [SettingSwitchRow.note] 挂在定时签到行，不再单起一段；
+ * - 时刻行 / 电池行的「图标 + 两段文案 + 右侧值 + 箭头」原先手写两遍，现统一为 [SettingNavRow]。
  *
  * @param backgroundChecked 后台运行开关
  * @param onBackgroundChange 后台运行开关回调
@@ -58,114 +53,52 @@ fun NotificationSettingPane(
     onBatteryRowClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textStyles = LocalVenusTextStyles.current
-    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     DrawerPane(modifier) {
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_background_running),
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_background_running),
             checked = backgroundChecked,
             onCheckedChange = onBackgroundChange,
+            subtitle = stringResource(R.string.background_running_desc),
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        Text(
-            text = stringResource(R.string.background_running_desc),
-            style = textStyles.bodySmall.copy(color = secondary),
-        )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
-        LabeledSwitchRow(
-            text = stringResource(R.string.enable_scheduled_task),
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        SettingSwitchRow(
+            title = stringResource(R.string.enable_scheduled_task),
             checked = scheduledChecked,
             onCheckedChange = onScheduledChange,
-        )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        Text(
-            text = stringResource(R.string.scheduled_task_desc),
-            style = textStyles.bodySmall.copy(color = secondary),
-        )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        Text(
-            text = stringResource(R.string.scheduled_task_captcha_hint),
-            style = textStyles.bodySmall.copy(color = colorResource(R.color.status_warning)),
+            subtitle = stringResource(R.string.scheduled_task_desc),
+            // 验证码提醒是这一行的风险说明，不是独立段落
+            note = stringResource(R.string.scheduled_task_captcha_hint),
+            noteColor = colorResource(R.color.status_warning),
         )
         if (scheduledTimeVisible) {
-            Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-            // 执行时刻行：图标 + 标签 + 等宽时刻 + 展开箭头
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onScheduledTimeClick)
-                    .padding(
-                        horizontal = dimensionResource(R.dimen.space_2),
-                        vertical = dimensionResource(R.dimen.space_1),
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_schedule),
-                    contentDescription = stringResource(R.string.scheduled_task_time_label),
-                    tint = secondary,
-                )
-                Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-                Text(
-                    text = stringResource(R.string.scheduled_task_time_label),
-                    style = textStyles.drawerLabel,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = scheduledTimeText,
-                    style = textStyles.monoValue.copy(color = MaterialTheme.colorScheme.primary),
-                )
-                Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.rotate(270f),
-                )
-            }
-        }
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
-        // 电池优化豁免行：图标 + 两行文案 + 状态值
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onBatteryRowClick)
-                .padding(
-                    horizontal = dimensionResource(R.dimen.space_2),
-                    vertical = dimensionResource(R.dimen.space_1),
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_zap),
-                contentDescription = stringResource(R.string.battery_row_label),
-                tint = secondary,
-            )
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.battery_row_label),
-                    style = textStyles.drawerLabel,
-                )
-                Spacer(Modifier.height(dimensionResource(R.dimen.space_hairline)))
-                Text(
-                    text = stringResource(R.string.battery_row_desc),
-                    style = textStyles.bodySmall.copy(color = secondary),
-                )
-            }
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
-            Text(
-                text = batteryValueText,
-                style = textStyles.monoValue.copy(
-                    color = if (batteryValueColor == 0) secondary else Color(batteryValueColor),
-                ),
+            Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+            SettingNavRow(
+                title = stringResource(R.string.scheduled_task_time_label),
+                leadingIconRes = R.drawable.ic_schedule,
+                value = scheduledTimeText,
+                valueColor = MaterialTheme.colorScheme.primary,
+                onClick = onScheduledTimeClick,
             )
         }
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        SettingNavRow(
+            title = stringResource(R.string.battery_row_label),
+            subtitle = stringResource(R.string.battery_row_desc),
+            leadingIconRes = R.drawable.ic_zap,
+            value = batteryValueText,
+            // 0 = AndroidColor.TRANSPARENT，表示"未指定"，回退到次要文字色
+            valueColor = if (batteryValueColor == 0) Color.Unspecified else Color(batteryValueColor),
+            onClick = onBatteryRowClick,
+        )
     }
 }
 
-/** [NotificationSettingPane] 的 View 互操作宿主。 */
-class NotificationSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [NotificationSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class NotificationSettingPaneView {
 
     private val backgroundState = mutableStateOf(false)
     private val scheduledState = mutableStateOf(false)
@@ -212,7 +145,7 @@ class NotificationSettingPaneView(context: Context) : AbstractComposeView(contex
     }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             NotificationSettingPane(
                 backgroundChecked = backgroundState.value,
@@ -252,7 +185,18 @@ class NotificationSettingPaneView(context: Context) : AbstractComposeView(contex
     }
 }
 
-@Preview(name = "设置 · 通知", showBackground = true)
+@Preview(
+    name = "通知 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "通知 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun NotificationSettingPanePreview() {
     VenusTheme {

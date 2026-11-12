@@ -1,21 +1,11 @@
 package com.muxiao.Venus.common.ui.compose
 
-import android.content.Context
-import androidx.compose.foundation.layout.Row
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,56 +29,30 @@ fun UpdateSettingPane(
     onCheckPanClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textStyles = LocalVenusTextStyles.current
     DrawerPane(modifier) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.auto_check_update),
-                style = textStyles.drawerLabel,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(checked = autoUpdateChecked, onCheckedChange = onAutoUpdateChange)
-        }
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        Text(
-            text = stringResource(R.string.auto_check_update_desc),
-            style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+        // 原「手写 Row + Switch + 说明 Text + 两个 Spacer」四段，收成一行（说明作副标题）
+        SettingSwitchRow(
+            title = stringResource(R.string.auto_check_update),
+            checked = autoUpdateChecked,
+            onCheckedChange = onAutoUpdateChange,
+            subtitle = stringResource(R.string.auto_check_update_desc),
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_4)))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(
-                onClick = onCheckGithubClick,
-                shape = CircleShape,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = stringResource(R.string.check_update_github),
-                    style = textStyles.labelMedium,
-                )
-            }
-            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
-            OutlinedButton(
-                onClick = onCheckPanClick,
-                shape = CircleShape,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(
-                    text = stringResource(R.string.check_update_pan),
-                    style = textStyles.labelMedium,
-                )
-            }
-        }
+        Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
+        SettingButtonPairRow(
+            leftText = stringResource(R.string.check_update_github),
+            onLeftClick = onCheckGithubClick,
+            rightText = stringResource(R.string.check_update_pan),
+            onRightClick = onCheckPanClick,
+        )
     }
 }
 
-/** [UpdateSettingPane] 的 View 互操作宿主。 */
-class UpdateSettingPaneView(context: Context) : AbstractComposeView(context) {
+/**
+ * [UpdateSettingPane] 的状态宿主（原 View 互操作宿主）。
+ *
+ * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ */
+class UpdateSettingPaneView {
 
     private val autoUpdateState = mutableStateOf(true)
     private var onAutoUpdateChangeListener: BooleanConsumer? = null
@@ -103,7 +67,7 @@ class UpdateSettingPaneView(context: Context) : AbstractComposeView(context) {
         }
 
     @Composable
-    override fun Content() {
+    fun Render() {
         VenusTheme {
             UpdateSettingPane(
                 autoUpdateChecked = autoUpdateState.value,
@@ -131,7 +95,18 @@ class UpdateSettingPaneView(context: Context) : AbstractComposeView(context) {
     }
 }
 
-@Preview(name = "设置 · 更新", showBackground = true)
+@Preview(
+    name = "更新 · 360dp 深色",
+    widthDp = 360,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
+@Preview(
+    name = "更新 · 411dp 浅色",
+    widthDp = 411,
+    showBackground = true,
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 private fun UpdateSettingPanePreview() {
     VenusTheme {

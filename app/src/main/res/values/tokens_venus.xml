@@ -53,6 +53,18 @@
     <!-- ========== 4. 组件尺寸 ========== -->
     <dimen name="row_min_height">56dp</dimen>        <!-- 列表/设置行最小触控高度 -->
     <dimen name="list_header_min_height">24dp</dimen> <!-- 列表区块标题行最小高度 -->
+    <!-- 设置抽屉单行高度：44dp 是「有副标题也放得下」且不低于无障碍下限的密度口径。
+         密度调整只改这里与 SettingRows 的行内 padding，不要在调用处各自写高度。 -->
+    <dimen name="setting_row_min_height">44dp</dimen>
+    <!-- 设置抽屉动作行（主按钮/次按钮）高度：M3 Button 默认 40dp -->
+    <dimen name="setting_action_height">40dp</dimen>
+    <!-- 设置抽屉的「纯文本紧凑行」：配置信息 KV 行、分段控件的内层高度（无触控语义，仅排布） -->
+    <dimen name="setting_compact_row_height">32dp</dimen>
+    <!-- 抽屉展开内容的底部收尾留白：抽屉标题行自带上下 16dp，展开内容下方只剩分隔线（0.5dp）
+         与下一条标题行的 16dp，若此处不留，内容会紧贴分隔线（上下 20 / 4 的失衡）。
+         取 16dp 使分隔线恰好居中于「内容末行」与「下一条标题」之间。
+         DrawerPane 的底部内边距与引导线底端内缩共用此值，保证竖线正好收在内容末尾。 -->
+    <dimen name="drawer_content_bottom">16dp</dimen>
     <dimen name="icon_badge_lg">48dp</dimen>         <!-- 状态卡/空态大徽标 -->
     <dimen name="icon_badge_md">32dp</dimen>         <!-- 行内中号徽标 -->
     <dimen name="icon_avatar_md">40dp</dimen>        <!-- 用户头像中号 -->
