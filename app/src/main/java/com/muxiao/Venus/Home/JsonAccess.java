@@ -5,16 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 /**
- * 接口响应 JSON 的安全读取工具。
- *
- * <p>背景：米游社接口在风控、登录态失效等场景下会返回结构不完整的 JSON
- * （缺少 {@code retcode}/{@code data}/{@code message} 或对应字段为 {@code null}）。
- * 原先各处直接 {@code obj.get("retcode").getAsInt()} 会抛
- * {@link NullPointerException} / {@link UnsupportedOperationException} / {@link IllegalStateException}，
- * 最终以「网络请求失败」之类的泛化文案暴露，掩盖真实原因。
- *
- * <p>本类把所有读取收敛为一组「缺失即返回兜底值」的方法，让调用方只需处理
- * 兜底值（如哨兵 retcode），不再各自 try/catch。
+ * 接口响应 JSON 的安全读取。风控/登录态失效时米游社返回的 JSON 会缺 {@code retcode}/{@code data}/{@code message}
+ * 或字段为 {@code null}，直接 {@code obj.get("x").getAsInt()} 会抛 NPE/UnsupportedOperationException/IllegalStateException，
+ * 最终被泛化成「网络请求失败」掩盖真实原因。此处统一收敛为「缺失即返回兜底值」，调用方不再各自 try/catch。
  */
 final class JsonAccess {
 
@@ -24,25 +17,21 @@ final class JsonAccess {
     private JsonAccess() {
     }
 
-    /**
-     * 读取 {@code retcode}：字段缺失、{@code JsonNull} 或非数值时返回 {@link #RETCODE_UNKNOWN}。
-     */
+    /** 读取 {@code retcode}：缺失、{@code JsonNull} 或非数值时返回 {@link #RETCODE_UNKNOWN}。 */
     static int retcode(JsonObject obj) {
         if (obj == null) return RETCODE_UNKNOWN;
         return optInt(obj, "retcode", RETCODE_UNKNOWN);
     }
 
-    /**
-     * 读取 {@code message}：字段缺失、{@code JsonNull} 或空串时返回 {@code fallback}。
-     */
+    /** 读取 {@code message}：缺失、{@code JsonNull} 或空串时返回 {@code fallback}。 */
     static String message(JsonObject obj, String fallback) {
         if (obj == null) return fallback;
         return optString(obj, "message", fallback);
     }
 
     /**
-     * 读取 {@code "data"} 载荷子对象：字段缺失、为 {@code JsonNull} 或不是对象时返回 {@code null}。
-     * 米游社响应包的业务载荷统一在 {@code data} 字段下（全项目唯一取值），故键名内建。
+     * 读取 {@code "data"} 载荷子对象：缺失、{@code JsonNull} 或非对象时返回 {@code null}。
+     * 米游社业务载荷统一在 {@code data} 下（全项目唯一取值），故键名内建。
      */
     static JsonObject data(JsonObject obj) {
         if (obj == null) return null;
@@ -72,8 +61,8 @@ final class JsonAccess {
     }
 
     /**
-     * 读取 {@code total_sign_day}（本月累计签到天数）：缺失、{@code JsonNull} 或类型不符时
-     * 返回 {@code null}（区别于合法的 0）。全项目唯一取值即该字段，故键名内建。
+     * 读取 {@code total_sign_day}（本月累计签到天数）：缺失、{@code JsonNull} 或类型不符时返回 {@code null}
+     * （区别于合法的 0）。全项目唯一取值即该字段，故键名内建。
      */
     static Integer optTotalSignDay(JsonObject obj) {
         String member = "total_sign_day";
@@ -95,10 +84,8 @@ final class JsonAccess {
         }
     }
 
-    /**
-     * 读取 {@code is_get_award}（今日是否已领取奖励）：缺失、{@code JsonNull} 或类型不符时
-     * 返回 {@code false}。全项目唯一取值即该字段且兜底恒为 false，故参数内建。
-     */
+    /** 读取 {@code is_get_award}（今日是否已领取）：缺失、{@code JsonNull} 或类型不符一律返回 {@code false}；
+     *  全项目唯一取值即该字段且兜底恒为 false，故参数内建。 */
     static boolean optIsGetAward(JsonObject obj) {
         String member = "is_get_award";
         if (obj == null) return false;
@@ -112,8 +99,8 @@ final class JsonAccess {
     }
 
     /**
-     * 读取字符串字段：缺失、{@code JsonNull} 或取值为空串时返回 {@code fallback}。
-     * 数值类型会被转为其字符串形式（接口中 {@code cnt} 等字段偶有数值返回）。
+     * 读取字符串：缺失、{@code JsonNull} 或空串时返回 {@code fallback}；数值会被转成字符串
+     * （接口中 {@code cnt} 等字段偶有数值返回）。
      */
     static String optString(JsonObject obj, String member, String fallback) {
         if (obj == null) return fallback;

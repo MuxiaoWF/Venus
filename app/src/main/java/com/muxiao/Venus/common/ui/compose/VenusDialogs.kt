@@ -31,20 +31,10 @@ import androidx.compose.ui.unit.dp
 import com.muxiao.Venus.R
 
 /**
- * Compose 版对话框门面（Java 友好）。
- *
- * 背景：主界面迁移后 Material 对话框组件（`MaterialAlertDialogBuilder` /
- * `MaterialTimePicker` / `TextInputEditText`）不再进新代码，统一由本类以
- * **Compose material3 AlertDialog** 渲染。调用侧保持命令式一行调用，
- * 语义与原 Builder 版一一对应（confirm = 正/负按钮，items = 列表单选，
- * input = 带校验输入，timePicker = 时间选择）。
- *
- * 宿主窗口用 [ComponentDialog]：它是 [androidx.lifecycle.LifecycleOwner] 并会向
- * window decorView 安装 ViewTree*Owner，`ComposeView` 因此可直接作为其内容
- * （appcompat 的 `AlertDialog` 不具备该能力）。
- *
- * 主题：对话框内经 [VenusTheme] 读取 Activity 主题属性——6 套 ThemeOverlay、
- * 深浅模式与动态取色下与页面观感一致（对话框 window 沿用 Activity 的 theme）。
+ * Compose 版对话框门面（Java 友好）：命令式一行调用，语义与原 Builder 版一一对应（confirm = 正/负按钮，items = 列表单选，
+ * input = 带校验输入，scrolledText = 日志，timePicker = 时间选择）。宿主必须用 [ComponentDialog]——它才是 LifecycleOwner
+ * 并向 decorView 安装 ViewTree*Owner，ComposeView 才能直接作内容（appcompat 的 AlertDialog 不具备该能力）；
+ * 主题经 [VenusTheme] 读 Activity 主题属性，6 套 ThemeOverlay 与深浅模式下观感与页面一致。
  */
 object VenusDialogs {
 
@@ -62,8 +52,6 @@ object VenusDialogs {
     fun interface TimeConsumer {
         fun accept(hour: Int, minute: Int)
     }
-
-    // ===== 确认框（正/负按钮） =====
 
     /** 双按钮确认框。负按钮传 null 则只显示正按钮；[onDismiss] 在对话框因任何原因关闭后回调。 */
     @JvmStatic
@@ -101,8 +89,6 @@ object VenusDialogs {
         confirm(activity, title, message, okText, null)
     }
 
-    // ===== 列表单选框 =====
-
     /** 列表选择框（对应 Builder.setItems）：点击任意项即关闭并回调下标。 */
     @JvmStatic
     @JvmOverloads
@@ -137,13 +123,9 @@ object VenusDialogs {
         }
     }
 
-    // ===== 输入框 =====
-
     /**
      * 带输入框的对话框（对应 Builder.setView(TextInputEditText)）。
-     *
-     * @param validator 非空时正按钮先校验：返回错误文案则对话框保持打开并就地显示；
-     *                  null 表示不校验（点击正按钮即回调）。
+     * @param validator 返回错误文案则对话框保持打开并就地显示；null = 不校验（点正按钮即回调）。
      * @param cancelable 是否可点外部区域/返回键取消（原 `setCancelable`）。
      */
     @JvmStatic
@@ -206,12 +188,7 @@ object VenusDialogs {
         }
     }
 
-    // ===== 可滚动长文本（日志查看） =====
-
-    /**
-     * 等宽可滚动的长文本框（对应 Builder.setView(ScrollView + mono TextView)）。
-     * 负按钮（如「清空日志」）可选。
-     */
+    /** 等宽可滚动的长文本框（对应 Builder.setView(ScrollView + mono TextView)）；负按钮（如「清空日志」）可选。 */
     @JvmStatic
     @JvmOverloads
     fun scrolledText(
@@ -249,12 +226,7 @@ object VenusDialogs {
         }
     }
 
-    // ===== 时间选择 =====
-
-    /**
-     * 时间选择器（对应 MaterialTimePicker）：确认后回调 24 小时制整数；
-     * 12/24 小时制由调用方按系统设置传入。
-     */
+    /** 时间选择器（对应 MaterialTimePicker）：确认后回调 24 小时制整数；12/24 制由调用方按系统设置传入。 */
     @JvmStatic
     @OptIn(ExperimentalMaterial3Api::class)
     fun timePicker(
@@ -288,13 +260,9 @@ object VenusDialogs {
         }
     }
 
-    // ===== 内部：Compose 对话框宿主 =====
-
     /**
-     * 统一对话框装配：[ComponentDialog] + ComposeView。
-     * 窗口背景透明（AlertDialog 自带表面），宽高 wrap 由组合内容决定。
-     *
-     * @param onWindowDismiss 对话框窗口关闭（任何途径）后的回调，可选。
+     * 统一对话框装配：[ComponentDialog] + ComposeView；窗口背景透明（AlertDialog 自带表面），宽高 wrap 由内容决定。
+     * @param onWindowDismiss 窗口因任何途径关闭后的回调，只会触发一次。
      */
     private inline fun showDialog(
         activity: android.app.Activity,

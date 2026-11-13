@@ -59,24 +59,10 @@ import com.muxiao.Venus.R
 import com.muxiao.Venus.User.AvatarStore
 
 /**
- * 设置抽屉内容的外壳（取代原 XML 的 `Widget.Venus.DrawerPane` 样式，该样式已随迁移删除）。
- *
- * 各 `item_setting_*` 迁移后的 Composable 一律用它做根，保证抽屉外壳口径一致。
- *
- * <h3>内边距为什么是 12 / 8 / 4 / 16</h3>
- * 迁移初版是「上下 gap_row(12) + 左右 space_4(16)」，与上游三层叠加后，内容被推到
- * 左 50dp / 右 32dp，而抽屉标题行是 24/24dp——内容右端比标题右端多缩 8dp，
- * 可点区域白窄 16dp，视觉上"内容悬在标题下方、右边收不齐"。
- * 现在按「左悬挂、右对齐」重定：
- * - 左 space_3(12)：引导线在 24dp（与标题文字左端齐），内容从 36dp 起（24 + 12），
- *   竖线到内容留 10dp（12 - 2dp 线宽），保留从属层级的悬挂缩进；
- * - 右 space_2(8)：内容右端与标题行右端同为 24dp，按钮/chip 的右边缘终于对得上；
- * - 上 space_1(4)：标题行自带 16dp 下边距，这里再垫 12 会形成 28dp 空档，
- *   展开后第一行与标题"脱节"。4dp 让内容紧贴标题行，密度由此开始；
- * - 下 [R.dimen.drawer_content_bottom](16)：**上下不对称是刻意的**。标题行下方有 16dp 垫着，
- *   内容底部却紧跟分隔线与下一条标题行的 16dp；底部若也只有 4dp，内容会紧贴分隔线，
- *   形成「上 20 / 下 4」的失衡（抽屉看起来被切掉了下半段）。取 16dp 后分隔线正好居中。
- *
+ * 设置抽屉内容外壳，各 `item_setting_*` Composable 的根，保证抽屉外壳口径一致。
+ * 内边距 12 / 8 / 4 / 16 的口径：左 space_3 让引导线落在 24dp（与标题文字左端齐）、内容自 36dp 起并保留悬挂缩进；
+ * 右 space_2 使内容右端与标题行对齐；上 space_1 因标题行自带 16dp 下边距（再垫 12 会成 28dp 空档）；
+ * 下 [R.dimen.drawer_content_bottom](16) 的上下不对称是刻意的——底边紧跟分隔线，只有 4dp 会失衡显得被切掉。
  * 调用方不要在外层再加左右/底部 padding（那正是错位与底部失衡的来源）。
  */
 @Composable
@@ -118,13 +104,9 @@ fun interface FloatConsumer {
 }
 
 /**
- * 多选题 Chip 流式布局，等价于 XML 的 `ChipGroup` + `Widget.Material3.Chip.Filter`：
- * 自动换行、多选、可整组禁用（国际服隐藏/禁用场景）。
- *
- * @param labels 各 Chip 文案（顺序即 Java 侧的下标契约）
- * @param checked 各 Chip 勾选态，长度需与 [labels] 一致
- * @param enabled 整组是否可点
- * @param visible 各 Chip 是否可见（国际服隐藏不支持的游戏）
+ * 多选题 Chip 流式布局，等价于 XML 的 `ChipGroup` + `Widget.Material3.Chip.Filter`：自动换行、多选、可整组禁用。
+ * @param labels 顺序即 Java 侧的下标契约，[checked] / [visible] 长度须与之一致
+ * @param visible 控制单 chip 可见（国际服隐藏不支持的游戏）；[enabled] 控制整组可点
  */
 @Composable
 internal fun FilterChipFlow(
@@ -154,10 +136,7 @@ internal fun FilterChipFlow(
     }
 }
 
-/**
- * 与 `Widget.Venus.Card` 等价的分组卡：surfaceContainerLow 底 + 中圆角 + level1 阴影。
- * 对应 XML 里 `style="@style/Widget.Venus.Card"` 的 MaterialCardView。
- */
+/** 与 `Widget.Venus.Card` 等价的分组卡：surfaceContainerLow 底 + 中圆角 + level1 阴影。 */
 @Composable
 internal fun VenusCard(
     modifier: Modifier = Modifier,
@@ -177,9 +156,7 @@ internal fun VenusCard(
 
 /**
  * 把项目的 M3 缓动插值器（`R.anim.emphasized_decelerate` 等）桥接成 Compose 的 [Easing]。
- *
- * 直接搬 XML 插值器而不是用 Compose 内置曲线，是为了让动画手感与 View 侧严格一致
- * （这些曲线同时被 Fragment 转场、chip 淡入、结果区滑入使用）。
+ * 直接搬 XML 曲线而非用 Compose 内置曲线，是为了与 View 侧手感严格一致（同一批曲线还用于 Fragment 转场、chip 淡入）。
  */
 @Composable
 internal fun rememberVenusEasing(@AnimRes animRes: Int): Easing {
@@ -190,10 +167,7 @@ internal fun rememberVenusEasing(@AnimRes animRes: Int): Easing {
     }
 }
 
-/**
- * 水平分隔线：outlineVariant 引导色 + 标准细线厚度（divider_height）。
- * 各页面与卡片统一复用；需要缩进或上下间距时经 [modifier] 传入，不再各自私有封装。
- */
+/** 水平分隔线：outlineVariant 引导色 + 标准细线厚度（divider_height）；缩进与上下间距经 [modifier] 传入，勿各自私有封装。 */
 @Composable
 internal fun VenusDivider(modifier: Modifier = Modifier) {
     HorizontalDivider(
@@ -204,17 +178,10 @@ internal fun VenusDivider(modifier: Modifier = Modifier) {
 }
 
 /**
- * 命令台页眉：眉标 + 大标题 + 右上角 mono chip + 副标题。
- *
- * 对应 XML 里三个主页面（home / settings / user_management）完全一致的那段
- * `Eyebrow + HeaderTitle + date/version chip + HeaderSubtitle` 结构——
- * 原先三份 XML 逐字复制，迁移后收敛为一处，改版式只改这里。
- *
- * @param chipText 右上角 chip 文案（日期 `MM/dd E` 或版本号）；空串则不显示
- * @param subtitle 副标题；null 表示无（settings 页有固定副标题，其余两页由 Java 动态回填）
- * @param collapse 传 `rememberHeaderCollapseState()` 的实例即启用「随滚动收缩 / 展开」；
- *        null = 固定页眉。收缩顺序为「顶部留白 → 眉标 → 副标题」，标题行（含 chip）常驻，
- *        因此收起后列表上方仍有一个可读的页面标题
+ * 命令台页眉：眉标 + 大标题 + 右上角 mono chip + 副标题；三个主页面（home / settings / user_management）共用，改版式只改这里。
+ * @param chipText 空串则不显示；@param subtitle null = 无（settings 页固定，其余两页由 Java 动态回填）
+ * @param collapse 传 `rememberHeaderCollapseState()` 即随滚动收缩，null = 固定页眉。收缩顺序为「顶部留白 → 眉标 → 副标题」，
+ *        标题行（含 chip）常驻，因此收起后列表上方仍有可读的页面标题
  */
 @Composable
 internal fun CommandHeader(
@@ -238,8 +205,7 @@ internal fun CommandHeader(
         collapse?.updateRange(topDeltaPx + eyebrowPx + subtitlePx)
     }
 
-    // 收缩预算按「顶部留白 → 眉标 → 副标题」的顺序分配：前一项裁完才轮到下一项，
-    // 所以拖动过程中先收紧留白、再吃掉眉标、最后收副标题，不会出现半行文字被切断
+    // 收缩预算按「顶部留白 → 眉标 → 副标题」顺序分配：前一项裁完才轮到下一项，拖动中不会出现半行文字被切断
     var budgetPx = collapse?.let { (-it.offsetPx).coerceAtLeast(0f) } ?: 0f
     val topCutPx = budgetPx.coerceIn(0f, topDeltaPx).also { budgetPx -= it }
     val eyebrowCutPx = budgetPx.coerceIn(0f, eyebrowPx).also { budgetPx -= it }
@@ -324,25 +290,15 @@ private fun HeaderChip(text: String) {
 }
 
 /**
- * 头像徽标（纯 Compose 实现，原 AndroidView(ImageView) 已移除）。
- *
- * 对应 XML 里 `bg_icon_circle` + `ic_user` + `app:tint="?attr/colorPrimary"` 的头像位
- * （首页账号行、抽卡链接页账号行、用户管理页用户卡共用）。
- *
- * 视觉语义：
- * - 圆底：主色 10% 填充 + 主色 20% 发丝描边（同 bg_icon_circle 的 oval solid/stroke）
- * - 默认态：ic_user 主色着色 + space_2 内边距
- * - 自定义头像：Glide 圆形裁剪结果铺满；加载期间保持默认态，出图才切换（防闪烁），
- *   加载失败或文件竞态被删时回默认态
- *
- * `key(username)` 是必需的：列表复用同一节点时换人必须重新加载，
- * 否则会残留上一用户的头像状态。
+ * 头像徽标（首页账号行、抽卡链接页账号行、用户管理页用户卡共用，纯 Compose）。
+ * 圆底 = 主色 10% 填充 + 20% 发丝描边（同 `bg_icon_circle`），默认态为 ic_user 着色 + space_2 内边距；
+ * 自定义头像走 Glide 圆形裁剪铺满，加载期间与失败/文件竞态被删时回默认态（防闪烁）。
+ * `key(username)` 必需：列表复用同一节点时换人必须重新加载，否则残留上一用户的头像状态。
  */
 @Composable
 internal fun VenusAvatar(username: String?, size: Dp = 32.dp, refreshToken: Int = 0) {
     val context = LocalContext.current
-    // refreshToken 参与 key/remember/LaunchedEffect：头像文件会被原地覆盖（路径不变），
-    // 只靠 username 做 key 的话，换完头像这里不会重载，界面仍是旧图。
+    // refreshToken 参与 key/remember/LaunchedEffect：头像文件原地覆盖、路径不变，只靠 username 做 key 不会重载，界面仍是旧图
     key(username, refreshToken) {
         val hasCustom = remember(username, refreshToken) {
             !username.isNullOrEmpty() && AvatarStore.hasAvatar(context, username)
@@ -388,11 +344,8 @@ internal fun VenusAvatar(username: String?, size: Dp = 32.dp, refreshToken: Int 
 }
 
 /**
- * 尚未落盘的头像预览（相册 Uri / File）。
- *
- * 登录页「选择头像」在登录成功前不写盘（避免给一个没登成功的账号留孤儿文件），
- * 所以不能走 [VenusAvatar]（它按用户名读文件），这里直接按任意 Glide model 加载预览。
- * 外框、默认图标、加载失败回退都与 [VenusAvatar] 同一套，两处观感不会分叉。
+ * 尚未落盘的头像预览（相册 Uri / File）：登录页选头像在登录成功前不写盘（避免给没登成功的账号留孤儿文件），
+ * 故不能走 [VenusAvatar]（它按用户名读文件），这里按任意 Glide model 加载；外框/默认图标/失败回退与 [VenusAvatar] 同一套。
  */
 @Composable
 internal fun AvatarPreview(model: Any, size: Dp = 32.dp) {

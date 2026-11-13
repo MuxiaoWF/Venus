@@ -30,18 +30,12 @@ import com.muxiao.Venus.R
 import kotlinx.coroutines.launch
 
 /**
- * 应用级 Snackbar 门面（Java 友好），替代 `com.google.android.material.snackbar.Snackbar`。
+ * 应用级 Snackbar 门面（Java 友好）：业务侧只调 [show]，落在哪个宿主由当前活跃页面决定。
  *
- * <p>背景：迁移完成后全项目不再持有任何 Material View 组件，Snackbar 也随之收敛到
- * Compose 的 [SnackbarHost]。但调用侧（`tools.showCustomSnackbar`）散落在 50+ 处
- * Java 代码里，且调用时机多在网络回调线程——因此这里做一个**命令式单入口**：
- * 业务侧只管 `VenusSnackbar.show(msg)`，落在哪个宿主由当前活跃的页面决定。</p>
+ * <p>多宿主：主界面与二级页面各持独立宿主（页面组合树才是 UI 真实边界）。[bind] 按注册
+ * 顺序成栈，[show] 只投给最后注册且仍存活的宿主（当前前台页面）；[unbind] 后自动回退下层。</p>
  *
- * <p>多宿主：主界面与二级页面（登录 / 图片 / 云游戏）各自持有独立宿主（页面的组合树
- * 才是 UI 真实边界）。[bind] 按注册顺序形成栈，[show] 只投给**最后注册且仍存活**的
- * 宿主——即当前前台页面；页面销毁时 [unbind] 自动回退到下层宿主。</p>
- *
- * <p>线程：任意线程可调，内部 marshal 到主线程（原 `Snackbar.make` 同样要求主线程）。</p>
+ * <p>线程：任意线程可调，内部 marshal 到主线程（Snackbar 本身要求主线程）。</p>
  */
 object VenusSnackbar {
 
@@ -50,10 +44,7 @@ object VenusSnackbar {
     private var nextToken = 0
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /**
-     * 弹一条短时长提示。<b>必须</b>有活跃宿主才会显示——无宿主时静默丢弃
-     * （与「没有 Activity 窗口就弹不出 Snackbar」的历史行为一致，不抛异常）。
-     */
+    /** 弹一条短时长提示：无活跃宿主时静默丢弃，不抛异常。 */
     @JvmStatic
     fun show(message: String) {
         if (Looper.myLooper() == Looper.getMainLooper()) deliver(message)
@@ -72,7 +63,6 @@ object VenusSnackbar {
         token
     }
 
-    /** 注销宿主。 */
     internal fun unbind(token: Int) {
         synchronized(sinks) { sinks.remove(token) }
     }
@@ -81,11 +71,7 @@ object VenusSnackbar {
 /**
  * 页面级 Snackbar 宿主：需放在页面根 [androidx.compose.foundation.layout.Box] 内。
  *
- * 结构对齐原 `Widget.Venus.Snackbar` 三件套（颜色/圆角/文本均取主题语义色）：
- * surfaceContainerHigh 底 + 10dp 圆角（shape_corner_sm）+ onSurface 文本 +
- * 居中最多三行 + level1 阴影。布局行为对齐原 Java 实现：水平居中、底部留 64dp。
- *
- * 不占位：无消息时宿主高度为 0，不会遮挡下层内容；有消息时仅底部条带接收触摸。
+ * 不占位：无消息时宿主高度为 0，不遮挡下层内容；有消息时仅底部条带接收触摸。
  */
 @Composable
 fun VenusSnackbarHost(modifier: Modifier = Modifier) {
@@ -95,7 +81,7 @@ fun VenusSnackbarHost(modifier: Modifier = Modifier) {
     DisposableEffect(hostState) {
         val token = VenusSnackbar.bind { message ->
             scope.launch {
-                // 连续提示不排队：直接替换当前那条（原 Snackbar.make 同语义）
+                // 连续提示不排队，直接替换当前那条
                 hostState.currentSnackbarData?.dismiss()
                 hostState.showSnackbar(message, duration = SnackbarDuration.Short)
             }
@@ -103,9 +89,8 @@ fun VenusSnackbarHost(modifier: Modifier = Modifier) {
         onDispose { VenusSnackbar.unbind(token) }
     }
 
-    // 原 Java 实现：水平居中 + 距屏幕底 64dp（避让底栏玻璃条）。
-    // SnackbarHost 自身把内容放在 host 左上角，因此外包一层 Box 承担居中；
-    // 上移用 offset 而非 padding——padding 会让空宿主也占住 64dp 底部条带（挡住触摸）。
+    // 距屏幕底 64dp 以避让底栏玻璃条。SnackbarHost 自身把内容放在 host 左上角，
+    // 故外包一层 Box 承担居中；上移必须用 offset——padding 会让空宿主也占住底部条带挡住触摸。
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -122,9 +107,8 @@ fun VenusSnackbarHost(modifier: Modifier = Modifier) {
 /**
  * 页面根容器：内容 + 底部提示条宿主。
  *
- * 二级页面（登录 / 图片 / 全屏图 / 云游戏）各自是独立 Activity，需要一份自己的
- * 宿主——这层 Box 就是「一页 = 一个 UI 边界」的最小表达。主界面（四页共用一份）
- * 结构不同，直接在 [MainShellView] 里装配，不走这里。
+ * 二级页面各自是独立 Activity，各需一份宿主（一页 = 一个 UI 边界）；主界面四页共用
+ * 一份，直接在 [MainShellView] 里装配，不走这里。
  */
 @Composable
 fun VenusPageRoot(content: @Composable BoxScope.() -> Unit) {
@@ -134,7 +118,7 @@ fun VenusPageRoot(content: @Composable BoxScope.() -> Unit) {
     }
 }
 
-/** Snackbar 表面（独立出来便于后续复用到对话框内等其他宿主）。 */
+/** Snackbar 表面，独立以便复用到对话框等其他宿主。 */
 @Composable
 private fun VenusSnackbarSurface(message: String) {
     Surface(

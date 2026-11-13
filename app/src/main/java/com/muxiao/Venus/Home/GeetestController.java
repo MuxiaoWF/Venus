@@ -12,38 +12,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-/**
- * 创建流程：createUtils -> createButton -> destroyButton
- */
+/** 极验控件的生命周期契约：createUtils → createButton → destroyButton。 */
 public interface GeetestController {
-    /**
-     * 创建验证码Utils，越早越好，最好onCreate中
-     */
+    /** 创建验证码 Utils，越早越好（Activity onCreate）。 */
     void createUtils();
 
-    /**
-     * 绑定并创建验证码按钮
-     *
-     * @param gt3ConfigBean 极验验证码配置
-     */
+    /** 绑定并创建验证码按钮。 */
     void createButton(GT3ConfigBean gt3ConfigBean);
 
-    /**
-     * 获取验证码Utils
-     *
-     * @return 验证码Utils
-     */
+    /** 底层 GT3GeetestUtils：Geetest 用它触发 getGeetest()/showSuccessDialog()。 */
     GT3GeetestUtils getGeetestUtils();
 
-    /**
-     * 销毁验证码按钮
-     */
+    /** 销毁验证码按钮。 */
     void destroyButton();
 
     /**
-     * 一次人机验证以失败告终（用户未在窗口内完成/验证超时/验证管线异常），
-     * taskName 为触发验证的任务名（与任务状态持久化键同源）。
-     * 仅供后台链路统计「验证码失败任务」（同日重试据此排除）；前台实现无需关心。
+     * 一次人机验证以失败告终（用户未在窗口内完成/超时/管线异常），taskName 为触发验证的任务名
+     * （与任务状态持久化键同源）。仅供后台链路统计「验证码失败任务」（同日重试据此排除），前台实现无需关心。
      */
     default void onCaptchaFailed(String taskName) {
     }
@@ -51,11 +36,9 @@ public interface GeetestController {
 
 /**
  * 后台人机验证控制器（GeetestController 的后台实现，同文件包私有）。
- * 遇到验证时不再主动拉起 MainActivity（后台/定时运行时屏幕多半是熄的，拉起
- * 既受 Android 10+ 后台启动 Activity 限制、用户也感知不到）：改为发送可点击的
- * 验证码通知（见 {@link com.muxiao.Venus.common.Notification#sendCaptchaNotification}，
- * 点击直达验证流程），后台线程阻塞等待验证结果，完成后继续执行任务。
- * 全局验证状态已收敛到 CaptchaCoordinator 单一协调者。
+ * 不主动拉起 MainActivity：后台/定时运行时屏幕多半是熄的，既受 Android 10+ 后台启动 Activity 限制、
+ * 用户也感知不到。改为发送可点击的验证码通知（{@link com.muxiao.Venus.common.Notification#sendCaptchaNotification}），
+ * 后台线程阻塞等待验证结果后继续执行任务；验证状态经 {@link CaptchaCoordinator} 收敛到单一协调者。
  */
 class BackgroundGeetestController implements GeetestController {
 
@@ -64,7 +47,7 @@ class BackgroundGeetestController implements GeetestController {
     private GT3GeetestUtils gt3Utils;
 
     /**
-     * 本次运行中因验证码未通过而失败的任务名（与任务状态持久化键同源）。
+     * 本次运行中因验证码未通过而失败的任务名（与任务状态持久化键同源），
      * 定时链路据此把验证码失败项排除出同日重试名单（改为通知用户手动处理）。
      */
     private final Set<String> captchaFailedTasks = new CopyOnWriteArraySet<>();
@@ -93,8 +76,8 @@ class BackgroundGeetestController implements GeetestController {
     }
 
     /**
-     * 遇到人机验证时，等待用户经通知进入前台完成验证，后台线程阻塞等待结果。
-     * Geetest.geetest() 会同步调用此方法，因此阻塞不会影响其他线程。
+     * 等待用户经通知进入前台完成验证，后台线程阻塞等待结果：Geetest.geetest() 同步调用本方法，
+     * 阻塞只影响当前任务线程。
      */
     @Override
     public void createButton(GT3ConfigBean gt3ConfigBean) {
@@ -123,53 +106,39 @@ class BackgroundGeetestController implements GeetestController {
         coordinator.countDown();
     }
 
-    // ===== 静态门面：供 Geetest / HomeFragment 按原调用方式使用（委托给协调者） =====
+    // 静态门面：供 Geetest / HomeFragment 沿用原静态调用方式（委托给协调者）
 
-    /**
-     * 由前台 Activity 调用，通知验证成功。
-     */
+    /** 前台 Activity 调用：通知验证成功。 */
     public static void notifyVerificationSuccess(Map<String, String> geetCode) {
         coordinator.notifyVerificationSuccess(geetCode);
     }
 
-    /**
-     * 获取前台验证完成后存储的 geetest 结果（消费并清除）。
-     */
+    /** 取前台验证完成后的 geetest 结果（消费并清除）。 */
     public static synchronized Map<String, String> getGeetestResult() {
         return coordinator.consumeResult();
     }
 
-    /**
-     * 保存后台任务 API1 获取的 gt 和 challenge，供前台使用同一 challenge 进行验证。
-     */
+    /** 存后台 API1 的 gt/challenge，供前台用同一 challenge 验证。 */
     public static void savePendingChallenge(String gt, String challenge) {
         coordinator.savePendingChallenge(gt, challenge);
     }
 
-    /**
-     * 消费并清除后台任务保存的 gt 和 challenge。
-     */
+    /** 消费并清除 gt/challenge（[0]=gt, [1]=challenge）。 */
     public static String[] consumePendingChallenge() {
         return coordinator.consumePendingChallenge();
     }
 
-    /**
-     * 保存后台任务的请求 headers（含 Cookie），供前台 API2 二次验证使用。
-     */
+    /** 存后台请求 headers（含 Cookie），供前台 API2 二次验证使用。 */
     public static void savePendingHeaders(Map<String, String> headers) {
         coordinator.savePendingHeaders(headers);
     }
 
-    /**
-     * 消费并清除后台任务保存的 headers。
-     */
+    /** 消费并清除后台保存的 headers。 */
     public static Map<String, String> consumePendingHeaders() {
         return coordinator.consumePendingHeaders();
     }
 
-    /**
-     * 由前台 Activity 调用，通知验证失败。
-     */
+    /** 前台 Activity 调用：通知验证失败。 */
     public static void notifyVerificationFailure() {
         coordinator.notifyVerificationFailure();
     }

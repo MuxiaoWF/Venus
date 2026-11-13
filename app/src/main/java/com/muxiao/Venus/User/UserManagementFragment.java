@@ -35,13 +35,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 用户管理页控制器（原 Fragment 收敛为控制器）：按服务器类型分组展示用户列表，
- * 支持添加/删除/重命名用户、重新登录。任务运行时禁止修改用户（防止数据不一致）。
- *
- * <p>界面为 Compose（{@link UserManagementScreenView}）：本类不再持有任何子 View 引用，
- * 只负责取数据 → 写状态 → 处理回调。「无用户」「默认账号」等显示态一律由
- * {@code UserManagementUiState} 派生，不再命令式 setVisibility。</p>
- */
+* 用户管理页控制器：按服务器类型分组展示用户，支持增删/重命名/重登录；任务运行时禁止修改用户（防数据不一致）。
+* 界面为 Compose（{@link UserManagementScreenView}），本类不持有子 View：取数据 → 写状态 → 处理回调，
+* 「无用户」「默认账号」等显示态一律由 {@code UserManagementUiState} 派生，不做命令式 setVisibility。
+*/
 public class UserManagementFragment implements PageController {
 
     private final MainActivity activity;
@@ -62,7 +59,6 @@ public class UserManagementFragment implements PageController {
         this.activity = activity;
     }
 
-    /** 注入 MainActivity 注册的照片选择器启动器。 */
     public void setAvatarPicker(ActivityResultLauncher<PickVisualMediaRequest> picker) {
         this.avatarPicker = picker;
     }
@@ -94,7 +90,6 @@ public class UserManagementFragment implements PageController {
                 .format(new java.util.Date()));
 
         // 内容不再容器级避让：列表底部留白 + 右下角 FAB 底距都随底栏覆盖高度走
-        // （原来分别是 BottomBarOverlay.attachClearance / attachMargin 的职责）
         BottomBarOverlay.addListener(bottomBarListener);
         root.setBottomClearance(BottomBarOverlay.get());
 
@@ -107,7 +102,6 @@ public class UserManagementFragment implements PageController {
     /** 页面成为当前选中页 / Activity 恢复：刷新用户列表。 */
     @Override
     public void show() {
-        // 恢复页面也刷新用户列表
         refreshUserList();
     }
 
@@ -140,13 +134,10 @@ public class UserManagementFragment implements PageController {
 
     /**
      * 按当前服务器类型重建用户卡列表状态（空态/区块标签/计数副标题一并派生）。
-     *
-     * <p>原实现逐条 inflate 视图、手动挂 LayoutTransition 做增删过渡；
-     * 现在只交一份数据给 Compose，列表项动画由 {@code animateItem()} 逐项 diff 完成。</p>
+     * 列表项增删动画由 Compose 侧 {@code animateItem()} 逐项 diff 完成。
      */
     private void refreshUserList() {
         if (screenView == null) return;
-        // 根据当前服务器类型过滤用户
         boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
         List<String> users = userManager.getUsernamesByServerType(isOversea);
         // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
@@ -178,12 +169,9 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 一张用户卡上的单项凭证状态：名称 + 状态文案 + 是否就绪 + 进度计数。
-     * 返回 null 表示「该功能未开启，卡片上不显示这一项」。
-     *
-     * <p>{@code total} 恒 ≥ 1：功能开着就等于「有一条凭证待配」。云游戏开了总开关却没勾
-     * 任何游戏时若记 0，汇总就会把这一项从分母里抹掉——配齐森空岛后显示「凭证 1/1」，
-     * 而云游戏其实一条都没配，用户会以为已经全部就绪。</p>
+     * 一张用户卡上的单项凭证状态：名称 + 状态文案 + 是否就绪 + 进度计数；null 表示该功能未开启、不显示这一项。
+     * {@code total} 恒 ≥ 1：云游戏开了总开关却没勾任何游戏时若记 0，汇总会把这项从分母抹掉，
+     * 配齐森空岛后就显示「凭证 1/1」而云游戏其实一条都没配。
      */
     private static final class Credential {
         /** 「云游戏」/「森空岛」 */
@@ -205,11 +193,9 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 把两项合并成卡片上的唯一一枚凭证入口。
-     *
-     * <p>只开一个功能时沿用该项的具体文案（「云游戏 1/2」），点了直接进对应抽屉；
-     * 两个都开时压成汇总（「凭证 3/3」/「凭证 待配 2」），点开由 {@link #onCredentialClick}
-     * 先让用户选。两个都没开则返回 null，卡片上整项不渲染。</p>
+     * 把两项合并成卡片上唯一的凭证入口：只开一个功能时沿用该项文案（「云游戏 1/2」）并直达对应抽屉；
+     * 两个都开时压成汇总（「凭证 3/3」/「凭证 待配 2」），点击后由 {@link #onCredentialClick} 让用户先选；
+     * 都没开返回 null，整项不渲染。
      */
     private CredentialChipRow credentialChip(TaskSettings settings, String username, boolean isOversea) {
         Credential cloud = cloudGameCredential(settings, username, isOversea);
@@ -231,10 +217,8 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 云游戏凭证状态。
-     *
-     * <p>开关是全局的、token 是按账号的，两者必须一起看：开关没开显示「未开启」，
-     * 开了但该账号没配显示「未配置」，配齐显示「已配置」，部分配置给出 n/m 进度。
+     * 云游戏凭证状态：开关是全局的、token 按账号，两者必须一起看——开关未开「未开启」，开了但未配「未配置」，
+     * 配齐「已配置」，部分配置给 n/m 进度。
      */
     private Credential cloudGameCredential(TaskSettings settings, String username, boolean isOversea) {
         // 功能没开就别在卡片上占位：返回 null，Compose 侧整项不渲染
@@ -277,8 +261,7 @@ public class UserManagementFragment implements PageController {
 
     /**
      * 点凭证入口：只开一个功能时直达对应抽屉，两个都开时先让用户选要配哪一项。
-     *
-     * <p>业务判断留在 Java 侧，Compose 只上报被点的用户名。</p>
+     * 业务判断留在 Java 侧，Compose 只上报被点的用户名。
      */
     private void onCredentialClick(String username) {
         TaskSettings settings = TaskSettings.fromPreferences(getContext());
@@ -308,11 +291,9 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 把这张卡的用户作为「凭证配置目标账号」交给设置页，展开对应抽屉。
-     *
-     * <p>不再切换全局当前账号：设置页的凭证抽屉自带目标账号，读写都按它走。
-     * 切账号会连带首页数据与任务上下文一起变，代价远大于收益；
-     * 目标账号只对这一次跳转有效，设置页 {@code show()} 时即复位。</p>
+     * 把这张卡的用户作为「凭证配置目标账号」交给设置页并展开对应抽屉。
+     * 不切全局当前账号（切账号会连带首页数据与任务上下文一起变）：抽屉自带目标账号，
+     * 只对这一次跳转有效，设置页 {@code show()} 时复位。
      */
     private void openCredentialPane(String username, int pane) {
         activity.openSettingsPane(pane, username);
@@ -326,11 +307,7 @@ public class UserManagementFragment implements PageController {
             showRenameUserDialog(username);
     }
 
-    /**
-     * 显示重命名用户对话框（Compose 版输入框 + 就地校验）
-     *
-     * @param oldUsername 旧用户名
-     */
+    /** 显示重命名用户对话框（Compose 版输入框 + 就地校验）。 */
     private void showRenameUserDialog(String oldUsername) {
         VenusDialogs.input(
                 activity,
@@ -361,21 +338,15 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 把用户数据整体迁移到新用户名，并同步 UserManager 中的当前用户标记与账户列表，最后刷新视图。
-     * <p>
-     * 数据迁移统一交给 {@link com.muxiao.Venus.common.data.UserRepository#migrate(String, String)}：
-     * 原实现只复制旧 SP 文件，遗漏了 DataStore 与内存缓存，重命名后读取到的令牌可能为空
-     * （读取命中缓存/DataStore，而两者仍是旧用户名下的键）。
-     *
-     * @param oldUsername 旧用户名
-     * @param newUsername 新用户名
+     * 把用户数据迁移到新用户名，并同步 UserManager 的当前用户标记与账户列表、刷新视图。
+     * 迁移统一走 {@link com.muxiao.Venus.common.data.UserRepository#migrate(String, String)}：
+     * 只复制旧 SP 会遗漏 DataStore 与内存缓存，重命名后读取到的令牌可能为空。
      */
     private void renameUser(String oldUsername, String newUsername) {
         new com.muxiao.Venus.common.data.UserRepository(getContext()).migrate(oldUsername, newUsername);
         // 头像文件按 md5(用户名) 键存储，随重命名一并迁移
         AvatarStore.renameAvatar(getContext(), oldUsername, newUsername);
 
-        // 添加新用户并删除旧用户
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
             userManager.setCurrentUser(newUsername);
@@ -468,17 +439,12 @@ public class UserManagementFragment implements PageController {
         return HomeFragment.isTaskRunning();
     }
 
-    /**
-     * 切换为指定用户并启动登录页（RELOGIN_MODE=true），用于刷新其 Cookie/凭证。
-     *
-     * @param username 用户名
-     */
+    /** 切换为指定用户并启动登录页（RELOGIN_MODE=true），用于刷新其 Cookie/凭证。 */
     private void performRelogin(String username) {
         if (isTaskRunning()) {
             showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_relogin));
             return;
         }
-        // 切换到该用户并启动登录活动以刷新cookie
         userManager.setCurrentUser(username);
         boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
         Intent intent = new Intent(activity,

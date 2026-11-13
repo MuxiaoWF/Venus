@@ -53,33 +53,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 import com.muxiao.Venus.common.tools
 
-/**
- * 一张用户卡的数据（原 `item_user_management.xml` 的绑定结果）。
- *
- * `displayName` 由 Java 侧用 `R.string.user_label_with_server` 拼好——
- * 格式化留在有 Context 的一侧，Compose 只负责排版，避免把 i18n 逻辑搬进 UI。
- */
+/** 一张用户卡的数据。`displayName` 由 Java 侧拼好（`R.string.user_label_with_server`）：i18n 留在有 Context 的一侧，UI 只排版。 */
 @Immutable
 class UserCardRow(
     val username: String,
     val displayName: String,
     /** 当前默认账号：名称后显示「默认」chip。 */
     val isDefault: Boolean,
-    /**
-     * 凭证入口（云游戏 + 森空岛合并为一枚）；null = 两个功能都没开启，卡片上不出现。
-     *
-     * <p>合并的动机：两项分别列胶囊时，卡片里会并排出现两枚状态块，
-     * 与「头像 + 名称 + 已登录」的信息层级打架；合并后无论启用几个功能都只占一枚。</p>
-     */
+    /** 凭证入口（云游戏 + 森空岛合并为一枚）；null = 两个功能都没开启，卡片上不出现。合并是为了不让两枚状态块与「头像 + 名称 + 已登录」抢层级。 */
     val credential: CredentialChipRow? = null,
 )
 
 /**
  * 用户卡上的凭证入口数据。
- *
- * @param label 由 Java 侧拼好：只开一个功能时是该功能的具体状态（「云游戏 1/2」），
- *              两个都开时是汇总（「凭证 3/3」/「凭证 待配 2」）
- * @param ready 是否全部就绪（决定配色，不代表能不能点）
+ * @param label 由 Java 侧拼好：只开一个功能时是该功能状态（「云游戏 1/2」），两个都开时是汇总（「凭证 3/3」）
+ * @param ready 只决定配色，不代表能不能点
  */
 @Immutable
 class CredentialChipRow(
@@ -87,12 +75,7 @@ class CredentialChipRow(
     val ready: Boolean,
 )
 
-/**
- * 用户管理页的全部可变状态。
- *
- * 与既有 pane 的「宿主是受控组件」约定一致：Java 只写状态，视觉全部由状态派生，
- * 不再逐控件 `setText` / `setVisibility`。
- */
+/** 用户管理页的全部可变状态。与 pane 同一约定：宿主是受控组件——Java 只写状态，视觉全部由状态派生，不逐控件 setText。 */
 @Stable
 class UserManagementUiState {
     var users by mutableStateOf<List<UserCardRow>>(emptyList())
@@ -101,10 +84,7 @@ class UserManagementUiState {
     /** 空态文案；非空即显示空态并隐藏区块标签。 */
     var emptyText by mutableStateOf<String?>(null)
     var bottomClearancePx by mutableIntStateOf(0)
-    /**
-     * 头像刷新令牌：换头像后自增，喂给每张卡的 [VenusAvatar]。
-     * 头像文件按用户名定址、原地覆盖，没有这个令牌列表里的旧图不会更新。
-     */
+    /** 头像刷新令牌：换头像后自增。头像文件按用户名定址、原地覆盖，没有它列表里的旧图不会更新。 */
     var avatarVersion by mutableIntStateOf(0)
 }
 
@@ -114,17 +94,8 @@ fun interface UsernameConsumer {
 }
 
 /**
- * 用户管理页（命令台风格）的 Compose 实现，替代 `fragment_user_management.xml`
- * 与 `item_user_management.xml` 两个布局。
- *
- * 与原实现的对应关系：
- * - 原 `NestedScrollView + LinearLayout + 逐条 inflate` → `LazyColumn`（列表天然可复用）
- * - 原 `LayoutTransition`（仅结构性增删时播放）→ `animateItem()`
- *   （逐项 diff 动画，无变化的重组不会闪动，等价且更省）
- * - 原 `LensGlassDrawable.apply(itemView, shape_corner_md)` → 卡片下的 [LensGlass]
- *   （回退底为同源的 `bg_glass_card`）
- * - 原 `BottomBarOverlay.attachClearance/attachMargin` → 由宿主把覆盖高度喂成状态，
- *   列表底部留白与 FAB 底距同时跟随
+ * 用户管理页（命令台风格）。列表用 `LazyColumn` + `animateItem()` 做增删重排动画（无变化的重组不闪动），
+ * 卡片底为 [LensGlass]；底栏覆盖高度由宿主喂成状态，列表底部留白与 FAB 底距同时跟随。
  */
 @Composable
 fun UserManagementScreen(
@@ -167,8 +138,7 @@ fun UserManagementScreen(
                 collapse = headerCollapse,
             )
 
-            // 正文：等价于 Widget.Venus.ScreenScaffold（左右 gutter、上 space_2、下 space_4）
-            // + BottomBarOverlay 的底部避让 + 原容器自身的 space_bottom_fab（给 FAB 让位）
+            // 正文：左右 gutter、上 space_2、下 space_4 + 底栏避让 + space_bottom_fab（给 FAB 让位）
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -202,8 +172,7 @@ fun UserManagementScreen(
                         onReloginClick = onReloginClick,
                         onDeleteClick = onDeleteClick,
                         onCredentialClick = onCredentialClick,
-                        // 结构性增删/重排的让位动画：与 View 侧 LayoutTransition 同一用途。
-                        // 「减少动态效果」下不挂，避免列表整体位移。
+                        // 结构性增删/重排的让位动画；「减少动态效果」下不挂，避免列表整体位移
                         modifier = Modifier
                             .padding(top = if (index == 0) 0.dp else dimensionResource(R.dimen.gap_card))
                             .then(if (reducedMotion) Modifier else Modifier.animateItem()),
@@ -244,12 +213,7 @@ private fun SectionLabel(text: String) {
     )
 }
 
-/**
- * 空态：图标 + 文案居中。
- *
- * 原 XML 用 `android:drawableTop` + `drawablePadding` 挂在 TextView 上；
- * Compose 没有等价属性，改用 Column 纵排——观感一致且便于给图标单独着色。
- */
+/** 空态：图标 + 文案居中。Compose 无 `drawableTop` 等价属性，改用 Column 纵排，也便于给图标单独着色。 */
 @Composable
 private fun EmptyUserPrompt(text: String) {
     Column(
@@ -276,9 +240,7 @@ private fun EmptyUserPrompt(text: String) {
 
 /**
  * 单张用户卡：信息行（头像 + 名称/默认 chip + 登录状态 + chevron）+ 附着操作栏（重新登录 | 删除）。
- *
- * 信息行整行点击 = 重命名（保持原 `rename_user_dialog` 入口）；头像单独可点唤起头像操作，
- * 两个点击区互不干扰（Compose 内层 `clickable` 优先消费）。
+ * 信息行整行点击 = 重命名，头像单独可点唤起头像操作；两个点击区互不干扰（内层 `clickable` 优先消费）。
  */
 @Composable
 private fun UserCard(
@@ -351,7 +313,7 @@ private fun UserCard(
                     )
                 }
 
-                // 原 XML 的 android:rotation="270"：chevron 向下 → 指向右
+                // chevron 默认向下，旋转 270° 指向右
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron),
                     contentDescription = stringResource(R.string.rename),
@@ -407,12 +369,7 @@ private fun CredentialEntry(
     }
 }
 
-/**
- * 单个凭证状态 chip。
- *
- * 配色只表达「这个账号的凭证齐不齐」：齐 = 成功容器色，不齐（未配置 / 未开启）= 中性；
- * 功能是否开启由文案区分，不交给颜色，避免两种含义挤在同一种视觉里。
- */
+/** 单个凭证状态 chip：配色只表达凭证齐不齐（齐 = 成功容器色，否则中性），功能是否开启交给文案区分，避免两种含义共用一种视觉。 */
 @Composable
 private fun CredentialChip(label: String, ready: Boolean, onClick: () -> Unit) {
     val textColor = if (ready) colorResource(R.color.status_on_success_container)
@@ -475,13 +432,7 @@ private fun DefaultChip() {
     )
 }
 
-/**
- * 操作栏按钮：图标 + 文案，居中。
- *
- * 原实现是 `Widget.Venus.Button.Text`（MaterialButton）带 `app:icon`；
- * Compose 侧用 Row + `clickable` 复刻，涟漪由 `clickable` 的 indication 提供，
- * 且天然被卡片的圆角裁剪（与原 `MaterialCardView` 的子内容裁剪一致）。
- */
+/** 操作栏按钮：图标 + 文案居中。用 Row + `clickable`（涟漪由 indication 提供，且天然被卡片圆角裁剪），不必套 MaterialButton。 */
 @Composable
 private fun CardAction(
     text: String,
@@ -519,12 +470,7 @@ private fun rememberReducedMotion(): Boolean {
     return remember(context) { tools.isReducedMotionEnabled(context) }
 }
 
-/**
- * 用户管理页的 Compose 宿主。
- *
- * 用法（`UserManagementFragment.onCreateView`）：`new UserManagementScreenView(ctx)` 直接作为
- * 根视图返回，之后所有 UI 更新都走 `setUsers` / `setSubtitle` / `setEmptyText` 等方法。
- */
+/** 用户管理页宿主：`UserManagementFragment` 直接 new 来当根视图，之后 UI 更新全走 setUsers / setSubtitle / setEmptyText。 */
 class UserManagementScreenView(context: Context) : AbstractComposeView(context) {
 
     internal val uiState = UserManagementUiState()
@@ -601,12 +547,7 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
         onDeleteClickListener = listener
     }
 
-    /**
-     * 点凭证入口：跳设置页完成该账号的凭证配置。
-     *
-     * <p>只开一个功能时直达对应抽屉；两个都开时由 Java 侧先弹「云游戏 / 森空岛」选择——
-     * 这些业务判断不进 UI 层。</p>
-     */
+    /** 点凭证入口：跳设置页配置。只开一个功能直达对应抽屉，两个都开由 Java 侧先弹选择——业务判断不进 UI 层。 */
     fun setOnCredentialClickListener(listener: UsernameConsumer?) {
         onCredentialClickListener = listener
     }

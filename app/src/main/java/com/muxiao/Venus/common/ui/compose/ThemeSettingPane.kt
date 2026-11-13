@@ -48,15 +48,11 @@ const val THEME_VARIANT_INDEX_LIGHT = 1
 const val THEME_VARIANT_INDEX_DARK = 2
 
 /**
- * 设置页「主题」抽屉内容（原 res/layout/item_setting_theme.xml）。
- *
- * 结构：七枚主题圆点（FlowRow 流式换行，放不下自动折行）+ 深浅模式药丸分段。
- * 选中圆点用 onSurface 内描环表达（对应原 bg_theme_dot_ring 的 foreground 覆盖）。
+ * 设置页「主题」抽屉内容：七枚主题圆点（FlowRow 流式换行）+ 深浅模式药丸分段。
+ * 选中圆点用 onSurface 内描环表达（对应 bg_theme_dot_ring 的 foreground 覆盖）。
  *
  * @param selectedTheme 选中的主题序号（0 = 系统动态取色，1-6 = 蓝绿红黄青紫）
- * @param onThemeSelect 主题点选回调
  * @param selectedVariant 深浅模式序号（0 跟随 / 1 浅色 / 2 深色）
- * @param onVariantSelect 深浅模式切换回调
  */
 @Composable
 fun ThemeSettingPane(
@@ -76,7 +72,7 @@ fun ThemeSettingPane(
         FlowRow(
             modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.space_1)),
             horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_3)),
-            // 纵向 8→4：7 枚圆点在 360dp 上会折成两行，行距收紧后省 4dp
+            // 360dp 上 7 枚圆点会折成两行，行距收紧到 4dp 省高度
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_1)),
         ) {
             ThemeDot(
@@ -146,11 +142,8 @@ fun ThemeSettingPane(
 }
 
 /**
- * 单枚主题圆点，等价于 `Widget.Venus.ThemeDot`（28dp 药丸 + backgroundTint）。
- *
- * 选中环还原 bg_theme_dot_ring：2dp 内缩 + 2.5dp onSurface 描边。
- * 之所以不用 `border` 直接画在外圈：原实现是 foreground 覆盖，环与外缘之间留了 2dp 间隙，
- * 直接描边会贴着边缘、观感偏“粗”。
+ * 单枚主题圆点：选中环 = 外圈内缩 2dp + onSurface 描边。不能用 `border` 直接画在外圈——
+ * 环与外缘之间要留 2dp 间隙，贴着边缘描边会显得过粗。
  */
 @Composable
 private fun ThemeDot(
@@ -166,8 +159,7 @@ private fun ThemeDot(
         modifier = modifier
             .size(dimensionResource(R.dimen.theme_dot_size))
             .clip(CircleShape)
-            // 原 XML 用 android:contentDescription 标注圆点语义（纯色圆点无文字），
-            // 这里必须显式挂 semantics，否则读屏只能读到“按钮”而无法区分主题。
+            // 纯色圆点无文字，必须显式挂 semantics，否则读屏只能读到“按钮”、无法区分主题。
             .semantics { this.contentDescription = contentDescription }
             .background(color)
             .clickable(onClick = onClick),
@@ -197,9 +189,8 @@ private fun ThemeDot(
 }
 
 /**
- * [ThemeSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [ThemeSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class ThemeSettingPaneView {
 
@@ -216,7 +207,6 @@ class ThemeSettingPaneView {
             themeState.intValue = value
         }
 
-    /** 深浅模式序号。 */
     var selectedVariant: Int
         get() = variantState.intValue
         set(value) {

@@ -21,12 +21,10 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：确保 Compose 版抽卡链接页与原 XML 行为等价。
- *
- * 重点覆盖三件在原实现里散落在 View 操作中的事：
- * 1. 来源行状态切换后 chip / 状态文案同步（原来靠 setChipState 逐控件改）
+ * 抽卡链接页回归测试，覆盖：
+ * 1. 来源行状态切换后 chip / 状态文案同步
  * 2. 结果行渲染 + 复制按钮回调带出对应 URL
- * 3. 无用户空态引导可点击（原来靠 updateUserGuideState 换点击行为）
+ * 3. 无用户空态引导可点击
  */
 class LinkScreenTest {
 

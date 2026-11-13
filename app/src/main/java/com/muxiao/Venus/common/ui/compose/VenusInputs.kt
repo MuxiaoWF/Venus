@@ -22,18 +22,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.muxiao.Venus.R
 
 /**
- * Venus 通用输入框（原 `Widget.Venus.TextInput`：OutlinedBox + `shape_corner_sm` 圆角）。
- *
- * 收口前的重复：登录页三个单行框 + Cookie 多行框各写一份 `OutlinedTextField` + 同款
- * shape / keyboardOptions，设置页「语言」抽屉又写了一份只读下拉框。四处只有 label / 行数 /
- * 键盘类型不同，其余完全一致。
+ * Venus 通用输入框（统一 `shape_corner_sm` 圆角 + 键盘动作），登录页与设置页共用。
  *
  * @param label 浮动标签；null = 不带标签（语言抽屉用 placeholder 代替，避免与抽屉标题重复）
- * @param placeholder 无内容时的占位文案
  * @param readOnly 只读（下拉 / 展示型字段）：仍可点击展开菜单，但不接受输入
  * @param modifier 调用方前置修饰符（如 `menuAnchor`）
  * @param visualTransformation 视觉变换（密码框用它遮字符）
- * @param onSubmit 键盘「完成 / 前往」回调
  */
 @Composable
 internal fun VenusTextField(
@@ -73,10 +67,8 @@ internal fun VenusTextField(
 }
 
 /**
- * 密码输入框：对应原 `endIconMode=password_toggle`。
- *
- * Compose 未引入 material-icons-extended，用「显示 / 隐藏」文字按钮达成同样的可见性切换，
- * 且读屏可读。
+ * 密码输入框：Compose 未引入 material-icons-extended，用「显示 / 隐藏」文字按钮做可见性
+ * 切换，且读屏可读。
  */
 @Composable
 internal fun VenusPasswordField(

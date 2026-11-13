@@ -13,10 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 迁移回归测试：米游币签到 / 游戏签到两个抽屉的 Compose 版行为等价性
- * （Chip 按下标派发勾选、国际服隐藏位生效）。
- */
+/** 米游币签到 / 游戏签到两个抽屉：Chip 按下标派发勾选、国际服隐藏位生效。 */
 class SignInPanesTest {
 
     @get:Rule

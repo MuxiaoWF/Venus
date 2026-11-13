@@ -28,30 +28,18 @@ import com.muxiao.Venus.R
 /**
  * 圆形玻璃按钮（外观 + 触控），内容由调用方给。
  *
- * <h3>为什么单开一层「只做外观」的 API</h3>
- * 顶栏按钮的内芯不一定是图标：全屏看图的下载按钮在下载中要换成不定长进度环。
- * 若只有 [GlassIconButton]，那种场景就得把玻璃表面重写一遍（正是本次要收敛掉的分叉）。
+ * 单开「只做外观」一层是因为内芯不一定是图标：全屏看图的下载按钮要换成不定长进度环，
+ * 若只有 [GlassIconButton] 就得把玻璃表面重写一遍。
  *
- * <h3>层次顺序</h3>
- * ```
- * Box(size = touch_target_min)    ← 栅格 + 触控
- * ├── Box(size = 视觉直径)
- * │   ├── LensGlass(circle)       ← 玻璃表面（折射/磨砂/边缘光）
- * │   └── content()               ← 图标或进度环
- * └── Box(clickable)              ← 涟漪必须画在玻璃**之上**，否则被透镜遮住；
- *                                    clip(CircleShape) 让涟漪跟着圆裁，而不是方形水波
- * ```
+ * 层次：Box(48dp，栅格+触控) → Box(视觉直径) 内嵌 LensGlass(circle) + content()；涟漪层必须
+ * 画在玻璃**之上**（否则被透镜遮住），并 clip(CircleShape) 让涟漪随圆裁而非方形水波。
  *
- * <h3>尺寸：视觉 40dp / 占位与触控 48dp</h3>
- * ```
- * Box(size = touch_target_min 48dp)      ← 栅格与触控范围，与 IconButton 一致，替换时行高不动
- * └── Box(size = icon_button_glass 40dp) ← 玻璃圆的实际直径（居中）
- * ```
- * 玻璃画满 48dp 时在 56dp 顶栏行里上下只剩 4dp、视觉上压过标题，所以直径单独收一档；
- * 触控仍按 48dp 判定，不影响可点性。
+ * 尺寸：视觉直径 40dp（icon_button_glass）、占位与触控 48dp（touch_target_min，与 IconButton
+ * 一致，替换时行高不动）。玻璃画满 48dp 在 56dp 顶栏行里上下只剩 4dp、视觉压过标题，故直径
+ * 单独收一档；触控仍按 48dp 判定。
  *
- * 采样源缺失（独立窗口未接 `VenusBackdropHost`）时按 [LensGlass] 的既定降级：
- * 只画半透明表面 + 边缘光，不报错、不闪。
+ * 采样源缺失（独立窗口未接 `VenusBackdropHost`）时按 [LensGlass] 降级：只画半透明表面，
+ * 不报错、不闪。
  */
 @Composable
 fun GlassCircleButton(
@@ -77,20 +65,18 @@ fun GlassCircleButton(
             modifier = Modifier
                 .matchParentSize()
                 .clip(CircleShape)
-                // role = Button：读屏把这一圈识别成按钮（图标本身只是内容，不该被单独聚焦）
+                // role = Button：读屏把这一圈识别成按钮，图标只是内容、不单独聚焦
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         )
     }
 }
 
 /**
- * 顶栏图标按钮：玻璃圆 + 居中图标。
+ * 顶栏图标按钮：玻璃圆 + 居中图标。带返回/关闭符号的顶栏统一用它，不要再写 `IconButton`
+ * ——后者只有圆形涟漪、没有实体，与页面其它玻璃控件不成体系。
  *
- * 所有带返回/关闭符号的顶栏统一用它（图库、全屏看图、登录、OAuth、云游戏抓取），
- * 不要再写 `IconButton`：`IconButton` 只有圆形涟漪、没有实体，与页面其它玻璃控件不成体系。
- *
- * @param iconModifier 图标自身的修饰（如 chevron 用 `rotate(90f)` 转成返回箭头）
- * @param tint 图标色；默认取主题 `onSurface`（浅色照片/深色玻璃上可传 `Color.White`）
+ * @param iconModifier 图标自身修饰（如 chevron 用 `rotate(90f)` 转成返回箭头）
+ * @param tint 图标色，默认主题 `onSurface`（浅色照片/深色玻璃上可传 `Color.White`）
  */
 @Composable
 fun GlassIconButton(

@@ -25,21 +25,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 星铁 KCP 初始密钥表仓储：assets/hsr.json 内置表 + 云端更新（模式同 MiHoYoBBSConstants 的 K2/LK2）。
- * 云端源链：主源 stardb-exporter（GitHub raw，海外快、国内常不可达，走短超时快速让位）→
- * 兜底自建服务（Constants.Urls.HSR_KEYS_UPDATE_URL），两者均为 {版本号: base64密钥} 同构 JSON；
- * CaptureService 每次启动抓包时后台调 checkForUpdateAsync 检查更新。
- * 合并语义：assets 为底、云端逐键覆盖（仅接受解码后为 4096 字节的有效条目），
- * 持久化只存「与运行时表的差量」到 ConfigRepository（键 hsr_keys）——
- * 冷启动按 assets ∪ 差量重建，应用内置 assets 补新键后也不会被旧差量顶掉。
- *
- * <p>请求节流（尽量少打远程接口）：
- * <ul>
- *   <li>常规检查（每次启动抓包触发）：距上次<b>成功</b>拉取不足 {@link #PROACTIVE_INTERVAL_MS} 直接跳过
- *       ——密钥表平时不变化，正常使用下每 24h 至多 1 次请求；</li>
- *   <li>缺键补拉（分析器遇到未知版本号触发）：绕过常规节流立即拉取（游戏上新版后服务端一有键即可用），
- *       但 {@link #MISS_RETRY_MS} 内至多 1 次，且全程单飞（进行中不重复发起）——
- *       防止服务端也没这个键时每个 KCP 包都打请求；</li>
- * </ul>
+ * 云端源链：主源 stardb-exporter（GitHub raw，海外快、国内常不可达，走短超时快速让位）→ 兜底自建服务
+ * （Constants.Urls.HSR_KEYS_UPDATE_URL），两者均为 {版本号: base64密钥} 同构 JSON，由 CaptureService 每次启动抓包时后台检查。
+ * 合并语义：assets 为底、云端逐键覆盖（仅接受解码后为 4096 字节的有效条目），持久化只存「与运行时表的差量」到
+ * ConfigRepository（键 hsr_keys）——冷启动按 assets ∪ 差量重建，应用内置 assets 补新键后也不会被旧差量顶掉。
+ * <p>
+ * 请求节流（尽量少打远程接口）：常规检查距上次成功拉取不足 {@link #PROACTIVE_INTERVAL_MS} 直接跳过（平时 24h 至多 1 次）；
+ * 缺键补拉（分析器遇未知版本触发）绕过常规节流立即拉取（服务端一有键即可用），但 {@link #MISS_RETRY_MS} 内至多 1 次
+ * 且全程单飞（进行中不重复发起）——防止服务端也没这个键时每个 KCP 包都打请求。
  */
 public final class HsrKeyStore {
     private static final String TAG = "HsrKeyStore";
@@ -79,20 +72,16 @@ public final class HsrKeyStore {
     }
 
     /**
-     * 异步检查云端密钥表更新（内部已在后台线程池执行，任意线程可调）。
-     *
-     * @param force false=常规检查（启动抓包时）：距上次成功拉取不足 24h 跳过；
-     *              true=缺键补拉（分析器遇到未知版本时）：绕过常规节流，仅受 10min 重试间隔与单飞闸约束
+     * 异步检查云端密钥表更新（内部已在后台线程池执行，任意线程可调）。force=false 为常规检查：距上次成功拉取不足 24h
+     * 跳过；force=true 为缺键补拉：绕过常规节流，仅受 10min 重试间隔与单飞闸约束。
      */
     public static void checkForUpdateAsync(Context context, boolean force) {
         checkForUpdateAsync(context, force, null);
     }
 
     /**
-     * 同上，可附带拉取落定回调。
-     *
-     * @param onSettled 本次**真实发起**的拉取结束（无论成败）后在后台线程回调；
-     *                  因节流跳过或已有拉取在途（未发起新请求）时不回调
+     * 同上，可附带拉取落定回调。onSettled 仅在本次**真实发起**的拉取结束（无论成败）后于后台线程回调；
+     * 因节流跳过或已有拉取在途（未发起新请求）时不回调。
      */
     public static void checkForUpdateAsync(Context context, boolean force, Runnable onSettled) {
         long now = System.currentTimeMillis();
@@ -114,9 +103,8 @@ public final class HsrKeyStore {
     }
 
     /**
-     * 按顺序尝试各云端源拉取密钥表并合并进运行时表（必须在后台线程调用）。
-     * 主源（stardb-exporter，海外快、国内常不可达）用短超时客户端，失败/无效立即让位兜底源；
-     * 某源返回任何有效条目即成功，跨源不叠加。全部失败时静默保留现有表（抓包仍可用内置表兜底）。
+     * 按顺序尝试各云端源拉取密钥表并合并进运行时表（必须在后台线程调用）。主源用短超时客户端，失败/无效立即让位兜底源；
+     * 某源返回任何有效条目即成功，跨源不叠加；全部失败时静默保留现有表（抓包仍可用内置表兜底）。
      */
     private static void updateFromWeb(Context context) {
         for (int i = 0; i < SOURCE_URLS.length; i++) {
@@ -163,11 +151,10 @@ public final class HsrKeyStore {
 
     /**
      * 运行时表相对 assets 的差量快照（assets 里没有、或值已被云端覆盖的条目）。
-     *
-     * <p>注意必须写「相对 assets 的全量差量」，不能只写本次拉取新增的条目：运行时表
-     * = assets ∪ 已落盘差量，只写本次新增会把此前落盘、assets 里没有的键从磁盘抹掉；
-     * 一旦随后 24h 常规节流窗口内重启进程（常规检查会跳过拉取），应用就会退回缺键状态，
-     * 表现为 VPN 抓包"流程都对但抓不到链接"。
+     * <p>
+     * 必须写「相对 assets 的全量差量」，不能只写本次拉取新增的条目：运行时表 = assets ∪ 已落盘差量，
+     * 只写本次新增会把此前落盘、assets 里没有的键从磁盘抹掉；随后 24h 常规节流窗口内重启进程
+     * （常规检查会跳过拉取），应用就会退回缺键状态，表现为 VPN 抓包"流程都对但抓不到链接"。
      */
     private static JSONObject buildDiffJson(Context context) throws Exception {
         JSONObject assets = loadAssets(context);

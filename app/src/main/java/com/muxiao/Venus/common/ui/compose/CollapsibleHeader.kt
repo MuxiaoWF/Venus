@@ -28,16 +28,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * 页眉滚动收缩状态：手指拖动**按像素跟随**，松手过半对齐。
- *
- * 两处接入方共用这一套手感：四个 fragment 的页眉（`CommandHeader`）与图库页浮层顶栏
- * （`ImageScreen`）。差别只在「高度去哪了」——
- * fragment 页眉在正常布局流里，高度一缩下面的列表自然上移，不需要 padding 补偿；
- * 图库顶栏是浮层，得自己把同一份位移折算成列表的 `contentTopInset`。
- *
- * 只保存一个位移 [offsetPx]（范围 `[-rangePx, 0]`），可收缩高度 [rangePx] 由页眉实测回填，
- * 因此页眉里增减一行（如副标题为空）不需要另外调参；范围已知的场合（图库的 chip 行）
- * 也可以直接 [updateRange] 回填。
+ * 页眉滚动收缩状态：手指拖动按像素跟随，松手过半对齐。两个接入方共用这套手感——fragment 页眉（`CommandHeader`）
+ * 在布局流里，缩多少下面的列表自然上移；图库浮层顶栏（`ImageScreen`）得把同一位移自行折成列表的 `contentTopInset`。
+ * 只存位移 [offsetPx]（范围 `[-rangePx, 0]`），[rangePx] 由页眉实测回填，因此页眉增减一行无需另行调参。
  */
 @Stable
 internal class HeaderCollapseState {
@@ -100,11 +93,8 @@ internal class HeaderCollapseState {
 internal fun rememberHeaderCollapseState(): HeaderCollapseState = remember { HeaderCollapseState() }
 
 /**
- * 把页眉收缩接到滚动链上。
- *
- * 挂载位置：页面根容器（滚动容器的**父级**），这样列表的位移会先经过这里：
- * 上滑（`available.y < 0`）先收页眉，下滑先展开，页眉走完自己的行程再把剩余位移交给列表。
- * 惯性滚动（`SideEffect`）不驱动收缩，松手后由 `onPostFling` 一次性对齐，避免边飞边抖。
+ * 把页眉收缩接到滚动链上，挂在页面根容器（滚动容器的父级）：列表位移先经这里，上滑先收页眉、下滑先展开，
+ * 页眉走完行程再把剩余位移交给列表。惯性滚动（SideEffect）不驱动收缩，松手后由 onPostFling 一次性对齐，避免边飞边抖。
  */
 @Composable
 internal fun rememberHeaderCollapseConnection(state: HeaderCollapseState): NestedScrollConnection {
@@ -132,12 +122,8 @@ internal fun rememberHeaderCollapseConnection(state: HeaderCollapseState): Neste
 }
 
 /**
- * 列表回到顶部时自动展开页眉。
- *
- * 必要性：惯性滚动不驱动收缩（见 [rememberHeaderCollapseConnection]），所以「一路甩回顶部」
- * 之后页眉会停在收起态；这里按 atTop 兜底展开，让顶部永远对应完整页眉。
- *
- * 首字母大写：本函数返回 Unit，按 Compose 命名约定必须以大写开头（lint: ComposableNaming）。
+ * 列表回到顶部时自动展开页眉：惯性滚动不驱动收缩（见 [rememberHeaderCollapseConnection]），一路甩回顶部后
+ * 页眉会停在收起态，这里按 atTop 兜底。首字母大写是本函数返回 Unit 的 Compose 命名约定（lint: ComposableNaming）。
  */
 @Composable
 internal fun HeaderCollapseState.ExpandWhenAtTop(atTop: Boolean) {
@@ -151,13 +137,10 @@ internal fun HeaderCollapseState.ExpandWhenAtTop(atTop: Boolean) {
 }
 
 /**
- * 可收缩的一段页眉内容：高度随收缩量裁切，同时按剩余比例淡出。
+ * 可收缩的一段页眉内容：高度随收缩量裁切，并按剩余比例淡出。内容以 `wrapContentHeight(unbounded = true)` 测量——
+ * 父级收缩后高度小于内容，若不解约束，`onSizeChanged` 报的是被裁后的高度，收缩量会越算越小。
  *
- * 内容以 `wrapContentHeight(unbounded = true)` 测量——父级高度在收缩时小于内容高度，
- * 若不解除高度约束，`onSizeChanged` 报的会是"被裁后的高度"，收缩量就会被越算越小。
- *
- * @param naturalPx 内容自然高度（px）；0 = 还没测到，此时先按自然高度排版，避免首帧闪烁
- * @param visiblePx 当前应占高度（px），收缩到 0 时不再占位
+ * @param naturalPx 内容自然高度（px）；0 = 尚未测到，先按自然高度排版，避免首帧闪烁
  */
 @Composable
 internal fun CollapsibleBlock(

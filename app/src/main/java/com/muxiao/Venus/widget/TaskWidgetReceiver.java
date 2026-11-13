@@ -17,17 +17,14 @@ import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.Home.TaskSettings;
 
-/**
- * 接收小组件"运行"按钮的广播，启动前台任务服务。
- */
+/** 接收小组件「运行」按钮的广播，启动前台任务服务。 */
 public class TaskWidgetReceiver extends BroadcastReceiver {
 
     public static final String ACTION_RUN_TASKS = "com.muxiao.Venus.widget.RUN_TASKS";
 
     /**
-     * 解析小组件的目标用户（运行与展示共用）：优先取 App 内当前选中的用户
-     * （UserManager，跟随首页下拉切换），未选择时兜底「最后一次运行的用户」
-     * （TaskStatusManager.current_user）。
+     * 解析小组件的目标用户（运行与展示共用）：优先 App 内当前选中用户（UserManager，
+     * 跟随首页下拉切换），未选择时兜底「最后一次运行的用户」（TaskStatusManager.current_user）。
      */
     public static String resolveTargetUser(Context context) {
         String userId = new UserManager(context).getCurrentUser();

@@ -97,12 +97,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/**
- * 全屏浏览的一页：一张图 + 它所属帖子的元信息。
- *
- * 原 `ImagePagerAdapter` 把「帖子 × 图片」拍平成 ImageItem 列表，元信息随每张图重复携带；
- * 迁移后保持同样的拍平方式（`position` 语义不变，下载与计数都以拍平后的页为准）。
- */
+/** 全屏浏览的一页：一张图 + 它所属帖子的元信息。沿用「帖子 × 图片」拍平方式，元信息随每张图重复携带，下载与计数都以拍平后的页为准。 */
 @Immutable
 class FullscreenPage(
     val imageUrl: String?,
@@ -120,32 +115,13 @@ class FullscreenUiState {
 }
 
 /**
- * 全屏图片查看（`ViewPager2` + `TouchImageView` 的 Compose 重绘版）。
- *
- * <h3>重绘要点</h3>
- * <ul>
- *   <li><b>纯黑画布</b>：图片铺满整屏（去掉原 8dp 内边距），四周不再是主题底色；</li>
- *   <li><b>顶部压暗条</b>：返回 / 页码 / 下载都挪到顶部，页码不再随底部卡一起滑出，
- *       放大后也知道自己在第几张；</li>
- *   <li><b>底部信息卡收起态 56dp</b>：默认只显示标题 + 作者，点开才展开描述，
- *       默认遮挡从屏高 30% 降到 8%；</li>
- *   <li><b>点击切换沉浸</b> + <b>下滑关闭</b>（放大态禁用，避免与拖动冲突）。</li>
- * </ul>
- *
- * <h3>为什么这里不用 LensGlass</h3>
- * 全屏页的背景就是照片本身，玻璃透镜需要「先录制内容、再折射」，等于每帧重录一整屏大图，
- * 缩放/拖动时会明显掉帧。这里改用半透明白 16% 表面 + 发丝描边，
- * 在照片上是同一种"浮在内容之上"的观感，成本为 0。
- *
- * 手势分级（与旧版一致并新增两项）：
- * 1. 双指捏合缩放 1~8x、放大后拖动（位移钳制）、双击 1x/2.5x；
- * 2. 放大后关闭 pager 横滑，把横向手势整体让给图片；
- * 3. 新增：未放大时下滑超过 160dp 关闭页面（Initial pass 抢在子节点之前判定，
- *    只认单指竖直位移，出现第二指立即放弃）。松手分两种收尾——
- *    达阈值则在本页把内容继续滑出屏幕后回调 `onBack`（配合
- *    `fullscreen_exit_fade`，避免系统默认的横向 Activity 转场与下拉方向相悖），
- *    未达阈值则弹簧回弹；
- * 4. 新增：单击切换浮层显隐。
+ * 全屏图片查看：纯黑画布、图片铺满整屏；返回 / 页码 / 下载在顶部压暗条（页码不随底部卡滑出）；
+ * 底部信息卡收起态 56dp，点开才展开描述（遮挡从屏高 30% 降到 8%）。
+ * 这里刻意不用 LensGlass：背景就是照片本身，透镜要每帧重录一整屏大图，缩放/拖动必掉帧；
+ * 改用半透明白 16% 表面 + 发丝描边，观感同样是「浮在内容之上」而成本为零。
+ * 手势分级：捏合 1~8x / 放大后拖动 / 双击 1x↔2.5x；放大后关闭 pager 横滑把横向手势让给图片；
+ * 未放大时下滑超 160dp 关闭（Initial pass 抢在子节点前判定，只认单指竖直位移，出现第二指即放弃）——
+ * 达阈值先在本页把内容滑出再 onBack，避免系统横向转场与下拉方向相悖，未达阈值弹簧回弹；单击切换浮层。
  */
 @Composable
 fun FullscreenImageScreen(
@@ -254,9 +230,8 @@ fun FullscreenImageScreen(
                         }
                     }
                     when {
-                        // 达阈值：先在本页把内容滑出屏幕，再真正 finish。
-                        // 否则 finish 会走系统默认的横向 Activity 转场，方向与「向下拖」相反，
-                        // 这正是下拉过程中「页面还在往左退」的割裂感来源。
+                        // 先在本页把内容滑出再 finish：否则会走系统横向 Activity 转场，方向与下拉相反，
+                        // 正是「页面还在往左退」的割裂感来源
                         claiming && dragOffset > dismissThreshold -> {
                             dismissing = true
                             settleJob?.cancel()
@@ -287,9 +262,8 @@ fun FullscreenImageScreen(
                 }
             },
     ) {
-        // 背景层：本页窗口是透明的（Theme.Venus.Fullscreen），黑底随下拉渐隐，
-        // 下层图库页由此逐渐透出，松手时内容已滑出、背景已透明，衔接没有黑闪。
-        // 用 drawBehind 在绘制阶段读 dragOffset：只重绘、不重组，拖动全程不掉帧。
+        // 背景层：窗口是透明的（Theme.Venus.Fullscreen），黑底随下拉渐隐，下层图库页逐渐透出，衔接无黑闪；
+        // drawBehind 在绘制阶段读 dragOffset，只重绘不重组
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -328,7 +302,6 @@ fun FullscreenImageScreen(
                 )
             }
 
-            // ===== 顶部压暗条：返回 / 页码 / 下载 =====
             AnimatedVisibility(
                 visible = chromeVisible && !zoomed,
                 enter = chromeEnter,
@@ -344,7 +317,6 @@ fun FullscreenImageScreen(
                 )
             }
 
-            // ===== 底部信息卡：默认 56dp 收起态 =====
             AnimatedVisibility(
                 visible = chromeVisible && !zoomed,
                 enter = cardEnter,
@@ -432,14 +404,9 @@ private fun FullscreenTopBar(
 }
 
 /**
- * 顶栏圆形按钮：与本项目其它顶栏（图库 / 登录 / OAuth / 云游戏）同一颗 [GlassCircleButton]，
- * 只是表面换成照片上更合适的「白色 16%」——`surfaceContainer` 在暗色照片上会糊成一团灰。
- *
- * <h3>这里仍然没有折射的原因</h3>
- * 见本文件头「为什么这里不用 LensGlass」：本页没有 `VenusBackdropHost`，采样源为 null，
- * 透镜按既定降级只画表面材质。所以拿到的是统一外观，不是每帧重录整屏照片的开销。
- *
- * 下载中不换按钮、只换内芯：进度环顶掉图标，避免用户以为点空。
+ * 顶栏圆形按钮：与其它顶栏同一颗 [GlassCircleButton]，表面换成照片上更合适的「白色 16%」
+ * （`surfaceContainer` 在暗色照片上会糊成灰）。本页没有 `VenusBackdropHost`、采样源为 null，透镜按既定降级只画表面材质。
+ * 下载中只换内芯（进度环顶掉图标），避免用户以为点空。
  */
 @Composable
 private fun ChromeCircle(
@@ -470,12 +437,7 @@ private fun ChromeCircle(
     }
 }
 
-/**
- * 底部信息卡：收起态 56dp（标题 + 作者），点开才展开描述。
- *
- * 用半透明黑而非不透明 surfaceContainer——照片在黑底上，半透明卡能透出底部内容，
- * 视觉上"浮"在图上而不像贴了一块板。
- */
+/** 底部信息卡：收起态 56dp（标题 + 作者），点开才展开描述。用半透明黑而非不透明 surfaceContainer，才像浮在图上而不是贴了一块板。 */
 @Composable
 private fun FullscreenInfoCard(
     item: FullscreenPage,
@@ -573,13 +535,9 @@ private fun FullscreenInfoCard(
 }
 
 /**
- * 单页图片：Compose 原生缩放 + Glide 加载。
- *
- * 加载参数与原 `ImagePagerAdapter` 一致（`override(屏宽, 屏高)` + `fitCenter`），
- * 失败时给出「重试」（原实现只画一个 ic_error，用户只能退出重进）。
- *
- * 缩放手势：双指捏合 1~8x、放大后拖动（位移按缩放后的显示尺寸钳制，不让图片飞出容器）、
- * 双击在 1x/2.5x 间切换；`currentZoom > 1f` 视为放大并回调（驱动浮层显隐与 pager 锁定）。
+ * 单页图片：Compose 原生缩放 + Glide 加载（`override(屏宽, 屏高)` + `fitCenter`），失败时给「重试」。
+ * 捏合 1~8x、放大后拖动（位移按缩放后尺寸钳制，不让图片飞出容器）、双击 1x↔2.5x；
+ * `currentZoom > 1f` 视为放大并回调（驱动浮层显隐与 pager 锁定）。
  */
 @Composable
 private fun ZoomableImagePage(
@@ -602,8 +560,7 @@ private fun ZoomableImagePage(
         if (!url.isNullOrEmpty()) {
             loading = true
             failed = false
-            // Glide.load(String) 返回 RequestBuilder<Drawable>：目标必须是 Target<Drawable>，
-            // 出图后统一转位图（BitmapDrawable 走零拷贝快路径）
+            // Glide.load(String) 返回 RequestBuilder<Drawable>，目标须是 Target<Drawable>；出图后统一转位图
             target = object : CustomTarget<Drawable>() {
                 override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
                     if (!disposed) {
@@ -749,10 +706,8 @@ private fun ZoomableImagePage(
 }
 
 /**
- * 把缩放后的拖动位移钳制在「缩放后的显示尺寸 − 容器尺寸」的一半以内：
- * 图片边缘不越过容器边界（缩回 1x 时位移恒为 0）。
- * 位移作用在未缩放的父坐标（graphicsLayer 平移在 scale 之后应用于屏幕空间），
- * 故直接以钳制后的屏幕空间边界为准。
+ * 把缩放后的拖动位移钳制在「缩放后显示尺寸 − 容器尺寸」的一半以内，图片边缘不越过容器（缩回 1x 时位移恒为 0）。
+ * 位移作用在未缩放的父坐标（graphicsLayer 平移在 scale 之后应用于屏幕空间），故直接按屏幕空间边界钳制。
  */
 private fun clampImageOffset(offset: Offset, image: Bitmap, container: IntSize, scale: Float): Offset {
     if (container.width == 0 || container.height == 0 || image.width == 0 || image.height == 0) {
@@ -791,12 +746,7 @@ private fun rememberReducedMotionCompat(): Boolean {
     return remember(context) { com.muxiao.Venus.common.tools.isReducedMotionEnabled(context) }
 }
 
-/**
- * 全屏图片页的 Compose 宿主。
- *
- * 页面数据一次性下发（拍平后的页列表），Java 侧只保留下载与权限逻辑；
- * 当前页由宿主内部跟随 pager 更新，`getCurrentPage()` 供下载取图。
- */
+/** 全屏图片页宿主：页数据一次性下发（拍平后的列表），Java 侧只保留下载与权限逻辑；当前页跟随 pager 更新，供 `getCurrentPage()` 取图。 */
 class FullscreenImageScreenView(context: Context) : AbstractComposeView(context) {
 
     internal val uiState = FullscreenUiState()

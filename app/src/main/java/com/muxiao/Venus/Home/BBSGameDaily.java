@@ -24,12 +24,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 游戏每日签到（原神/星铁/绝区零/崩坏3等）。
- * 国服：刷新CookieToken → 获取账号列表 → 遍历签到（支持验证码）。
- * 国际服：直接调用海外签到API（无需验证码，流程更简单）。
+ * 游戏每日签到（原神/星铁/绝区零/崩坏3等）。国服：刷新 CookieToken → 取账号列表 → 遍历签到（支持验证码）；
+ * 国际服：直接调海外签到 API（无验证码、无账号列表）。
  *
- * <p>全部接口响应读取统一走 {@link JsonAccess}（缺失字段返回兜底值），
- * 避免风控/登录态失效时返回的残缺 JSON 直接触发 NullPointerException。
+ * <p>响应读取统一走 {@link JsonAccess}（缺字段返回兜底值），避免风控/登录态失效时的残缺 JSON 直接 NPE。
  */
 public class BBSGameDaily {
 
@@ -61,9 +59,6 @@ public class BBSGameDaily {
     private final CaptchaVerificationHelper captchaHelper;
     private final boolean isOversea;
 
-    /**
-     * @param gameName 游戏名
-     */
     public BBSGameDaily(Context context, String userId, String gameName, tools.StatusNotifier statusNotifier, GeetestController gt3Controller) {
         this.gameName = gameName;
         this.displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
@@ -129,8 +124,6 @@ public class BBSGameDaily {
         }
     }
 
-    // ========== 文案与状态上报的统一出口 ==========
-
     /** 本条任务在进度流中的任务名（"%s签到"）。 */
     private String taskName() {
         return context.getString(R.string.task_name_game_sign_in, displayName);
@@ -142,8 +135,7 @@ public class BBSGameDaily {
     }
 
     /**
-     * 上报进度：{@code 任务名 + 主体 + 消息}。主体用于区分同一次运行中的多个游戏账号，
-     * 国际服等无账号概念的场景传空串。
+     * 上报进度：{@code 任务名 + 主体 + 消息}。主体用于区分同一次运行中的多个账号，国际服等无账号概念的场景传空串。
      */
     private void report(String subject, String message) {
         statusNotifier.notifyListeners(taskName() + " " + subject + message);
@@ -153,15 +145,13 @@ public class BBSGameDaily {
     private Map<String, String> getGameLoginHeaders() {
         Map<String, String> gameLoginHeaders = headerManager.get_game_login_headers();
         gameLoginHeaders.putAll(cookies);
-        // 原神和绝区零需要 x-rpc-signgame 头
         if (gameName.equals("原神")) gameLoginHeaders.put("x-rpc-signgame", "hk4e");
         if (gameName.equals("绝区零")) gameLoginHeaders.put("x-rpc-signgame", "zzz");
         return gameLoginHeaders;
     }
 
     /**
-     * 刷新 cookie_token：国服用 stoken 重新换取并写回存储；
-     * 国际服无法自动刷新，直接抛错提示需重新登录。
+     * 刷新 cookie_token：国服用 stoken 重新换取并写回存储；国际服无法自动刷新，直接抛错提示需重新登录。
      */
     private String updateCookieToken() {
         if (isOversea) {
@@ -181,17 +171,12 @@ public class BBSGameDaily {
         return newToken;
     }
 
-    /**
-     * 刷新 CookieToken 并回写本次会话的 Cookie 头。
-     * {@link #updateCookieToken()} 要么返回非空令牌、要么抛异常，因此此处无需再判空。
-     */
+    /** 刷新 CookieToken 并回写本次会话的 Cookie 头（{@link #updateCookieToken()} 非空或抛异常，无需判空）。 */
     private void refreshCookie() {
         cookies.put("Cookie", buildGameCookie(updateCookieToken()));
     }
 
-    /**
-     * 通过stoken获取cookieToken
-     */
+    /** 用 stoken 换 cookieToken，成功后写回存储。 */
     public String getCookieTokenByStoken() {
         String stoken = tools.read(context, userId, "stoken");
         String ltoken = tools.read(context, userId, "ltoken");
@@ -219,8 +204,7 @@ public class BBSGameDaily {
             notification.sendErrorNotification(notifTitle(), errorMsg);
             throw new RuntimeException(errorMsg);
         }
-        // 原实现直接对 data.cookie_token 调用 getAsString()，字段缺失时以 NPE 收场；
-        // 此处改为显式判空并给出可读错误。
+        // 显式判空给出可读错误：否则 data.cookie_token 缺失时 getAsString() 直接 NPE
         String cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
         if (cookieToken == null) {
             notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_cookie_token_failed));
@@ -231,18 +215,16 @@ public class BBSGameDaily {
     }
 
     /**
-     * 获取米哈游账号绑定的指定游戏账号列表
+     * 获取米哈游账号绑定的指定游戏账号列表。
      *
-     * @param gameId 游戏id
-     * @return 账号列表List<Map < String, String>>, key为region, uid, nickname.
+     * @return key 为 region / game_uid / nickname / game_biz
      */
     protected List<Map<String, String>> getAccountList(String gameId) {
         return getAccountList(gameId, false);
     }
 
     /**
-     * 获取账号列表的真实实现（带重试守卫）。
-     * CookieToken 失效时递归刷新一次；retried=true 仍失败则抛错，防止无限递归。
+     * 获取账号列表的真实实现（带重试守卫）：CookieToken 失效时递归刷新一次，retried=true 仍失败则抛错，防止无限递归。
      * 返回空列表表示「未获取到任何账号」，由 {@link #runChina()} 统一提示无绑定账号。
      */
     protected List<Map<String, String>> getAccountList(String gameId, boolean retried) {
@@ -252,7 +234,6 @@ public class BBSGameDaily {
         String response = sendGetRequest(accountListUrl, headers, Map.of("game_biz", gameId));
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         int retcode = JsonAccess.retcode(data);
-        // CookieToken失效，刷新CookieToken
         if (retcode == RETCODE_COOKIE_EXPIRED) {
             if (retried) {
                 report("", context.getString(R.string.game_cookie_token_failed));
@@ -261,7 +242,7 @@ public class BBSGameDaily {
             refreshCookie();
             return getAccountList(gameId, true);
         }
-        if (retcode != RETCODE_OK) { //获取账号列表失败
+        if (retcode != RETCODE_OK) {
             return reportAccountsFailed();
         }
         JsonObject payload = JsonAccess.data(data);
@@ -294,9 +275,9 @@ public class BBSGameDaily {
     }
 
     /**
-     * 获取签到奖励列表
+     * 获取签到奖励列表。
      *
-     * @return 签到奖励列表List<Map < String, Object>>, key为name名称, cnt数量.
+     * @return key 为 name（名称）、cnt（数量）
      */
     private List<Map<String, Object>> getCheckinRewards() {
         report("", context.getString(R.string.game_getting_rewards));
@@ -341,19 +322,16 @@ public class BBSGameDaily {
     }
 
     /**
-     * 获取账号签到信息
+     * 获取账号签到信息。
      *
-     * @param region 游戏区
-     * @param uid    游戏uid
-     * @return 签到信息Map<String, Object>, key为is_sign是否已签到, remain_days剩余天数, sign_cnt已签到天数, first_bind是否首次绑定.
+     * @return key 为 is_sign / remain_days / sign_cnt / first_bind（字段缺失则不写入，调用方读到 null）
      */
     private Map<String, Object> isSign(String region, String uid) {
         return isSign(region, uid, false);
     }
 
     /**
-     * 查询账号签到信息的真实实现（带重试守卫）。
-     * CookieToken 失效时刷新一次后重试；retried=true（或国际服）仍失败则抛错。
+     * 查询签到信息的真实实现（带重试守卫）：CookieToken 失效时刷新一次后重试；retried=true（或国际服）仍失败则抛错。
      */
     private Map<String, Object> isSign(String region, String uid, boolean retried) {
         Map<String, String> gameLoginHeaders = getGameLoginHeaders();
@@ -376,7 +354,6 @@ public class BBSGameDaily {
         String response = sendGetRequest(isSignApi, gameLoginHeaders, params);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
         int retcode = JsonAccess.retcode(data);
-        // CookieToken需要刷新（仅国服）
         if (retcode == RETCODE_COOKIE_EXPIRED) {
             if (isOversea || retried) {
                 notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_cookie_token_failed));
@@ -408,8 +385,7 @@ public class BBSGameDaily {
     }
 
     /**
-     * 统一上报签到结果尾部：连续签到天数 + 今日奖励。
-     * 国服带「角色名+昵称」主体，国际服传空串。奖励表越界时只报天数。
+     * 上报签到结果尾部：连续签到天数 + 今日奖励。国服带「角色名+昵称」主体，国际服传空串；奖励表越界时只报天数。
      */
     private void reportSignProgress(String subject, int signDays) {
         report(subject, context.getResources().getQuantityString(
@@ -421,11 +397,9 @@ public class BBSGameDaily {
     }
 
     /**
-     * 执行单个账号的签到（国服），或国际服的整体签到（account 传 null）。
-     * 国服：最多重试 {@code MAX_RETRIES} 次，遇 429 频率限制冷却后重试，
-     * 遇 retcode=0 且 success=1 触发极验验证（performVerificationWithCallback）后再继续。
+     * 执行单个账号的签到（国服），或国际服的整体签到（account 传 null）。国服最多重试 {@code MAX_RETRIES} 次：
+     * 429 冷却后重试；retcode=0 且 data.success=1 表示触发极验，验证后继续。
      *
-     * @param account 账号信息Map<String, String>, key为nickname昵称, game_uid游戏uid, region游戏区（国际服传 null）。
      * @return 签到接口原始响应字符串
      */
     private String checkIn(Map<String, String> account) throws Exception {
@@ -440,11 +414,10 @@ public class BBSGameDaily {
         } else {
             signApi = Constants.Urls.BBS_GAME_REWARDS_SIGN_URL;
         }
-        // 国服：带验证码和重试的签到流程
         String response = "";
         for (int i = 1; i <= MAX_RETRIES; i++) {
             Map<String, String> gameLoginHeader = getGameLoginHeaders();
-            // 如果是之前进行了人机验证的，添加请求头
+            // 上一轮已验证过则带上 geetCode
             if (captchaHelper.getGeetCode() != null)
                 gameLoginHeader.putAll(captchaHelper.getGeetCode());
             response = sendPostRequest(signApi, gameLoginHeader, Map.of("act_id", actId,
@@ -486,9 +459,7 @@ public class BBSGameDaily {
         return response;
     }
 
-    /**
-     * 签到入口：按服务器类型分发到国际服或国服流程。
-     */
+    /** 签到入口：按服务器类型分发到国际服/国服流程。 */
     public void run() throws Exception {
         if (isOversea) {
             runOversea();
@@ -497,9 +468,7 @@ public class BBSGameDaily {
         }
     }
 
-    /**
-     * 国际服签到流程：无需账号列表，直接签到
-     */
+    /** 国际服签到流程：无需账号列表，直接签到。 */
     private void runOversea() throws Exception {
         report("", context.getString(R.string.snack_loading));
         tools.randomDelay(SIGN_DELAY_MIN_MS, SIGN_DELAY_RANGE_MS);
@@ -533,9 +502,7 @@ public class BBSGameDaily {
         reportSignProgress("", signDays);
     }
 
-    /**
-     * 国服签到流程：需要账号列表，支持验证码
-     */
+    /** 国服签到流程：需要账号列表，支持验证码。 */
     private void runChina() throws Exception {
         if (accountList.isEmpty()) {
             notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_no_accounts));

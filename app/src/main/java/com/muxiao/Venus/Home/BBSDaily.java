@@ -24,9 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 米游币签到：获取任务列表 → 执行讨论区签到 → 领取奖励。
- * 支持验证码重试（retcode=1034 时触发极验验证），最多重试3次。
- * 仅国服可用（需要stoken），国际服在 TaskSettings 中已禁用。
+ * 米游币签到：获取任务列表 → 讨论区签到 → 领取奖励；retcode=1034 时触发极验并重试，最多 3 次。
+ * 仅国服可用（需 stoken），国际服在 TaskSettings 中已禁用。
  */
 public class BBSDaily {
 
@@ -46,12 +45,10 @@ public class BBSDaily {
     }
 
     /**
-     * 带验证码重试地执行一次 API 调用。
-     * 最多重试 {@code MAX_RETRIES} 次：retcode=1034 触发极验验证后重试；登录态失效(-100)直接抛错；
-     * retcode=0 且 message 不含 err 视为成功；其余情况按剩余次数提示重试，超出则抛异常。
+     * 带验证码重试地执行一次 API 调用，最多 {@code MAX_RETRIES} 次：1034 触发极验后重试；-100 直接抛错；
+     * retcode=0 且 message 不含 err 视为成功；其余按剩余次数提示重试，超出则抛异常。
      *
      * @param call 实际发起请求并解析 retcode 的 lambda
-     * @return 成功时的响应 JSON
      */
     private JsonObject executeWithRetry(ApiCall call) throws Exception {
         for (int retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
@@ -88,8 +85,7 @@ public class BBSDaily {
     }
 
     /**
-     * 处理 retcode=1034（需要人机验证）：提示用户完成极验并阻塞等待结果，
-     * 成功后 geetCode 会被下一轮重试请求自动带上；失败则终止任务。
+     * 处理 retcode=1034（需人机验证）：提示用户完成极验并阻塞等待；成功后 geetCode 由下一轮重试自动带上，失败则终止任务。
      */
     private void handleCaptchaRequired() {
         Logger.debug("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
@@ -137,18 +133,16 @@ public class BBSDaily {
     }
 
     /**
-     * 执行米游币社区签到全流程。
-     * 先添加待签到板块，拉取任务列表判断是否已全部完成；未完成则遍历板块签到并重新刷新任务状态。
+     * 执行米游币社区签到全流程：添加待签到板块 → 拉任务列表判断是否已完成 → 遍历板块签到 → 刷新任务状态。
      *
-     * @param name  需要社区签到的板块名称（米游币的那个）可填：崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿(获取方式通过MiHoYoBBSConstants的forum_id)
+     * @param name 需社区签到的板块名（经 MiHoYoBBSConstants 的 forum_id 解析：崩坏2、原神、崩坏3、绝区零、星铁、
+     *             大别野、崩坏因缘精灵、星布谷地、未定事件簿）
      */
     public void runTask(String[] name) throws Exception {
         notifier.notifyListeners(context.getString(R.string.bbs_start));
         resolveCheckInForums(name);
-        // 获取任务完成状态
         JsonObject data = checkTasksList();
         if (data != null) {
-            // 任务部分未完成，运行完整程序
             getTasksList(data);
             signPosts();
             // 重新获取任务刷新签到信息
@@ -160,11 +154,8 @@ public class BBSDaily {
     }
 
     /**
-     * 把板块名解析为板块信息并去重。
-     * <p>
-     * 原实现直接 {@code bbsCheckInList.add(name_to_forum_id(key))}，名称非法时会写入 null，
-     * 直到 {@code signPosts()} 取 forum.get("id") 才以 NPE 形式暴露，错误点与原因相距很远。
-     * 这里前置校验并抛出可读错误。
+     * 把板块名解析为板块信息并去重。名称非法时前置校验并抛出可读错误：否则写入 null 后要到
+     * {@code signPosts()} 取 forum.get("id") 才以 NPE 暴露，错误点与原因相距很远。
      */
     private void resolveCheckInForums(String[] names) {
         bbsCheckInList.clear();
@@ -187,13 +178,10 @@ public class BBSDaily {
     }
 
     /**
-     * 登录态自动续期：用 stoken/ltoken 换发 cookie_token，并把会话 Cookie 切换为
-     * {@code cookie_token} 形态（米游币接口同样接受该形态，游戏签到侧长期使用此形态）。
+     * 登录态自动续期：用 stoken/ltoken 换发 cookie_token，并把会话 Cookie 切成 {@code cookie_token} 形态
+     * （米游币接口同样接受，游戏签到侧长期使用）。能救回的典型场景：{@code stoken=} 形态被判失效但 stoken 本身仍有效。
      *
-     * <p>能救回的典型场景：{@code stoken=} 形态的 Cookie 被判失效，但 stoken 本身仍有效。
-     * 换发失败（凭证缺失 / stoken 真失效 / 网络异常）时返回 false，由调用方按原错误上报。
-     *
-     * @return {@code true} 表示已换到可用 Cookie，可带新 Cookie 重试
+     * @return {@code true} 已换到可用 Cookie，可带新 Cookie 重试；失败（凭证缺失/stoken 真失效/网络异常）返回 false
      */
     private boolean refreshCookie() {
         String stoken = tools.read(context, userId, "stoken");
@@ -228,13 +216,10 @@ public class BBSDaily {
     }
 
     /**
-     * 拉取今日任务列表。
-     * 通过 can_get_points 判断今日是否已无可得米游币（=0 视为全部完成）并返回 null，
-     * 否则返回任务数据供后续解析。
-     *
-     * <p>登录态失效（-100）时先尝试一次自动续期——用 stoken/ltoken 换取 cookie_token 并
-     * 切换 Cookie 形态后重试；续期失败才按「Cookie 失效」上报，避免把可自愈的过期
-     * 误报成需要用户重新登录。
+     * 拉取今日任务列表：{@code can_get_points == 0} 视为今日已全部完成并返回 null，否则返回任务数据。
+     * <p>
+     * 登录态失效（-100）先尝试一次自动续期（stoken/ltoken 换 cookie_token 并切 Cookie 形态）后重试，
+     * 续期失败才按「Cookie 失效」上报，避免把可自愈的过期误报成需要重新登录。
      */
     private JsonObject checkTasksList() {
         return checkTasksList(false);
@@ -256,9 +241,8 @@ public class BBSDaily {
                 notifier.notifyListeners(context.getString(R.string.bbs_cookie_refreshed));
                 return checkTasksList(true);
             }
-            // 仅登录态失效（-100）才提示重设 cookie；其余（1034 人机验证 / 429 限流 / 风控等）
-            // 原样透传 retcode 与 message——这类瞬时失败重跑即可恢复，
-            // 报成「cookie 过期」会误导用户重新登录
+            // 仅登录态失效（-100）才提示重设 cookie；其余（1034 人机验证 / 429 限流 / 风控等）原样透传
+            // retcode 与 message——瞬时失败重跑即可恢复，报成「cookie 过期」会误导用户重新登录
             String errorMsg = retcode == RETCODE_LOGIN_EXPIRED
                     ? context.getString(R.string.bbs_cookie_expired)
                     : context.getString(R.string.bbs_task_list_failed)
@@ -278,8 +262,8 @@ public class BBSDaily {
     }
 
     /**
-     * 解析任务状态：从 states 中查找 mission_id=58（社区签到）的 is_get_award，
-     * 已领奖则标记 signCompleted=true，并通知今日可获取米游币数量。
+     * 解析任务状态：从 states 找 mission_id=58（社区签到）的 is_get_award，已领奖则置 signCompleted，
+     * 并通知今日可获取米游币数量。
      */
     private void getTasksList(JsonObject data) {
         JsonArray states = JsonAccess.array(data, "states");
@@ -298,8 +282,7 @@ public class BBSDaily {
     }
 
     /**
-     * 遍历待签到板块逐个完成社区签到（含验证码重试）。
-     * signCompleted 为 true 时说明今日已全部完成，直接返回。
+     * 遍历待签到板块逐个签到（含验证码重试）；{@code signCompleted} 为 true 说明今日已全部完成，直接返回。
      */
     private void signPosts() throws Exception {
         if (signCompleted) {

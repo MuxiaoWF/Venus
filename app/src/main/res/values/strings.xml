@@ -110,7 +110,7 @@
     <string name="gacha_fetching">获取中…</string>
     <string name="gacha_chip_pending">待获取</string>
     <string name="cloud_open_hint">打开云游戏页面 · 自动捕获链接</string>
-    <!-- VPN 抓包获取（星铁抽卡链接，复刻 SRGachaLink 链路） -->
+    <!-- VPN 抓包获取（星铁抽卡链接） -->
     <string name="vpn_capture_title">VPN 抓包获取（星铁）</string>
     <string name="vpn_capture_hint">仅星铁：先开启抓包，再重启游戏并打开抽卡记录页</string>
     <string name="vpn_capture_running_hint">抓包中 · 点击行停止</string>
@@ -563,9 +563,6 @@
     <string name="gacha_cookie_null">cookie有参数(stoken/mid)为null，请尝试重新获取</string>
     <string name="gacha_get_roles_failed">没成功获取游戏内角色信息</string>
 
-    <!-- UserLoginActivity -->
-
-
     <!-- Geetest 补充 -->
     <string name="geetest_captcha_failed_network">获取验证码失败：网络请求无响应</string>
     <string name="geetest_captcha_failed_api">获取验证码失败</string>
@@ -666,7 +663,7 @@
 
     <string name="password_show">显示密码</string>
     <string name="password_hide">隐藏密码</string>
-    <!-- 图库 / 全屏看图（重绘）：通用动作与状态文案 -->
+    <!-- 图库 / 全屏看图：通用动作与状态文案 -->
     <string name="action_cancel">取消</string>
     <string name="action_retry">重试</string>
     <string name="gallery_empty">这里还没有图片</string>

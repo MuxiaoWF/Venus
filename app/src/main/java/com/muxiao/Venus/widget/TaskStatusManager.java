@@ -19,18 +19,10 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * 持久化每日任务完成状态，按日期自动重置、按用户分桶存储。
- * Widget 通过此类读取状态，App（前台/后台任务）通过此类写入状态。
- *
- * <p>存储结构（经 {@link TaskStatusRepository}/DataStore）：
- * <ul>
- *   <li>{@code task_status_bucket_<userId>}：单用户状态桶，JSON 序列化的 {@link Bucket}
- *       （归属日期 + 任务名→状态映射）。一个用户一个键、键后缀即用户名，无需前缀解析；</li>
- *   <li>{@code current_user}：「最后一次运行任务的用户」，跨日保留，仅作小组件目标用户兜底。</li>
- * </ul>
- *
- * <p>「是否完成」不再有独立存储的 done_ 镜像键：done 恒等推导自 {@code status == completed}，
- * 聚合计数与逐条展示共用同一份真相，从结构上消除旧版 status_/done_ 双键分歧的可能。
+ * 每日任务完成状态的持久化：经 {@link TaskStatusRepository} 按用户分桶存储
+ * （{@code task_status_bucket_<userId>} = JSON 化的 {@link Bucket}：归属日期 + 任务名→状态），
+ * {@code current_user} 仅作小组件目标用户兜底；Widget 读、App 前台/后台写。
+ * 无 done_ 镜像键：done 恒等推导自 {@code status == completed}，聚合计数与逐条展示同源；
  * 旧版全局键（status_/done_/status_date）由 {@link #ensureToday()} 一次性迁移到最后运行用户的桶。
  */
 public class TaskStatusManager {
@@ -60,25 +52,20 @@ public class TaskStatusManager {
     }
 
     /**
-     * 桶读改写互斥：整桶「读-改-写」期间持有，防止两路写入交错覆盖丢更新。
-     * 读路径（getStatus 等）不加锁，DataStore 缓存的原子引用足够。
-     * 锁序恒为 ENSURE_LOCK → BUCKET_WRITE_LOCK（写方先 ensureToday 再进桶锁，避免死锁）。
+     * 桶读改写互斥：整桶「读-改-写」期间持有，防两路写入交错覆盖；读路径不加锁（DataStore 缓存原子引用）。
+     * 锁序恒为 ENSURE_LOCK → BUCKET_WRITE_LOCK（先 ensureToday 再进桶锁），避免死锁。
      */
     private static final Object BUCKET_WRITE_LOCK = new Object();
 
     /**
-     * 进程内「已校验过的日期」标记。
-     * <p>
-     * {@link #ensureToday()} 的实际工作（迁移 + 写历史日志 + 跨天复位）只在跨天后首次触达时需要，
-     * 而本类是重灾区：每次任务状态变化、每次小组件刷新、每次列表重建都会 new 一个实例。
-     * 用一个静态标记把「今天已校验」的快速路径挡在锁外，跨天只处理一次。
+     * 进程内「今日已校验」标记：本类每次状态变化/小组件刷新/列表重建都会 new 实例，
+     * 用静态标记把快速路径挡在锁外，跨天的迁移+日志+复位每进程只做一次。
      */
     private static volatile String lastEnsuredDate;
     private static final Object ENSURE_LOCK = new Object();
 
     /**
-     * 日期格式化器：SimpleDateFormat 非线程安全，按线程复用避免高频 new。
-     * 注：ThreadLocal.withInitial 需 API 26，此处用匿名子类兼容 minSdk 23。
+     * SimpleDateFormat 非线程安全，按线程复用；ThreadLocal.withInitial 需 API 26，故用匿名子类兼容 minSdk 23。
      */
     private static final ThreadLocal<SimpleDateFormat> DATE_FORMAT =
         new ThreadLocal<>() {
@@ -100,12 +87,9 @@ public class TaskStatusManager {
     private static String str(Object value) {
         return value != null ? value.toString() : "";
     }
-
-    // ========== 跨天校验与旧版迁移 ==========
-
     /**
-     * 跨天全局校验：把所有用户桶中「昨日及更早」的状态写入历史日志后复位到今天，
-     * 并完成旧版全局键（升级前）到用户桶的一次性迁移。每进程每天最多执行一次完整流程。
+     * 跨天校验：把各用户桶中「昨日及更早」的状态写入历史日志后复位到今天，
+     * 并完成旧版全局键到用户桶的一次性迁移；每进程每天最多走一次完整流程。
      */
     private void ensureToday() {
         String today = todayString();
@@ -185,9 +169,6 @@ public class TaskStatusManager {
         }
         return b;
     }
-
-    // ========== 读写 ==========
-
     /** 反序列化桶 JSON；空串/损坏 JSON 返回 null，由调用方按新建桶处理。 */
     private Bucket parseBucket(String raw) {
         if (raw == null || raw.isEmpty()) return null;
@@ -210,13 +191,7 @@ public class TaskStatusManager {
     private void storeBucket(String userId, Bucket b) {
         repo.putString(KEY_PREFIX_BUCKET + userId, gson.toJson(b));
     }
-
-    // ========== 状态写入（前台 ViewModel / 后台服务统一入口） ==========
-
-    /**
-     * 将 UI 层任务状态写入指定用户的桶。PENDING 无对应写入
-     * （保持原实现的 default 分支语义：不改变已存状态）。
-     */
+    /** 写入指定用户桶；PENDING 无对应写入（保持原 default 分支语义：不改变已存状态）。 */
     public void applyStatus(String userId, String taskName, TaskItem.TaskStatus status) {
         switch (status) {
             case COMPLETED:
@@ -243,9 +218,8 @@ public class TaskStatusManager {
     }
 
     /**
-     * 设置任务状态（通用入口）。
-     * 「是否完成」恒等推导自 {@code status == STATUS_COMPLETED}，无独立镜像键，
-     * 也就不存在旧版 status_/done_ 双键分歧（聚合计数虚高）的可能。
+     * 设置任务状态（通用入口）。done 恒等推导自 {@code status == STATUS_COMPLETED}，
+     * 无独立镜像键，也就没有 status_/done_ 双键分歧导致聚合计数虚高的可能。
      */
     public void markStatus(String userId, String taskName, String status) {
         ensureToday();
@@ -257,13 +231,9 @@ public class TaskStatusManager {
     }
 
     /**
-     * 新一轮任务开始前复位指定用户桶：仅把「瞬态」复位为 {@link #STATUS_PENDING}——
-     * 进行中（可能来自被杀进程的残留）、已取消（上一轮终止的痕迹）、warning（旧版本
-     * 等待验证码时写入的残留）一律归零；
-     * 当日「终态结果」（已完成 / 失败）保留，直到该任务在本轮被真正重跑
-     * （置 IN_PROGRESS）才被覆盖——因此重跑中途终止不会抹掉之前已取得的完成记录。
-     * 逐名重建映射：配置中已去掉的旧任务名随重建一并清除，归属日期刷新为今天。
-     * 跨天由 {@link #ensureToday()} 另行自动复位。
+     * 新一轮任务前复位指定用户桶：瞬态（进行中残留、已取消、旧版 warning）归 {@link #STATUS_PENDING}，
+     * 当日终态（已完成/失败）保留到该任务被真正重跑，故中途终止不会抹掉已有完成记录。
+     * 逐名重建映射，配置中已移除的任务名随之清除；跨天由 {@link #ensureToday()} 处理。
      */
     public void resetTransientStatuses(String userId, java.util.Collection<String> taskNames) {
         ensureToday();
@@ -280,9 +250,6 @@ public class TaskStatusManager {
             storeBucket(userId, b);
         }
     }
-
-    // ========== 状态读取 ==========
-
     /** 读取指定用户任务的当前状态；未知/缺失默认 {@link #STATUS_PENDING}。 */
     public String getStatus(String userId, String taskName) {
         ensureToday();
@@ -301,13 +268,7 @@ public class TaskStatusManager {
         ensureToday();
         return loadBucket(userId).date;
     }
-
-    // ========== current_user（全局键） ==========
-
-    /**
-     * 记录「本次运行任务的用户」（运行开始时写入一次，跨日重置时保留）。
-     * 历史日志归属已随分桶自带（桶键即用户名），本键现仅作小组件目标用户的兜底。
-     */
+    /** 记录本次运行任务的用户（运行开始写一次，跨日保留），现仅作小组件目标用户兜底。 */
     public void setCurrentUser(String userId) {
         repo.putString(KEY_CURRENT_USER, userId);
     }
@@ -316,12 +277,8 @@ public class TaskStatusManager {
     public String getCurrentUser() {
         return repo.getString(KEY_CURRENT_USER, "");
     }
-
-    // ========== UI 层状态（TaskItem.TaskStatus）与持久化状态的映射 ==========
-
-    /** 将持久化状态字符串映射为 UI 层任务状态；未知/缺失一律按 {@code PENDING}。
-     *  旧版本的 warning（等待验证码时短暂写入，现已不再产生）按进行中展示，
-     *  避免当日残留数据被渲染成绿色「已完成」。 */
+    /** 持久化状态 → UI 状态；未知/缺失按 {@code PENDING}。旧版 warning（已不再产生）
+     *  按进行中展示，避免当日残留被渲染成绿色「已完成」。 */
     public static TaskItem.TaskStatus toTaskStatus(String status) {
         if (status == null) return TaskItem.TaskStatus.PENDING;
         switch (status) {
@@ -338,9 +295,6 @@ public class TaskStatusManager {
                 return TaskItem.TaskStatus.PENDING;
         }
     }
-
-    // ========== 任务历史日志 ==========
-
     private static final String LOG_DIR = "task_history";
 
     /** 归并一段用户的历史日志：同一天的所有用户写进同一个文件，按 "## user=" 分节区分。 */
@@ -357,8 +311,8 @@ public class TaskStatusManager {
     }
 
     /**
-     * 将跨天日志写入 task_history/yyyy-MM-dd.log（每日覆盖写）。
-     * 文件头 "# date=yyyy-MM-dd"，每用户一节 "## user=<name>"，节内每行 "状态\t任务名"。
+     * 跨天日志写 task_history/yyyy-MM-dd.log（每日覆盖）：头 "# date=yyyy-MM-dd"，
+     * 每用户一节 "## user=<name>"，节内每行 "状态\t任务名"。
      */
     private void writeDailyLog(String date, String content) {
         File dir = new File(context.getFilesDir(), LOG_DIR);

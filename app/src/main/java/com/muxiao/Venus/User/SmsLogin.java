@@ -14,28 +14,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 国服短信验证码登录（passport-api / ma-cn-verifier + ma-cn-passport）。
- * <p>
- * 链路（对照 TeyvatGuide v0.13.0 的 {@code passportReq.captcha}）：
- * <ol>
- *   <li>{@code verifier/createLoginCaptcha}：提交 RSA 加密的区号与手机号，下发短信，
- *       返回 {@code action_type}（后续登录必须原样回传）与 {@code countdown}（重发倒计时）；</li>
- *   <li>{@code app/loginByMobileCaptcha}：提交同一组加密字段 + {@code action_type} + 明文验证码，
- *       直接返回 stoken（{@code data.token.token}）与 {@code user_info.mid/aid}。</li>
- * </ol>
- * 两个接口都不校验 DS（见 {@link HeaderManager#get_sms_headers}），但都可能在响应头
- * {@code x-rpc-aigis} 里下发极验任务：此时抛 {@link PasswordLogin.AigisRequiredException}，
- * 由调用方拉起 GT3 后带上极验头重提同一请求。
- * <p>
- * 与账密登录的差异：不需要 challenge 之外的东西，也不涉及 stoken 之外的凭证推导——
+ * 国服短信验证码登录（passport-api / ma-cn-verifier + ma-cn-passport），链路对照 TeyvatGuide v0.13.0：
+ * 1) {@code verifier/createLoginCaptcha} 提交 RSA 加密的区号与手机号，下发短信，返回 {@code action_type}
+ *    （登录必须原样回传）与 {@code countdown}（重发倒计时）；
+ * 2) {@code app/loginByMobileCaptcha} 提交同一组加密字段 + {@code action_type} + 明文验证码，直接返回
+ *    stoken（{@code data.token.token}）与 {@code user_info.mid/aid}。
+ * 两个接口都不校验 DS（见 {@link HeaderManager#get_sms_headers}），但都可能经响应头 {@code x-rpc-aigis} 下发极验任务：
+ * 此时抛 {@link PasswordLogin.AigisRequiredException}，由调用方拉起 GT3 后带极验头重提同一请求。
  * 拿到 stoken/mid 后与其余登录方式走同一套 {@code getLTokenBySToken} 收尾。
  */
 public final class SmsLogin {
 
-    /** 下发短信验证码 */
     private static final String CREATE_CAPTCHA_URL =
             "https://passport-api.mihoyo.com/account/ma-cn-verifier/verifier/createLoginCaptcha";
-    /** 用短信验证码完成登录 */
     private static final String LOGIN_BY_CAPTCHA_URL =
             "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByMobileCaptcha";
 
@@ -50,7 +41,6 @@ public final class SmsLogin {
     private SmsLogin() {
     }
 
-    /** 下发短信验证码的结果。 */
     public static final class CaptchaResult {
         /** 登录时必须回传的操作类型 */
         public final String actionType;
@@ -75,12 +65,9 @@ public final class SmsLogin {
     }
 
     /**
-     * 下发短信验证码。需在后台线程调用。
-     *
-     * @param phone 11 位手机号（明文，方法内部加密，不做任何持久化）
-     * @param aigis 极验完成后的 x-rpc-aigis，首次请求传 null
-     * @throws PasswordLogin.AigisRequiredException 服务端要求极验时抛出
-     */
+    * 下发短信验证码，需在后台线程调用。phone 为 11 位明文手机号（内部加密，不持久化）；
+    * aigis 首次请求传 null，重提时传极验完成后的 x-rpc-aigis。服务端要求极验时抛 {@link PasswordLogin.AigisRequiredException}。
+    */
     public static CaptchaResult sendCaptcha(Context context, HeaderManager headerManager,
                                             String phone, String aigis) {
         // 顺序与参考实现一致；area_code 同样走 RSA，不能发明文
@@ -107,14 +94,9 @@ public final class SmsLogin {
     }
 
     /**
-     * 用短信验证码完成登录。需在后台线程调用。
-     *
-     * @param phone      11 位手机号（明文，内部加密）
-     * @param code       收到的短信验证码
-     * @param actionType {@link #sendCaptcha} 返回的 action_type
-     * @param aigis      极验完成后的 x-rpc-aigis，首次请求传 null
-     * @throws PasswordLogin.AigisRequiredException 服务端要求极验时抛出
-     */
+    * 用短信验证码完成登录，需在后台线程调用。phone 为 11 位明文手机号（内部加密），code 为短信验证码，
+    * actionType 必须是 {@link #sendCaptcha} 返回的 action_type，aigis 首次传 null；要求极验时抛 {@link PasswordLogin.AigisRequiredException}。
+    */
     public static Result login(Context context, HeaderManager headerManager, String phone,
                                String code, String actionType, String aigis) {
         Map<String, String> payload = new LinkedHashMap<>();
@@ -139,7 +121,6 @@ public final class SmsLogin {
                     R.string.login_sms_login_failed, retcode, response.body));
 
         Result parsed = new Result();
-        // data.token.token 即 stoken
         JsonObject token = objOf(data, "token");
         parsed.stoken = optString(token, "token");
         if (parsed.stoken == null || parsed.stoken.isEmpty())
@@ -166,8 +147,8 @@ public final class SmsLogin {
     }
 
     /**
-     * 统一失败出口：先看响应头是否下发极验任务（有则抛 {@link PasswordLogin.AigisRequiredException}
-     * 让调用方拉起 GT3 重提），否则拼一条带 retcode/message 的失败异常。
+     * 统一失败出口：响应头带极验任务时抛 {@link PasswordLogin.AigisRequiredException} 让调用方拉起 GT3 重提，
+     * 否则拼一条带 retcode/message 的失败异常。
      */
     private static RuntimeException failure(Context context, tools.HttpResponse response,
                                             JsonObject result, int retcode, int messageRes) {

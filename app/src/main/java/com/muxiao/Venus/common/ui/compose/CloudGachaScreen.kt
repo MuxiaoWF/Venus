@@ -48,19 +48,14 @@ const val CLOUD_STAGE_CONTENT = 1
 const val CLOUD_STAGE_ERROR = 2
 
 /**
- * 云游戏抽卡链接页（原 res/layout/activity_cloud_gacha.xml）。
+ * 云游戏抽卡链接页：顶栏（返回 + 标题）→ 分割线 → 提示行（登录后自动复制）→ 内容区三态。
  *
- * 结构：顶栏（返回 + 标题）→ 分割线 → 提示行（登录后自动复制）→ 内容区三态。
- *
- * 内容区保留原实现的两个关键行为：
- * 1. **WebView 延迟到首帧之后再创建**（原为 ViewStub + `post`）——首次初始化是主线程重活，
- *    同步创建会拖慢转场；这里用 `withFrameNanos` 等过首帧再挂载。
- * 2. **加载/失败时不是移除 WebView 而是遮住**（原为 `INVISIBLE`），
- *    避免重新创建导致页面状态与会话丢失。
+ * 两个关键行为：
+ * 1. **WebView 延迟到首帧之后创建**——首次初始化是主线程重活，同步创建会拖慢转场，
+ *    故用 `withFrameNanos` 等过首帧再挂载。
+ * 2. **加载/失败时遮住而非移除 WebView**——重新创建会丢页面状态与会话。
  *
  * @param stage 内容区状态，见 `CLOUD_STAGE_*`
- * @param onCloseClick 关闭页面
- * @param onRetryClick 加载失败后重试
  * @param onWebViewCreated WebView 首次创建完成（Activity 在此配置并 loadUrl）
  * @param promptText 提示行文案；null 时用默认的「登录后自动复制抽卡链接」
  */
@@ -74,7 +69,7 @@ fun CloudGachaScreen(
     promptText: String? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
-    // 首帧之后再挂载 WebView（等价于原 root.post { setupWebView() }）
+    // 等过首帧再挂载，避免主线程初始化拖慢转场
     var attachWebView by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -86,7 +81,7 @@ fun CloudGachaScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface),
     ) {
-        // 顶栏：返回 + 标题（原 insets 监听改为 statusBarsPadding）
+        // 顶栏：返回 + 标题
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -114,7 +109,7 @@ fun CloudGachaScreen(
 
         VenusDivider()
 
-        // 提示行：图标 + 文案
+        // 提示行
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -136,7 +131,7 @@ fun CloudGachaScreen(
             )
         }
 
-        // 内容区：WebView + 覆盖层（加载中 / 失败重试）
+        // WebView 常驻不重建，加载中 / 失败由覆盖层遮住
         Box(modifier = Modifier.fillMaxSize()) {
             if (attachWebView) {
                 AndroidView(
@@ -162,7 +157,7 @@ fun CloudGachaScreen(
     }
 }
 
-/** 失败态：圆底警示图标 + 说明 + 重试按钮（对应原 cloud_error 容器）。 */
+/** 失败态：圆底警示图标 + 说明 + 重试按钮。 */
 @Composable
 private fun CloudErrorContent(onRetryClick: () -> Unit) {
     val textStyles = LocalVenusTextStyles.current

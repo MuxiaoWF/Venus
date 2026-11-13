@@ -16,9 +16,9 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * 米游社 API 请求头管理器。
- * 按接口分类生成所需的 Headers（含 DS 签名），自动区分国服/国际服。
- * DS 签名使用 MD5(salt + timestamp + random + ...) 格式，不同接口使用不同 salt（K2/LK2/SALT_6X）。
+ * 米游社请求头管理器：按接口生成 Headers，含 DS 签名，自动区分国服/国际服。
+ * DS = MD5(salt + t + r [+ body])，不同接口 salt 不同（K2 / LK2 / SALT_6X / SALT_PASSPORT / SALT_4X），
+ * 不可合并为通用 Interceptor（见 ApiClient 类注释）。
  */
 public class HeaderManager {
     private static final String app_id = "bll8iq97cem8";
@@ -28,16 +28,13 @@ public class HeaderManager {
     /** 每次进程启动生成一次，对应 x-rpc-lifecycle_id */
     private static final String LIFECYCLE_ID = java.util.UUID.randomUUID().toString();
 
-    // 仅缓存 DeviceUtils 产出的字符串结果，避免静态持有 DeviceUtils（其持有 Context）导致内存泄漏
+    // 只缓存 DeviceUtils 的结果字符串：静态持有 DeviceUtils 会连带持有 Context 导致泄漏
     private static volatile String cachedDeviceId;
     private static volatile String cachedExtFields;
 
     /**
-     * device_fp 按服务器域（国服/国际服）做进程级缓存。
-     * device_fp 是设备级持久指纹：同设备同域取值不变。原实现按实例缓存，而每个签到模块
-     * 都各自 new HeaderManager，N 个游戏会重复请求 N 次 fp 接口；提升到进程级后每个进程
-     * 每个域只请求一次（失败不缓存，下次调用仍会重试，与原语义一致）。
-     * 仅缓存请求结果，不改变请求参数、签名流程与调用顺序。
+     * device_fp 进程级按域缓存：同设备同域取值不变，避免每个签到模块各请求一次。
+     * 失败不缓存（下次仍重试）。
      */
     private static final java.util.concurrent.ConcurrentHashMap<Boolean, String> CACHED_FP_BY_SERVER =
             new java.util.concurrent.ConcurrentHashMap<>();
@@ -47,7 +44,6 @@ public class HeaderManager {
     private final String user_agent;
     private final boolean isOversea;
 
-    // Pre-resolved isOversea-dependent values
     private final String currentAppId;
     private final String currentPackageName;
     private final String currentWebBaseUrl;
@@ -71,19 +67,14 @@ public class HeaderManager {
     }
 
     /**
-     * 初始化共享设备工具并填充静态缓存。
-     * <p>
-     * 阻塞风险：{@link DeviceUtils#waitForDeviceId()} 与 {@link DeviceUtils#getExtFields()}
-     * 在主线程调用时会同步阻塞最多约 10 秒，极易触发 ANR（表现为「进页即闪退」）。
-     * 因此：若当前已是主线程且缓存未热，改在后台线程完成阻塞等待，主线程立即返回；
-     * 非主线程（如 Application 预热、后台任务）仍同步阻塞，行为不变。
+     * 预热设备缓存。DeviceUtils 的等待最多阻塞约 10s，主线程调用必 ANR，故主线程只起后台线程填充后立即返回；
+     * 非主线程（Application 预热、后台任务）同步填充。
      */
     private static void initSharedDeviceUtils(Context context) {
         if (cachedDeviceId != null && cachedExtFields != null) return;
 
         boolean isMainThread = Looper.getMainLooper() == Looper.myLooper();
         if (isMainThread) {
-            // 主线程：避免阻塞，交由后台线程填充缓存，立即返回。
             new Thread(() -> fillSharedDeviceUtils(context.getApplicationContext()), "HeaderManager-DeviceInit").start();
             return;
         }
@@ -95,7 +86,7 @@ public class HeaderManager {
         }
     }
 
-    /** 实际填充静态设备缓存（可能阻塞，应在非主线程调用）。 */
+    /** 填充静态设备缓存（可能阻塞，须在非主线程调用）。 */
     private static void fillSharedDeviceUtils(Context appContext) {
         synchronized (HeaderManager.class) {
             if (cachedDeviceId != null && cachedExtFields != null) return;
@@ -111,10 +102,7 @@ public class HeaderManager {
         return device_id;
     }
 
-    /**
-     * 每日签到类接口请求头，DS 使用 LK2 salt；
-     * 国际服走不同的 Referer/Cookie 分支（Referer 为 act.hoyolab.com，Cookie 留空）。
-     */
+    /** 每日签到接口，DS = LK2；国际服只带 Referer / Accept-Encoding / 空 Cookie。 */
     public Map<String, String> get_game_login_headers() {
         Map<String, String> h = new HashMap<>();
         if (isOversea) {
@@ -138,9 +126,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * 米游社通用接口（如 getLTokenBySToken、getUserMissionsState）请求头，DS 使用 K2 salt。
-     */
+    /** 米游社通用接口（getLTokenBySToken、getUserMissionsState 等），DS = K2。 */
     public Map<String, String> get_bbs_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("Accept", "application/json; utf-8");
@@ -157,9 +143,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * getTokenByGameToken 登录态转换接口请求头（无 DS，依赖 app_id / client_type 等标识）。
-     */
+    /** getTokenByGameToken 登录态转换：无 DS，仅靠 app_id / client_type 等标识。 */
     public Map<String, String> get_game_token_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-app_version", BBSconstants.bbs_version);
@@ -177,9 +161,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * 游戏签到/记录类接口（如签到记录查询）请求头，含 device_fp 与 page/tool_version 标识。
-     */
+    /** 游戏签到记录类接口：带 device_fp 与 page / tool_version 标识。 */
     public Map<String, String> get_record_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-client_type", "5");
@@ -202,9 +184,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * getUserGameRolesByStoken（用 stoken 获取角色列表）接口请求头，DS 使用 K2 salt。
-     */
+    /** getUserGameRolesByStoken（stoken 取角色列表），DS = K2。 */
     public Map<String, String> get_user_game_roles_stoken_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-client_type", "2");
@@ -219,14 +199,12 @@ public class HeaderManager {
     }
 
     /**
-     * loginByPassword（账号密码登录，passport-api）请求头。
-     * <p>
-     * DS 必须使用「账号 SDK 专用 salt + 带 body 的 DS2 算法」，
-     * 用 K2 / LK2 的无 body 版本会直接被判签名错误。
-     * 传入的 body 必须与实际发出的请求体逐字节一致。
+     * loginByPassword（账号密码登录）请求头。
+     * DS 必须用账号 SDK 专用 salt 的带 body 算法（{@link #getDS_passport}），用 K2 / LK2 会判签名错误；
+     * body 须与实际请求体逐字节一致。
      *
-     * @param body 已序列化的请求体 JSON 字符串
-     * @param aigis 极验二次提交时的 x-rpc-aigis 值，首次请求传 null 或空串
+     * @param body  已序列化的请求体 JSON
+     * @param aigis 极验二次提交的 x-rpc-aigis，首次传 null 或空串
      */
     public Map<String, String> get_password_headers(String body, String aigis) {
         Map<String, String> h = new HashMap<>();
@@ -250,23 +228,18 @@ public class HeaderManager {
         return h;
     }
 
-    /** header 值不能含空格等非法字符，统一替换为 + */
+    /** header 值不可含空格等非法字符，统一替换为 + */
     private static String sanitizeHeaderValue(String value) {
         if (value == null) return "";
         return value.replaceAll("[^A-Za-z0-9._\\-+]", "+");
     }
 
     /**
-     * 短信验证码登录请求头，供
-     * {@code ma-cn-verifier/verifier/createLoginCaptcha} 与
-     * {@code ma-cn-passport/app/loginByMobileCaptcha} 共用。
-     * <p>
-     * 与 {@link #get_password_headers} 的差异：这两个接口**不带 DS 签名**。
-     * 依据是 TeyvatGuide v0.13.0 的 passportReq（createLoginCaptcha / loginByMobileCaptcha
-     * 均只发 app_id / client_type / device_* 与 aigis，无 ds 字段）在线上长期可用。
-     * 若日后服务端收紧，只需在此补 {@code h.put("DS", getDS_passport(body))} 并把 body 传进来。
+     * 短信验证码登录（createLoginCaptcha / loginByMobileCaptcha 共用）。
+     * 与 {@link #get_password_headers} 的差异：这两个接口**不带 DS**（线上长期可用）。
+     * 若服务端收紧，补 {@code h.put("DS", getDS_passport(body))} 并传入 body 即可。
      *
-     * @param aigis 极验完成后回填的 x-rpc-aigis，首次请求传 null 或空串
+     * @param aigis 极验完成后回填的 x-rpc-aigis，首次传 null 或空串
      */
     public Map<String, String> get_sms_headers(String aigis) {
         Map<String, String> h = new HashMap<>();
@@ -288,14 +261,10 @@ public class HeaderManager {
     }
 
     /**
-     * 国服扫码登录（passport ma-cn-passport：createQRLogin + queryQRLoginStatus）请求头。
-     * <p>
-     * <ul>
-     *   <li>DS 走 X4 salt + 带 body 的 DS2（见 {@link #getDS_4x}），body 与实际请求体逐字节一致；</li>
-     *   <li>app_version / sdk_version / account_version 三者同值。</li>
-     * </ul>
+     * 国服扫码登录（createQRLogin / queryQRLoginStatus）：DS = X4 salt + 带 body 算法（{@link #getDS_4x}），
+     * app_version / sdk_version / account_version 三者同值。
      *
-     * @param body 与实际发出的请求体逐字节一致的 JSON 字符串
+     * @param body 与实际请求体逐字节一致的 JSON
      */
     public Map<String, String> get_passport_qr_headers(String body) {
         Map<String, String> h = new HashMap<>();
@@ -317,9 +286,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * 抽卡记录 authkey 获取接口请求头，DS 使用 LK2 salt。
-     */
+    /** 抽卡记录 authkey 接口，DS = LK2。 */
     public Map<String, String> get_authkey_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("Cookie", "");
@@ -332,9 +299,7 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * device_fp 获取接口请求头（无 DS，仅含 UA、版本、Referer/Origin 与语言）。
-     */
+    /** device_fp 获取接口：无 DS。 */
     public Map<String, String> get_fp_headers() {
         Map<String, String> h = new HashMap<>();
         h.put("User-Agent", user_agent);
@@ -347,23 +312,17 @@ public class HeaderManager {
         return h;
     }
 
-    /**
-     * 米游社图片/栏目接口（两个接口 header 完全相同）
-     */
+    /** 图片接口（与 forum 栏目接口 header 相同） */
     public Map<String, String> get_images_headers() {
         return createImageAndForumHeaders();
     }
 
-    /**
-     * 米游社论坛栏目（forum）接口请求头，与图片接口共用同一套 header。
-     */
+    /** 论坛栏目接口（与图片接口 header 相同） */
     public Map<String, String> get_forums_id() {
         return createImageAndForumHeaders();
     }
 
-    /**
-     * 构造图片/论坛栏目接口共用的请求头，DS 使用 K2 salt。
-     */
+    /** 图片 / 论坛栏目共用请求头，DS = K2。 */
     private Map<String, String> createImageAndForumHeaders() {
         Map<String, String> h = new HashMap<>();
         h.put("x-rpc-app_version", BBSconstants.bbs_version);
@@ -381,16 +340,13 @@ public class HeaderManager {
         h.put("DS", getDS(BBSconstants.K2));
         return h;
     }
-    /**
-     * 生成普通 DS 签名：以 "salt=" + salt 作为盐，走无 body 的通用算法（t 秒级时间戳 + 6 位随机 r）。
-     */
+
+    /** 普通 DS：MD5("salt=<salt>&t=&r=")，t 秒级、r 6 位随机。 */
     private static String getDS(String salt) {
         return generateDS("salt=" + salt);
     }
 
-    /**
-     * 签到专用 DS：以 SALT_6X 为 salt、将请求 body 纳入签名，算法为 MD5("salt=&t=&r=&b=body&q=")。
-     */
+    /** 签到专用 DS：SALT_6X + body，MD5("salt=&t=&r=&b=body&q=")。 */
     public String getDS_signIn(String body) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
@@ -407,13 +363,10 @@ public class HeaderManager {
     }
 
     /**
-     * 账号密码登录（passport-api / ma-cn-passport）专用 DS。
-     * <p>
-     * 与 K2 / LK2 的无 body 版本、以及签到用的 SALT_6X 版本都不同：
-     * 使用账号 SDK 专用 SALT_PASSPORT，且必须带上 body 参与签名，POST 无 query 故 q 为空。
-     * 明文顺序为 salt → t → r → b → q，该顺序与 salt 均已用真实抓包 DS 反算命中验证，请勿调整。
+     * 账号密码登录专用 DS：SALT_PASSPORT + body，POST 无 query 故 q 为空。
+     * 明文顺序 salt→t→r→b→q 已用真实抓包反算命中验证，勿调整。
      *
-     * @param body 与实际发出的请求体逐字节一致的 JSON 字符串
+     * @param body 与实际请求体逐字节一致的 JSON
      */
     public String getDS_passport(String body) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
@@ -431,11 +384,8 @@ public class HeaderManager {
     }
 
     /**
-     * 网页/PC 端扫码（passport ma-cn-passport）专用 DS：X4 salt + 带 body 的 DS2 算法。
-     * <p>
-     * 与签到用的 SALT_6X、账密登录用的 SALT_PASSPORT 都不是同一把 salt；
-     * 传入的 body 必须与实际发出的请求体逐字节一致（取码为 {@code "{}"}，
-     * 轮询为 {@code {"ticket":"..."}}，字段顺序也要一致）。
+     * 网页 / PC 扫码专用 DS：SALT_4X + body（取码 body 为 "{}"，轮询为 {"ticket":"..."}，
+     * 字段顺序也须与实际请求体一致）。
      */
     public String getDS_4x(String body) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
@@ -454,9 +404,7 @@ public class HeaderManager {
         }
     }
 
-    /**
-     * DS 通用实现：MD5(saltPart + "&t=" + t + "&r=" + r)，t 为秒级时间戳，r 为 6 位随机串。
-     */
+    /** 无 body 的 DS 通用实现：MD5(saltPart + "&t=" + t + "&r=" + r)。 */
     private static String generateDS(String saltPart) {
         long currentTimeMillis = System.currentTimeMillis() / 1000;
         StringBuilder r = new StringBuilder();
@@ -472,9 +420,7 @@ public class HeaderManager {
         }
     }
 
-    /**
-     * 懒加载并缓存 device_fp：向 fp 接口上报设备信息，成功则缓存结果，失败返回空串。
-     */
+    /** 取并缓存 device_fp：成功入缓存，失败返回空串（不缓存，下次重试）。 */
     private String getFp() {
         String cached = CACHED_FP_BY_SERVER.get(isOversea);
         if (cached != null) return cached;
@@ -505,11 +451,7 @@ public class HeaderManager {
         return fp;
     }
 
-    /**
-     * 取设备 ID 去掉连字符后的 [8,21) 片段作为 seed 前缀。
-     * 原实现直接 substring(8,21)，设备 ID 缺失（缓存未热 / 获取失败）时会抛 StringIndexOutOfBoundsException，
-     * 使整个 device_fp 请求失败；此处改为「长度不足则退化为原串」。
-     */
+    /** 设备 ID 去连字符后取 [8,21) 作 seed 前缀；长度不足退化为原串（防 StringIndexOutOfBoundsException）。 */
     private static String seedFromDeviceId(String deviceId) {
         if (deviceId == null) return "";
         String compact = deviceId.replace("-", "");

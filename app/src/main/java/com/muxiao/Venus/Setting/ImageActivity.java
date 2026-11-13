@@ -3,7 +3,6 @@ package com.muxiao.Venus.Setting;
 import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
-
 import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
@@ -53,35 +52,29 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 图片浏览页：从米游社API加载图片列表（日榜/周榜/月榜/热门/同人/COS），
- * 支持下载保存到相册和全屏查看。
- *
- * <p>界面已迁移为 Compose（{@link ImageScreenView}）：`RecyclerView` + `ImageAdapter` →
- * `LazyVerticalGrid` + `ImageCard`，ActionBar 的标题与下载菜单改由页面状态派生。
- * 本类只保留网络、缓存、下载与选择状态机。</p>
+ * 图片浏览页：从米游社 API 加载图片列表（日榜/周榜/月榜/热门/同人/COS），支持下载保存到相册与全屏查看。
+ * 本类只保留网络、缓存、下载与选择状态机，界面由 Compose 的 {@link ImageScreenView} 承载。
  */
 @AndroidEntryPoint
 public class ImageActivity extends BaseActivity {
     private ImageScreenView pane; // Compose 宿主
-    private List<Map<String, Object>> imageDataList; // 图片数据列表
-    private final List<Integer> selectedItems = new ArrayList<>(); // 已选择的项目索引
-    private boolean isSelectionMode = false; // 是否处于选择模式
+    private List<Map<String, Object>> imageDataList;
+    private final List<Integer> selectedItems = new ArrayList<>();
+    private boolean isSelectionMode = false;
 
-    // 下载状态变量
     private int downloadProgress, totalDownloads, currentImageIndexInPost, currentPostIndex;
-    private List<Integer> itemsToDownload = new ArrayList<>(); // 待下载项目列表
-    private List<String> currentPostImages = new ArrayList<>(); // 当前帖子的图片列表
+    private List<Integer> itemsToDownload = new ArrayList<>();
+    private List<String> currentPostImages = new ArrayList<>();
 
     // 线程管理
-    private ExecutorService executorService; // 线程池
+    private ExecutorService executorService;
     private CustomTarget<Bitmap> downloadTarget; // 当前下载用的 Glide 目标，便于 onDestroy 清理
-    private final Handler mainHandler = new Handler(Looper.getMainLooper()); // 主线程处理器
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean mDestroyed = false; // onDestroy 后置位，阻止向已关闭的线程池提交任务
 
     /**
-     * 安全的线程池提交：仅当 Activity 未销毁且线程池仍可用时提交，
-     * 否则直接丢弃。避免 onDestroy() 已 shutdown 线程池后，仍在排队的
-     * mainHandler 回调尝试提交任务而抛出 RejectedExecutionException 导致崩溃。
+     * 安全提交：Activity 已销毁或线程池已 shutdown 时直接丢弃，避免排队的 mainHandler 回调提交任务时
+     * 抛 RejectedExecutionException 崩溃。
      */
     private void safeSubmit(Runnable task) {
         if (mDestroyed || executorService == null || executorService.isShutdown()) return;
@@ -98,33 +91,30 @@ public class ImageActivity extends BaseActivity {
         try {
             executorService.execute(task);
         } catch (java.util.concurrent.RejectedExecutionException ignore) {
-            // 极端竞态下仍可能被拒，直接忽略（任务非关键）
         }
     }
-    private volatile boolean isLoading = false; // 是否正在加载
-    private Map<String, String> lastLoadedParams; // 上次加载的参数
+    private volatile boolean isLoading = false;
+    private Map<String, String> lastLoadedParams;
 
     private HeaderManager headerManager;
 
-    // UI数据缓存
-    private String[] forumNames; // 游戏内部标识（用于API调用）
-    private String[] currentCategories; // 当前游戏的分类名（与下拉下标一一对应）
-    private Map<String, String> currentForumMap = new HashMap<>(); // 当前游戏的分类映射
-    private String currentCategoryId = ""; // 当前分类ID
-    private boolean isUpdatingInternal = false; // 是否正在内部更新
-    private int pendingTabPosition = -1; // 待处理的Tab位置
-    private int currentTabPosition = 0; // 当前已生效的榜单Tab下标（空态重试要按它重新拉取）
-    private int[] currentListTypes = new int[0]; // 当前可用的榜单类型
+    private String[] forumNames; // 游戏内部中文标识，用于 API 调用
+    private String[] currentCategories; // 分类名，下标与下拉一一对应
+    private Map<String, String> currentForumMap = new HashMap<>(); // 分类名 → cate_id
+    private String currentCategoryId = "";
+    private boolean isUpdatingInternal = false; // 内部联动更新中：据此抑制回调重入
+    private int pendingTabPosition = -1; // 待处理的 Tab 位置
+    private int currentTabPosition = 0; // 当前已生效的榜单 Tab 下标（空态重试要按它重新拉取）
+    private int[] currentListTypes = new int[0];
 
-    // 缓存机制
-    private final Map<String, List<Map<String, Object>>> imageDataCache = new HashMap<>(); // 图片数据缓存
-    private final Map<String, Long> cacheTimestamps = new HashMap<>(); // 缓存时间戳
-    private static final long CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 缓存过期时间5分钟
-    private final Map<String, Map<String, String>> forumCache = new HashMap<>(); // 游戏分类缓存
-    private final Map<String, int[]> listTypeCache = new HashMap<>(); // 榜单类型缓存
-    private final Map<String, Long> forumCacheTimestamps = new HashMap<>(); // 游戏分类缓存时间戳
-    private final Map<String, Long> listTypeCacheTimestamps = new HashMap<>(); // 榜单类型缓存时间戳
-    private static final long STATIC_CACHE_EXPIRY_TIME = 30 * 60 * 1000; // 静态数据缓存30分钟
+    private final Map<String, List<Map<String, Object>>> imageDataCache = new HashMap<>();
+    private final Map<String, Long> cacheTimestamps = new HashMap<>();
+    private static final long CACHE_EXPIRY_TIME = 5 * 60 * 1000; // 图片列表缓存 5 分钟
+    private final Map<String, Map<String, String>> forumCache = new HashMap<>();
+    private final Map<String, int[]> listTypeCache = new HashMap<>();
+    private final Map<String, Long> forumCacheTimestamps = new HashMap<>();
+    private final Map<String, Long> listTypeCacheTimestamps = new HashMap<>();
+    private static final long STATIC_CACHE_EXPIRY_TIME = 30 * 60 * 1000; // 分类/榜单类型等静态数据 30 分钟
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,8 +124,7 @@ public class ImageActivity extends BaseActivity {
         setContentView(pane);
         EdgeToEdge.enable(this);
 
-        // 初始化基础组件
-        executorService = Executors.newFixedThreadPool(4); // 4个线程的线程池
+        executorService = Executors.newFixedThreadPool(4);
 
         // 初始化 HeaderManager（榜单图始终使用国服API）
         headerManager = new HeaderManager(this, false);
@@ -152,7 +141,6 @@ public class ImageActivity extends BaseActivity {
             getString(R.string.dabieye)
         };
 
-        // 页面回调：筛选、榜单、卡片点击/长按、下载与返回
         pane.setForums(Arrays.asList(forumDisplayNames), 0);
         pane.setOnForumSelectedListener(this::onForumSelected);
         pane.setOnCategorySelectedListener(this::onCategorySelected);
@@ -164,7 +152,6 @@ public class ImageActivity extends BaseActivity {
         pane.setOnCancelSelectionListener(this::exitSelectionMode);
         pane.setOnRetryClickListener(this::retryCurrentList);
 
-        // 返回键处理
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -172,14 +159,13 @@ public class ImageActivity extends BaseActivity {
             }
         });
 
-        // 默认加载首个游戏的榜单数据（原 setupListenersAndLoadData 的收尾动作）
+        // 默认加载首个游戏的榜单数据
         isUpdatingInternal = true;
         handleForumSelection(forumNames[0]);
     }
 
     /**
-     * 空态「重试」：按当前分类与榜单重新拉取。
-     * 先清 lastLoadedParams，否则 loadImages 会因「参数与上次相同」直接短路。
+     * 空态「重试」：按当前分类与榜单重新拉取。先清 lastLoadedParams，否则 loadImages 会因「参数与上次相同」短路。
      */
     private void retryCurrentList() {
         if (currentCategoryId == null || currentCategoryId.isEmpty() || currentListTypes.length == 0) {
@@ -200,8 +186,6 @@ public class ImageActivity extends BaseActivity {
         if (isSelectionMode) exitSelectionMode();
         else finish();
     }
-
-    /* ===================== 筛选联动 ===================== */
 
     /** 游戏下拉选中：内部联动期间忽略，避免重复触发加载。 */
     private void onForumSelected(int position) {
@@ -241,14 +225,10 @@ public class ImageActivity extends BaseActivity {
         loadImages(params);
     }
 
-    /**
-     * 处理游戏（forum）切换：优先读分类静态缓存，否则异步请求论坛分类映射（同人图/COS），
-     * 成功后刷新分类选择器。forumName 为游戏内部中文标识。
-     */
+    /** 处理游戏切换：优先读分类静态缓存，否则异步请求论坛分类映射（同人图/COS），成功后刷新分类选择器。 */
     private void handleForumSelection(String forumName) {
         showCustomSnackbar(this, getString(R.string.snack_loading_types));
 
-        // 检查游戏分类缓存
         String forumCacheKey = "forum_" + forumName;
         if (isStaticCacheValid(forumCacheKey, forumCacheTimestamps)) {
             Map<String, String> cachedForumMap = forumCache.get(forumCacheKey);
@@ -271,7 +251,6 @@ public class ImageActivity extends BaseActivity {
                 return;
             }
 
-            // 缓存游戏分类数据
             cacheStaticData(forumCacheKey, forumMap, forumCache, forumCacheTimestamps);
 
             mainHandler.post(() -> {
@@ -282,9 +261,7 @@ public class ImageActivity extends BaseActivity {
         });
     }
 
-    /**
-     * 用当前游戏的分类映射填充分类下拉框，默认选中首个分类并触发其榜单类型加载与 Tab 构建。
-     */
+    /** 用当前游戏的分类映射填充分类下拉框，默认选中首个分类并触发其榜单类型加载与 Tab 构建。 */
     private void setupCategorySelector() {
         currentCategories = currentForumMap.keySet().toArray(new String[0]);
         if (pane != null) pane.setCategories(Arrays.asList(currentCategories), 0);
@@ -294,14 +271,10 @@ public class ImageActivity extends BaseActivity {
         handleCategorySelection(currentCategoryId);
     }
 
-    /**
-     * 处理分类（cate_id）切换：优先读榜单类型静态缓存，否则异步请求该分类可用榜单类型
-     * （日/周/月/热），成功后构建 Tab 布局。categoryId 来自分类映射表。
-     */
+    /** 处理分类切换：优先读榜单类型静态缓存，否则异步请求该分类可用类型（日/周/月/热），成功后构建 Tab。 */
     private void handleCategorySelection(String categoryId) {
         showCustomSnackbar(this, getString(R.string.snack_loading_ranking_categories));
 
-        // 检查榜单类型缓存
         String listTypeCacheKey = "listType_" + categoryId;
         if (isStaticCacheValid(listTypeCacheKey, listTypeCacheTimestamps)) {
             int[] cachedListTypes = listTypeCache.get(listTypeCacheKey);
@@ -315,7 +288,6 @@ public class ImageActivity extends BaseActivity {
         safeSubmit(() -> {
             int[] listTypes = getListType(categoryId);
 
-            // 缓存榜单类型数据
             cacheStaticData(listTypeCacheKey, listTypes, listTypeCache, listTypeCacheTimestamps);
 
             mainHandler.post(() -> {
@@ -326,12 +298,8 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 用榜单类型数组构建 Tab（1=日榜，2=周榜，3=月榜，其他=热榜），
-     * 按 pendingTabPosition 落定目标 Tab 后自动加载对应榜单图片。
-     * <p>
-     * 与原实现的差异：原来靠 `Tab.select()` 触发 `onTabSelected` 再加载，而该回调在
-     * `isUpdatingInternal` 期间只会记下 pendingTabPosition、不加载，真正的加载是方法末尾直调。
-     * 迁移后 Tab 选中态由状态驱动（不触发回调），这里直接加载，语义等价且少一次无效往返。
+     * 用榜单类型数组构建 Tab（1=日榜，2=周榜，3=月榜，其他=热榜），按 pendingTabPosition 落定后加载对应图片。
+     * Tab 选中态由状态驱动、不再触发 onTabSelected，故这里直接加载（语义等价，少一次无效往返）。
      */
     private void setupTabLayout(int[] listTypes, String categoryId) {
         currentListTypes = listTypes;
@@ -365,10 +333,7 @@ public class ImageActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 加载指定参数的图片列表：参数与上次相同、正在加载或命中缓存时直接复用。
-     * type=4 走热门接口，其余走常规榜单接口；结果在主线程渲染到网格。
-     */
+    /** 加载指定参数的图片列表：参数与上次相同、正在加载或命中缓存时直接复用；type=4 走热门接口，其余走常规榜单。 */
     private void loadImages(Map<String, String> params) {
         if (params.equals(lastLoadedParams) || isLoading) return;
 
@@ -376,7 +341,6 @@ public class ImageActivity extends BaseActivity {
         if (pane != null) pane.setLoading(true);
         lastLoadedParams = new HashMap<>(params);
 
-        // 生成缓存键并检查缓存
         String cacheKey = generateCacheKey(params);
         if (isCacheValid(cacheKey)) {
             imageDataList = imageDataCache.get(cacheKey);
@@ -395,7 +359,6 @@ public class ImageActivity extends BaseActivity {
                 // 防御性拷贝，避免修改调用方的 Map
                 Map<String, String> taskParams = new HashMap<>(params);
                 if (Objects.equals(taskParams.get("type"), "4")) {
-                    // 热门图片加载
                     Map<String, String> headers = headerManager.get_images_headers();
                     taskParams.remove("type");
                     taskParams.put("page", "1");
@@ -404,7 +367,6 @@ public class ImageActivity extends BaseActivity {
                     String jsonResponse = tools.sendGetRequest(Constants.Urls.BBS_GAME_HOT_POST_LIST_URL, headers, taskParams);
                     imageDataList = parseImageData(jsonResponse);
                 } else {
-                    // 普通图片加载
                     Map<String, String> headers = headerManager.get_images_headers();
                     taskParams.put("cate_id", "0");
                     taskParams.put("last_id", "");
@@ -413,10 +375,8 @@ public class ImageActivity extends BaseActivity {
                     imageDataList = parseImageData(jsonResponse);
                 }
 
-                // 缓存数据
                 cacheData(cacheKey, imageDataList);
 
-                // 在主线程更新UI
                 mainHandler.post(() -> {
                     renderItems();
                     isLoading = false;
@@ -439,10 +399,8 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 把当前的 `imageDataList` 映射成 Compose 卡片数据并下发。
-     * <p>
-     * 描述与时间沿用原 Adapter 的行为（未绑定 → 空串）；XML 里对应 TextView 文本为空时高度为 0，
-     * `ImageCard` 同样会跳过空文案，卡片高度与原布局一致。
+     * 把 imageDataList 映射成 Compose 卡片数据并下发。描述与时间未绑定（空串），与原 Adapter 行为一致；
+     * ImageCard 同样跳过空文案，卡片高度与原布局一致。
      */
     private void renderItems() {
         if (pane == null) return;
@@ -466,8 +424,6 @@ public class ImageActivity extends BaseActivity {
         return value instanceof String ? (String) value : "";
     }
 
-    /* ===================== 选择与全屏 ===================== */
-
     /** 点击卡片：多选态切换选中，否则打开全屏。 */
     private void onItemClick(int position) {
         if (isSelectionMode) toggleSelection(position);
@@ -481,10 +437,7 @@ public class ImageActivity extends BaseActivity {
         syncSelection();
     }
 
-    /**
-     * 切换某项的选中状态：加入/移出选择集；选中集清空时自动退出选择模式。
-     * 原来由 Adapter 内的 toggleSelection 完成并 notifyItemChanged，现在只更新状态。
-     */
+    /** 切换某项的选中状态：选中集清空时自动退出选择模式。 */
     private void toggleSelection(int position) {
         if (selectedItems.contains(position))
             selectedItems.remove(Integer.valueOf(position));
@@ -500,9 +453,7 @@ public class ImageActivity extends BaseActivity {
         if (pane != null) pane.setSelection(isSelectionMode, new ArrayList<>(selectedItems));
     }
 
-    /**
-     * 退出长按选择下载模式
-     */
+    /** 退出长按选择下载模式。 */
     private void exitSelectionMode() {
         isSelectionMode = false;
         selectedItems.clear();
@@ -510,19 +461,14 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 打开全屏查看当前帖子。
-     * <p>
-     * 转场说明：原实现用 `transitionName` 做共享元素缩放转场，Compose 侧没有 View 共享元素的
-     * 等价物（2A 方案），这里降级为淡入淡出——图片本身、可缩放、左右翻页等能力不受影响。
+     * 打开全屏查看当前帖子。共享元素 transitionName 在 Compose 侧无等价物，降级为从点击矩形放大（缺坐标则淡入）。
      */
     private void openFullscreen(int position) {
         if (imageDataList == null || position < 0 || position >= imageDataList.size()) return;
         Intent intent = new Intent(this, FullscreenImageActivity.class);
         intent.putExtra("imageDataListJson", new Gson().toJson(List.of(imageDataList.get(position))));
         intent.putExtra("position", 0);
-        // 转场：从被点卡片的矩形放大（原先是共享元素 transitionName + 整页淡入）。
-        // 卡片是 Compose 节点、没有对应 View，故由 ImageScreen 上报点击时的窗口矩形，
-        // 用 makeScaleUpAnimation 以 decor 为参照做同视觉的放大；缺坐标时退回淡入。
+        // 卡片是 Compose 节点、没有对应 View，故用点击窗口矩形做 makeScaleUpAnimation；缺坐标时退回淡入。
         int[] bounds = pane == null ? null : pane.getLastClickBounds();
         Bundle options;
         if (bounds != null && bounds.length == 4 && bounds[2] > 0 && bounds[3] > 0) {
@@ -535,10 +481,7 @@ public class ImageActivity extends BaseActivity {
         startActivity(intent, options);
     }
 
-    /**
-     * 下载图标点击（原 ActionBar 的 action_download）：多选为空时无动作，
-     * Android 9 及以下先要存储权限。
-     */
+    /** 下载图标点击：多选为空时无动作；Android 9 及以下先申请存储权限。 */
     private void onDownloadClick() {
         if (selectedItems.isEmpty()) return;
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
@@ -547,7 +490,6 @@ public class ImageActivity extends BaseActivity {
                     new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     WRITE_PERMISSION_REQUEST_CODE);
         } else {
-            // 开始下载
             itemsToDownload = new ArrayList<>(selectedItems);
             totalDownloads = 0;
             for (int pos : itemsToDownload) {
@@ -563,9 +505,7 @@ public class ImageActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 存储权限授予后继续下载已选图片，拒绝则提示需要存储权限。
-     */
+    /** 存储权限授予后继续下载已选图片，拒绝则提示需要存储权限。 */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -578,8 +518,8 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 递归串行下载所有已选帖子的图片到相册：逐帖子、逐张下载，进度累加后自我调用下一轮；
-     * 完成或列表耗尽时提示并退出选择模式。downloadTarget 便于 onDestroy 时取消。
+     * 递归串行下载已选帖子的图片到相册：逐帖逐张，进度累加后自我调用下一轮；完成或队列耗尽时提示并退出选择模式。
+     * downloadTarget 便于 onDestroy 时取消。
      */
     private void downloadImage() {
         if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
@@ -588,9 +528,8 @@ public class ImageActivity extends BaseActivity {
             exitSelectionMode();
             return;
         }
-        // 定位下一个「确有图片」的帖子。itemsToDownload 中可能存在 images 缺失的条目：
-        // totalDownloads 累加时已跳过它们，但索引仍留在队列里，原实现会把 null 赋给
-        // currentPostImages，并在下一行 Objects.requireNonNull 处抛 NPE。
+        // itemsToDownload 中可能有 images 缺失的条目：totalDownloads 累加时已跳过，但索引仍留在队列里，
+        // 原实现会把 null 赋给 currentPostImages 并在 requireNonNull 处 NPE，故先定位下一个「确有图片」的帖子。
         while (currentImageIndexInPost >= currentPostImages.size()) {
             if (currentPostIndex >= itemsToDownload.size()) {
                 // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
@@ -642,9 +581,8 @@ public class ImageActivity extends BaseActivity {
         Glide.with(this).asBitmap().load(imageUrl).into(downloadTarget);
     }
 
-    // 将 Bitmap 持久化到系统相册，失败时切回主线程弹错误框。
-    // 本方法在工作线程执行（见 onResourceReady 的 safeSubmit），而错误对话框是 UI 操作，
-    // 必须 runOnUiThread 切回主线程，否则在工作线程调用主线程方法会触发线程约束冲突。
+    // 本方法在工作线程执行（onResourceReady 的 safeSubmit），而错误对话框是 UI 操作，
+    // 必须 runOnUiThread 切回主线程，否则触发线程约束冲突。
     private void saveImageToGallery(Bitmap bitmap, String fileName) {
         try {
             tools.saveBitmapToGallery(this, bitmap, fileName);
@@ -657,11 +595,9 @@ public class ImageActivity extends BaseActivity {
         }
     }
 
-    /* ===================== 数据解析 ===================== */
-
     /**
-     * 解析米游社帖子列表 JSON，提取每帖的标题、作者、封面、时间戳、描述与图片 URL 列表。
-     * 描述优先取 content.describe 并按「作品描述」字样裁剪；图片依次尝试 images/image_list/cover 兜底。
+     * 解析米游社帖子列表 JSON，提取标题、作者、封面、时间戳、描述与图片 URL。描述优先取 content.describe
+     * 并按「作品描述」字样裁剪；图片依次尝试 images / image_list / cover 兜底。
      */
     private List<Map<String, Object>> parseImageData(String jsonResponse) {
         List<Map<String, Object>> imagePosts = new ArrayList<>();
@@ -672,29 +608,22 @@ public class ImageActivity extends BaseActivity {
                 JsonArray list = data.getAsJsonArray("list");
                 for (JsonElement element : list) {
                     JsonObject itemObject = element.getAsJsonObject();
-                    // 获取post对象
                     JsonObject postObject = itemObject.has("post") ? itemObject.getAsJsonObject("post") : new JsonObject();
-                    // 获取user对象
                     JsonObject userObject = itemObject.has("user") ? itemObject.getAsJsonObject("user") : new JsonObject();
-                    // 创建用于存储帖子信息的Map
                     Map<String, Object> postData = new HashMap<>();
 
-                    // 提取标题信息
                     String title = "";
                     if (postObject.has("subject") && !postObject.get("subject").isJsonNull())
                         title = postObject.get("subject").getAsString();
-                    // 提取作者信息
                     String author = getString(R.string.image_unknown_author);
                     if (userObject.has("nickname") && !userObject.get("nickname").isJsonNull())
                         author = userObject.get("nickname").getAsString();
-                    // 提取基础信息
                     String cover = "";
                     if (postObject.has("cover") && !postObject.get("cover").isJsonNull())
                         cover = postObject.get("cover").getAsString();
                     long createdAt = 0;
                     if (postObject.has("created_at") && !postObject.get("created_at").isJsonNull())
                         createdAt = postObject.get("created_at").getAsLong();
-                    // 提取描述信息
                     String description = "";
                     if (postObject.has("content") && !postObject.get("content").isJsonNull()) {
                         String contentStr = postObject.get("content").getAsString();
@@ -702,9 +631,8 @@ public class ImageActivity extends BaseActivity {
                             JsonObject content = JsonParser.parseString(contentStr).getAsJsonObject();
                             if (content.has("describe") && !content.get("describe").isJsonNull()) {
                                 description = content.get("describe").getAsString();
-                                // 去除换行符
                                 description = description.replace("\n", "").replace("\r", "");
-                                // 如果describe中包含"作品描述"字段，则切分取后段
+                                // 描述前带「作品描述」标签时，切分只取标签后一段
                                 if (description.contains("作品描述：")) {
                                     String[] parts = description.split("作品描述：");
                                     description = parts.length > 1 ? parts[1].trim() : "";
@@ -724,15 +652,12 @@ public class ImageActivity extends BaseActivity {
                         }
                     }
 
-                    // 提取图片URL列表
                     List<String> imageUrls = new ArrayList<>();
-                    // 尝试从images字段获取
                     if (postObject.has("images") && !postObject.get("images").isJsonNull()) {
                         JsonArray postImages = postObject.getAsJsonArray("images");
                         for (JsonElement imgElement : postImages)
                             imageUrls.add(imgElement.getAsString());
                     }
-                    // 如果没有图片，尝试从image_list字段获取
                     if (imageUrls.isEmpty() && itemObject.has("image_list") && !itemObject.get("image_list").isJsonNull()) {
                         JsonArray imageList = itemObject.getAsJsonArray("image_list");
                         for (JsonElement imageElement : imageList) {
@@ -741,10 +666,8 @@ public class ImageActivity extends BaseActivity {
                                 imageUrls.add(imageObj.get("url").getAsString());
                         }
                     }
-                    // 如果仍然没有图片，使用cover作为唯一图片
                     if (imageUrls.isEmpty() && !cover.isEmpty())
                         imageUrls.add(cover);
-                    // 将数据放入Map中
                     postData.put("title", title);
                     postData.put("description", description);
                     postData.put("author", author);
@@ -759,8 +682,7 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 请求指定游戏的论坛分类，仅保留「同人图」与「COS」两类并返回其 id 映射；
-     * 失败时返回空 Map（调用方据此重试或弹错）。
+     * 请求指定游戏的论坛分类，仅保留「同人图」与「COS」两类并返回其 id 映射；失败时返回空 Map（调用方据此重试或弹错）。
      */
     private Map<String, String> getForum(String forumName) {
         try {
@@ -786,8 +708,7 @@ public class ImageActivity extends BaseActivity {
     }
 
     /**
-     * 请求指定分类可用的榜单类型，返回整型数组（1/2/3/4 分别代表日/周/月/热榜），
-     * 空结果或异常统一降级为 [4]（热门）。
+     * 请求指定分类可用的榜单类型（1/2/3/4 = 日/周/月/热）；空结果或异常统一降级为 [4]（热门）。
      */
     private int[] getListType(String categoryId) {
         try {
@@ -815,28 +736,22 @@ public class ImageActivity extends BaseActivity {
             executorService.shutdownNow(); // 中断进行中的任务，避免泄漏
             executorService = null;
         }
-        // 清理所有缓存
         clearAllCache();
         super.onDestroy();
     }
 
-    /**
-     * 将请求参数按 key 字典序拼接为稳定的字符串缓存键，确保相同参数（顺序无关）命中同一缓存。
-     */
+    /** 将请求参数按 key 字典序拼成稳定缓存键，保证相同参数（顺序无关）命中同一缓存。 */
     private String generateCacheKey(Map<String, String> params) {
         StringBuilder keyBuilder = new StringBuilder();
         List<Map.Entry<String, String>> entries = new ArrayList<>(params.entrySet());
         entries.sort(Map.Entry.comparingByKey());
-        // 遍历添加
         for (Map.Entry<String, String> entry : entries)
             keyBuilder.append(entry.getKey()).append("=")
                     .append(entry.getValue()).append("&");
         return keyBuilder.toString();
     }
 
-    /**
-     * 判断图片列表缓存是否有效：存在且距写入时间未超过 CACHE_EXPIRY_TIME（5 分钟）。
-     */
+    /** 图片列表缓存是否有效：存在且距写入未超过 CACHE_EXPIRY_TIME（5 分钟）。 */
     private boolean isCacheValid(String cacheKey) {
         if (!imageDataCache.containsKey(cacheKey)) return false;
         Long timestamp = cacheTimestamps.get(cacheKey);
@@ -844,17 +759,14 @@ public class ImageActivity extends BaseActivity {
         return (System.currentTimeMillis() - timestamp) < CACHE_EXPIRY_TIME;
     }
 
-    /**
-     * 写入图片列表缓存（深拷贝列表）并记录当前时间戳。
-     */
+    /** 写入图片列表缓存（深拷贝列表）并记录时间戳。 */
     private void cacheData(String cacheKey, List<Map<String, Object>> data) {
         imageDataCache.put(cacheKey, new ArrayList<>(data));
         cacheTimestamps.put(cacheKey, System.currentTimeMillis());
     }
 
     /**
-     * 判断静态数据（分类/榜单类型）缓存是否有效，有效期 STATIC_CACHE_EXPIRY_TIME（30 分钟）；
-     * timestampMap 与对应 cacheMap 成对使用。
+     * 静态数据（分类/榜单类型）缓存是否有效，有效期 STATIC_CACHE_EXPIRY_TIME（30 分钟）；timestampMap 与 cacheMap 成对使用。
      */
     private boolean isStaticCacheValid(String cacheKey, Map<String, Long> timestampMap) {
         if (!timestampMap.containsKey(cacheKey)) return false;
@@ -863,23 +775,17 @@ public class ImageActivity extends BaseActivity {
         return (System.currentTimeMillis() - timestamp) < STATIC_CACHE_EXPIRY_TIME;
     }
 
-    /**
-     * 泛型静态缓存写入：将数据存入 cacheMap 并写入时间戳到 timestampMap。
-     */
+    /** 泛型静态缓存写入：数据存入 cacheMap 并记录时间戳。 */
     private <T> void cacheStaticData(String cacheKey, T data, Map<String, T> cacheMap, Map<String, Long> timestampMap) {
         cacheMap.put(cacheKey, data);
         timestampMap.put(cacheKey, System.currentTimeMillis());
     }
 
-    /**
-     * 清空全部缓存：图片列表缓存与分类/榜单类型静态缓存及其时间戳一并清除。
-     */
+    /** 清空全部缓存：图片列表缓存与分类/榜单类型静态缓存及其时间戳。 */
     private void clearAllCache() {
-        // 清理图片数据缓存
         imageDataCache.clear();
         cacheTimestamps.clear();
 
-        // 清理静态数据缓存
         forumCache.clear();
         listTypeCache.clear();
         forumCacheTimestamps.clear();

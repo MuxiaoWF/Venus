@@ -1,22 +1,13 @@
 <resources>
-    <!-- Base application theme：默认走动态取色（DynamicColors）。
-         四套配色主题共享、且跨主题完全一致的语义色提到基类，避免每套重复声明。
-
-         注意（P0-1 修复）：本 style 只在 values/ 声明一次。
-         曾同时在 values-night/themes.xml 声明同名 style，而 Android 资源按限定符
-         “整体替换”而非合并 item —— 暗色下基类的 8 项语义色会被整体覆盖掉，
-         静默回落到动态取色。夜主题文件已删除，语义色仅在此单点维护。 -->
+    <!-- Base application theme：默认动态取色；四套主题共享的语义色集中在此基类。
+         本 style 只在 values/ 声明一次：Android 资源按限定符整体替换而非合并 item，
+         若在 values-night 重复声明同名 style，基类语义色会被整体覆盖并静默回落动态取色。 -->
     <style name="Theme.Venus" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
-        <!-- 本主题不再注册任何 Widget.* 组件样式。
-             迁移收尾后 View 侧已无 Material 组件实例（底栏/Snackbar/卡片全部 Compose 化），
-             原先的 materialCardViewStyle / bottomNavigationStyle / snackbar*Style 三组
-             注册已随之删除——保留它们只会让「样式存在但无人使用」的僵尸配置继续误导。
-             剩下的职责只有两件：① 作为 Activity 窗口主题（Splash / ThemeOverlay 的基类）；
-             ② 提供 Compose 侧取色的主题属性（VenusTheme 从 Context 读同一份语义色）。 -->
+        <!-- 本主题不注册任何 Widget.* 组件样式（View 侧已无 Material 组件实例）。
+             职责仅两件：① Activity 窗口主题基类（Splash / ThemeOverlay）；
+             ② 提供 Compose 侧取色的主题属性（VenusTheme 读同一份语义色）。 -->
 
-        <!-- 跨主题一致的语义色（来自 blue 调色板）。
-             colorOnPrimary / colorOnSecondary / colorOnTertiary 是"未叠加配色 Overlay 时"的
-             默认兜底值；6 套 ThemeOverlay 各自声明与自身调色板匹配的反色，见下方。 -->
+        <!-- 跨主题一致的语义色（blue 调色板）：colorOn* 是未叠加配色 Overlay 时的兜底值。 -->
         <item name="colorError">@color/blue_theme_error</item>
         <item name="colorOnError">@color/blue_theme_onError</item>
         <item name="colorErrorContainer">@color/blue_theme_errorContainer</item>
@@ -27,10 +18,7 @@
         <item name="colorSurfaceContainerLowest">@color/blue_theme_surfaceContainerLowest</item>
     </style>
 
-    <!-- Splash 启动页 Style（Apple 风：柔光近白底 + 品牌字标浮起）
-         昼夜共用一份定义：windowSplashScreenBackground 走 ?attr，随基主题的
-         colorSurfaceContainerLowest（已有 day/night 两套取值）自动切换，
-         避免过去夜间写死 @color/splash_background(#457C77) 导致的“墨绿 → 深色”跳色。 -->
+    <!-- Splash 启动页：昼夜共用一份，背景走 ?attr 随基主题取值（避免夜间写死色导致跳色）。 -->
     <style name="Theme.Venus.SplashScreen" parent="Theme.SplashScreen.IconBackground">
         <item name="windowSplashScreenBackground">?attr/colorSurfaceContainerLowest</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
@@ -39,22 +27,15 @@
         <item name="postSplashScreenTheme">@style/Theme.Venus</item>
     </style>
 
-    <!-- ===== 配色主题：ThemeOverlay，运行时通过 getTheme().applyStyle() 叠加 =====
-         每套声明三组：主/次/第三色的**基色**与**反色（on*）**。
-         反色必须随调色板走：6 套主题的 colorPrimary 明度差异极大（暗色下 yellow 的
-         primary 是 #FFFAFF 近白），若 on* 共用一份，就会出现"近白底 + 白字"的对比度失效。
-         全部反色实测对比度 ≥ 7:1（WCAG AA 需 4.5:1）。 -->
+    <!-- 配色 ThemeOverlay，运行时 getTheme().applyStyle() 叠加。
+         每套声明主/次/第三色及其 on* 反色：6 套主题 colorPrimary 明度差异大，on* 共用会导致对比度失效；
+         反色实测对比度 ≥ 7:1（WCAG AA 需 4.5:1）。 -->
 
-    <!-- UCrop 裁剪页：第三方 Activity 未经 applyAppTheme（无运行时配色 overlay），
-         直接挂 Theme.Venus 使其跟随昼夜与品牌语义色；
-         修正原先固定 Theme.AppCompat.Light 导致的夜间闪白。 -->
+    <!-- UCrop 裁剪页：第三方 Activity 不经 applyAppTheme，直接挂 Theme.Venus 以跟随昼夜与语义色。 -->
     <style name="Theme.Venus.UCrop" parent="Theme.Venus" />
 
-    <!-- 全屏看图：窗口透明，让下拉关闭时下方图库页逐渐透出（iOS 式收尾）。
-         windowIsTranslucent 只能由主题提供（不是 Window flag），而 SettingsFragment.applyAppTheme
-         会 setTheme(Theme.Venus) 把 manifest 上的主题覆盖掉，所以这里作为独立基主题存在，
-         由 applyAppTheme(activity, R.style.Theme_Venus_Fullscreen) 指定。
-         窗口透明后，内容未绘制前的短暂空窗也能看到下层，不会闪黑。 -->
+    <!-- 全屏看图：透明窗口，让下拉关闭时下层图库透出。windowIsTranslucent 只能由主题提供
+         （不是 Window flag），故独立成基主题，由 applyAppTheme(activity, Theme_Venus_Fullscreen) 指定。 -->
     <style name="Theme.Venus.Fullscreen" parent="Theme.Venus">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

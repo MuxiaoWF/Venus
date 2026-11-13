@@ -18,10 +18,8 @@ public class DeviceUtils {
     private final Context context;
     public volatile String oaid;
     /**
-     * 设备标识的最终解析结果（OAID 或回退 UUID）。
-     * 缓存它有两个作用：① 避免同一实例内多次调用各自阻塞最多 5 秒；
-     * ② 保证 device_id 与 ext_fields 中上报的 aaid/oaid/vaid 取值完全一致
-     * （原实现两次独立解析，可能在 OAID 迟到时给出两个不同值）。
+     * 设备标识最终解析结果（OAID 或回退 UUID）。缓存有两个作用：① 避免同一实例内多次调用各自阻塞最多 5 秒；
+     * ② 保证 device_id 与 ext_fields 中 aaid/oaid/vaid 完全一致（原实现两次独立解析，OAID 迟到时会给出不同值）。
      */
     private volatile String resolvedDeviceId;
 
@@ -55,7 +53,6 @@ public class DeviceUtils {
 
     /** 轮询 OAID 最多 5 秒（每 100ms 一次），超时或被中断时回退到本地生成的稳定设备 ID。 */
     private String pollOaidOrFallback() {
-        // 最多等待5秒
         int maxWaitTime = 5000;
         int waitInterval = 100;
         int waitedTime = 0;
@@ -80,9 +77,7 @@ public class DeviceUtils {
         @SuppressLint("HardwareIds") String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
         String namespace = androidId != null ? androidId : "unknown";
         String name = Build.MANUFACTURER + " " + Build.MODEL;
-        // Convert namespace to UUID
         UUID namespaceUUID = UUID.nameUUIDFromBytes(namespace.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        // Concatenate namespace and name
         long msb = namespaceUUID.getMostSignificantBits();
         long lsb = namespaceUUID.getLeastSignificantBits();
         byte[] namespaceBytes = new byte[16];
@@ -94,7 +89,6 @@ public class DeviceUtils {
         byte[] combinedBytes = new byte[namespaceBytes.length + nameBytes.length];
         System.arraycopy(namespaceBytes, 0, combinedBytes, 0, namespaceBytes.length);
         System.arraycopy(nameBytes, 0, combinedBytes, namespaceBytes.length, nameBytes.length);
-        // Hash the combined bytes using MD5
         MessageDigest md;
         try {
             md = MessageDigest.getInstance("MD5");
@@ -102,14 +96,13 @@ public class DeviceUtils {
             throw new RuntimeException(e);
         }
         byte[] hashBytes = md.digest(combinedBytes);
-        // Convert the hash to a UUID
         long mostSignificantBits = 0;
         long leastSignificantBits = 0;
         for (int i = 0; i < 8; i++)
             mostSignificantBits = (mostSignificantBits << 8) | (hashBytes[i] & 0xff);
         for (int i = 8; i < 16; i++)
             leastSignificantBits = (leastSignificantBits << 8) | (hashBytes[i] & 0xff);
-        // Set the version to 3 and the variant to DCE 1.1
+        // 置 UUID version 3 与 DCE 1.1 variant（魔法位来自 nameUUID 规范）
         mostSignificantBits &= ~0x000000000000F000L;
         mostSignificantBits |= 0x0000000000003000L;
         leastSignificantBits &= ~0xC000000000000000L;
@@ -117,9 +110,7 @@ public class DeviceUtils {
         return new UUID(mostSignificantBits, leastSignificantBits).toString();
     }
 
-    /**
-     * 构建 device_fp 接口所需的 ext_fields 设备信息 JSON（含 CPU、存储、内存、传感器等）。
-     */
+    /** 构建 device_fp 接口所需的 ext_fields 设备信息 JSON（含 CPU、存储、内存、传感器等）。 */
     public String getExtFields() {
         String deviceId = waitForDeviceId();
         Gson gson = new Gson();
@@ -159,50 +150,40 @@ public class DeviceUtils {
         return gson.toJson(jsonObject);
     }
 
-    /**
-     * 返回设备根分区总存储（MB），用于 ext_fields 上报。
-     */
+    /** 根分区总存储（MB），用于 ext_fields 上报。 */
     private long getTotalStorageSpace() {
         android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
         long blockSize = statFs.getBlockSizeLong();
         long totalBlocks = statFs.getBlockCountLong();
-        return (totalBlocks * blockSize) / (1024 * 1024); // 返回MB
+        return (totalBlocks * blockSize) / (1024 * 1024);
     }
 
-    /**
-     * 返回设备根分区可用存储（MB），用于 ext_fields 上报。
-     */
+    /** 根分区可用存储（MB）。 */
     private long getAvailableStorageSpace() {
         android.os.StatFs statFs = new android.os.StatFs(android.os.Environment.getRootDirectory().getAbsolutePath());
         long blockSize = statFs.getBlockSizeLong();
         long availableBlocks = statFs.getAvailableBlocksLong();
-        return (availableBlocks * blockSize) / (1024 * 1024); // 返回MB
+        return (availableBlocks * blockSize) / (1024 * 1024);
     }
 
-    /**
-     * 返回设备总内存（MB），用于 ext_fields 上报。
-     */
+    /** 设备总内存（MB）。 */
     private long getTotalMemory() {
         android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         android.app.ActivityManager.MemoryInfo memoryInfo = new android.app.ActivityManager.MemoryInfo();
         activityManager.getMemoryInfo(memoryInfo);
-        return memoryInfo.totalMem / (1024 * 1024); // 返回MB
+        return memoryInfo.totalMem / (1024 * 1024);
     }
 
 
-    /**
-     * 返回设备可用内存（MB），用于 ext_fields 上报。
-     */
+    /** 设备可用内存（MB）。 */
     private long getAvailableRam() {
         android.app.ActivityManager activityManager = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         android.app.ActivityManager.MemoryInfo memoryInfo = new android.app.ActivityManager.MemoryInfo();
         activityManager.getMemoryInfo(memoryInfo);
-        return memoryInfo.availMem / (1024 * 1024); // 返回MB
+        return memoryInfo.availMem / (1024 * 1024);
     }
 
-    /**
-     * 返回三轴传感器的经验标定数据（固定字符串），用于 ext_fields 伪装设备特征。
-     */
+    /** 三轴传感器的固定标定值，用于 ext_fields 伪装设备特征。 */
     private String getSensorInfo(String sensorType) {
         switch (sensorType) {
             case "accelerometer":

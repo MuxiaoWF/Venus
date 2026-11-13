@@ -19,13 +19,11 @@ import java.util.Map;
 /**
  * 云游戏每日签到（云原神 / 云绝区零）。
  *
- * <p>与 {@link BBSGameDaily} 是两条完全独立的链路：云游戏走「钱包查询即签到」模型——
- * 每日首次调用钱包接口即发放免费时长，因此**只需云游戏 token**（{@code x-rpc-combo_token}），
- * 不需要米游社 cookie/stoken，也不需要 DS 签名与验证码。
+ * <p>与 {@link BBSGameDaily} 是两条独立链路：云游戏走「钱包查询即签到」——每日首次调用钱包接口即发放免费时长，
+ * 故**只需云游戏 token**（{@code x-rpc-combo_token}），不需要米游社 cookie/stoken，也不需要 DS 签名与验证码。
  *
- * <p>token 按用户存储在 {@code user_{id}} 中（键见 {@link #tokenKey(String, boolean)}），
- * 由设置页「云游戏签到」抽屉录入。云绝区零仅国服有对应钱包接口，
- * 国际服只提供云原神。
+ * <p>token 按用户存于 {@code user_{id}}（键见 {@link #tokenKey(String, boolean)}），由设置页「云游戏签到」抽屉录入。
+ * 云绝区零仅国服有钱包接口，国际服只提供云原神。
  */
 public class CloudGameDaily {
 
@@ -68,10 +66,7 @@ public class CloudGameDaily {
         this.notification = new Notification(context);
     }
 
-    /**
-     * token 在用户数据中的存储键。
-     * 国际服与国服的云原神 token 互不通用，故分别存放。
-     */
+    /** token 在用户数据中的存储键。国际服与国服的云原神 token 互不通用，故分开存放。 */
     public static String tokenKey(String gameName, boolean isOversea) {
         if (GAME_ZZZ.equals(gameName)) return "cloudgame_token_zzz";
         return isOversea ? "cloudgame_token_genshin_os" : "cloudgame_token_genshin";
@@ -83,14 +78,11 @@ public class CloudGameDaily {
     }
 
     /**
-     * token 形态是否可信。
+     * token 形态是否可信。<b>不能只判空</b>：云游戏页在未登录时照样请求钱包接口，前端把尚未取到的变量
+     * 直接拼进请求头，于是出现 {@code "undefined"} / {@code "null"} 这类占位值；原样落库会弹「已获取 Token」
+     * 并覆盖真实 token，后续签到拿假 token 得到 -100，表现为「刚配置就失效」。
      *
-     * <p><b>不能只判空</b>：云游戏页在**未登录**时照样会请求钱包接口，前端把尚未取到的
-     * 变量直接拼进请求头，于是出现字符串 {@code "undefined"} / {@code "null"} 这类占位值。
-     * 若原样落库，会立刻弹「已获取 Token」（实际什么都没拿到），还会覆盖掉真实 token；
-     * 后续签到拿这个假 token 请求得到 -100，表现为「刚配置就失效」。
-     *
-     * @return true 表示形态上像真 token：真 token 是约 150~200 字符的会话凭证，此处取保守下限
+     * @return true 表示形态上像真 token：真 token 约 150~200 字符，此处取保守下限
      */
     public static boolean isValidToken(String token) {
         if (token == null) return false;
@@ -111,9 +103,7 @@ public class CloudGameDaily {
         return context.getString(R.string.task_name_cloud_game_sign_in, displayName(context, gameName));
     }
 
-    /**
-     * 该游戏在当前服务器类型下是否可用：云绝区零无国际服钱包接口。
-     */
+    /** 该游戏在当前服务器类型下是否可用：云绝区零无国际服钱包接口。 */
     public static boolean isSupported(String gameName, boolean isOversea) {
         return !(isOversea && GAME_ZZZ.equals(gameName));
     }
@@ -127,18 +117,15 @@ public class CloudGameDaily {
     }
 
     /**
-     * 执行单个云游戏的签到。
-     *
-     * <p>结果判定与上游一致：
+     * 执行单个云游戏的签到。结果判定与上游一致：
      * <ul>
      *   <li>{@code send_freetime > 0} → 本次确实发放，直接报成功；</li>
-     *   <li>{@code send_freetime == 0} 且剩余时长 &lt; 600 分钟 → 间隔数秒再查一次，
-     *       剩余时长增长即视为发放成功，否则按「已签到/已达上限」处理；</li>
-     *   <li>{@code send_freetime == 0} 且剩余时长充足 → 说明接口不再回报本次发放量，
-     *       按成功处理（能查到余额即视为签到请求已被受理）。</li>
+     *   <li>{@code send_freetime == 0} 且剩余时长 &lt; 600 分钟 → 间隔数秒再查一次，剩余时长增长视为发放成功，
+     *       否则按「已签到/已达上限」处理；</li>
+     *   <li>{@code send_freetime == 0} 且剩余时长充足 → 接口不再回报发放量，能查到余额即视为请求已被受理，按成功处理。</li>
      * </ul>
      *
-     * @throws Exception token 缺失、失效或接口异常时抛出，由 TaskExecutor 记为 ERROR
+     * @throws Exception token 缺失、失效或接口异常，由 TaskExecutor 记为 ERROR
      */
     public void run() throws Exception {
         if (!isSupported(gameName, isOversea)) {
@@ -191,8 +178,8 @@ public class CloudGameDaily {
     }
 
     /**
-     * 调用钱包接口并完成 retcode 判定，返回 {@code data} 载荷。
-     * token 失效直接抛错（不自动清空用户填写的 token，避免不可逆的数据丢失）。
+     * 调钱包接口并判定 retcode，返回 {@code data} 载荷。token 失效只抛错、不自动清空用户填写的 token
+     * （避免不可逆的数据丢失）。
      */
     private JsonObject requestWallet(String token) {
         String url;
@@ -225,10 +212,7 @@ public class CloudGameDaily {
         throw new RuntimeException(message);
     }
 
-    /**
-     * 构建钱包接口请求头。云游戏接口只认 {@code x-rpc-combo_token}，
-     * 国际服另需 game_biz / channel_id / language 标识。
-     */
+    /** 钱包接口请求头：云游戏只认 {@code x-rpc-combo_token}，国际服另需 game_biz / channel_id / language 标识。 */
     private Map<String, String> buildHeaders(String token) {
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "*/*");

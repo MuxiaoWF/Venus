@@ -16,17 +16,14 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 抓包分析器（复刻自 SRGachaLink）：
- * 从 VPN 旁路镜像的 IP 包中过滤星铁 KCP 流量（UDP:23301），解密 proto 包，
+ * 抓包分析器（复刻自 SRGachaLink）：从 VPN 旁路镜像的 IP 包过滤星铁 KCP 流量（UDP:23301），解密 proto 包，
  * 提取含 authkey 的抽卡记录 URL 并广播（ACTION_GET_AUTHKEY）。
- * 密钥两阶段：
- * 1. 初始密钥：包首 4 字节 XOR magic head 得 key ID，查 HsrKeyStore（assets/hsr.json 内置表，
- *    云端更新见 HsrKeyStore 注释）；缺键时缓存待解包并触发即时补拉，拿到密钥后按到达顺序重放；
- * 2. 会话密钥：解出 PlayerGetTokenScRsp 后取 seed，MT19937-64 生成 4096 字节新 XOR pad。
- *
- * <p>异步架构：转发线程只调用 {@link #offerIpPacket}（无锁快速过滤 + 有界入队），
- * 解密/字符串构造等重负载全部在独立分析线程执行——解析耗时不再阻塞转发路径、
- * 也不再形成上下行争抢锁的网络抖动（此类抖动可被游戏内网络质量检测感知）。
+ * 密钥两阶段：1) 初始密钥——包首 4 字节 XOR magic head 得 key ID，查 HsrKeyStore（assets/hsr.json 内置表，
+ * 云端更新见 HsrKeyStore 注释），缺键时缓存待解包并触发即时补拉，拿到密钥后按到达顺序重放；
+ * 2) 会话密钥——解出 PlayerGetTokenScRsp 后取 seed，MT19937-64 生成 4096 字节新 XOR pad。
+ * <p>
+ * 异步架构：转发线程只调 {@link #offerIpPacket}（无锁快速过滤 + 有界入队），解密/字符串构造等重负载全在独立分析线程，
+ * 解析耗时不再阻塞转发路径，也不形成上下行争抢锁的网络抖动（此类抖动可被游戏内网络质量检测感知）；
  * 单消费者模型：启动后所有密钥状态仅由分析线程读写，无需加锁。
  */
 public class PacketAnalyzer {
@@ -37,7 +34,7 @@ public class PacketAnalyzer {
     private static final int AUTHKEY_LEN = 684;
 
     private final Context context;
-    // 100KB 载荷缓冲（原实现为定长 buffer，丢弃跨 KCP 分片的重组逻辑，authkey 消息实测不分片）
+    // 100KB 载荷缓冲：不做跨 KCP 分片重组，authkey 消息实测不分片
     private final byte[] buffer = new byte[1024 * 100];
     private byte[] key;
     private boolean isInitKey = true;
@@ -56,23 +53,20 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 待分析队列上限：仅吸收分析耗速与转发耗速的瞬时差，超限丢最旧
-     * （分析尽力而为，丢包只影响捕获不影响转发）。256 × MTU 包 ≈ 亚 MB 级内存上界。
+     * 待分析队列上限：只吸收分析耗速与转发耗速的瞬时差，超限丢最旧（丢包只影响捕获不影响转发）；256 × MTU 包 ≈ 亚 MB 级上界。
      */
     private static final int QUEUE_LIMIT = 256;
     private final LinkedBlockingDeque<Pending> queue = new LinkedBlockingDeque<>(QUEUE_LIMIT);
 
     /**
-     * 缺键缓存上限（个）：仅保近期包供拿到键后重放衔接，超限丢最旧（与 QUEUE_LIMIT
-     * 同策略）——缺键期间每个 KCP 包都会入缓存，无界会 OOM。
+     * 缺键缓存上限（个）：仅保近期包供拿到键后重放，超限丢最旧——缺键期间每个 KCP 包都会入缓存，无界会 OOM。
      */
     private static final int PENDING_LIMIT = 256;
     private final ArrayDeque<Pending> pending = new ArrayDeque<>();
 
     /**
-     * 缺键补拉是否已落定：由 HsrKeyStore 的 onSettled 回调在后台线程置位，仅作事件标志，
-     * 不承载密钥数据——pending/key 是分析线程私有的（单消费者模型，见类注释），
-     * 跨线程读写会破坏该约定。分析线程在空闲轮询里消费这个标志。
+     * 缺键补拉是否已落定：由 HsrKeyStore 的 onSettled 在后台线程置位，仅作事件标志、不承载密钥数据——
+     * pending/key 是分析线程私有的（单消费者模型，见类注释），跨线程读写会破坏该约定。分析线程在空闲轮询里消费它。
      */
     private volatile boolean keyFetchSettled = false;
     /** 缺键失败是否已上报（分析线程私有）：空闲轮询/每包重试都会走到判定点，只广播一次 */
@@ -85,8 +79,6 @@ public class PacketAnalyzer {
     public PacketAnalyzer(Context context) {
         this.context = context.getApplicationContext();
     }
-
-    /* ===== 生命周期 ===== */
 
     /** 启动独立分析线程（每轮抓包调用一次） */
     public synchronized void start() {
@@ -108,11 +100,11 @@ public class PacketAnalyzer {
         queue.clear();
     }
 
-    /* ===== 数据面入口（转发线程调用，必须无锁、低开销） ===== */
+    // 数据面入口（转发线程调用，必须无锁、低开销）
 
     /**
-     * 快速过滤旁路镜像的 IP 包：仅识别 IPv4/UDP 且端口为 23301 的游戏 KCP 包，
-     * 命中才拷贝入队交由分析线程处理。其余包在此直接返回，零分配零锁。
+     * 快速过滤旁路镜像的 IP 包：仅识别 IPv4/UDP 且端口为 23301 的游戏 KCP 包，命中才拷贝入队交由分析线程。
+     * 其余包在此直接返回，零分配零锁。
      */
     public void offerIpPacket(byte[] data, int length) {
         if (!running || length < 28 || (data[0] >> 4) != 4)
@@ -136,7 +128,7 @@ public class PacketAnalyzer {
         }
     }
 
-    /* ===== 分析线程（单消费者） ===== */
+    // 分析线程（单消费者）
 
     private void analyzeLoop() {
         while (running) {
@@ -220,9 +212,8 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 查表并装载初始密钥；表中没有该版本时返回 false（调用方按缺键处理）。
-     * 单独抽出：正常收包路径与补拉落定后的衔接路径共用，两处都必须走「查不到就返回 false」，
-     * 否则 Base64.decode(null) 会抛 NPE 被 analyzeLoop 吞掉，表现为抓包静默无结果。
+     * 查表并装载初始密钥；表中没有该版本时返回 false（调用方按缺键处理）。正常收包与补拉落定后的衔接共用，
+     * 两处都必须「查不到就返回 false」，否则 Base64.decode(null) 抛 NPE 被 analyzeLoop 吞掉，表现为抓包静默无结果。
      */
     private boolean trySetInitKey(long version) {
         String keyB64 = HsrKeyStore.getKey(context, version + "");
@@ -301,11 +292,8 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 渠道判定（层层兜底）：
-     * 1. 明文自报：gacha URL 明文若含 game_biz/hkrpg_xx 字样，直接判定；
-     * 2. 会话归属：netguard 已把新 UDP 会话的客户端源端口解析到渠道包名（CaptureService 记录）；
-     * 3. 安装判定：设备上恰好只装一个渠道包时归属该包；
-     * 4. 最终默认国服。
+     * 渠道判定（层层兜底）：1) gacha URL 明文含 game_biz/hkrpg_xx 直接判定；2) 会话归属——netguard 已把新 UDP 会话的
+     * 客户端源端口解析到渠道包名（CaptureService 记录）；3) 设备上恰好只装一个渠道包时归属该包；4) 最终默认国服。
      */
     private String detectChannel(String s, int clientPort) {
         if (s.contains("hkrpg_bilibili"))
@@ -321,8 +309,7 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 缺键时广播「更新中」（每分析器实例仅一次），让 UI 给出可见的等待反馈而不是静默；
-     * 抓包不中断，拿到键重放衔接后由成功广播覆盖此状态。
+     * 缺键时广播「更新中」（每分析器实例仅一次），让 UI 有可见的等待反馈；抓包不中断，拿到键重放衔接后由成功广播覆盖。
      */
     private void notifyCaptureUpdating() {
         if (updatingNotified) return;
@@ -334,17 +321,16 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 缺键强制补拉的落定回调（后台线程，来自 HsrKeyStore.checkForUpdateAsync 的 onSettled）。
-     * 本线程只置一个事件标志，不触碰 pending/key（单消费者约定）；衔接由分析线程的空闲轮询完成。
+     * 缺键强制补拉的落定回调（后台线程，来自 HsrKeyStore.checkForUpdateAsync 的 onSettled）：本线程只置事件标志，
+     * 不触碰 pending/key（单消费者约定），衔接由分析线程的空闲轮询完成。
      */
     private void onKeyFetchSettled() {
         keyFetchSettled = true;
     }
 
     /**
-     * 空闲自愈（仅分析线程调用，队列空转 1s 触发）：补拉落定后重新查表——
-     * 命中说明云端已收录该版本，装载后按到达顺序重放（重放途中解出 seed 即切会话密钥，
-     * 因此本会话就能接着解下去）；仍未收录则广播失败事件收尾 UI「更新中」提示。
+     * 空闲自愈（仅分析线程调用，队列空转 1s 触发）：补拉落定后重新查表——命中则装载并按到达顺序重放
+     * （重放途中解出 seed 即切会话密钥，本会话就能接着解）；仍未收录则广播失败事件收尾 UI「更新中」。
      */
     private void recoverOnIdle() {
         if (key != null || pending.isEmpty()) return;
@@ -358,9 +344,8 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 补拉落定后该版本仍不在密钥表（网络失败或服务端未收录）：广播一次失败事件
-     * （reason=key_missing），让 UI 把「更新中」收尾成明确失败并引导稍后重试。
-     * 查的是密钥表而不是分析器的 key 字段——拉取成功到下个包到达之间 key 尚未刷新，
+     * 补拉落定后该版本仍不在密钥表（网络失败或服务端未收录）：广播一次失败事件（reason=key_missing），
+     * 让 UI 把「更新中」收尾成明确失败。查表而不是分析器的 key 字段——拉取成功到下个包到达之间 key 尚未刷新，
      * 查表才能避免误报；调用点有两个（每次缺键收包、空闲轮询），故用标志去重。
      */
     private void notifyKeyMissingIfSettled(long version) {
@@ -387,9 +372,8 @@ public class PacketAnalyzer {
     }
 
     /**
-     * 启发式解析 PlayerGetTokenScRsp 的 uid / secret_seed 两个 varint 字段：
-     * proto 编码中字段 tag 字节高位为 1（负数），遍历按「负数字节进入字段、正数字节结束字段」
-     * 的状态机切出两段 varint，再按出现顺序短者在前返回（uid 在前、seed 在后）。
+     * 启发式解析 PlayerGetTokenScRsp 的 uid / secret_seed 两个 varint 字段：proto 中字段 tag 字节高位为 1（负数），
+     * 遍历按「负数字节进入字段、正数字节结束字段」的状态机切出两段 varint，再按出现顺序短者在前返回。
      */
     private byte[][] parsePlayerGetTokenScRsp(byte[] d) {
         byte[] a = new byte[10];
@@ -417,8 +401,6 @@ public class PacketAnalyzer {
         return aLen < bLen ? new byte[][]{first, second} : new byte[][]{second, first};
     }
 
-    /* ===== 密钥派生 ===== */
-
     /** 以 seed 播种 MT19937-64，生成 4096 字节大端 XOR pad（与客户端密钥协商逻辑一致） */
     public static byte[] createXorPad(long seed) {
         MT19937_64 mt = new MT19937_64();
@@ -429,7 +411,6 @@ public class PacketAnalyzer {
         return pad.array();
     }
 
-    /** 循环 XOR */
     public static byte[] xor(byte[] data, byte[] key) {
         for (int i = 0; i < data.length; i++)
             data[i] ^= key[i % key.length];
@@ -454,11 +435,10 @@ public class PacketAnalyzer {
         return out;
     }
 
-    /* ===== 协议数据结构（仅本分析器使用，收敛为嵌套类） ===== */
+    // 协议数据结构（仅本分析器使用，收敛为嵌套类）
 
     /**
      * KCP 协议包头（复刻自 SRGachaLink）：24 字节标准头 + 4 字节 len（米哈游变体共 28 字节，小端）。
-     * conv/conv2 双会话号、cmd（81=数据包）、frg 分片标记、len 为载荷长度；
      * conv/conv2/wnd/ts/sn/una 本分析器未消费，仅按小端读出以推进游标（协议头偏移固定）。
      */
     static final class KcpPacket {
@@ -485,7 +465,7 @@ public class PacketAnalyzer {
 
     /**
      * 米哈游 KCP 载荷的 proto 包结构（复刻自 SRGachaLink）：
-     * [magic head 0x9D74C714][cmdId u16][headerLen u16][protoLen u32][header][proto][magic tail 0xD7A152C8]
+     * [magic head 0x9D74C714][cmdId u16][headerLen u16][protoLen u32][header][proto][magic tail 0xD7A152C8]，
      * 魔数校验失败时 headerLen/protoLen 置 0，由调用方丢弃。
      */
     static final class ProtoPacket {
@@ -508,7 +488,6 @@ public class PacketAnalyzer {
             buffer.position(data.length - 4);
             mt = buffer.getInt();
             if (mh != MAGIC_HEAD || mt != MAGIC_TAIL) {
-                // 魔数不匹配：视为无效包，交由调用方通过 header/proto 长度丢弃
                 hl = 0;
                 pl = 0;
             }
@@ -525,10 +504,8 @@ public class PacketAnalyzer {
     }
 
     /**
-     * MT19937-64 伪随机数生成器（复刻自 SRGachaLink）。
-     * 星铁会话密钥派生：服务端在 PlayerGetTokenScRsp 下发 secret_seed，
-     * 客户端与嗅探端以 seed 播种 MT19937-64 生成 4096 字节 XOR pad 作为会话密钥。
-     * ULong 以 long 承载（Java long 运算天然是 mod 2^64，与无符号语义等价）。
+     * MT19937-64 伪随机数生成器（复刻自 SRGachaLink）。星铁会话密钥派生：服务端在 PlayerGetTokenScRsp 下发 secret_seed，
+     * 客户端与嗅探端以 seed 播种 MT19937-64 生成 4096 字节 XOR pad。ULong 以 long 承载（Java long 天然是 mod 2^64）。
      */
     static final class MT19937_64 {
         private static final int N = 312;
@@ -538,7 +515,6 @@ public class PacketAnalyzer {
         private static final long LOWER_MASK = 0x7FFFFFFFL;
 
         private final long[] array = new long[N];
-        // 初始化为 N+1，表示未初始化
         private int index = N + 1;
 
         public void seed(long seed) {

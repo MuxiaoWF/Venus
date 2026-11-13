@@ -20,24 +20,17 @@ import kotlin.OptIn;
 import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
 /**
- * 用户数据仓储（单一可信数据源，底层 DataStore）。
- * <br/>
- * 底层由 RxJava3 Preferences DataStore 承载，替代原 "user_{userId}" SharedPreferences；
- * 对外公开 API（getString / putString / remove / contains）与原 SharedPreferences 实现
- * 签名与语义完全一致 —— 所有调用点（tools.read / tools.write 等）无需任何改动。
- * <br/>
- * 同步热读门面（Write-Through）：
- * - 读：直接返回内存 ConcurrentHashMap 缓存（与原 SP 同步读等价，无异步等待、无主线程阻塞）。
- * - 写：先更新缓存，再异步持久化到 DataStore（updateDataAsync）。
- * - 预热：首次访问某 userId 时，从旧 SP 同步灌入缓存，保证 getString 立即可用（与原行为一致）；
- *   并发首读在灌入期间排队等待，不会读到瞬时空缓存。
- * <br/>
- * 关于迁移：旧 "user_{userId}" SharedPreferences 仍保留在磁盘，由 seedCacheFromLegacy 在每次进程
- * 冷启动、首次访问该 userId 时同步回灌缓存；新写入只进入 DataStore。该方案刻意不采用自动
- * SharedPreferencesMigration，原因是：若由迁移接管，DataStore 首次 data() 发射前缓存为空，
- * getString 可能瞬时返回 null，破坏原 SP 的「同步读」语义；且迁移需阻塞等待首帧，存在主线程
- * ANR 风险。如后续版本希望回收旧 SP 文件，可改用
- * androidx.datastore.rxjava3.RxSharedPreferencesMigration（builder.addDataMigration(...)）。
+ * 用户数据仓储（单一可信数据源，底层 DataStore）：由 RxJava3 Preferences DataStore 承载，
+ * 替代原 "user_{userId}" SharedPreferences；对外 API（getString / putString / remove / contains）
+ * 与原实现签名与语义一致，所有调用点（tools.read / tools.write 等）无需改动。
+ * <p>
+ * 同步热读门面（Write-Through）：读直接返回内存 ConcurrentHashMap（无异步等待、不阻塞主线程）；
+ * 写先更新缓存再异步持久化（updateDataAsync）；首次访问某 userId 时从旧 SP 同步灌入缓存，
+ * 并发首读在灌入期间排队等待，不会读到瞬时空缓存。
+ * <p>
+ * 刻意不使用 SharedPreferencesMigration：迁移接管时 DataStore 首帧发射前缓存为空，getString 可能瞬时
+ * 返回 null，破坏 SP 的同步读语义，且需阻塞等首帧、有 ANR 风险。旧 "user_{userId}" SP 仍留在磁盘，
+ * 由 seedCacheFromLegacy 在冷启动首次访问该 userId 时回灌缓存；新写入只进入 DataStore。
  */
 @OptIn(markerClass = ExperimentalCoroutinesApi.class)
 public class UserRepository {
@@ -55,18 +48,12 @@ public class UserRepository {
     // 已同步预热的 userId 集合（避免每次读取都扫一遍旧 SP）
     private static final ConcurrentHashMap<String, Boolean> seeded = new ConcurrentHashMap<>();
     /**
-     * 种子灌入互斥：灌入涉及旧 SP 全量读 + DataStore 首帧阻塞读（冷盘可达数百毫秒）。
-     * 并发首次读取（TaskExecutor 并发提交的多个任务同时 tools.read 同一用户）必须在此排队，
-     * 等灌入完成后再读缓存——否则后来者会读到瞬时空缓存，getString 返回 null，
-     * 表现为「stoken/mid 为空，实际存在」，任务误报需要重新登录
-     * （每日定时签到在冷进程并发跑任务时必现）。
-     * 灌入每用户每进程至多一次，串行化的代价可忽略。
+     * 种子灌入互斥：灌入含旧 SP 全量读 + DataStore 首帧阻塞读（冷盘可达数百毫秒），并发首读必须排队，
+     * 否则后来者读到瞬时空缓存、getString 返回 null（表现为「stoken/mid 为空，实际存在」，冷进程并发跑任务必现）。
+     * 每用户每进程至多一次，串行化代价可忽略。
      */
     private static final Object SEED_LOCK = new Object();
-    /**
-     * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
-     * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
-     */
+    /** 收集所有 fire-and-forget 订阅（同时满足 Lint CheckResult）；与进程同生命周期，从不 dispose。 */
     private static final CompositeDisposable persistentDisposables = new CompositeDisposable();
 
     public UserRepository(Context context) {
@@ -114,9 +101,8 @@ public class UserRepository {
                         cache.put(composite(userId, e.getKey()), (String) e.getValue());
                     }
                 }
-                // 兜底：旧 SP 无数据（如升级用户数据仅存在于 DataStore）时，同步从 DataStore 灌入缓存，
-                // 避免 DataStore 异步首帧尚未回灌、getString 在进程首次读取时瞬时返回 null
-                //（表现为「stoken/mid 为空，实际存在」）。
+                // 兜底：旧 SP 无数据（如升级用户数据仅在 DataStore）时同步从 DataStore 灌入缓存，
+                // 避免异步首帧尚未回灌时 getString 瞬时返回 null。
                 RxDataStore<Preferences> ds = stores.get(userId);
                 if (ds != null) {
                     try {
@@ -137,8 +123,7 @@ public class UserRepository {
                     }
                 }
             } finally {
-                // 标记必须在灌入完成后置位：置位即代表「该用户缓存已可用」。
-                // 旧实现先置位后灌入，并发读者据此跳过等待、直接读到空缓存（本次修复的竞态）
+                // 必须灌入完成后才置位（置位即代表「该用户缓存已可用」）；先置位会让并发读者跳过等待、读到空缓存。
                 seeded.put(userId, Boolean.TRUE);
             }
         }
@@ -146,10 +131,8 @@ public class UserRepository {
 
     public void putString(String userId, String key, String value) {
         cache.put(composite(userId, key), value);
-        // 双写 legacy SP：putString 原先只写 cache + DataStore，导致冷启动时
-        // seedCacheFromLegacy 读到的旧 SP 为空、而 DataStore 异步订阅尚未回灌 cache，
-        // getString 在进程首次读取会瞬时返回 null（表现为"stoken/mid 为空，实际存在"）。
-        // 双写后 seedCacheFromLegacy 总能同步拿到最新值，恢复原 SP 的同步读语义。
+        // 双写 legacy SP：否则冷启动时 seedCacheFromLegacy 读到的旧 SP 为空、DataStore 异步订阅尚未回灌，
+        // getString 首次读取会瞬时返回 null（表现为"stoken/mid 为空，实际存在"）；双写后总能同步拿到最新值。
         context.getSharedPreferences("user_" + userId, Context.MODE_PRIVATE)
                 .edit().putString(key, value).apply();
         persistentDisposables.add(storeFor(userId).updateDataAsync(prefs -> {
@@ -166,14 +149,8 @@ public class UserRepository {
     }
 
     /**
-     * 清空某用户的全部数据（内存缓存 + 旧 SP + DataStore），三处必须同步清，
-     * 否则 {@link #getString} 会继续命中缓存返回旧值。
-     * <p>
-     * 用于「重新登录」：原实现只清旧 SP，而读取优先命中缓存，导致重新登录后
-     * 仍可能拿到上一次的 stoken/mid/ltoken。
-     * <p>
-     * 注意先调用 {@link #storeFor} 完成预热/初始化，再清缓存——否则后续首次预热
-     * 会把旧值从 DataStore/旧 SP 重新灌回缓存。
+     * 清空某用户的全部数据（内存缓存 + 旧 SP + DataStore），三处必须同步清，否则 {@link #getString} 会继续
+     * 命中缓存返回旧值。先调用 {@link #storeFor} 完成预热再清缓存，否则后续首次预热会把旧值重新灌回。
      */
     public void clear(String userId) {
         if (userId == null || userId.isEmpty()) return;
@@ -193,12 +170,9 @@ public class UserRepository {
     }
 
     /**
-     * 把 oldUserId 的全部数据整体迁移到 newUserId（用于用户重命名），
-     * 迁移完成后清空 oldUserId。
-     * <p>
-     * 原实现只复制旧 SP 文件，遗漏了 DataStore 与内存缓存，且 newUserId 若此前已被
-     * {@code seeded} 标记过便不会再从旧 SP 回灌，导致重命名后读取到的令牌为空。
-     * 统一走仓储写入路径后，缓存/旧 SP/DataStore 三者保持一致。
+     * 把 oldUserId 的全部数据整体迁移到 newUserId（用户重命名），完成后清空 oldUserId。
+     * 必须走仓储写入路径让缓存/旧 SP/DataStore 三者一致：只复制旧 SP 会漏掉 DataStore 与缓存，
+     * 且 newUserId 若已被 seeded 标记便不再回灌，重命名后读到的令牌为空。
      */
     public void migrate(String oldUserId, String newUserId) {
         if (oldUserId == null || newUserId == null

@@ -51,13 +51,11 @@ import java.util.Set;
 import java.util.concurrent.Future;
 
 /**
- * 主页控制器（原 Fragment 收敛为控制器，外壳迁移到 Compose 后不再持有
- * Fragment 生命周期）：用户选择下拉框、任务列表展示、签到执行（前台/后台）、
- * 任务状态实时更新、日志查看、配置更新入口。
+ * 主页控制器（外壳迁移到 Compose 后不再持有 Fragment 生命周期）：用户下拉、任务列表、前台/后台执行、
+ * 状态实时更新、日志查看与配置入口。
  *
- * <p>生命周期契约见 {@link PageController}：show/hide 由 MainActivity 按页面
- * 选中态与 Activity 恢复态折算调用；createView 在外壳首次组合时调用一次；
- * release 在 Activity 销毁时调用。</p>
+ * <p>生命周期契约见 {@link PageController}：show/hide 由 MainActivity 按页面选中态与 Activity 恢复态折算调用；
+ * createView 在外壳首次组合时调用一次；release 在 Activity 销毁时调用。
  */
 public class HomeFragment implements PageController {
 
@@ -65,10 +63,7 @@ public class HomeFragment implements PageController {
 
     private UserManager userManager;
     /**
-     * Compose 宿主：本页唯一的 UI 入口。
-     *
-     * <p>原实现持有 20 多个 View 字段（下拉框、四个按钮、各种 TextView、
-     * RecyclerView + TaskAdapter），全部收敛到此处；本类只做「取数据 → 写状态 → 处理回调」。</p>
+     * Compose 宿主：本页唯一 UI 入口，视图字段全部收敛于此；本类只做「取数据 → 写状态 → 处理回调」。
      */
     private HomeScreenView screenView;
     private static volatile Future<?> currentTaskFuture;
@@ -82,7 +77,7 @@ public class HomeFragment implements PageController {
 
     /** show() 早于 createView 到达的挂起标记（见 show() 守卫与 createView 末尾补发）。 */
     private boolean pendingShow;
-    private File logFile; // 日志文件路径
+    private File logFile;
     private BroadcastReceiver taskStateReceiver;
     private BroadcastReceiver taskStatusReceiver;
     /** UiState 观察者（show 期间注册 / release 时移除，替代原 getViewLifecycleOwner 观察）。 */
@@ -106,8 +101,8 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 构建主页 UI（外壳首次组合时调用一次）：绑定视图、初始化下拉框/任务列表、
-     * 注册按钮与日志查看；并以 ViewModel 单向数据流渲染。
+     * 构建主页 UI（外壳首次组合时调用一次）：绑定视图、初始化下拉与任务列表、注册按钮与日志查看，并按
+     * ViewModel 的单一数据流渲染。
      */
     public View createView(Context context) {
         if (screenView != null) return screenView; // 幂等：外壳重组不会重复装配
@@ -121,18 +116,15 @@ public class HomeFragment implements PageController {
         root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
                 .format(new java.util.Date()));
 
-        // 内容不再容器级避让：列表底部留出底栏覆盖高度，末项可完整滚出玻璃区
-        // （原 BottomBarOverlay.attachClearance 的职责，改为把高度喂成组合状态）
+        // 内容不做容器级避让：列表底部留出底栏覆盖高度，末项可完整滚出玻璃区（把高度喂成组合状态）
         BottomBarOverlay.addListener(bottomBarListener);
         root.setBottomClearance(BottomBarOverlay.get());
 
-        // 初始化
         userManager = new UserManager(context);
         controller.createUtils();
         tools.cleanOldLogs(context);
         logFile = tools.getTodayLogFile(context);
 
-        // 输出文本监听器
         tools.StatusNotifier notifier = new tools.StatusNotifier();
         notifier.addListener(message -> tools.writeLog(context, message));
 
@@ -143,7 +135,6 @@ public class HomeFragment implements PageController {
         if (!initialUser.isEmpty() && usernames.contains(initialUser)) {
             viewModel.setCurrentUser(initialUser);
         } else if (!usernames.isEmpty()) {
-            // 如果当前用户不存在或为空，设置为第一个用户
             viewModel.setCurrentUser(usernames.get(0));
         } else {
             viewModel.setCurrentUser("");
@@ -167,7 +158,6 @@ public class HomeFragment implements PageController {
         // 单向数据流：观察 ViewModel 的不可变 UiState，一次性渲染任务列表 + 全部按钮可见性
         viewModel.getUiState().observeForever(uiObserver);
 
-        // 启动任务按钮
         root.setOnStartDailyListener(() -> {
             // 无用户时引导添加而非运行后报错
             if (interceptIfNoUser()) return;
@@ -180,14 +170,11 @@ public class HomeFragment implements PageController {
             if (!clearLogFile())
                 tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
             tools.writeLogSeparator(context);
-            // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（已完成/已签过/失败）——
-            // 重跑中各任务被真正执行到时才逐个切回进行中，中途终止不丢之前已完成的记录
+            // 新一轮运行：仅复位瞬态、保留当日终态；任务被真正执行到时才逐个切回进行中，中途终止不丢已完成记录
             viewModel.resetForNewRun();
-            // 记录当前用户供 Widget 显示
             viewModel.persistCurrentUserForWidget();
 
-            // 新一轮运行：清空触达集合后切 FOREGROUND 并重建列表，
-            // 未触达的已完成任务派生为「沿用上次结果」展示态（RETAINED）
+            // 清空触达集合后切 FOREGROUND 并重建列表：未触达的已完成任务派生为 RETAINED 展示态
             viewModel.beginRun();
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
             viewModel.refreshTaskItems();
@@ -222,8 +209,7 @@ public class HomeFragment implements PageController {
                             });
                     taskExecutor.executeAll(settings);
                 }                 finally {
-                    // 回到空闲态：下拉框/启动按钮恢复、取消按钮隐藏、后台按钮按设置恢复；
-                    // 重建列表清除 RETAINED 展示态，恢复持久层原状
+                    // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状
                     runOnUi(() -> {
                         controller.destroyButton();
                         controller.createUtils();
@@ -249,8 +235,8 @@ public class HomeFragment implements PageController {
             if (failedNames.isEmpty()) return;
             tools.writeLogSeparator(context);
 
-            // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖为新结果。
-            // 清空触达集合后重建列表：未触达的已完成任务在重试期间按「沿用上次结果」展示
+            // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖；未触达的已完成项
+            // 在重试期间按 RETAINED 展示
             viewModel.beginRun();
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
             viewModel.refreshTaskItems();
@@ -285,8 +271,7 @@ public class HomeFragment implements PageController {
                     // 部分执行：TaskExecutor 只提交名称命中的任务（含单游戏粒度）
                     taskExecutor.executeAll(settings, failedNames);
                 }                 finally {
-                    // 回到空闲态：可见性由 UiState 派生，重试按钮随 ERROR 清零自动隐藏；
-                    // 重建列表清除 RETAINED 展示态，恢复持久层原状
+                    // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除 RETAINED
                     runOnUi(() -> {
                         controller.destroyButton();
                         controller.createUtils();
@@ -298,7 +283,6 @@ public class HomeFragment implements PageController {
             });
         });
 
-        // 取消任务按钮
         root.setOnCancelDailyListener(() -> VenusDialogs.confirm(
                 activity,
                 activity.getString(R.string.dialog_confirm_cancel),
@@ -306,9 +290,9 @@ public class HomeFragment implements PageController {
                 activity.getString(R.string.btn_ok),
                 () -> {
                     if (currentTaskFuture != null) {
-                        currentTaskFuture.cancel(true); // 尝试取消任务
-                        controller.destroyButton(); // 销毁验证码按钮
-                        controller.createUtils(); // 创建验证码Utils以备下次使用
+                        currentTaskFuture.cancel(true);
+                        controller.destroyButton();
+                        controller.createUtils();
                     }
                     notifier.notifyListeners(activity.getString(R.string.task_cancelled));
                 },
@@ -317,7 +301,6 @@ public class HomeFragment implements PageController {
         // 点「未配置」任务项：直达设置页对应凭证抽屉（划线只提示不解决，这里补上后半程）
         root.setOnDisabledTaskClickListener(this::onDisabledTaskClick);
 
-        // 后台运行/取消按钮
         root.setOnBackgroundClickListener(() -> {
             if (ForegroundTaskService.isRunning()) {
                 VenusDialogs.confirm(
@@ -342,14 +325,12 @@ public class HomeFragment implements PageController {
         // 根据设置显示/隐藏后台运行按钮（经 UiState 派生）
         viewModel.refreshBgFeatureEnabled();
 
-        // 检查是否需要处理后台人机验证
         android.content.Intent launchIntent = activity.getIntent();
         if (launchIntent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(launchIntent.getAction())) {
             launchIntent.setAction(null);
             screenView.postDelayed(this::performBackgroundCaptchaVerification, 300);
         }
 
-        // 查看日志按钮
         root.setOnViewLogListener(() -> {
             try {
                 if (logFile.exists() && logFile.length() > 0) {
@@ -408,32 +389,24 @@ public class HomeFragment implements PageController {
                 if (screenView == null) return;
                 LinearLayout container = screenView.getGeetestContainer();
                 try {
-                    // 动态创建GT3GeetestButton
-                    // 如果按钮已存在，先销毁
+                    // 动态创建 GT3GeetestButton；已存在则先销毁
                     if (geetestButton != null) {
                         container.removeView(geetestButton);
                         geetestButton = null;
                     }
-                    // 创建新的GT3GeetestButton实例
                     geetestButton = new GT3GeetestButton(activity);
-                    // 内容居中 + 显式横向：SDK 官方 XML 用法为
-                    //   android:gravity="center" android:orientation="horizontal"
-                    // 二者都不在 SDK 内部设置，LinearLayout 默认 gravity 为 TOP|START。
-                    // 按钮内部内容（盾牌图标 + 「请点击验证」14sp 文案）自然高度仅约 20~30dp，
-                    // 定高 44dp 且顶对齐时，剩余部分会表现为按钮底部一条空白（白底渐变上极显眼）。
+                    // 内容居中 + 显式横向：SDK 官方 XML 用法即 center/horizontal，但 SDK 内部不设，
+                    // LinearLayout 默认 TOP|START，定高 44dp 时剩余部分表现为按钮底部一条空白（白底渐变上极显眼）。
                     geetestButton.setGravity(Gravity.CENTER);
                     geetestButton.setOrientation(LinearLayout.HORIZONTAL);
-                    // 布局参数：宽度定尺 290dp、高度 44dp。**刻意不设垂直外边距**——
-                    // 按钮上下的留白统一由容器的 marginTop 与紧随其后的分隔线 marginTop
-                    // 各出 space_4 提供（见 HomeScreen 的留白契约）。
-                    // 若在此再叠加垂直 margin，会变成「上 20dp / 下 28dp」的不对称观感。
+                    // 布局参数：宽 290dp、高 44dp，刻意不设垂直外边距——上下留白由容器 marginTop 与分隔线
+                    // 各出 space_4 提供（见 HomeScreen 留白契约），再叠加会变成上下不对称的观感。
                     LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                             (int) (290 * getResources().getDisplayMetrics().density),
                             (int) (44 * getResources().getDisplayMetrics().density)
                     );
                     params.gravity = Gravity.CENTER_HORIZONTAL;
                     geetestButton.setLayoutParams(params);
-                    // 添加到容器中
                     container.addView(geetestButton);
                     screenView.setGeetestVisible(true);
                     gt3GeetestUtils.init(gt3ConfigBean);
@@ -447,14 +420,12 @@ public class HomeFragment implements PageController {
         @Override
         public void destroyButton() {
             runOnUi(() -> {
-                // 销毁按钮
                 if (geetestButton != null && screenView != null) {
                     screenView.getGeetestContainer().removeView(geetestButton);
                     geetestButton = null;
                     screenView.setGeetestVisible(false);
                 }
             });
-            // 销毁工具
             destroyUtils();
         }
 
@@ -473,8 +444,7 @@ public class HomeFragment implements PageController {
     };
 
     /**
-     * 由 MainActivity 调用，处理后台人机验证通知跳转。
-     * 在前台使用本地 GeetestController 展示验证 UI，完成后通过广播回传结果给后台 Service。
+     * 由 MainActivity 调用，处理后台人机验证通知跳转：用本地控制器展示验证 UI，完成后经协调者回传结果给后台。
      */
     public void performBackgroundCaptchaVerification() {
         Logger.debug("VenusCaptcha", "performBackgroundCaptchaVerification called, controller=" + controller);
@@ -533,11 +503,9 @@ public class HomeFragment implements PageController {
 
     /**
      * 渲染 ViewModel 的不可变 UiState：任务行列表 + 运行形态。
-     *
-     * <p>可见性不再在此逐个 {@code setVisibility}：这里只把「原始输入」——运行形态、
-     * 后台功能开关、任务状态——写进 Compose 状态，由 {@code HomeScreen} 按与
-     * {@link HomeViewModel.TaskUiState} 相同的规则派生可见性。
-     * 规则因此只有一处可读、一处可改。</p>
+     * <p>
+     * 可见性不在此逐个 {@code setVisibility}：这里只把「原始输入」——运行形态、后台功能开关、任务状态——写进
+     * Compose 状态，由 {@code HomeScreen} 按与 {@link HomeViewModel.TaskUiState} 相同的规则派生，规则只有一处可改。
      */
     private void render(HomeViewModel.TaskUiState state) {
         if (state == null || screenView == null) return;
@@ -547,10 +515,9 @@ public class HomeFragment implements PageController {
         int failed = 0;
         for (TaskItem item : state.items) {
             rows.add(new HomeTaskRow(item.getName(), toUiStatus(item.getStatus()), !item.isRunnable()));
-            // DONE 计数与小组件 done_ 口径一致，仅统计 COMPLETED + RETAINED。
-            // 「已签过」由服务端返回后任务正常走 COMPLETED；等待人机验证期间任务保持
-            // IN_PROGRESS，不计入。RETAINED（沿用上次结果）本质是当日已完成，计入 done，
-            // 避免运行期间计数回落。
+            // DONE 计数与小组件 done_ 口径一致，只统计 COMPLETED + RETAINED：「已签过」由服务端返回后走
+            // COMPLETED；等待人机验证期间保持 IN_PROGRESS 不计入；RETAINED（沿用上次结果）本质是当日已完成，
+            // 计入以免运行期间计数回落。
             if (item.getStatus() == TaskItem.TaskStatus.COMPLETED
                     || item.getStatus() == TaskItem.TaskStatus.RETAINED) done++;
             if (item.getStatus() == TaskItem.TaskStatus.ERROR) failed++;
@@ -596,10 +563,10 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 点了任务列表里的「未配置」项：跳到设置页对应凭证抽屉并展开。
-     *
-     * <p>任务名是本地化字符串，只能按「同一 getString 口径」反查：云游戏逐个游戏名比对，
-     * 森空岛两款任务共用同一个 token、指向同一个抽屉。
+     * 点了任务列表里的「未配置」项：跳到设置页对应凭证抽屉。
+     * <p>
+     * 任务名是本地化字符串，只能按「同一 getString 口径」反查：云游戏逐个游戏名比对；森空岛两款任务共用同一个
+     * token、指向同一个抽屉。
      */
     private void onDisabledTaskClick(String taskName) {
         TaskSettings settings = TaskSettings.fromPreferences(activity);
@@ -627,17 +594,15 @@ public class HomeFragment implements PageController {
 
     /**
      * 头像文件被替换或重置后强制重载。
-     *
-     * <p>头像按用户名定址、换头像时是原地覆盖文件，用户名与路径都没变——
-     * 只调 {@link #loadUserAvatar()} 不会触发重组，Glide 也会命中旧缓存。
+     * <p>
+     * 头像按用户名定址、换头像时原地覆盖文件，用户名与路径都没变——只调 {@link #loadUserAvatar()} 不会触发重组，
+     * Glide 也会命中旧缓存。
      */
     public void refreshAvatar() {
         if (screenView != null) screenView.refreshAvatar();
     }
 
-    /**
-     * 账号上下文行显示文案：用户名 + 服务器后缀（如「t [国服]」，与设计稿一致）。
-     */
+    /** 账号上下文行文案：用户名 + 服务器后缀（如「t [国服]」，与设计稿一致）。 */
     private String formatUserLabel(String username, boolean isOversea) {
         String serverName = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
         return username + " [" + serverName + "]";
@@ -645,10 +610,9 @@ public class HomeFragment implements PageController {
 
     /**
      * 把当前服务器的用户列表灌给账号行与下拉：选中项、行内文案、头像一并更新。
-     *
-     * <p>替代原 `updateUserGuideState` + `user_dropdown.setAdapter(...)` 两段命令式代码：
-     * 空态（无用户）时的「尚未添加用户 · 点击前往添加」由 Compose 侧按列表为空派生，
-     * 点击行为由宿主注入的 {@code onJumpToUsers} 承担。</p>
+     * <p>
+     * 空态（无用户）的「尚未添加用户 · 点击前往添加」由 Compose 按列表为空派生，点击行为由宿主注入的
+     * {@code onJumpToUsers} 承担。
      */
     private void applyUserList(List<String> usernames, boolean isOversea) {
         if (screenView == null) return;
@@ -660,11 +624,10 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 从持久化读回当前账号并重建账号上下文。
-     *
-     * <p>用于「当前账号可能在页面外被改动」的时机：本页 show（用户可能刚从用户管理页切了账号）
-     * 与用户管理页凭证 chip 的跨页切换。与 {@link #renderUserContext()} 的分工是数据流向——
-     * 这里 SP → ViewModel，后者直接用 ViewModel 现值渲染。
+     * 从持久化读回当前账号并重建账号上下文。用于「当前账号可能在页面外被改动」的时机：本页 show（可能刚从
+     * 用户管理页切了账号）与用户管理页凭证 chip 的跨页切换。
+     * <p>
+     * 与 {@link #renderUserContext()} 的分工是数据流向：这里 SP → ViewModel，后者直接用 ViewModel 现值渲染。
      */
     public void refreshUserContext() {
         if (viewModel == null) return;
@@ -684,10 +647,9 @@ public class HomeFragment implements PageController {
 
     /**
      * 按 ViewModel 的当前账号重建账号行文案 / 下拉选中项 / 头像，并重算按账号分桶的任务列表。
-     *
-     * <p>三个入口共用：本页 show、首页下拉切换、用户管理页的凭证 chip 切换。
-     * 集中在一处的原因——漏掉任意一项都会留下「账号已切、界面还是旧账号」的残影：
-     * 账号行文案是直接写进 Compose 状态的，不走 ViewModel 的 UiState。
+     * <p>
+     * 三个入口共用：本页 show、首页下拉切换、用户管理页凭证 chip 切换。集中一处是因为漏掉任意一项都会留下
+     * 「账号已切、界面还是旧账号」的残影——账号行文案直接写进 Compose 状态，不走 ViewModel 的 UiState。
      */
     private void renderUserContext() {
         if (screenView == null || userManager == null || viewModel == null) return;
@@ -697,8 +659,7 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 无用户守卫：前台/后台运行签到入口共用。无用户时提示并跳转用户管理页，
-     * 返回 true 表示已拦截（调用方不再继续执行）。
+     * 无用户守卫：前台/后台运行入口共用。无用户时提示并跳转用户管理页，返回 true 表示已拦截。
      */
     private boolean interceptIfNoUser() {
         if (!viewModel.getCurrentUser().isEmpty()) return false;
@@ -763,7 +724,7 @@ public class HomeFragment implements PageController {
         viewModel.resetForNewRun();
         // 清空触达集合后切 BACKGROUND 并重建列表：未触达的已完成任务按「沿用上次结果」展示
         viewModel.beginRun();
-        // 单一状态切换取代原 updateBgButtonState(true)：后台按钮文案/可见性由 UiState 派生
+        // 后台按钮文案/可见性由 UiState 派生，这里只切运行形态
         viewModel.setRunMode(HomeViewModel.RunMode.BACKGROUND);
         viewModel.refreshTaskItems();
         tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_bg_task_started));
@@ -778,7 +739,6 @@ public class HomeFragment implements PageController {
             pendingShow = true;
             return;
         }
-        // 注册后台任务状态广播接收器
         Context context = activity;
         taskStateReceiver = new BroadcastReceiver() {
             @Override
@@ -795,8 +755,7 @@ public class HomeFragment implements PageController {
         // show 对齐真实运行状态：前台线程是否存活 + 后台服务是否在跑（前台优先），并刷新后台按钮开关
         viewModel.syncRunMode(isTaskRunning(), ForegroundTaskService.isRunning());
 
-        // 注册后台任务逐条状态广播接收器（LocalBroadcast 等价：仅本应用、RECEIVER_NOT_EXPORTED），
-        // 让后台运行期间的任务状态能实时回传到 App 内列表
+        // 注册逐条状态广播接收器（仅本应用、RECEIVER_NOT_EXPORTED），让后台运行期间的状态实时回传列表
         taskStatusReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -821,7 +780,6 @@ public class HomeFragment implements PageController {
         // 更新账号行与下拉中的用户列表（当前用户单一来源为 ViewModel）
         refreshUserContext();
 
-        // 刷新小组件
         TaskWidgetProvider.refreshAllWidgets(context);
 
         if (!isTaskRunning()) {
@@ -862,16 +820,13 @@ public class HomeFragment implements PageController {
         screenView = null;
     }
 
-    /**
-     * 判断是否正在运行任务
-     */
+    /** 是否正在运行任务（前台线程存活）。 */
     public static boolean isTaskRunning() {
         return currentTaskFuture != null && !currentTaskFuture.isDone();
     }
 
     /**
-     * 收集当前用户当日 ERROR 状态的任务名（TaskStatusManager 持久化键同源），
-     * 供「重试失败任务」的部分执行入口按名过滤。
+     * 收集当前用户当日 ERROR 状态的任务名（与 TaskStatusManager 持久化键同源），供「重试失败任务」按名过滤。
      */
     private Set<String> collectFailedTaskNames() {
         String user = viewModel.getCurrentUser();
@@ -892,20 +847,15 @@ public class HomeFragment implements PageController {
         return activity.getResources();
     }
 
-    /**
-     * 检查任务是否被取消
-     *
-     * @return true 如果任务被取消
-     */
+    /** 任务是否被取消（线程已中断或 future 已取消）。 */
     private boolean isTaskCancelled() {
         return Thread.currentThread().isInterrupted() ||
                 (currentTaskFuture != null && currentTaskFuture.isCancelled());
     }
 
     /**
-     * 清空今日日志文件（截断写），成功返回 true。
-     * 统一入口替代原先两处 FileWriter 写法——其中一处未使用 try-with-resources，
-     * 写失败时 FileWriter 不会被关闭，可能长期占用文件句柄。
+     * 清空今日日志文件（截断写），成功返回 true。统一入口替代原先两处 FileWriter 写法——其中一处缺
+     * try-with-resources，写失败时句柄不会被释放。
      */
     private boolean clearLogFile() {
         try (FileWriter ignored = new FileWriter(logFile, false)) {

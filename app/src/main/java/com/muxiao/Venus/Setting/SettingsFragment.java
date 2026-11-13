@@ -115,16 +115,15 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
-/**
- * 设置页控制器（原 Fragment 收敛为控制器）：签到任务开关、森空岛content配置、
- * 背景图片/主题/语言切换、服务器类型切换（国服/国际服）、缓存清理、版本更新检查。
- */
+    /**
+     * 设置页控制器：签到开关、森空岛/云游戏凭证、背景/主题/语言/服务器、缓存清理、更新检查。
+     */
 public class SettingsFragment implements PageController {
 
     private final MainActivity activity;
 
     private SharedPreferences sharedPreferences;
-    // 收口：config_prefs 不再直接访问 SharedPreferences，统一走仓储（底层为 DataStore）。
+    // config_prefs 只经仓储访问（底层 DataStore）：直连 SP 会读到过期配置。
     // 否则 MiHoYoBBSConstants 写入 DataStore 后，本页仍读旧 xml，会显示过期配置值。
     private ConfigRepository configRepository;
     private static final int THEME_DEFAULT = 0;
@@ -156,18 +155,14 @@ public class SettingsFragment implements PageController {
         if (screenView != null) screenView.setBottomClearance(BottomBarOverlay.get());
     };
 
-    // 「缓存管理」抽屉内容为 Compose，由 CacheSettingPaneView 承载并在 Java 侧回填缓存占用文案。
+    // 缓存抽屉内容为 Compose，Java 侧只回填占用文案。
     private CacheSettingPaneView cachePane;
     // 「配置信息」抽屉内容为 Compose。
     private BbsUtilsSettingPaneView utilsPane;
     private SklandSettingPaneView sklandPane;
     private CloudGameSettingPaneView cloudGamePane;
     /**
-     * 凭证抽屉的「配置目标账号」；null = 跟随当前账号。
-     *
-     * <p>凭证按账号存放，但设置页原先只能配当前账号，从用户管理页点别人的凭证 chip
-     * 必须先切换全局账号——副作用会连带首页数据与任务上下文。这里让抽屉自己带一个目标账号，
-     * 切换账号不再是配置凭证的前置条件。仅本次打开有效：{@link #show()} 会清空。
+     * 凭证抽屉的「配置目标账号」；null = 跟随当前账号。仅本次打开有效（show() 清空）。
      */
     private String credentialUserId;
     // 「通知 / 后台运行」抽屉内容为 Compose。
@@ -176,7 +171,6 @@ public class SettingsFragment implements PageController {
     private DailySettingPaneView dailyPane;
     private GameDailySettingPaneView gameDailyPane;
 
-    // 背景设置相关
     private SharedPreferences backgroundPreferences;
 
     // ActivityResult 启动器（MainActivity 注册后注入）
@@ -203,10 +197,7 @@ public class SettingsFragment implements PageController {
         this.cloudTokenLauncher = cloudToken;
     }
 
-    /**
-     * 云游戏 Token 抓取页返回：无论抓到的是不是目标游戏都刷新角标
-     * （抓取页会把顺手抓到的另一款也落库）。
-     */
+    /** 云游戏 Token 抓取返回：抓取页可能顺手落了另一款，统一刷角标。 */
     public void onCloudTokenFetched() {
         if (cloudGamePane != null) refreshCloudGameTokens();
     }
@@ -218,7 +209,7 @@ public class SettingsFragment implements PageController {
         if (uri != null) startCropActivity(uri);
     }
 
-    /** 老设备（<API33）ACTION_OPEN_DOCUMENT 选择结果（MainActivity 的 launcher 转发）。 */
+    /** 老设备（<API33）ACTION_OPEN_DOCUMENT 结果（MainActivity 转发）。 */
     public void onLegacyImagePicked(Uri uri) {
         if (uri != null) startCropActivity(uri);
     }
@@ -226,13 +217,11 @@ public class SettingsFragment implements PageController {
     /** UCrop 裁剪结果（MainActivity 的 launcher 转发）。 */
     public void onCropResult(int resultCode, Intent data) {
         if (resultCode == Activity.RESULT_OK && data != null) {
-            // 获取裁剪后的图片URI
             Uri croppedImageUri = UCrop.getOutput(data);
             if (croppedImageUri != null)
                 // 将裁剪后的图片复制到应用私有目录并保存
                 saveBackgroundImage(croppedImageUri);
         } else if (resultCode == UCrop.RESULT_ERROR) {
-            // 处理裁剪错误
             if (data != null) {
                 final Throwable cropError = UCrop.getError(data);
                 show_error_dialog(activity, activity.getString(R.string.err_crop_failed,
@@ -241,10 +230,7 @@ public class SettingsFragment implements PageController {
         }
     }
 
-    /**
-     * 构建页面 UI（外壳首次组合时调用一次）：12 个抽屉由宿主持有，
-     * 本方法负责「生成窗格内容 → 塞进抽屉 → 维护折叠态摘要」。
-     */
+    /** 首次组合时调用一次：生成 13 个窗格内容 → 塞进抽屉 → 维护折叠摘要。 */
     public View createView(Context context) {
         if (screenView != null) return screenView; // 幂等：外壳重组不会重复装配
         SettingsScreenView root = new SettingsScreenView(context);
@@ -281,8 +267,7 @@ public class SettingsFragment implements PageController {
         sklandCard = sklandCardView;
         cloudGameCard = cloudGameCardView;
 
-        // 窗格状态宿主由 SettingsScreenView 构造并已完成与抽屉的接线（card.setPaneContent）。
-        // 这里只取引用用于回填状态；窗格已不是 View，不再需要 setContent(...)。
+        // 宿主已由 SettingsScreenView 构造并接线，这里只取引用回填状态。
         dailyPane = root.getDailyPane();
         gameDailyPane = root.getGameDailyPane();
         utilsPane = root.getConfigPane();
@@ -297,7 +282,6 @@ public class SettingsFragment implements PageController {
         BackgroundSettingPaneView backgroundPane = root.getBackgroundPane();
         AboutSettingPaneView aboutPane = root.getAboutPane();
 
-
         // 静态行值摘要（设计稿：配置信息=已配置、关于=开源许可 · 隐私政策、背景按设置）
         bbsUtilsCard.setValue(activity.getString(R.string.config_configured));
         bbsUtilsCard.setValueColor(ContextCompat.getColor(context, com.muxiao.Venus.R.color.status_success));
@@ -310,7 +294,6 @@ public class SettingsFragment implements PageController {
         configRepository = new ConfigRepository(context);
         backgroundPreferences = activity.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
 
-        // 恢复保存的状态
         dailyPane.setSwitchChecked(sharedPreferences.getBoolean(DAILY, true));
         gameDailyPane.setSwitchChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
         notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
@@ -319,7 +302,7 @@ public class SettingsFragment implements PageController {
         updateGameCardValue();
         updateNotificationCardValue(notificationPane.getBackgroundChecked());
 
-        // chip-pref 映射：下标顺序与 Compose 侧 DAILY_CHIP_LABEL_RES / GAME_CHIP_LABEL_RES 一致
+        // chip-pref 映射顺序须与 Compose 侧 DAILY_CHIP_LABEL_RES / GAME_CHIP_LABEL_RES 一致
         final String[] dailyKeys = {
                 DAILY_GENSHIN, DAILY_ZZZ, DAILY_SRG, DAILY_HR3,
                 DAILY_HR2, DAILY_WEIDING, DAILY_DABIEYE, DAILY_HNA,
@@ -346,7 +329,6 @@ public class SettingsFragment implements PageController {
             updateGameCardValue();
         });
 
-        // 所有控件设置监听器以保存状态
         dailyPane.setOnSwitchChangeListener(isChecked -> {
             if (blockIfTaskRunning(() -> dailyPane.setSwitchChecked(!isChecked))) return;
             sharedPreferences.edit().putBoolean(DAILY, isChecked).apply();
@@ -462,7 +444,6 @@ public class SettingsFragment implements PageController {
             }
             updateConfig();
         });
-        // 显示当前配置值
         displayCurrentConfigValues();
 
         // 服务器选择
@@ -481,7 +462,6 @@ public class SettingsFragment implements PageController {
             sharedPreferences.edit().putBoolean(AUTO_UPDATE_ENABLED, isChecked).apply();
             updateUpdateCardValue(isChecked);
         });
-        // 手动检查更新按钮
         updatePane.setOnCheckGithubClickListener(() -> {
             UpdateChecker updateChecker = new UpdateChecker(context);
             updateChecker.checkForUpdatesImmediately();
@@ -505,7 +485,6 @@ public class SettingsFragment implements PageController {
 
         // 缓存管理（Compose 版内容：计算并显示当前缓存大小）
         calculateCacheSize(cachePane);
-        // 设置清理缓存按钮
         cachePane.setOnClearClickListener(() -> clearCache(cachePane));
 
         //森空岛设置（Compose 版内容）
@@ -560,18 +539,14 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 页面成为当前选中页 / Activity 恢复：同步后台运行开关、电池优化豁免等「外部可变」状态。
-     *
-     * <p>本方法同时承担「从系统设置返回后对账」的职责：系统白名单没有变更广播，
-     * 所有用户离开 App 去改设置的路径（行内跳转、引导弹窗跳转、自己从桌面进设置）
-     * 都会在回到前台时经过这里，比逐个路口补刷新更可靠。
+     * 页面显示 / Activity 恢复：对账外部可变状态（后台开关、电池豁免、凭证账号）。
+     * 系统设置项无变更广播，回前台是唯一对账时点。
      */
     @Override
     public void show() {
         // 目标账号只在「从用户管理页跳过来」的这一次有效：
         // 正常从底栏切到设置页时回到当前账号，避免残留成幽灵上下文
         credentialUserId = null;
-        // 更新后台运行开关状态
         if (sharedPreferences != null && screenView != null) {
             notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
             updateNotificationCardValue(notificationPane.getBackgroundChecked());
@@ -589,14 +564,11 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 展开指定抽屉，并指定该抽屉的凭证配置目标账号。
+     * 展开指定抽屉并指定凭证目标账号（用户卡 chip、任务列表未配置项两个入口共用）。
+     * 调用前视图须已创建、当前页已切到设置页。
      *
-     * <p>供「凭证快捷配置」两个入口复用：用户管理页的凭证状态 chip、任务列表里
-     * 未配置的划线项。调用方（{@code MainActivity.openSettingsPane}）保证本页视图
-     * 已创建、且当前页已切到设置页。
-     *
-     * @param pane           {@link #PANE_CLOUD_GAME} 或 {@link #PANE_SKLAND}
-     * @param credentialUser 目标账号；null = 跟随当前登录账号
+     * @param pane           PANE_CLOUD_GAME 或 PANE_SKLAND
+     * @param credentialUser 目标账号；null = 跟随当前账号
      */
     public void expandPane(int pane, String credentialUser) {
         // 先定目标再展开：抽屉的账号归属与 token 进度都是展开时读的
@@ -615,7 +587,6 @@ public class SettingsFragment implements PageController {
      * 启动裁剪Activity
      */
     private void startCropActivity(@NonNull Uri uri) {
-        // 获取屏幕尺寸作为裁剪比例
         int screenWidth, screenHeight;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             android.graphics.Rect bounds = activity.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
@@ -627,7 +598,6 @@ public class SettingsFragment implements PageController {
             screenWidth = displayMetrics.widthPixels;
             screenHeight = displayMetrics.heightPixels;
         }
-        // 创建裁剪输出URI到临时文件
         Uri destinationUri = Uri.fromFile(new File(activity.getCacheDir(), "temp_cropped_background.jpg"));
         // 配置uCrop
         UCrop.Options options = new UCrop.Options();
@@ -638,17 +608,16 @@ public class SettingsFragment implements PageController {
         options.setHideBottomControls(true);
         // 图片格式
         options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
-        // 设置图片压缩质量
         options.setCompressionQuality(100);
         // 不显示网格线
         options.setShowCropGrid(true);
         UCrop uCrop = UCrop.of(uri, destinationUri)
                 .withAspectRatio(screenWidth, screenHeight) // 固定屏幕比例
-                .withMaxResultSize(screenWidth, screenHeight) // 设置最大尺寸为屏幕尺寸
+                .withMaxResultSize(screenWidth, screenHeight)
                 .withOptions(options);
         // 启动裁剪Activity，使用cropImageLauncher处理结果
         Intent uCropIntent = uCrop.getIntent(activity);
-        // 授予裁剪 Activity 临时读写权限，确保能读取 source Uri 并写入 destination Uri
+        // 授予裁剪页临时读写权限，否则读不到 source、写不了 destination
         uCropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         cropImageLauncher.launch(uCropIntent);
     }
@@ -660,13 +629,11 @@ public class SettingsFragment implements PageController {
      */
     private void saveBackgroundImage(Uri croppedImageUri) {
         try {
-            // 创建背景图片文件
             File backgroundFile = new File(activity.getFilesDir(), "background.jpg");
             if (backgroundFile.exists() && !backgroundFile.delete()) {
                 Logger.w("删除旧背景文件失败：" + backgroundFile.getAbsolutePath());
             }
 
-            // 使用 tools.copyFile（确保实现基于 ContentResolver.openInputStream(...)）
             tools.copyFile(activity, croppedImageUri, backgroundFile);
 
             // 保存背景图片文件Uri到SharedPreferences
@@ -679,7 +646,6 @@ public class SettingsFragment implements PageController {
                 Logger.w("删除临时裁剪文件失败：" + temp.getAbsolutePath());
             }
 
-            // 显示提示信息
             if (screenView != null)
                 showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_background_set));
         } catch (Exception e) {
@@ -687,14 +653,8 @@ public class SettingsFragment implements PageController {
         }
     }
 
-    /**
-     * 设置背景选择功能（Compose 版内容）。
-     * <p>
-     * 淡化风格与不透明度只写 backgroundPreferences，MainActivity 侧监听（300ms 防抖）
-     * 即时重新预合成，无需重启；两枚按钮的动作由 Java 侧注入（涉及 ActivityResult launcher）。
-     */
+    /** 背景抽屉：淡化/不透明度只写 backgroundPreferences，MainActivity 防抖重合成，无需重启。 */
     private void setupBackgroundSelection(BackgroundSettingPaneView view) {
-        // 选择背景
         view.setOnSelectClickListener(() -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pickMedia.launch(new PickVisualMediaRequest.Builder()
@@ -713,7 +673,6 @@ public class SettingsFragment implements PageController {
             }
         });
 
-        // 清除背景
         view.setOnClearClickListener(() -> {
             // 清除之前先释放权限
             String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
@@ -822,17 +781,11 @@ public class SettingsFragment implements PageController {
     private void saveAndApplyLanguage(int languageId) {
         SharedPreferences languagePreferences = activity.getSharedPreferences(LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
         languagePreferences.edit().putInt(SELECTED_LANGUAGE, languageId).apply();
-        // 重建 Activity 以应用语言：BaseActivity.attachBaseContext 已通过 LocaleHelper 读取最新语言，
-        // recreate() 会重新走 attachBaseContext，等价于原 finish()+startActivity，但无需销毁整个任务栈。
+        // recreate() 重走 attachBaseContext，等价原 finish()+startActivity 但不销毁任务栈。
         activity.recreate();
     }
 
-    /**
-     * 设置主题选择功能（Compose 版内容）。
-     * <p>
-     * 七枚圆点的下标即 `saveAndApplyTheme` 的主题序号（0=系统动态取色，1-6=蓝绿红黄青紫）；
-     * 选中态由 pane 内部维护，Java 只负责落盘与刷新折叠行摘要。
-     */
+    /** 主题抽屉：圆点下标 = 主题序号（0 系统动态取色，1-6 蓝绿红黄青紫），选中态由 pane 维护。 */
     private void setupThemeSelection(ThemeSettingPaneView view) {
         SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         int selectedTheme = themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
@@ -845,7 +798,7 @@ public class SettingsFragment implements PageController {
             updateThemeCardValue();
         });
 
-        // 深浅模式分段（沿用原单选语义：default/light/dark，序号与 THEME_VARIANT_* 一一对应）
+        // 深浅分段：序号与 THEME_VARIANT_* 一一对应
         if (selectedThemeVariant >= THEME_VARIANT_DEFAULT && selectedThemeVariant <= THEME_VARIANT_DARK)
             view.setSelectedVariant(selectedThemeVariant);
         view.setOnVariantSelectListener(variantIndex -> {
@@ -860,7 +813,6 @@ public class SettingsFragment implements PageController {
      * @param themeId 主题ID
      */
     private void saveAndApplyTheme(int themeId) {
-        // 保存选择的主题
         SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME, themeId).apply();
         // 显示提示信息，告知用户需要重启应用以应用主题
@@ -874,7 +826,6 @@ public class SettingsFragment implements PageController {
      * @param themeVariantId 主题深浅色变体ID
      */
     private void saveAndApplyThemeVariant(int themeVariantId) {
-        // 保存选择的主题深浅色变体
         SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
 
@@ -896,20 +847,16 @@ public class SettingsFragment implements PageController {
         }
     }
 
-    /**
-     * 应用主题：基础主题 + 运行时节色叠加（ThemeOverlay.applyStyle）。
-     * 必须在 setContentView 之前调用。
-     */
+    /** 应用主题（须在 setContentView 前）：基础主题 + 运行时 ThemeOverlay。 */
     public static void applyAppTheme(Activity activity) {
         applyAppTheme(activity, R.style.Theme_Venus);
     }
 
     /**
-     * 指定基础主题的版本：窗口级属性（如 {@code android:windowIsTranslucent}）只能由主题提供，
-     * 而 {@link #applyAppTheme(Activity)} 固定 setTheme(Theme_Venus) 会抹掉 manifest 上的主题，
-     * 所以需要透明窗口的页面（全屏看图）走这个重载，配色 overlay 的叠加逻辑完全一致。
+     * 指定基础主题的重载：windowIsTranslucent 等窗口属性只能由主题提供，
+     * 而 applyAppTheme(Activity) 固定 setTheme(Theme_Venus) 会抹掉 manifest 主题。
      *
-     * @param baseTheme 基础主题资源，如 {@code R.style.Theme_Venus_Fullscreen}
+     * @param baseTheme 如 R.style.Theme_Venus_Fullscreen
      */
     public static void applyAppTheme(Activity activity, @StyleRes int baseTheme) {
         activity.setTheme(baseTheme);
@@ -965,12 +912,7 @@ public class SettingsFragment implements PageController {
             AppCompatDelegate.setDefaultNightMode(nightModes[themeVariant]);
     }
 
-    /**
-     * 获取背景图片URI
-     *
-     * @param context 上下文
-     * @return 背景图片URI，如果没有设置则返回null
-     */
+    /** 背景图 URI；未设置返回 null。 */
     public static Uri getBackgroundImageUri(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
         String uriString = backgroundPreferences.getString(BACKGROUND_IMAGE_URI, null);
@@ -990,23 +932,13 @@ public class SettingsFragment implements PageController {
         return null;
     }
 
-    /**
-     * 获取背景不透明度
-     *
-     * @param context 上下文
-     * @return 背景不透明度，范围0.0-0.8，默认为0.45
-     */
+    /** 背景不透明度（0.0-0.8，默认 0.45）。 */
     public static float getBackgroundAlpha(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
         return backgroundPreferences.getFloat(BACKGROUND_ALPHA, 0.45f);
     }
 
-    /**
-     * 获取背景淡化风格预设档
-     *
-     * @param context 上下文
-     * @return 预设档索引（0=轻盈 1=标准 2=浓郁），默认为1（标准）
-     */
+    /** 背景淡化预设（0 轻盈 / 1 标准 / 2 浓郁，默认 1）。 */
     public static int getBackgroundPreset(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
         return backgroundPreferences.getInt(BACKGROUND_PRESET, 1);
@@ -1026,7 +958,7 @@ public class SettingsFragment implements PageController {
 
         // KV 行布局：标签在布局中，此处只绑裸值（mono 右对齐）
         // 下标顺序与 Compose 侧 CONFIG_KEY_LABEL_RES 一致
-        // ConfigRepository.get 标注 @Nullable（defValue 理论可为 null），此处默认值均非空，仍按契约判空兜底
+            // get() 标了 @Nullable：默认值非空也按契约判空
         utilsPane.setValue(0, update_time_Local != null ? update_time_Local : activity.getString(R.string.config_not_fetched));
         utilsPane.setValue(1, update_time != null ? update_time : activity.getString(R.string.config_not_fetched));
         utilsPane.setValue(2, bbsVersion != null ? bbsVersion : MiHoYoBBSConstants.bbs_version_final);
@@ -1055,14 +987,9 @@ public class SettingsFragment implements PageController {
         });
     }
 
-    /**
-     * 计算并显示当前缓存大小
-     *
-     * @param cachePane Compose 版缓存抽屉内容，回填缓存占用文案
-     */
+    /** 计算并回填缓存占用文案。 */
     private void calculateCacheSize(CacheSettingPaneView cachePane) {
-        // 注意：不能写成 try (ExecutorService e = ...) —— try-with-resources 会在 try 出口调用
-        // close()，而 ExecutorService.close() 语义是 shutdown + awaitTermination，
+            // 不可用 try-with-resources：close() = shutdown + awaitTermination，会在主线程同步等待
         // 等于在主线程同步等待整个目录遍历结束（大缓存时直接 ANR）。
         // 这里改用进程级共享 IO 线程池，并预先在 UI 线程取出 ApplicationContext 引用。
         final Context appContext = activity.getApplicationContext();
@@ -1091,7 +1018,7 @@ public class SettingsFragment implements PageController {
      * @param cachePane Compose 版缓存抽屉内容，清理后回填缓存占用文案
      */
     private void clearCache(CacheSettingPaneView cachePane) {
-        // 同 calculateCacheSize：不可用 try-with-resources（close() 会在主线程同步等待任务结束）。
+            // 同上：不可用 try-with-resources
         final Context appContext = activity.getApplicationContext();
         AppExecutors.get().execute(() -> {
             boolean success = true;
@@ -1163,10 +1090,7 @@ public class SettingsFragment implements PageController {
         return dir.delete();
     }
 
-    /**
-     * Compose 版拦截：任务运行中弹窗提示，对话框 dismiss 时执行 [revertAction] 回滚 UI 状态。
-     * 回滚动作由调用方以 Runnable 形式给出（Compose 侧没有 View 可 setChecked）。
-     */
+    /** 任务运行中弹窗拦截；dismiss 时执行 revertAction 回滚 UI 状态。 */
     private boolean blockIfTaskRunning(Runnable revertAction) {
         if (HomeFragment.isTaskRunning() || ForegroundTaskService.isRunning()) {
             VenusDialogs.confirm(
@@ -1226,12 +1150,9 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 打开系统电池优化豁免页（本页所有入口的唯一出口：行点击、定时签到引导弹窗）。
-     *
-     * <p>走 {@code ActivityResultLauncher} 而不是裸 {@code startActivity}：系统白名单没有变更广播，
-     * App 只能自己回查，而 result 回调是「用户从该系统页返回」唯一可靠的时点——
-     * 之前定时签到弹窗走的是裸 startActivity，那条路径回来后没有任何刷新，
-     * 行值要等应用重启才更新。机型未导出该设置页时退回应用详情页。
+     * 打开系统电池优化豁免页（行点击、定时签到引导共用出口）。
+     * 必须走 ActivityResultLauncher：白名单无变更广播，result 回调是回前台唯一可靠时点；
+     * 裸 startActivity 回来不刷新，须重启才更新。机型无此页时退回应用详情页。
      */
     private void openBatteryOptimizationSettings() {
         if (batteryOptLauncher != null) {
@@ -1258,7 +1179,7 @@ public class SettingsFragment implements PageController {
                 : com.muxiao.Venus.R.color.status_warning));
     }
 
-    /** 刷新定时签到时间行的时间值（每天 HH:mm，值取自 settings_prefs；行内含图标/标签/箭头）。 */
+    /** 刷新定时签到时间行（HH:mm，取自 settings_prefs）。 */
     private void updateScheduledTimeLabel() {
         int[] time = DailyTaskScheduler.getConfiguredTime(activity);
         notificationPane.setScheduledTimeText(activity.getString(R.string.scheduled_task_time_fmt,
@@ -1269,13 +1190,7 @@ public class SettingsFragment implements PageController {
         setCardValue(sklandCard, activity.getString(enabled ? R.string.value_enabled : R.string.value_disabled), enabled);
     }
 
-    // ===== 云游戏签到 =====
-
-    /**
-     * 装配「云游戏签到」抽屉：总开关、两款游戏的勾选（决定任务是否进入列表）、
-     * token 配置入口与已配置状态。token 按当前选中用户存放（{@code user_{id}}），
-     * 国际服隐藏云绝区零。
-     */
+    /** 云游戏抽屉：总开关、两款勾选、token 入口与状态；token 按用户存 user_{id}，国际服隐藏绝区零。 */
     private void setupCloudGameSettings(Context context) {
         boolean cloudEnabled = sharedPreferences.getBoolean(CLOUD_GAME_ENABLED, false);
         cloudGamePane.setEnabledChecked(cloudEnabled);
@@ -1288,7 +1203,7 @@ public class SettingsFragment implements PageController {
             sharedPreferences.edit().putBoolean(CLOUD_GAME_ENABLED, isChecked).apply();
             updateCloudGameCardValue();
         });
-        // chip-pref 映射：下标顺序与 Compose 侧 CLOUD_GAME_CHIP_LABEL_RES 一致
+        // 顺序须与 Compose 侧 CLOUD_GAME_CHIP_LABEL_RES 一致
         final String[] cloudGameKeys = {CLOUD_GAME_GENSHIN, CLOUD_GAME_ZZZ};
         for (int i = 0; i < cloudGameKeys.length; i++)
             cloudGamePane.setChipChecked(i, sharedPreferences.getBoolean(cloudGameKeys[i], false));
@@ -1305,11 +1220,9 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 凭证抽屉当前应从哪个账号读写：显式指定的目标账号优先，否则跟随当前登录账号。
-     *
-     * <p>所有凭证读写都必须经这里，不要直接 {@code getCurrentUser()}——
-     * 否则从用户管理页指定的目标账号会被绕过，token 写到当前账号名下。
-     * 指定账号可能已被删除或重命名，此时自动回退当前账号，避免往幽灵用户名写数据。</p>
+     * 凭证读写目标账号：显式指定优先，否则当前登录账号。
+     * 禁止绕过本方法直接 getCurrentUser()，否则 token 会写到当前账号名下；
+     * 目标账号已删除/改名时回退当前账号。
      */
     private String credentialUser() {
         if (credentialUserId != null && !credentialUserId.isEmpty()) {
@@ -1319,12 +1232,7 @@ public class SettingsFragment implements PageController {
         return new UserManager(activity).getCurrentUser();
     }
 
-    /**
-     * 指定凭证抽屉的配置目标账号；传 null 表示跟随当前账号。
-     *
-     * <p>由「用户管理页点凭证 chip」经 {@code MainActivity.openSettingsPane(pane, user)} 传入，
-     * 使配置别人的凭证不必先切换全局账号。目标账号仅本次打开有效（{@link #show()} 清空）。</p>
-     */
+    /** 指定凭证目标账号；null = 跟随当前账号，仅本次有效（show() 清空）。 */
     public void setCredentialUser(String username) {
         credentialUserId = (username == null || username.isEmpty()) ? null : username;
         if (cloudGamePane != null) {
@@ -1334,11 +1242,7 @@ public class SettingsFragment implements PageController {
         }
     }
 
-    /**
-     * 刷新 token 配置进度（按凭证目标账号读取，未登录时均视为未配置）。
-     *
-     * <p>国际服只有云原神一个可用项，分母随之为 1——否则「1/2 已配置」会让人误以为漏配。
-     */
+    /** 刷新 token 进度（按目标账号读，未登录视为未配置）；国际服只有云原神，分母为 1。 */
     private void refreshCloudGameTokens() {
         String userId = credentialUser();
         boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
@@ -1361,12 +1265,8 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 刷新两个凭证抽屉的「归属账号」与森空岛配置状态。
-     *
-     * <p>凭证按账号存放，而「要配哪个账号」有两个来源：当前登录账号，或从用户管理页
-     * 指定的目标账号（{@link #setCredentialUser(String)}）。两者不同时文案必须明说，
-     * 否则用户会以为自己配的是当前账号。归属文案不能只在装配时写一次——页面每次显示
-     * 都可能换了账号。</p>
+     * 刷新两个凭证抽屉的归属账号与森空岛状态。目标账号 ≠ 当前账号时文案必须明说，
+     * 且每次页面显示都要重写（账号可能已换）。
      */
     private void refreshCredentialAccountLabels() {
         String userId = credentialUser();
@@ -1381,19 +1281,13 @@ public class SettingsFragment implements PageController {
         }
     }
 
-    /**
-     * 是否已配置可用 token。用形态校验而非判空：历史上被占位值（{@code undefined}/{@code null}）
-     * 写脏的条目要显示为「未配置」，否则用户会以为配好了、任务却一直在报 token 失效。
-     */
+    /** 是否已配置可用 token：按形态校验，占位值（undefined/null）视为未配置。 */
     private boolean hasCloudGameToken(String userId, String key) {
         if (userId == null || userId.isEmpty()) return false;
         return CloudGameDaily.isValidToken(tools.read(activity, userId, key));
     }
 
-    /**
-     * 手动填写入口（自动抓取失败时的兜底）：token 两份互不通用，需先选游戏。
-     * 国际服只有云原神一项，跳过选择直接进输入框。
-     */
+    /** 手动填写入口（抓取失败兜底）：两份 token 不通用，先选游戏；国际服只有云原神，直接进输入框。 */
     private void showCloudGameManualPicker() {
         String userId = credentialUser();
         if (userId == null || userId.isEmpty()) {
@@ -1418,11 +1312,8 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 打开云游戏 WebView 页自动抓取 token（复用抽卡链接页的页面外壳）。
-     * 仅支持云原神——它是唯一有官方网页版（ys.mihoyo.com/cloud）的云游戏；
-     * **云绝区零没有网页版**（此前误判的 zzz.mihoyo.com/cloud-feat 并不存在），
-     * 其 token 只能经「手动填写」录入。抓取页按请求域名自动识别归属，
-     * 页面里若进入其他云游戏抓到的 token 也会一并落库。
+     * 云游戏 WebView 自动抓取（仅云原神有官方网页版 ys.mihoyo.com/cloud）。
+     * 云绝区零无网页版，只能手动填写；抓取页按域名识别归属，顺带抓到另一款也一并落库。
      */
     private void showCloudGameFetchPicker() {
         String userId = credentialUser();
@@ -1447,10 +1338,7 @@ public class SettingsFragment implements PageController {
         cloudTokenLauncher.launch(intent);
     }
 
-    /**
-     * 手动填写云游戏 token。token（{@code X-Rpc-Combo_token}）与米游社登录态无关，
-     * 但按用户存放，故 userId 由入口处取好传入。
-     */
+    /** 手动填写云游戏 token；token 与米游社登录态无关，但按用户存放。 */
     private void showCloudGameTokenInput(String gameName, String userId) {
         boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
         String key = CloudGameDaily.tokenKey(gameName, oversea);

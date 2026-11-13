@@ -14,10 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 迁移回归测试：语言 / 服务器类型 / 更新 三个抽屉的 Compose 版行为等价性
- * （文案可显示 + 回调按下标/布尔值正确派发）。
- */
+/** 语言 / 服务器类型 / 更新三个抽屉：文案可显示 + 回调按下标、布尔值正确派发。 */
 class SettingPanesTest {
 
     @get:Rule

@@ -78,12 +78,7 @@ import androidx.compose.ui.unit.Dp
 import com.muxiao.Venus.R
 import kotlin.math.roundToInt
 
-/**
- * 图库列表项的数据快照。
- *
- * 对应原 `parseImageData` 产出的 Map；Java 侧仍在后台线程解析 JSON，
- * 只在主线程把结果映射成这个不可变对象交给 Compose，避免把 `Map<String, Object>` 泄漏进组合层。
- */
+/** 图库列表项的数据快照：JSON 仍在 Java 后台线程解析，只在主线程映射成不可变对象交给 Compose，避免 `Map<String, Object>` 泄漏进组合层。 */
 @Immutable
 class ImagePost(
     val title: String,
@@ -94,10 +89,8 @@ class ImagePost(
 )
 
 /**
- * 图库页的可变状态：游戏 / 分类选择、榜单 Tab、图片列表、多选态、加载与下载进度。
- *
- * 下拉与 Tab 的「当前项」是纯展示状态，Java 侧仍持有 `currentCategoryId` / `currentListTypes`
- * 这些业务状态；两边通过回调对齐，避免同一份选择在两个地方各存一份而不同步。
+ * 图库页的可变状态。下拉与 Tab 的「当前项」只是展示投影：业务状态（`currentCategoryId` / `currentListTypes`）
+ * 仍在 Java 侧，两边靠回调对齐，不要在两边各存一份。
  */
 @Stable
 class ImageUiState {
@@ -123,28 +116,12 @@ class ImageUiState {
 }
 
 /**
- * 图库页（原 `activity_image.xml` + `ImageAdapter` 的 Compose 重绘版）。
- *
- * <h3>与迁移初版的差异</h3>
- * 初版是「不透明 M3 AppBar + 两个描边下拉 + Tab 行」的 1:1 还原，固定占约 170dp；
- * 重绘后改为「壁纸透出的玻璃顶栏 + 一条可横滑的筛选 chip 行」：
- * <ul>
- *   <li>顶栏玻璃采样本页内容（`VenusBackdropHost` 的内容源），图片会从玻璃下滚过；</li>
- *   <li>顶栏随滚动跟手折叠：上滑（继续往下浏览）时筛选行按手势逐像素收起，顶栏收到 56dp
- *       标题行；反向滑动立即展开，松手过半自动对齐。列表 padding 与顶栏同步收放；</li>
- *   <li>多选不再只有一个工具栏图标：底部浮出玻璃操作条，含选中数、下载进度与取消。</li>
- * </ul>
- *
- * @param state 页面状态
+ * 图库页：壁纸透出的玻璃顶栏（采样本页内容源，图片从玻璃下滚过）+ 一条可横滑的筛选 chip 行。
+ * 顶栏随滚动跟手折叠——上滑逐像素收起筛选行、只留 56dp 标题行，下滑立即展开、松手过半对齐，列表 padding 同步收放。
+ * 多选态底部浮出玻璃操作条（选中数 / 下载进度 / 取消）。
  * @param onBack 返回（多选态时由 Java 先退出多选）
- * @param onForumSelected 游戏 chip 下拉选中（下标对应 Java 侧 forumNames）
- * @param onCategorySelected 分类 chip 下拉选中
- * @param onTabSelected 榜单 chip 选中
- * @param onItemClick 点卡片：多选态切换选中，否则进全屏
- * @param onItemLongClick 长按卡片：进入多选并选中
- * @param onDownloadClick 点击下载
- * @param onCancelSelection 取消多选
- * @param onRetry 空态/失败态重试
+ * @param onForumSelected 游戏 chip 下标对应 Java 侧 forumNames
+ * @param onItemClick 多选态切换选中，否则进全屏
  */
 @Composable
 fun ImageScreen(
@@ -166,12 +143,9 @@ fun ImageScreen(
     val chipHeight = dimensionResource(R.dimen.gallery_chip_height)
     val gapSmall = dimensionResource(R.dimen.space_2)
 
-    // 可收起的只有「筛选 chip 行 + 它上下各 8dp 的呼吸」这一段：标题行（返回 + 标题）常驻 56dp。
-    // chip 行上下对称留白：贴着顶栏底边（含 20dp 圆角）会让 chip 与玻璃边缘粘在一起，
-    // 看起来像"没有间隔"，所以下留白与上留白同宽。
-    // 折叠量交给 HeaderCollapseState 统一驱动（与四个主页面的页眉同一套手感）：
-    // 手指拖动逐像素跟随、松手过半对齐、惯性不参与、回顶自动展开。
-    // 区别只是这里范围是常量，直接回填给它，不必像页眉那样等布局实测。
+    // 可收起的只有「chip 行 + 上下各 8dp 呼吸」这一段，标题行常驻 56dp；上下留白同宽，
+    // 否则 chip 会贴住顶栏底边（含 20dp 圆角）像没有间隔。
+    // 折叠量交给 HeaderCollapseState 统一驱动（与页眉同一套手感），这里范围是常量、直接回填即可
     val chipBlock = chipHeight + gapSmall * 2
     val collapseRangePx = with(LocalDensity.current) { chipBlock.toPx() }
     val collapse = rememberHeaderCollapseState()
@@ -179,8 +153,7 @@ fun ImageScreen(
     // 展开程度 1 → 0，供顶栏做高度裁切与渐隐
     val expandedFraction = 1f - collapse.fraction
 
-    // 手势 ↔ 顶栏：上滑（内容向上滚、继续往下浏览）先收顶栏，下滑（往回翻）先展开，
-    // 顶栏走完自己的行程才把剩余位移交给列表。
+    // 上滑先收顶栏、下滑先展开，顶栏走完行程才把剩余位移交给列表
     val collapseOnScroll = rememberHeaderCollapseConnection(collapse)
 
     // 回到顶部后不能再有收起态：列表 padding 是展开态预留的，收起时第一行上方会露出空档
@@ -193,8 +166,7 @@ fun ImageScreen(
 
     // 每张卡片的窗口坐标（仅用于转场起点，点击时读一次）
     val cardBounds = remember { mutableStateMapOf<Int, Rect>() }
-    // 浮层不占布局，列表要给顶栏让位。padding 跟着折叠量一起收：
-    // 顶栏少一段，列表就从少一段的位置开始，两者始终贴合，不会在顶栏下方露出壁纸断带。
+    // 浮层不占布局，列表 padding 要跟着折叠量一起收，否则顶栏下方会露出壁纸断带
     val topInset = statusTop + rowHeight + chipBlock + gapSmall
     // 收起量（正值 dp）：offsetPx 是负的，取反即"顶栏少了多少高度"
     val collapsedDp = with(LocalDensity.current) { (-collapse.offsetPx).toDp() }
@@ -274,14 +246,9 @@ fun ImageScreen(
 }
 
 /**
- * 玻璃顶栏：标题行（返回 + 标题）+ 筛选 chip 行。
- *
- * 玻璃表面铺到状态栏下沿（`statusBarsPadding` 作用在内容而非容器），
- * 这样状态栏区域也是同一块玻璃，不会在状态栏下方出现一条壁纸硬边。
- *
- * 收起由 [expandedFraction] 连续驱动（1 = 全展开，0 = 只剩标题行）：
- * 高度按比例裁切、chip 行同比例渐隐，贴底对齐使 chip 行看起来向上滑出顶栏；
- * 不做 `AnimatedVisibility`，因为它只能表达「有 / 无」，跟不上手指。
+ * 玻璃顶栏：标题行（返回 + 标题）+ 筛选 chip 行。玻璃表面要铺到状态栏下沿（`statusBarsPadding` 作用在内容而非容器），
+ * 否则状态栏下方会出现一条壁纸硬边。收起由 [expandedFraction]（1 = 全展开，0 = 只剩标题行）连续驱动：
+ * 按比例裁切高度、渐隐 chip 行、贴底对齐。不要改用 `AnimatedVisibility`——它只能表达有/无，跟不上手指。
  */
 @Composable
 private fun GalleryTopBar(
@@ -297,8 +264,7 @@ private fun GalleryTopBar(
     // 收起段高度 = chip 行 + 上下各 8dp（与 ImageScreen 的 chipBlock 同一口径，改一处必改另一处）
     val filterHeight = (dimensionResource(R.dimen.gallery_chip_height) +
         dimensionResource(R.dimen.space_2) * 2) * expandedFraction
-    // 顶栏固定页面标题：选中数的唯一展示位是底部操作条（GallerySelectionBar）。
-    // 两处都放会让同一句计数上下各出现一次，且顶栏是标题语义、不适合承载计数。
+    // 顶栏只放固定标题：选中数只在底部操作条展示，两处都放会让同一句计数上下各出现一次
     val title = stringResource(R.string.toolbar_image_browse)
     Box(modifier = modifier.fillMaxWidth()) {
         Box(
@@ -371,9 +337,8 @@ private fun GalleryFilterRow(
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
-        // requiredHeight：父容器（顶栏折叠段）会把高度裁到 0~48dp，普通 height 会被压缩，
-        // required 让 chip 行保持原高，由外部 clipToBounds 裁切，chip 不会被挤扁。
-        // 高度含上下各 8dp 留白（chip 垂直居中），使 chip 不贴顶栏底边/圆角
+        // 必须用 requiredHeight：顶栏折叠段会把高度裁到 0~48dp，普通 height 会被压缩挤扁 chip；
+        // required 保持原高、由外部 clipToBounds 裁切。高度含上下各 8dp 留白，使 chip 不贴顶栏底边
         modifier = modifier
             .fillMaxWidth()
             .requiredHeight(
@@ -757,11 +722,8 @@ private fun EmptyGallery(topInset: Dp, onRetry: () -> Unit) {
 }
 
 /**
- * 图库页的 Compose 宿主。
- *
- * 与其它整屏迁移一致：Java 只写状态（`setForums` / `setCategories` / `setTabs` / `setItems` /
- * `setSelection` / `setLoading` / `setDownloadProgress`），点击与选择回调由 Java 注入，
- * 业务判断（缓存、下载、网络）全部留在 Activity。
+ * 图库页宿主：Java 只写状态（setForums / setCategories / setTabs / setItems / setSelection / setLoading /
+ * setDownloadProgress），点击与选择回调由 Java 注入，业务判断（缓存、下载、网络）全部留在 Activity。
  */
 class ImageScreenView(context: Context) : AbstractComposeView(context) {
 

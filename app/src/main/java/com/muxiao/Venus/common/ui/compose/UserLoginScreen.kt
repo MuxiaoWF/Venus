@@ -60,19 +60,9 @@ const val LOGIN_MODE_COOKIE = 2
 const val LOGIN_MODE_SMS = 3
 
 /**
- * 国服用户登录页（原 res/layout/activity_user_login.xml）。
- *
- * 结构：工具栏 → 页头（一行欢迎语 + 安全说明）→ 登录方式切换（国际服隐藏）→ 二维码卡
- * → 账号密码卡（含可选头像）→ 状态日志卡。
- *
- * 与原 XML 的对应关系：
- * - 两枚 TabLayout 页签 → [VenusSegmented]（`glass = false`，与设置页同一实现）
- * - `TextInputLayout(OutlinedBox)` → [VenusTextField] + `shape_corner_sm` 圆角（见 VenusInputs.kt）
- * - 密码框的 `endIconMode=password_toggle` → trailingIcon 文案按钮（显示/隐藏）
- * - 状态日志 `ScrollView`（固定 `login_log_height`）→ `verticalScroll` + 追加后自动滚到底
- *
- * 所有输入值都**上提到宿主**（[UserLoginScreenView]），Activity 通过 getter 读取，
- * 避免 Compose 内部私有状态与 Java 侧业务逻辑脱节。
+ * 用户登录页：工具栏 → 页头 → 登录方式切换（国际服隐藏）→ 二维码卡 → 账号密码卡（含可选头像）→ 状态日志卡。
+ * 所有输入值都上提到宿主 [UserLoginScreenView]，Activity 经 getter 读取——不要让输入变成 Compose 内部私有状态，
+ * 否则与 Java 侧业务逻辑会脱节。状态日志用 `verticalScroll`，追加后自动滚到底。
  */
 @Composable
 fun UserLoginScreen(
@@ -112,8 +102,7 @@ fun UserLoginScreen(
     val isCookieMode = loginMode == LOGIN_MODE_COOKIE
     val isSmsMode = loginMode == LOGIN_MODE_SMS
 
-    // 验证码重发倒计时：宿主在发码成功后下发秒数，这里每秒递减。
-    // 状态放在函数顶层而非短信分支内，切到其他 Tab 再切回来不会把倒计时清零。
+    // 验证码重发倒计时（发码成功后由宿主下发秒数）；放函数顶层而非短信分支内，切 Tab 再回来不会清零
     var codeRemain by remember { mutableIntStateOf(0) }
     LaunchedEffect(codeCountdown) {
         codeRemain = codeCountdown
@@ -172,8 +161,7 @@ fun UserLoginScreen(
 
             // 登录方式切换：账号密码/短信/Cookie 仅国服可用，国际服整卡隐藏
             if (!oversea) {
-                // 四段在窄屏上只放短名（扫码 / 密码 / 短信 / Cookie），完整名称留给提交按钮。
-                // 分段控件统一走 VenusSegmented（与设置页同一实现），本页非玻璃页故 glass = false。
+                // 窄屏只放短名（扫码 / 密码 / 短信 / Cookie），完整名称留给提交按钮；本页非玻璃页故 glass = false
                 val loginOptions = listOf(
                     stringResource(R.string.login_tab_qrcode_short) to LOGIN_MODE_QRCODE,
                     stringResource(R.string.login_tab_password_short) to LOGIN_MODE_PASSWORD,
@@ -384,11 +372,8 @@ fun UserLoginScreen(
 }
 
 /**
- * 页头：一行欢迎语 + 安全说明。
- *
- * 原实现是 48dp 圆底徽标 +「欢迎」大标题 +「登录以继续」副标题，上下再各留 20/16dp，
- * 合计约 150dp —— 在 640dp 高的屏幕上占近四分之一，而它只是装饰。这里去掉徽标、
- * 两行文案压成一行、外层留白收到 4/12dp，同样的信息高度降到约 60dp。
+ * 页头：一行欢迎语 + 安全说明。刻意压到约 60dp——原来的 48dp 徽标 + 大标题 + 副标题 + 上下留白约 150dp，
+ * 在 640dp 高的屏上占近四分之一却只是装饰。
  */
 @Composable
 private fun LoginHeader() {
@@ -406,8 +391,7 @@ private fun LoginHeader() {
             Text(
                 text = stringResource(R.string.user_login_welcome),
                 style = textStyles.title,
-                // 样式只带字号不带颜色，必须显式给：否则继承 LocalContentColor 的默认纯黑，
-                // 深色模式下与背景同色（兜底在 VenusTheme，这里仍写明以免被误删）
+                // 样式只带字号不带颜色，必须显式给：否则继承 LocalContentColor 的纯黑，深色模式下与背景同色
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.alignByBaseline(),
             )
@@ -429,12 +413,7 @@ private fun LoginHeader() {
     }
 }
 
-/**
- * 登录页头像行：选填，登录成功后写到该账号名下。
- *
- * 与用户管理页共用同一个 AvatarStore 与同一套头像外框（AvatarPreview / VenusAvatar），
- * 区别只在「先选、登录成功才落盘」——登录失败不会给不存在的账号留下孤儿头像文件。
- */
+/** 登录页头像行：与用户管理页共用同一 AvatarStore 与头像外框，区别只在「先选、登录成功才落盘」——失败不留孤儿头像文件。 */
 @Composable
 private fun LoginAvatarRow(
     avatarUri: Uri?,

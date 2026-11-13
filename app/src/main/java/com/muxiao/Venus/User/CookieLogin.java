@@ -15,23 +15,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 浏览器 Cookie 导入登录（国服）。
+ * 浏览器 Cookie 导入登录（国服）：账密登录会触发极验，验证链路被风控拒签就登不进去，这里提供一条完全绕开极验的入口。
+ * 用户从电脑浏览器粘贴米游社 Cookie，解析出 stoken / ltoken / mid / stuid，落到与扫码、密码登录相同的凭证槽位，
+ * 下游签到任务无需区分来源。
  * <p>
- * 场景：账号密码登录会触发极验（aigis）人机验证，验证链路一旦被风控拒签就无法登录。
- * 这里提供一条完全绕开极验的入口——用户自行在电脑浏览器登录米游社后，把 Cookie 整段
- * 粘贴进来，由本类解析出 stoken / ltoken / mid / stuid 并落到与扫码、密码登录完全相同的
- * 用户凭证槽位，下游签到任务无需区分来源。
- * <p>
- * 字段来源（米游社网页登录态，v2 字段优先）：
- * <ul>
- *   <li>stuid：ltuid_v2 / account_id_v2 / ltuid / account_id</li>
- *   <li>mid：account_mid_v2 / ltmid_v2 / mid，缺失时退化为 stuid</li>
- *   <li>stoken：stoken_v2 / stoken</li>
- *   <li>ltoken：ltoken_v2 / ltoken（缺失且存在 stoken 时用 stoken 换）</li>
- *   <li>cookie_token：cookie_token_v2 / cookie_token（缺失留空，签到链路会自行刷新）</li>
- * </ul>
- * 只要 stuid 与 stoken/ltoken 之一齐备即可完成导入；只有 ltoken 时社区签到可用，
- * 游戏签到/抽卡链接需要 stoken，由调用方提示用户。
+ * 字段来源（v2 优先）：stuid = ltuid_v2/account_id_v2/ltuid/account_id；mid = account_mid_v2/ltmid_v2/mid（缺失退化为 stuid）；
+ * stoken = stoken_v2/stoken；ltoken = ltoken_v2/ltoken（缺失且有 stoken 时现换）；cookie_token 缺失留空，签到链路会自行刷新。
+ * 只要 stuid 与 stoken/ltoken 之一齐备即可导入；只有 ltoken 时社区签到可用，游戏签到/抽卡链接需要 stoken，由调用方提示。
  */
 public final class CookieLogin {
 
@@ -69,9 +59,8 @@ public final class CookieLogin {
     }
 
     /**
-     * 从 Cookie 键值表提取出的凭证字段（不含网络校验，便于单测与排查）。
-     * 字段可能为 null，表示该键在 Cookie 中不存在。
-     */
+    * 从 Cookie 键值表提取出的凭证字段（不含网络校验，便于单测与排查）；null 表示该键在 Cookie 中不存在。
+    */
     static final class Fields {
         final String stuid;
         final String mid;
@@ -89,9 +78,8 @@ public final class CookieLogin {
     }
 
     /**
-     * 按优先级从 Cookie 键值表里取凭证字段，纯内存操作。
-     * v2 字段优先于旧字段；mid 缺失时退化为 stuid（旧账号体系两者同值）。
-     */
+    * 按优先级从键值表取凭证字段，纯内存操作：v2 字段优先；mid 缺失时退化为 stuid（旧账号体系两者同值）。
+    */
     static Fields extract(Map<String, String> cookies) {
         String stuid = first(cookies, "ltuid_v2", "account_id_v2", "ltuid", "account_id");
         String stoken = first(cookies, "stoken_v2", "stoken");
@@ -103,11 +91,9 @@ public final class CookieLogin {
     }
 
     /**
-     * 从粘贴的 Cookie 文本导入凭证（阻塞，需在后台线程调用）。
-     *
-     * @param rawCookie 用户粘贴的整段 Cookie，允许带 "Cookie:" 前缀、换行与多余空格
-     * @throws RuntimeException 字段缺失、换取 ltoken 失败或登录态已失效，消息为可直接展示的文案
-     */
+    * 从粘贴的 Cookie 文本导入凭证（阻塞，需在后台线程调用）。rawCookie 允许带 "Cookie:" 前缀、换行与多余空格；
+    * 字段缺失、换取 ltoken 失败或登录态失效时抛 RuntimeException，消息即可直接展示的文案。
+    */
     public static Result importFromCookie(Context context, HeaderManager headerManager, String rawCookie) {
         Map<String, String> cookies = parse(rawCookie);
         Fields fields = extract(cookies);
@@ -142,8 +128,7 @@ public final class CookieLogin {
     }
 
     /**
-     * 解析 Cookie 文本为键值表。
-     * 兼容 "Cookie: a=b; c=d" 前缀、跨行粘贴，以及值中含 '=' 的情况（只按首个 '=' 切分）。
+     * 解析 Cookie 文本为键值表：兼容 "Cookie: a=b; c=d" 前缀、跨行粘贴，值中含 '=' 时只按首个 '=' 切分。
      */
     static Map<String, String> parse(String raw) {
         Map<String, String> map = new LinkedHashMap<>();
@@ -163,7 +148,6 @@ public final class CookieLogin {
         return map;
     }
 
-    /** 按优先级取第一个非空值。 */
     private static String first(Map<String, String> map, String... keys) {
         for (String key : keys) {
             String value = map.get(key);
@@ -173,8 +157,7 @@ public final class CookieLogin {
     }
 
     /**
-     * 用 stoken 换取 ltoken。
-     * Cookie 里的 mid 可能是新格式字符串，而该接口对旧数值 mid 同样有效，
+     * 用 stoken 换 ltoken：Cookie 里的 mid 可能是新格式字符串，而该接口对旧数值 mid 同样有效，
      * 因此先用账号 mid 尝试，失败再用 stuid 重试一次；两者都失败则认为 stoken 已失效。
      */
     private static String fetchLtoken(Context context, HeaderManager headerManager,

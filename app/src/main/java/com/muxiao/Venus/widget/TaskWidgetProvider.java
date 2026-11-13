@@ -41,35 +41,32 @@ public class TaskWidgetProvider extends AppWidgetProvider {
     private static final java.util.concurrent.atomic.AtomicBoolean REFRESH_SCHEDULED =
             new java.util.concurrent.atomic.AtomicBoolean(false);
     /**
-     * 最近一次刷新请求的 Application Context。
-     * 用弱引用包装：静态字段直接持有 Context 类型会触发 Lint StaticFieldLeak；
-     * 实际存的是进程级 Application Context（随进程存活，弱引用不会提前回收）。
+     * 最近一次刷新请求的 Application Context，弱引用包装：静态字段直接持有 Context 类型会触发 Lint
+     * StaticFieldLeak；实际存的是进程级 Application Context（随进程存活，弱引用不会提前回收）。
      */
     private static volatile java.lang.ref.WeakReference<Context> refreshContextRef;
 
     /**
      * 最近一次真正渲染到桌面的画面签名（full=含统计/按钮/日期，list=仅列表条目数据）。
-     * <p>
-     * RemoteViews 的 ListView 没有差异更新，{@code notifyAppWidgetViewDataChanged} 一次
-     * 就是整表销毁重建，肉眼可见地闪一下。任务执行期间每个状态变化都会请求刷新，
-     * 其中不少请求的画面与桌面现状一致（复位、运行按钮态、统计文案各自变化或全未变化），
-     * 用签名比对跳过「画面没变的刷新」，把列表重建收敛到「条目数据真的变了」的时刻。
+     * RemoteViews 的 ListView 没有差异更新，{@code notifyAppWidgetViewDataChanged} 一次就是整表销毁重建
+     * （肉眼可见地闪一下）；任务执行期间不少刷新请求的画面与桌面现状一致，用签名比对跳过它们，
+     * 把列表重建收敛到「条目数据真的变了」的时刻。
      */
     private static volatile String lastRenderedFullSignature;
     private static volatile String lastRenderedListSignature;
 
     @Override
     @SuppressWarnings("deprecation")
-    // 收到系统更新广播时，按本地化上下文逐个刷新小组件。
-    // notifyAppWidgetViewDataChanged(int[], int) 在 API 31 标记过时，但 minSdk 场景必须沿用旧重载。
-    // 系统路径（开机/添加小组件/包更新）无条件渲染：此时画面签名可能已失效（如 launcher 重建了视图树）。
+    // 收到系统更新广播时按本地化上下文逐个刷新。系统路径（开机/添加小组件/包更新）无条件渲染：此时画面签名
+    // 可能已失效（如 launcher 重建了视图树）。notifyAppWidgetViewDataChanged(int[], int) 在 API 31 标记过时，
+    // 但 minSdk 场景必须沿用旧重载。
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         Context localized = LocaleHelper.wrap(context);
         WidgetSnapshot snapshot = WidgetSnapshot.load(localized);
         for (int appWidgetId : appWidgetIds) {
             updateWidget(localized, appWidgetManager, appWidgetId, snapshot);
         }
-        // 列表数据统一通知一次（原实现每个 widget 各通知一次，重复触发 RemoteViewsFactory 重建）
+        // 列表数据统一通知一次（避免每个 widget 各通知一次、重复触发 RemoteViewsFactory 重建）
         appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_task_list);
         rememberRendered(snapshot);
     }
@@ -106,12 +103,10 @@ public class TaskWidgetProvider extends AppWidgetProvider {
                 isRunning ? R.string.widget_running : R.string.widget_run));
         views.setBoolean(R.id.btn_run, "setEnabled", !isRunning);
 
-        // 刷新按钮 → 刷新小组件
         Intent refreshIntent = new Intent(context, TaskWidgetProvider.class).setAction(ACTION_REFRESH);
         views.setOnClickPendingIntent(R.id.btn_refresh, PendingIntent.getBroadcast(context, 1, refreshIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
 
-        // 任务列表适配器
         views.setRemoteAdapter(R.id.widget_task_list, new Intent(context, TaskWidgetService.class)
                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId));
 
@@ -132,12 +127,9 @@ public class TaskWidgetProvider extends AppWidgetProvider {
     }
 
     /**
-     * 请求刷新全部小组件实例。
-     * <p>
-     * 刻意做去抖合并：任务执行期间每条任务状态变化都会请求刷新，若逐次真正刷新，
+     * 请求刷新全部小组件实例。刻意去抖合并：任务执行期间每条任务状态变化都会请求刷新，若逐次真正刷新，
      * 每次都要重建 RemoteViews + 两次系统 IPC（updateAppWidget / notifyAppWidgetViewDataChanged），
-     * 还会让 launcher 反复向 RemoteViewsService 拉全量列表数据。合并后窗口内只刷新一次，
-     * 且读到的必然是最新状态；调用方可以从任意线程调用。
+     * 还会让 launcher 反复拉全量列表数据。合并后窗口内只刷新一次且读到的必然是最新状态；可从任意线程调用。
      */
     public static void refreshAllWidgets(Context context) {
         if (context == null) return;
@@ -160,9 +152,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         int[] ids = manager.getAppWidgetIds(widget);
         if (ids.length == 0) return;
         WidgetSnapshot snapshot = WidgetSnapshot.load(localized);
-        // 画面无任何可见变化：整次刷新跳过。任务侧每个状态变化都会请求刷新，
-        // 不加此守卫时，未改变画面的请求（复位后重复请求、统计/按钮态单独变化等）
-        // 也会触发整套重渲染与列表重建
+        // 画面无任何可见变化：整次刷新跳过。否则未改变画面的请求（复位后重复请求、统计/按钮态单独变化等）
+        // 也会触发整套重渲染与列表重建。
         String fullSignature = snapshot.fullSignature();
         if (fullSignature.equals(lastRenderedFullSignature)) return;
         boolean listChanged = !snapshot.listSignature().equals(lastRenderedListSignature);
@@ -171,9 +162,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         for (int id : ids) {
             updateWidget(localized, manager, id, snapshot);
         }
-        // 列表条目数据未变时不通知数据变更：notifyAppWidgetViewDataChanged 会让 launcher
-        // 重新拉取 RemoteViewsFactory 全量数据并整表重建列表，是小组件闪烁的直接来源；
-        // 统计/按钮态等外层变化用 updateAppWidget 即可，无需牵连列表
+        // 列表条目数据未变时不通知数据变更：notifyAppWidgetViewDataChanged 会让 launcher 重新拉全量数据并
+        // 整表重建（小组件闪烁的直接来源）；统计/按钮态等外层变化用 updateAppWidget 即可，无需牵连列表。
         if (listChanged) manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_task_list);
     }
 
@@ -184,8 +174,7 @@ public class TaskWidgetProvider extends AppWidgetProvider {
     }
 
     /**
-     * 渲染所需的全部可变数据快照：一次读取、渲染与签名同源，
-     * 避免「签名与实际渲染内容不一致」导致漏刷或重复刷。
+     * 渲染所需的全部可变数据快照：一次读取、渲染与签名同源，避免「签名与实际渲染内容不一致」导致漏刷或重复刷。
      */
     private static final class WidgetSnapshot {
         final String targetUser;

@@ -16,10 +16,8 @@ import dagger.hilt.components.SingletonComponent;
 import javax.inject.Singleton;
 
 /**
- * 应用级 DI 模块（Hilt / 阶段 1）。
- * 仅收口进程级单例：线程池与三个已落地的 Repository。
- * 说明：Application 与 @ApplicationContext Context 由 @HiltAndroidApp 自动绑定，
- * 此处无需（也不应）重复 @Provides，否则会与 Hilt 默认绑定冲突。
+ * 应用级 DI 模块：只收口进程级单例（线程池与三个 Repository）。Application 与
+ * @ApplicationContext Context 由 @HiltAndroidApp 自动绑定，此处不应重复 @Provides，否则冲突。
  */
 @Module
 @InstallIn(SingletonComponent.class)

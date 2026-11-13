@@ -33,14 +33,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 抽卡链接页控制器（原 Fragment 收敛为控制器）：原神/绝区零为「点行即获取」，
- * 结果与复制长在行下；云游戏获取为导航行，打开内置 WebView 访问米游社抽卡记录页面，
- * 自动拦截含 authkey 的 URL；VPN 抓包获取为导航行，启动本地 VPN 后在星铁内打开
- * 抽卡记录页，旁路解密 KCP 流量捕获 authkey。
- *
- * <p>界面为 Compose（{@link LinkScreenView}）：本类只保留业务与状态机，
- * 一切控件操作（chip 文案/配色、图标圆回退底、刷新图标旋转、结果区淡入）改由宿主状态派生。</p>
- */
+* 抽卡链接页控制器：原神/绝区零为「点行即获取」（结果与复制长在行下）；云游戏为导航行，打开内置 WebView
+* 访问米游社抽卡记录页并自动拦截含 authkey 的 URL；VPN 抓包为导航行，启动本地 VPN 后在星铁内打开抽卡记录页，
+* 旁路解密 KCP 流量捕获 authkey。
+* 界面为 Compose（{@link LinkScreenView}）：本类只保留业务与状态机，控件表现一律由宿主状态派生。
+*/
 public class LinkFragment implements PageController {
 
     private final MainActivity activity;
@@ -49,19 +46,19 @@ public class LinkFragment implements PageController {
     private ActivityResultLauncher<android.content.Intent> vpnLauncher;
 
     /**
-     * 电池优化豁免授权回调：无论用户是否豁免，返回后都续启抓包流程
-     * （未豁免时仅效果打折——挂机熄屏后可能被省电策略掐网，不影响前台使用）。
-     */
+    * 电池优化豁免授权回调：无论用户是否豁免，返回后都续启抓包流程
+    * （未豁免时仅效果打折——挂机熄屏后可能被省电策略掐网，不影响前台使用）。
+    */
     private ActivityResultLauncher<android.content.Intent> batteryLauncher;
 
     /**
-     * 捕获结果广播接收器（CaptureService/PacketAnalyzer 发出，均带包名限制）：
-     * UPDATING = 缺键、云端密钥表更新中（抓包继续，重放机制衔接）；
-     * GET_AUTHKEY = 捕获成功，按判定渠道拼抽卡记录 URL 复制并提示；
-     * CAPTURE_FAILED = 补拉落定后仍缺键（网络失败或服务端未收录），行内提示原因。
-     * 三条路径都同步 status_vpn 行文案——触发时用户多半在游戏里、Snackbar 一闪即逝，
-     * 行内持久状态是切回应用后唯一可见的反馈（show 也会兜底回显）。
-     */
+    * 捕获结果广播接收器（CaptureService/PacketAnalyzer 发出，均带包名限制）：
+    * UPDATING = 缺键、云端密钥表更新中（抓包继续，重放机制衔接）；
+    * GET_AUTHKEY = 捕获成功，按判定渠道拼抽卡记录 URL 复制并提示；
+    * CAPTURE_FAILED = 补拉落定后仍缺键（网络失败或服务端未收录），行内提示原因。
+    * 三条路径都同步 status_vpn 行文案——触发时用户多半在游戏里、Snackbar 一闪即逝，
+    * 行内持久状态是切回应用后唯一可见的反馈（show 也会兜底回显）。
+    */
     private final BroadcastReceiver authkeyReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -96,8 +93,6 @@ public class LinkFragment implements PageController {
         }
     };
 
-    /* ===== VPN 抓包状态与结果常驻 ===== */
-
     /** VPN 行语义状态：着色让用户切回应用后一眼分清运行中/已捕获/异常 */
     private enum VpnStatus {DEFAULT, RUNNING, SUCCESS, WARN}
 
@@ -109,10 +104,8 @@ public class LinkFragment implements PageController {
     private LinkScreenView linkPane;
 
     /**
-     * 底栏覆盖高度变化 → 通知 Compose 宿主重算正文底部留白。
-     * 原来由 `BottomBarOverlay.attachClearance(link_scroll)` 直接改滚动 View 的 padding，
-     * Compose 侧没有对应的滚动 View，只能把高度作为状态喂给组合。
-     */
+    * 底栏覆盖高度变化 → 通知 Compose 宿主重算正文底部留白（Compose 侧没有滚动 View，只能把高度作为状态喂给组合）。
+    */
     private final Runnable bottomBarListener = () -> {
         if (linkPane != null) linkPane.setBottomClearance(BottomBarOverlay.get());
     };
@@ -239,7 +232,7 @@ public class LinkFragment implements PageController {
         root.setOnCopyListener(url ->
                 copyToClipboard(linkPane, context.getApplicationContext(), url));
 
-        // 底栏覆盖高度：首帧先取当前值，后续变化经监听器回灌（原 attachClearance 的等价实现）
+        // 底栏覆盖高度：首帧先取当前值，后续变化经监听器回灌
         root.setBottomClearance(BottomBarOverlay.get());
         BottomBarOverlay.addListener(bottomBarListener);
 
@@ -260,7 +253,7 @@ public class LinkFragment implements PageController {
         loadUserAvatar();
     }
 
-    /** 无用户空态：跳到用户管理页（原 updateUserGuideState 里整行点击的跳转目标）。 */
+    /** 无用户空态：整行点击跳到用户管理页。 */
     private void jumpToUserManagement() {
         activity.navigateToPage(1);
     }
@@ -391,12 +384,9 @@ public class LinkFragment implements PageController {
     private enum ChipState {PENDING, FETCHING, FETCHED}
 
     /**
-     * 同步某游戏行的状态。
-     * <p>
-     * 原实现要在这里逐控件 setText / setBackgroundTintList / setImageTintList / 换图标圆回退底 /
-     * 启停旋转动画 / 重放淡入动画；迁移后这些视觉全部由 Compose 依 chip 状态派生，
-     * 这里只下发语义状态（术语与 [LinkScreenKt] 的 LINK_CHIP_* 常量一一对应）。
-     */
+    * 同步某游戏行的状态：这里只下发语义状态，视觉（chip 文案/配色/图标圆/旋转/淡入）全部由 Compose 依状态派生，
+    * 术语与 [LinkScreenKt] 的 LINK_CHIP_* 常量一一对应。
+    */
     private void setChipState(int gameType, ChipState state) {
         if (linkPane == null) return;
         int uiState;
@@ -415,9 +405,9 @@ public class LinkFragment implements PageController {
     }
 
     /**
-     * 就地错误：把错误文案写进该来源行的错误位，并收起结果行 —— 错误「顶替」结果的位置出现，
-     * 不在页面下方另起一块独立提示卡。错误跟着出事的这一行走，两个来源互不干扰。
-     */
+    * 就地错误：错误文案写进该来源行的错误位并收起结果行——错误「顶替」结果的位置出现，不在页面下方另起独立提示卡，
+    * 两个来源互不干扰。
+    */
     private void showInlineError(int gameType, String message) {
         if (linkPane == null) return;
         linkPane.setSourceResult(gameType, Collections.emptyList());
@@ -432,11 +422,9 @@ public class LinkFragment implements PageController {
     }
 
     /**
-     * 按当前服务器类型填充用户列表，并选定当前/首个用户；无用户则清空选择。
-     * <p>
-     * 行内展示带服务器后缀（如「t [国服]」）由 Compose 依 oversea 标志拼接；
-     * 下拉展开项仍是原始用户名（与 item_user_dropdown 一致）。
-     */
+    * 按当前服务器类型填充用户列表并选定当前/首个用户；无用户则清空选择。
+    * 行内展示带服务器后缀（如「t [国服]」）由 Compose 依 oversea 标志拼接，下拉展开项仍是原始用户名。
+    */
     private void updateDropdown() {
         boolean isOversea = MiHoYoBBSConstants.is_oversea(activity);
         List<String> usernames = userManager.getUsernamesByServerType(isOversea);
@@ -467,11 +455,9 @@ public class LinkFragment implements PageController {
     }
 
     /**
-     * 头像文件被替换/重置后强制重载。
-     *
-     * <p>头像按用户名定址、换头像时原地覆盖文件，用户名与路径都没变——
-     * 只调 {@link #loadUserAvatar()} 不会触发重组，Glide 也会命中旧缓存。
-     */
+    * 头像文件被替换/重置后强制重载：头像按用户名定址、换头像时原地覆盖文件，用户名与路径都没变，
+    * 只调 {@link #loadUserAvatar()} 不会触发重组，Glide 也会命中旧缓存。
+    */
     public void refreshAvatar() {
         if (linkPane != null) linkPane.refreshAvatar();
     }
@@ -479,7 +465,6 @@ public class LinkFragment implements PageController {
     /** 页面成为当前选中页 / Activity 恢复：更新下拉框并同步 VPN 行状态与常驻结果区。 */
     @Override
     public void show() {
-        // 每次恢复时更新下拉框（并保持当前选择）
         updateDropdown();
         // 同步 VPN 抓包行状态（服务可能在其他界面被停止；已捕获时回显最近结果）
         if (linkPane != null) {
@@ -494,7 +479,6 @@ public class LinkFragment implements PageController {
             }
             // 恢复常驻结果区：捕获过的链接切页/切后台回来仍在，可随时重复复制
             renderVpnResult();
-            // 恢复后按当前用户重绘行内结果
             renderGameResult(0);
             renderGameResult(1);
         }

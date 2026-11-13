@@ -16,11 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 用户自定义头像存取：相册选图经方向校正 → 居中裁方 → 缩放后以 JPEG 存入
- * {@code filesDir/avatars/<md5(username)>.jpg}（文件名经 MD5 避免用户名里的非法字符）。
- * 文件存在即视为已设置自定义头像；删除文件即恢复默认人像图标。
- * 展示由 Compose 侧的 VenusAvatar 负责：本类只提供 hasAvatar/avatarFile 数据，
- * 默认图标与圆形头像均在组合中绘制。
+ * 用户自定义头像存取：相册选图 → 方向校正 → 居中裁方 → 缩放后以 JPEG 存入
+ * {@code filesDir/avatars/<md5(username)>.jpg}（MD5 文件名规避用户名里的非法字符）；文件存在即视为已设置。
+ * 展示由 Compose 侧的 VenusAvatar 负责，本类只提供 hasAvatar/avatarFile 数据。
  */
 public final class AvatarStore {
 
@@ -31,17 +29,14 @@ public final class AvatarStore {
     private AvatarStore() {
     }
 
-    /** 头像文件路径（md5(用户名).jpg）。 */
     public static File avatarFile(Context context, String username) {
         return new File(new File(context.getFilesDir(), DIR), tools.md5Hex(username) + ".jpg");
     }
 
-    /** 是否已设置自定义头像。 */
     public static boolean hasAvatar(Context context, String username) {
         return avatarFile(context, username).isFile();
     }
 
-    /** 从相册选取的 Uri 保存自定义头像。返回是否成功。 */
     public static boolean saveFromUri(Context context, String username, Uri uri) {
         Bitmap src = decodeScaled(context, uri);
         if (src == null) return false;
@@ -79,8 +74,6 @@ public final class AvatarStore {
             }
         }
     }
-
-    // ========== 图片解码与加工 ==========
 
     /** 解码并按边长采样到接近 TARGET_SIZE，同时按 EXIF 方向校正（API 24+ 支持流式读取）。 */
     private static Bitmap decodeScaled(Context context, Uri uri) {
@@ -143,7 +136,6 @@ public final class AvatarStore {
         }
     }
 
-    /** 居中裁方并缩放到 TARGET_SIZE（已是小方图则原样返回）。 */
     private static Bitmap centerCropSquare(Bitmap src) {
         int w = src.getWidth(), h = src.getHeight();
         int side = Math.min(w, h);

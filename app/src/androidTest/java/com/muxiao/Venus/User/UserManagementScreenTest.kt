@@ -19,12 +19,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：确保 Compose 版用户管理页与原 XML 行为等价。
- *
- * 覆盖原实现里散在命令式 View 操作中的三件事：
- * 1. 空态与区块标签互斥（原来靠 `noUserPrompt` / `users_section_label` 的 setVisibility）
- * 2. 「默认」chip 只出现在当前账号上
- * 3. 卡片内三个入口（重命名 / 重新登录 / 删除）与右下角 FAB 各自回调正确
+ * 用户管理页：覆盖空态与区块标签互斥、「默认」chip 只出现在当前账号、卡片内三个入口
+ * （重命名 / 重新登录 / 删除）与右下角 FAB 各自回调正确。
  */
 class UserManagementScreenTest {
 
@@ -122,7 +118,7 @@ class UserManagementScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.re_login)).performClick()
         assertEquals("muxiao", relogin)
 
-        // 信息行整行可点 = 重命名（原 XML 里没有独立重命名按钮）
+        // 信息行整行可点 = 重命名（无独立重命名按钮）
         composeRule.onNodeWithText("muxiao · 国服").performClick()
         assertEquals("muxiao", renamed)
 

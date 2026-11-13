@@ -18,10 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：Compose 版图库页（原 `activity_image.xml` + `ImageAdapter`）。
- *
- * 覆盖原实现里由 Adapter/ActionBar 承担、迁移后改为「状态派生」的三件事：
- * 卡片点击分派、长按进入多选、多选态的标题与下载入口。
+ * 图库页：覆盖卡片点击分派、长按进入多选、多选态标题与下载入口三件事。
  *
  * 注：卡片传 `coverUrl = null`，避免测试进程发起真实网络请求。
  */

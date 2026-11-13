@@ -25,36 +25,13 @@ private val CLOUD_GAME_CHIP_LABEL_RES = intArrayOf(
 )
 
 /**
- * 设置页「云游戏签到」抽屉内容。
- *
- * 结构（密度版，纵向由约 267dp 收到约 176dp）：
- * 开关行（说明文本内联为副标题）→ 账号归属提示 → 云游戏多选 chip → 动作行（获取 + 手动填写同一行）。
- *
- * <p>**Token 为什么只有一个入口**：云游戏 token（`x-rpc-combo_token`）按云游戏服务签发，
- * 云原神（hk4e_cg_cn）与云绝区零（nap_cn）互不通用，所以存储上必须是两份；但两者共用
- * 同一个米哈游通行证登录态，进同一次 WebView 会话就能先后抓到两份，故**获取动作**合并为
- * 一个入口，由抓取页按请求域名自动识别归属，不必让用户先选游戏再进。
- *
- * <p>勾选与 Token 是两件事：**勾选决定任务是否执行，Token 决定能否签到成功**。
- * 只勾选不配 Token 时任务会以「未配置 Token」失败——这是有意为之的引导，
- * 比「静默跳过」更容易让用户发现漏配。
- *
- * <p>密度口径（与其它抽屉一致，详见 SettingRows.kt 文件头）：
- * - 说明文本只留一条（`cloud_game_tip` 6 行，独立成 [SettingHint]；开关行不再垫副标题）；
- * - 「N/M 已配置」是按钮的结果，作为主按钮的等宽徽标（`primaryBadge`），不再单占一行；
- * - 「手动填写」是同一动作的兜底，与主按钮同一行（`secondaryText`）。
- *
- * @param enabled 功能总开关
- * @param onEnabledChange 总开关回调
- * @param chipChecked 各云游戏勾选态（长度 2，顺序见 [CLOUD_GAME_CHIP_LABEL_RES]）
- * @param onChipToggle 某云游戏勾选变更回调
- * @param configuredCount 已配置 token 的云游戏数量
- * @param configuredTotal 当前服可用的云游戏总数（国际服仅云原神，为 1）
- * @param missingGames 未配置的游戏名（逗号分隔）；全部配置好时为 null，不显示提示行
- * @param onFetchClick 一键获取（打开 WebView 自动抓取）
- * @param onManualClick 手动填写（先选游戏再粘贴）
+ * 设置页「云游戏签到」抽屉：开关行（说明内联为副标题）→ 账号归属 → 云游戏多选 chip → 动作行（获取 + 手动填写同一行）。
+ * Token 只有一个入口：token 按云游戏服务签发，云原神（hk4e_cg_cn）与云绝区零（nap_cn）互不通用、必须存两份，
+ * 但共用同一通行证登录态，一次 WebView 会话即可先后抓到两份，由抓取页按请求域名识别归属，不必先选游戏。
+ * 勾选与 Token 是两件事：勾选决定是否执行、Token 决定能否签到；只勾不配会以「未配置 Token」失败——有意为之的引导，比静默跳过更易发现漏配。
+ * 密度口径见 SettingRows.kt：长说明独立成 [SettingHint]、配置进度作 primaryBadge、兜底动作与主按钮同行。
  * @param chipVisible 国际服无云绝区零钱包接口，由外部置 false 隐藏
- * @param accountLabel 当前账号名（token 按用户存放，界面需标明归属）；null 表示未登录
+ * @param accountLabel 当前账号名（token 按用户存放，须标明归属）；null = 未登录
  */
 @Composable
 fun CloudGameSettingPane(
@@ -79,12 +56,10 @@ fun CloudGameSettingPane(
             checked = enabled,
             onCheckedChange = onEnabledChange,
         )
-        // cloud_game_tip 有 105 字（约 6 行）：不能塞进开关行做副标题，否则整段说明都成了
-        // 开关的点击区（误触）且会被 maxLines 截断。长说明一律独立成 [SettingHint]
+        // cloud_game_tip 约 6 行：塞进开关行做副标题会让整段说明变成开关点击区（误触）且被 maxLines 截断
         Spacer(Modifier.height(dimensionResource(R.dimen.space_hairline)))
         SettingHint(text = stringResource(R.string.cloud_game_tip), maxLines = 6)
-        // token 按用户存放：不标出归属账号，切号后会以为配置丢了。
-        // 目标账号可能是从用户管理页指定的其它账号，此时必须说明「非当前账号」。
+        // token 按用户存放：不标出归属账号，切号后会以为配置丢了；目标账号还可能是从用户管理页指定的其它账号
         if (accountLabel != null) {
             Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
             SettingHint(
@@ -107,8 +82,7 @@ fun CloudGameSettingPane(
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         SettingActionRow(
             primaryText = stringResource(R.string.cloud_game_fetch_token),
-            // 「N/M 已配置」是这次点击的结果，属于按钮本身，不再独占一行
-            // 数量取总数：句式里的数词是分母（3/3 而非 1/3），单复数由它决定
+            // 「N/M 已配置」是点击的结果，属于按钮本身不独占一行；复数取总数（句式里数词是分母）
             primaryBadge = pluralStringResource(
                 R.plurals.cloud_game_configured_summary,
                 configuredTotal,
@@ -129,11 +103,7 @@ fun CloudGameSettingPane(
     }
 }
 
-/**
- * [CloudGameSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
- */
+/** [CloudGameSettingPane] 的状态宿主：只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。 */
 class CloudGameSettingPaneView {
 
     private val enabledState = mutableStateOf(false)
@@ -169,13 +139,7 @@ class CloudGameSettingPaneView {
         if (index in visibleState.indices) visibleState[index] = visible
     }
 
-    /**
-     * 刷新 token 配置进度。
-     *
-     * @param configured 已配置数量
-     * @param total 当前服可用的云游戏总数
-     * @param missingGames 未配置的游戏名（逗号分隔），全部配置好时传 null
-     */
+    /** 刷新 token 配置进度；[missingGames] 全部配置好时传 null 即不显示提示行（国际服总数只有 1）。 */
     fun setTokenStatus(configured: Int, total: Int, missingGames: String?) {
         configuredCountState.intValue = configured
         configuredTotalState.intValue = total
@@ -208,11 +172,7 @@ class CloudGameSettingPaneView {
         }
     }
 
-    /**
-     * 归属账号名（token 按用户存放，界面需标明归属）；null 表示未登录。
-     *
-     * @param isCurrent false = 该账号不是当前登录账号（设置了「配置目标账号」）
-     */
+    /** 归属账号名（token 按用户存放，须标明归属）；null = 未登录；[isCurrent] false = 指定的非当前账号。 */
     fun setAccountLabel(label: String?, isCurrent: Boolean = true) {
         accountLabelState.value = label
         accountIsCurrentState.value = isCurrent

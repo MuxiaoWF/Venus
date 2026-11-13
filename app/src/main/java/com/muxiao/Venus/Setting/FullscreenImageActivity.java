@@ -38,13 +38,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 全屏图片查看：支持双指缩放、左右滑动切换、下载保存到相册。
- *
- * <p>界面已迁移为 Compose（{@link FullscreenImageScreenView}）：`ViewPager2` → `HorizontalPager`，
- * 缩放为 Compose 原生实现（捏合/双击/拖动钳制，TouchImageView 依赖已拆除）。缩放与翻页的手势冲突由
- * 「放大后关闭 pager 滚动」处理，替代原来的 `requestDisallowInterceptTouchEvent`。</p>
- *
- * <p>本类只负责：解析 Intent 数据、拍平页列表、下载与权限。</p>
+ * 全屏图片查看：支持双指缩放、左右滑动切换、下载保存到相册。界面由 Compose 的 {@link FullscreenImageScreenView}
+ * 承载（HorizontalPager + 原生捏合/双击/拖动钳制）；缩放与翻页的手势冲突靠「放大后关闭 pager 滚动」处理。
+ * 本类只负责：解析 Intent 数据、拍平页列表、下载与权限。
  */
 @AndroidEntryPoint
 public class FullscreenImageActivity extends BaseActivity {
@@ -60,14 +56,13 @@ public class FullscreenImageActivity extends BaseActivity {
 
         super.onCreate(savedInstanceState);
 
-        // 获取从上一个activity中传递的数据
         String jsonData = getIntent().getStringExtra("imageDataListJson");
         List<Map<String, Object>> imageDataList = new Gson().fromJson(jsonData, new TypeToken<List<Map<String, Object>>>() {
         }.getType());
         int initialPosition = getIntent().getIntExtra("position", 0);
 
-        // Intent 数据缺失 / JSON 解析失败时不再以 Object.requireNonNull 抛 NPE（表现为「点开大图闪退」），
-        // 而是直接关闭本页并把结果交回来源页。
+        // Intent 数据缺失 / JSON 解析失败时直接关闭本页并把结果交回来源页，
+        // 不再以 Object.requireNonNull 抛 NPE（表现为「点开大图闪退」）。
         if (imageDataList == null || imageDataList.isEmpty()) {
             finish();
             return;
@@ -86,18 +81,13 @@ public class FullscreenImageActivity extends BaseActivity {
         pane.setOnDownloadClickListener(this::checkPermissionAndDownload);
         setContentView(pane);
 
-        // 设置状态栏
         EdgeToEdge.enable(this);
     }
 
     /**
-     * 退出转场统一挂在 {@code finish()} 上：顶栏返回、系统返回键、下拉关闭、异常兜底
-     * 全都走同一条路径，不需要各自再建方法或回调。
-     *
-     * <p>为什么必须覆盖：Activity 默认退场是系统横向滑动，而本页的主要退出手势是「向下拖」，
-     * 方向相反，收尾会看到页面往侧边甩出去。下拉关闭时 Compose 已把内容滑出屏幕
-     * （见 {@code FullscreenImageScreen} 的 dismiss 动画），这里只让残留黑底淡掉，
-     * 两段动画同向，不会割裂。</p>
+     * 退出转场统一挂在 {@code finish()} 上：顶栏返回、系统返回键、下拉关闭、异常兜底都走同一条路径。
+     * 必须覆盖：默认退场是横向滑动，而本页主要是「向下拖」，方向相反会看到页面往侧边甩出去；
+     * 下拉关闭时 Compose 已把内容滑出屏幕，这里只让残留黑底淡掉，两段动画同向。
      */
     @SuppressWarnings("deprecation") // API 34+ 仍生效，minSdk 23 只能走它
     @Override
@@ -107,10 +97,8 @@ public class FullscreenImageActivity extends BaseActivity {
     }
 
     /**
-     * 把「帖子列表」拍平成「图片页列表」：一帖多图时每张图都成为一页，元信息随之复制。
-     * <p>
-     * 与原 `ImagePagerAdapter` 的拍平规则一致（无图帖子也占一页，显示错误图标），
-     * 因此 position 语义、计数「当前/总数」与原实现相同。
+     * 把「帖子列表」拍平成「图片页列表」：一帖多图时每张图一页并复制元信息；无图帖子也占一页（显示错误图标），
+     * 因此 position 语义与「当前/总数」计数和原实现一致。
      */
     private List<FullscreenPage> buildPages(List<Map<String, Object>> imageDataList) {
         List<FullscreenPage> result = new ArrayList<>();
@@ -149,17 +137,13 @@ public class FullscreenImageActivity extends BaseActivity {
         return value instanceof String ? (String) value : "";
     }
 
-    /**
-     * 检查权限并下载当前图片
-     */
+    /** 检查存储权限并下载当前图片（Android 10+ 无需权限）。 */
     private void checkPermissionAndDownload() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10及以上版本不需要存储权限，可以直接保存
             downloadCurrentImage();
         } else {
-            // Android 10以下版本需要存储权限
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    != PackageManager.PERMISSION_GRANTED) { // 未给权限
+                    != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
                         WRITE_PERMISSION_REQUEST_CODE);
@@ -169,9 +153,7 @@ public class FullscreenImageActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 取当前页图片 URL，用 Glide 下载为 Bitmap 后保存到相册；下载失败弹错误框。
-     */
+    /** 取当前页图片 URL，用 Glide 下载为 Bitmap 后保存到相册；下载失败弹错误框。 */
     private void downloadCurrentImage() {
         if (pane == null || pages == null) return;
 
@@ -193,7 +175,6 @@ public class FullscreenImageActivity extends BaseActivity {
 
                         @Override
                         public void onLoadCleared(Drawable placeholder) {
-                            // 加载被清除
                         }
 
                         @Override
@@ -206,8 +187,7 @@ public class FullscreenImageActivity extends BaseActivity {
     }
 
     /**
-     * 将 Bitmap 写入相册 Pictures/Venus 目录并提示保存结果。
-     * 写盘（MediaStore IO）走共享线程池，Snackbar/错误框回 UI 线程展示。
+     * 将 Bitmap 写入相册 Pictures/Venus 并提示保存结果；写盘（MediaStore IO）走共享线程池，Snackbar/错误框回 UI 线程。
      */
     private void saveImageToGallery(Bitmap bitmap, int position) {
         String fileName = "venus_image_" + System.currentTimeMillis() + "_" + position + ".jpg";
@@ -228,9 +208,7 @@ public class FullscreenImageActivity extends BaseActivity {
         });
     }
 
-    /**
-     * 存储权限授予后继续下载当前图片，拒绝则提示需要存储权限。
-     */
+    /** 存储权限授予后继续下载当前图片，拒绝则提示需要存储权限。 */
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);

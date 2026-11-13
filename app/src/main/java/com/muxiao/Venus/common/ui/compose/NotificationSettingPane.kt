@@ -17,27 +17,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「通知 / 后台运行」抽屉内容（原 res/layout/item_setting_notification.xml）。
+ * 设置页「通知 / 后台运行」抽屉内容。
  *
- * 结构（密度版，纵向由约 240dp 收到约 165dp）：
- * 后台运行开关（说明内联为副标题）→ 定时签到开关（说明 + 验证码提醒同挂该行）
- * → 执行时刻导航行 → 电池优化豁免导航行。
+ * 结构：后台运行开关 → 定时签到开关（说明 + 验证码提醒同挂该行）→ 执行时刻导航行
+ * → 电池优化豁免导航行。每个开关只占一行，验证码提醒作为 [SettingSwitchRow] 的 `note`
+ * 挂在定时签到行而非单起段落；时刻行 / 电池行统一用 [SettingNavRow]。
  *
- * <p>密度口径：
- * - 每个开关只占一行，原「开关 32dp + 独立说明 Text + 前后 8dp」合成 44dp 单行；
- * - 验证码提醒（警告色）作为 [SettingSwitchRow] 的 `note` 参数挂在定时签到行，不再单起一段；
- * - 时刻行 / 电池行的「图标 + 两段文案 + 右侧值 + 箭头」原先手写两遍，现统一为 [SettingNavRow]。
- *
- * @param backgroundChecked 后台运行开关
- * @param onBackgroundChange 后台运行开关回调
- * @param scheduledChecked 定时签到开关
- * @param onScheduledChange 定时签到开关回调
  * @param scheduledTimeVisible 是否显示「执行时刻」行（开关打开才显示）
- * @param scheduledTimeText 已格式化的执行时刻文案
- * @param onScheduledTimeClick 点击时间行（弹出时间选择器）
- * @param batteryValueText 电池豁免状态文案
  * @param batteryValueColor 电池豁免状态颜色（0 表示用默认次要色）
- * @param onBatteryRowClick 点击电池豁免行
  */
 @Composable
 fun NotificationSettingPane(
@@ -94,9 +81,8 @@ fun NotificationSettingPane(
 }
 
 /**
- * [NotificationSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [NotificationSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class NotificationSettingPaneView {
 
@@ -131,7 +117,6 @@ class NotificationSettingPaneView {
             timeVisibleState.value = value
         }
 
-    /** 已格式化的执行时刻文案。 */
     var scheduledTimeText: String
         get() = timeTextState.value
         set(value) {

@@ -24,8 +24,6 @@ import android.provider.Settings;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 
-
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
@@ -60,11 +58,9 @@ import okio.Okio;
  * Snackbar/错误对话框、剪贴板、日志文件读写、键盘收起。
  */
 public class tools {
-    // 共享 OkHttpClient 实例已集中到 ApiClient，此处 getSharedClient() 转发到 ApiClient.get()
+    // OkHttpClient 统一由 ApiClient 提供，连接池共享
 
-    /**
-     * 返回应用共享的 OkHttpClient（转发到 {@link ApiClient#get()}，复用连接池）。
-     */
+    /** 返回应用共享的 OkHttpClient（{@link ApiClient#get()}，复用连接池）。 */
     private static OkHttpClient getSharedClient() {
         return ApiClient.get();
     }
@@ -72,30 +68,24 @@ public class tools {
     private static final Gson GSON = new Gson();
     private static final Random RANDOM = new Random();
 
-    /**
-     * 登录状态变化监听器，回调最新登录状态文案。
-     */
+    /** 登录状态变化监听器，回调最新登录状态文案。 */
     public interface StatusInterface {
         void onLoginStatusChanged(String status);
     }
 
-    /**
-     * 登录状态广播器：用 CopyOnWriteArrayList 维护监听器，支持跨线程安全增删与通知。
-     */
+    /** 登录状态广播器：CopyOnWriteArrayList 保证跨线程安全增删与通知。 */
     public static class StatusNotifier {
         private final CopyOnWriteArrayList<StatusInterface> listeners = new CopyOnWriteArrayList<>();
 
-        /** 注册一个登录状态监听器。 */
         public void addListener(StatusInterface listener) {
             listeners.add(listener);
         }
 
-        /** 清空所有已注册监听器（如 Activity 销毁时调用，避免泄漏）。 */
+        /** 清空所有监听器（Activity 销毁时调用，避免泄漏）。 */
         public void removeAllListeners() {
             listeners.clear();
         }
 
-        /** 向所有监听器广播最新的登录状态变化。 */
         public void notifyListeners(String status) {
             for (StatusInterface listener : listeners)
                 listener.onLoginStatusChanged(status);
@@ -105,15 +95,8 @@ public class tools {
     private static final String JSON_MEDIA_TYPE = "application/json; charset=utf-8";
 
     /**
-     * 统一网络异常出口（所有请求方法共用）：按异常类型映射为用户可理解的提示，
-     * 全部走 strings.xml 本地化（经全局 Application Context，跟随应用语言设置）。
-     * <ul>
-     *   <li>已是业务异常（如「请求失败，状态码：403」）→ 原样抛出，避免嵌套文案；</li>
-     *   <li>无法解析主机（DNS 失败/断网）→ 提示无法解析服务器地址；</li>
-     *   <li>连接超时 / 连接被拒 / 安全连接失败 / 连接中断 → 分别给出对应提示；</li>
-     *   <li>其余（解析、非 HTTP 的 IO 等）→ 统一包装为「请求失败：…」。</li>
-     * </ul>
-     * 各类异常均保留 cause 供日志与「复制错误信息」使用。
+     * 统一网络异常出口：按异常类型映射为 strings.xml 本地化提示（跟随应用语言设置）；
+     * 已是业务异常则原样抛出避免嵌套文案；均保留 cause 供日志与「复制错误」使用。
      */
     private static RuntimeException normalizeRequestError(Exception e) {
         if (e instanceof RuntimeException)
@@ -132,13 +115,9 @@ public class tools {
     }
 
     /**
-     * 底层工具类的本地化文案入口：经全局 Application Context 读取 strings.xml
-     * （Application 在 attachBaseContext 已按用户语言包装，故返回语言正确的文案）。
-     * 仅在 Application 尚未创建（理论上不会发生）时退回中文兜底串，保证不因提示文案而崩溃。
-     *
-     * @param fallback 兜底文案（与 values/strings.xml 的默认文案保持一致）
-     * @param resId    字符串资源 id
-     * @param args     格式化参数
+     * 经全局 Application Context 读 strings.xml（Application 已在 attachBaseContext 按用户语言包装）；
+     * Application 未创建时退回中文兜底串，避免因提示文案崩溃。
+     * @param fallback 兜底文案，须与 values/strings.xml 默认文案一致
      */
     private static String str(String fallback, int resId, Object... args) {
         Context app = VenusApplication.getAppContext();
@@ -147,11 +126,7 @@ public class tools {
         return app.getString(resId, args);
     }
 
-    /**
-     * 异常原因兜底：getMessage() 可能为 null（如部分 IO/NPE 异常），回退为类名，
-     * 避免弹窗出现「请求失败：null」「加载失败: null」之类残缺提示。
-     * 供各处把异常消息拼进用户可见文案时统一调用。
-     */
+    /** 异常原因兜底：getMessage() 可能为 null，回退类名，避免出现「请求失败：null」。 */
     public static String describeError(Throwable e) {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
@@ -166,8 +141,7 @@ public class tools {
     }
 
     /**
-     * 拼接 GET 查询串：走 OkHttp HttpUrl 构建器，保证中文/空格/&/= 等字符被正确百分号编码。
-     * 原实现为字符串手工拼接，参数含特殊字符时会截断 query 或串参数。
+     * 用 HttpUrl 构建器拼 query，保证中文/空格/&/= 正确百分号编码（手工拼接会截断 query 或串参）。
      */
     private static String buildGetUrl(String urlStr, Map<String, String> params) {
         if (params == null || params.isEmpty()) return urlStr;
@@ -190,8 +164,8 @@ public class tools {
     }
 
     /**
-     * 同上，fastTimeout=true 时改用 {@link ApiClient#getFast()} 短超时客户端（connect/read 各 4s）。
-     * 用于「主源 + 兜底源」拉取链路：主源不可达（如 GitHub raw 被墙）时快速失败让位兜底源。
+     * 同上；fastTimeout=true 改用 {@link ApiClient#getFast()}（connect/read 各 4s），
+     * 供「主源 + 兜底源」链路在主源不可达（如 GitHub raw 被墙）时快速失败让位兜底源。
      */
     public static String sendGetRequest(String urlStr, Map<String, String> headers, Map<String, String> params,
                                         boolean fastTimeout) {
@@ -207,9 +181,7 @@ public class tools {
         }
     }
 
-    /**
-     * 以 JSON body 发送 POST 请求，自动 gzip 解压；失败抛 RuntimeException（含联网/错误提示）。
-     */
+    /** 以 JSON body 发 POST，自动 gzip 解压；失败抛 RuntimeException（含联网/错误提示）。 */
     public static String sendPostRequest(String urlStr, Map<String, String> headers, Map<String, Object> body) {
         RequestBody requestBody;
         if (body != null) {
@@ -229,10 +201,7 @@ public class tools {
         }
     }
 
-    /**
-     * HTTP 响应包装：同时携带状态码、响应体与响应头。
-     * 用于需要读取响应头的接口（如 loginByPassword 的 x-rpc-aigis）。
-     */
+    /** 响应包装（状态码/body/headers），用于需读响应头的接口，如 loginByPassword 的 x-rpc-aigis。 */
     public static class HttpResponse {
         public final String body;
         private final okhttp3.Headers headers;
@@ -249,13 +218,9 @@ public class tools {
     }
 
     /**
-     * 以原始 JSON 字符串作为请求体发送 POST，并返回状态码/响应体/响应头。
-     * <p>
-     * 与 {@link #sendPostRequest} 的区别：调用方自行完成 JSON 序列化，
-     * 保证「参与 DS 签名的 body」与「实际发出的 body」逐字节一致（DS2 签名必需），
-     * 且非 2xx 不抛异常，由调用方根据 retcode 处理。
-     *
-     * @param jsonBody 已序列化好的 JSON 字符串，为 null 时发送空体
+     * 以原始 JSON 字符串发 POST，返回状态码/body/headers。
+     * 与 {@link #sendPostRequest} 的区别：调用方自行序列化，保证参与 DS 签名的 body 与实际发出的逐字节一致（DS2 必需）；
+     * 且非 2xx 不抛异常，由调用方按 retcode 处理。
      */
     public static HttpResponse postJson(String urlStr, Map<String, String> headers, String jsonBody) {
         RequestBody requestBody = jsonBody != null
@@ -270,9 +235,7 @@ public class tools {
         }
     }
 
-    /**
-     * 读取响应体：Content-Encoding=gzip 时按 GzipSource 解压，否则直接读为字符串。
-     */
+    /** 读响应体：Content-Encoding=gzip 时用 GzipSource 解压，否则直接读字符串。 */
     private static String readResponseBody(Response response) throws IOException {
         ResponseBody responseBody = response.body();
         if ("gzip".equals(response.header("Content-Encoding"))) {
@@ -284,76 +247,41 @@ public class tools {
         return responseBody.string();
     }
 
-    /**
-     * 将用户数据写入SharedPreferences（经 UserRepository 单一入口）
-     *
-     * @param userId 用户标识
-     * @param key    数据键名
-     * @param value  数据值
-     */
+    /** 写用户数据（经 UserRepository 单一入口）。 */
     public static void write(Context context, String userId, String key, String value) {
         new UserRepository(context).putString(userId, key, value);
     }
 
-    /**
-     * 从SharedPreferences中读取用户数据（经 UserRepository 单一入口）
-     *
-     * @param userId 用户标识
-     * @param key    数据键名
-     * @return 用户数据
-     */
+    /** 读用户数据（经 UserRepository 单一入口）。 */
     public static String read(Context context, String userId, String key) {
         return new UserRepository(context).getString(userId, key);
     }
 
     /**
-     * 显示居中、短时长自动消失的提示条。
-     *
-     * <p>已由 Material View 的 {@code Snackbar} 迁到 Compose（{@link VenusSnackbar}）：
-     * 颜色/圆角/字号/内边距/最多三行/底部 64dp 全部由宿主侧承担，
-     * 本方法只做「业务消息 → 当前活跃页面宿主」的转发。
-     *
-     * <p>参数 {@code view}/{@code context} 为历史签名保留（50+ 处调用点零改动）；
-     * 新代码直接调 {@link VenusSnackbar#show(String)} 即可。
+     * 显示居中短提示条，实际仅转发到 {@link VenusSnackbar}，样式由 Compose 宿主决定。
+     * view/context 为历史签名保留（50+ 调用点零改动），新代码直接用 {@link VenusSnackbar#show(String)}。
      */
     @SuppressWarnings("unused") // view/context 为历史签名保留（50+ 调用点零改动），实际仅转发 message
     public static void showCustomSnackbar(View view, Context context, String message) {
         VenusSnackbar.show(message);
     }
 
-    /**
-     * 显示提示条（推荐签名）。
-     *
-     * <p>Compose 宿主自己决定落点，调用方不再需要传锚点 View——原
-     * {@code findViewById(android.R.id.content)} 那一套已无意义，新代码与
-     * 清理过锚点字段的旧代码都走这里。
-     */
+    /** 推荐签名：Compose 宿主自己决定落点，无需传锚点 View。 */
     @SuppressWarnings("unused") // context 为历史签名保留，实际仅转发 message
     public static void showCustomSnackbar(Context context, String message) {
         VenusSnackbar.show(message);
     }
 
-    /**
-     * 弹出错误对话框，并提供「复制错误」按钮；复制成功后提示已复制。
-     *
-     * @param error_message 错误信息
-     */
+    /** 弹错误对话框，带「复制错误」按钮（复制后提示已复制）。 */
     public static void show_error_dialog(Context context, String error_message) {
         show_error_dialog(context, context.getString(R.string.dialog_error), error_message);
     }
 
-    /**
-     * 弹出指定标题的错误对话框，并提供「复制错误」按钮。
-     *
-     * @param title         对话框标题（如通用「错误」或「检查更新失败」等场景化标题）
-     * @param error_message 错误信息
-     */
+    /** 同上，可指定场景化标题（如「检查更新失败」）。 */
     public static void show_error_dialog(Context context, String title, String error_message) {
-        // 对话框必须有 Activity 窗口承载（Compose 对话框经 ComponentDialog 挂 Activity）。
-        // Service / Application 上下文既无窗口 token，也给不了 LifecycleOwner。
-        // 历史实现在此回退 MaterialAlertDialogBuilder —— 那会在 show() 时抛
-        // BadTokenException（非 Activity 无法添加窗口），是「不可达且必崩」的死分支。
-        // 现在统一降级为记日志：后台任务的错误留在日志里可排查，不制造二次崩溃。
+        // 对话框必须有 Activity 窗口承载；Service/Application 既无 window token 也无 LifecycleOwner，
+        // 旧实现在此回退 MaterialAlertDialogBuilder 会在 show() 抛 BadTokenException（必崩的死分支），
+        // 故统一降级为记日志：后台错误留在日志可排查，不制造二次崩溃。
         if (!(context instanceof Activity)) {
             Logger.w("show_error_dialog 无 UI 宿主（" + context.getClass().getSimpleName()
                     + "），错误仅记录：" + title + " / " + error_message);
@@ -370,13 +298,7 @@ public class tools {
                 context.getString(R.string.btn_close));
     }
 
-    /**
-     * 弹出提示（警告）对话框：标题「提示」，仅确认按钮，不带「复制错误」。
-     * 用于需要用户知晓但并非故障的引导/约束信息（如「请先设置任务」「请先选择用户」），
-     * 与 {@link #show_error_dialog}（真正的故障，含复制排障入口）区分开。
-     *
-     * @param message 提示信息
-     */
+    /** 提示对话框：仅确认按钮、不带「复制错误」，用于非故障的引导信息（如「请先选择用户」）。 */
     public static void show_warning_dialog(Context context, String message) {
         if (!(context instanceof Activity)) {
             Logger.w("show_warning_dialog 无 UI 宿主（" + context.getClass().getSimpleName()
@@ -388,9 +310,7 @@ public class tools {
                 context.getString(R.string.btn_close));
     }
 
-    /**
-     * 复制文本到系统剪贴板，并弹出「已复制」Snackbar 提示。
-     */
+    /** 复制到剪贴板并提示「已复制」。 */
     public static void copyToClipboard(View view, Context context, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText("Copy Venus", text);
@@ -398,12 +318,7 @@ public class tools {
         showCustomSnackbar(view, context, context.getString(R.string.snack_link_copied));
     }
 
-    /**
-     * 将 sourceUri 指向的文件流拷贝到 destFile（8KB 缓冲，源不可打开时抛异常）。
-     *
-     * @param sourceUri 源文件 URI
-     * @param destFile  目标文件
-     */
+    /** 把 sourceUri 流拷贝到 destFile（8KB 缓冲）；源不可打开时抛异常。 */
     public static void copyFile(Context context, Uri sourceUri, File destFile) throws Exception {
         try (InputStream inputStream = context.getContentResolver().openInputStream(sourceUri);
              OutputStream outputStream = new FileOutputStream(destFile)) {
@@ -438,8 +353,8 @@ public class tools {
     }
 
     /**
-     * 运行日志目录：外置私有目录不可用（未挂载/被回收）时回退到内置 filesDir，
-     * 避免 new File(null, "logs") 抛 NPE。写入与清理共用同一目录，保证二者一致。
+     * 日志目录：外置私有目录不可用（未挂载/被回收）时回退 filesDir，避免 new File(null, ...) 抛 NPE；
+     * 写入与清理共用同一目录。
      */
     private static File logDir(Context context) {
         File external = context.getExternalFilesDir(null);
@@ -447,12 +362,9 @@ public class tools {
     }
 
     /**
-     * 清理过期的日志文件。
-     * 运行日志只保留今天，任务历史日志保留今天和昨天。
-     * 在任务开始时调用。
+     * 清理过期日志：运行日志只留今天，任务历史留今天+昨天（跨天时 writeDailyLog 写的是昨天文件）。任务开始时调用。
      */
     public static void cleanOldLogs(Context context) {
-        // 清理运行日志（只保留今天）
         File logDir = logDir(context);
         if (logDir.exists()) {
             String todayPrefix = "daily_task_log_" + new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
@@ -466,7 +378,6 @@ public class tools {
             }
         }
 
-        // 清理任务历史日志（保留今天和昨天，因为跨天时 writeDailyLog 写入的是昨天的文件）
         File historyDir = new File(context.getFilesDir(), "task_history");
         if (historyDir.exists()) {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
@@ -483,9 +394,7 @@ public class tools {
         }
     }
 
-    /**
-     * 静默写入日志文件，不触发通知。
-     */
+    /** 静默写日志，不触发通知。 */
     public static void writeLog(Context context, String message) {
         try {
             File logFile = getTodayLogFile(context);
@@ -496,9 +405,7 @@ public class tools {
         } catch (IOException ignored) {}
     }
 
-    /**
-     * 向当天日志文件写入一条分隔符，用于区分不同次任务执行。
-     */
+    /** 写一条分隔符，区分不同次任务执行。 */
     public static void writeLogSeparator(Context context) {
         try {
             File logFile = getTodayLogFile(context);
@@ -509,9 +416,7 @@ public class tools {
         } catch (IOException ignored) {}
     }
 
-    /**
-     * 返回今天的运行日志文件（logs/daily_task_log_yyyy-MM-dd.txt），目录不存在时自动创建。
-     */
+    /** 今天的运行日志文件（logs/daily_task_log_yyyy-MM-dd.txt），目录不存在时创建。 */
     public static File getTodayLogFile(Context context) {
         File logDir = logDir(context);
         if (!logDir.exists() && !logDir.mkdirs()) {
@@ -521,11 +426,7 @@ public class tools {
         return new File(logDir, "daily_task_log_" + date + ".txt");
     }
 
-    // ========== 新增公共工具方法 ==========
-
-    /**
-     * 读取用户 token 相关字段，构建认证 Cookie
-     */
+    /** 读 stoken/ltoken/mid/stuid 拼认证 Cookie（stoken 优先，无则用 ltoken）。 */
     public static String buildUserCookie(Context context, String userId) {
         String stoken = read(context, userId, "stoken");
         String ltoken = read(context, userId, "ltoken");
@@ -538,8 +439,7 @@ public class tools {
     }
 
     /**
-     * 随机延时（毫秒），用于避免请求频率限制。
-     * rangeMs ≤ 0 时退化为固定延时（原实现会在 rangeMs=0 时抛 IllegalArgumentException）。
+     * 随机延时避免触发限频；rangeMs ≤ 0 时退化为固定延时（原实现在 rangeMs=0 时会抛 IllegalArgumentException）。
      */
     public static void randomDelay(int minMs, int rangeMs) throws InterruptedException {
         int base = Math.max(0, minMs);
@@ -550,18 +450,12 @@ public class tools {
         Thread.sleep(base + RANDOM.nextInt(rangeMs));
     }
 
-    /**
-     * 字节数组转十六进制字符串
-     */
     public static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder(bytes.length * 2);
         for (byte b : bytes) sb.append(String.format("%02x", b & 0xff));
         return sb.toString();
     }
 
-    /**
-     * 计算字符串的 MD5 哈希（十六进制）
-     */
     public static String md5Hex(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -572,9 +466,7 @@ public class tools {
         }
     }
 
-    /**
-     * 保存 Bitmap 到系统相册
-     */
+    /** 保存 Bitmap 到系统相册（API 29+ 走 MediaStore，旧版直接写 Pictures/Venus）。 */
     public static void saveBitmapToGallery(Context context, Bitmap bitmap, String fileName) throws IOException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues values = new ContentValues();
@@ -600,8 +492,7 @@ public class tools {
     }
 
     /**
-     * 系统「减少动态效果」检测：动画时长/转场缩放任一为 0 即视为关闭。
-     * 所有自定义动效在开启时降级为无动画，尊重无障碍偏好。
+     * 系统「减少动态效果」：动画时长/转场缩放任一为 0 即视为关闭，自定义动效据此降级为无动画。
      */
     public static boolean isReducedMotionEnabled(Context context) {
         try {
@@ -616,9 +507,8 @@ public class tools {
     }
 
     /**
-     * HTTP 非 2xx 响应失败，携带状态码供上层按类别定制策略（如 429 限流等待更久）。
-     * 取代原先无类型的 RuntimeException——靠解析本地化文案区分失败类别过于脆弱。
-     * 文案仍由抛出点用现有字符串资源拼装，本类只额外携带结构化的状态码。
+     * HTTP 非 2xx 失败，携带状态码供上层按类别定制策略（如 429 限流等待更久）；
+     * 避免靠解析本地化文案区分失败类别。文案仍由抛出点用现有字符串资源拼装。
      */
     public static final class HttpStatusCodeException extends RuntimeException {
 

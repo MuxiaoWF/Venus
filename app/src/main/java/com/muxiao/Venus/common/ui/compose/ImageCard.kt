@@ -42,19 +42,11 @@ import com.bumptech.glide.request.transition.Transition
 import com.muxiao.Venus.R
 
 /**
- * 图库缩略图卡（原 res/layout/item_image.xml）。
- *
- * 与 XML 的对应：
- * - 根 `MaterialCardView(Widget.Venus.Card.Image)` → [Card] + `shape_corner_sm` 圆角 + level1 阴影
- * - `ShapeableImageView`（`image_card_height` 固定高 + centerCrop）→ [GlideThumbnail]
- * - 标题 / 作者 / 描述 / 时间四行文本，字号走 `TextAppearance.Venus.Row*` 同源样式
- * - 选中态（原为 `setStrokeWidth(8)` + 主色描边）→ [Card] 的 border
+ * 图库缩略图卡：缩略图（`image_card_height` 固定高 + centerCrop）+ 标题 / 作者 / 描述 /
+ * 时间四行文本（字号走 `LocalVenusTextStyles` 同源刻度）；选中态用主色描边。
  *
  * @param imageUrl 首图地址（列表接口只取 `images[0]`）
- * @param title 标题
- * @param author 作者署名
  * @param description 描述（最多两行）
- * @param time 时间文案
  * @param selected 是否处于多选选中态
  */
 @Composable
@@ -79,7 +71,7 @@ fun ImageCard(
             .padding(dimensionResource(R.dimen.space_2)),
         shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        // Widget.Venus.Card.Image 的 cardElevation 是 elevation_level2（抬升卡）
+        // 抬升卡口径：elevation_level2
         elevation = CardDefaults.cardElevation(
             defaultElevation = dimensionResource(R.dimen.elevation_level2),
         ),
@@ -105,7 +97,7 @@ fun ImageCard(
                     imageUrl = imageUrl,
                     modifier = Modifier.fillMaxSize(),
                 )
-                // 选中徽标：原先只有主色描边，缩略图占满时几乎看不出是否已选
+                // 选中徽标：仅靠描边，缩略图占满时几乎看不出是否已选
                 if (selected) {
                     Box(
                         modifier = Modifier
@@ -139,8 +131,7 @@ fun ImageCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            // 空文案不渲染 Text（原 TextView 文本为空时自测高为 0），但保留外边距，
-            // 这样「列表接口没返回描述/时间」时卡片高度与原布局一致。
+            // 空文案不渲染 Text，但保留外边距，使缺描述/时间时卡片高度保持一致
             Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
             if (description.isNotEmpty()) {
                 Text(
@@ -164,14 +155,10 @@ fun ImageCard(
 }
 
 /**
- * 用 Glide 加载缩略图到 Compose。
+ * 用 Glide 加载缩略图：项目只有 Glide（没有 Coil），故用 `CustomTarget<Bitmap>` 转成
+ * [androidx.compose.ui.graphics.ImageBitmap]；加载中显示 `ic_loading`，失败显示 `ic_error`。
  *
- * 项目只有 Glide（没有 Coil），所以这里用 `CustomTarget<Bitmap>` 把结果转成
- * [androidx.compose.ui.graphics.ImageBitmap]；加载中显示 `ic_loading`，失败显示 `ic_error`，
- * 与原 Adapter 里 `placeholder/error` 的行为一致。
- *
- * 之所以不用 `AndroidView(ImageView)`：图库是两列网格，每项一个 View 会让滚动成本回到 View 体系，
- * 与换 Compose 的初衷相悖。
+ * 不用 `AndroidView(ImageView)`：图库是两列网格，每项一个 View 会让滚动成本回到 View 体系。
  */
 @Composable
 private fun GlideThumbnail(imageUrl: String?, modifier: Modifier = Modifier) {

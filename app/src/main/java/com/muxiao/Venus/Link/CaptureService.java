@@ -27,16 +27,13 @@ import com.muxiao.Venus.R;
 import java.io.FileDescriptor;
 
 /**
- * 本地 VPN 抓包服务（复刻自 SRGachaLink，GPLv3，其 C 层源自 NetGuard）。
- * 链路：游戏流量 → VpnService TUN（白名单星铁各渠道包）→ Unix socketpair 双向中转 →
- * netguard JNI 用户态协议栈转发到真实网络；转发过程中每包旁路镜像给 PacketAnalyzer
- * 过滤分析。星铁需要的是 KCP 链接，authkey 捕获到即广播 ACTION_GET_AUTHKEY。
- * <p>
- * 曾实验过在白名单加入云绝区零 App（com.miHoYo.cloudgames.Nap）并观测其全流量以
- * 获取云游戏凭证（combo_token），实测结论：不可行——云游戏 API 全走 HTTPS，纯转发型
- * VPN 不做 TLS 中间人看不到请求头，串流/DNS 通道亦无明文泄露（详见
- * docs/module-network-auth.md §7），实验代码已撤除，云游戏 token 走 WebView 抓取。
- */
+* 本地 VPN 抓包服务（复刻自 SRGachaLink，GPLv3，其 C 层源自 NetGuard）。
+* 链路：游戏流量 → VpnService TUN（白名单星铁各渠道包）→ Unix socketpair 双向中转 → netguard JNI 用户态协议栈
+* 转发到真实网络；转发过程中每包旁路镜像给 PacketAnalyzer 过滤分析，命中 KCP 链接里的 authkey 即广播 ACTION_GET_AUTHKEY。
+* <p>
+* 云游戏凭证不能走此路（曾把 com.miHoYo.cloudgames.Nap 加入白名单实测）：云游戏 API 全走 HTTPS，纯转发型 VPN
+* 不做 TLS 中间人看不到请求头，串流/DNS 通道亦无明文泄露（见 docs/module-network-auth.md §7），故改用 WebView 抓取。
+*/
 @SuppressLint("VpnServicePolicy")
 public class CaptureService extends VpnService {
     static {
@@ -54,9 +51,8 @@ public class CaptureService extends VpnService {
     private static final String CHANNEL_ID = "CaptureService";
     private static final int MAX_PACKET_SIZE = 8192;
     /**
-     * VPN 接口 MTU：与普通 VPN 的常规值（1500）对齐。
-     * 注意 C 层 get_mtu()（app/src/main/cpp/netguard/ip.c，决定 TUN 读缓冲与下游 TCP MSS）
-     * 必须与本值同步修改，否则会出现分段超出 TUN MTU 或指纹不一致。
+     * VPN 接口 MTU：与普通 VPN 的常规值（1500）对齐。C 层 get_mtu()（app/src/main/cpp/netguard/ip.c，决定 TUN 读缓冲
+     * 与下游 TCP MSS）必须与本值同步修改，否则会出现分段超出 TUN MTU 或指纹不一致。
      */
     private static final int VPN_MTU = 1500;
 
@@ -144,8 +140,6 @@ public class CaptureService extends VpnService {
         stopSelf();
     }
 
-    /* ===== VPN ===== */
-
     private void startVpn() {
         if (pfd != null) return;
         VpnService.Builder builder = new VpnService.Builder();
@@ -222,13 +216,9 @@ public class CaptureService extends VpnService {
         }
     }
 
-    /* ===== 旁路转发 ===== */
-
     /**
-     * 建立 TUN 与 netguard 之间的双向转发：
-     * TUN 出向 → socketpair → netguard（jni_run 阻塞读 localPfd）；
-     * netguard 回包 → socketpair → TUN。两条线程各持一个方向，
-     * 转发的同时把每包镜像给 PacketAnalyzer（旁路，不影响转发）。
+     * 建立 TUN 与 netguard 之间的双向转发：TUN 出向 → socketpair → netguard（jni_run 阻塞读 localPfd），
+     * netguard 回包 → socketpair → TUN；两条线程各持一个方向，转发的同时把每包镜像给 PacketAnalyzer（旁路，不影响转发）。
      */
     private void startCapture() {
         if (pfd == null) return;
@@ -293,8 +283,6 @@ public class CaptureService extends VpnService {
         remotePfd = null;
     }
 
-    /* ===== netguard JNI ===== */
-
     private final Object jni_lock = new Object();
     private long jni_context;
     private Thread tunnelThread;
@@ -343,9 +331,8 @@ public class CaptureService extends VpnService {
         }
     }
 
-    // JNI 导出函数（C 侧符号：Java_com_muxiao_Venus_Link_CaptureService_jni_*）。
-    // 仅保留本服务实际使用的入口；C 侧同符号导出（get_mtu/get_stats/pcap/socks5）
-    // 在未声明时成为死导出，无副作用。
+    // JNI 导出函数（C 侧符号：Java_com_muxiao_Venus_Link_CaptureService_jni_*）：仅保留本服务实际使用的入口，
+    // C 侧同符号导出（get_mtu/get_stats/pcap/socks5）在未声明时成为死导出，无副作用。
     private native long jni_init(int sdk);
 
     private native void jni_start(long context, int loglevel);
@@ -358,9 +345,8 @@ public class CaptureService extends VpnService {
 
     private native void jni_done(long context);
 
-    /* ===== JNI 回调（C 侧经 GetMethodID 反射调用，勿改名；混淆需 keep） ===== */
-    /* 以下方法仅在 native 侧被引用，Java 层无调用点：@SuppressWarnings 消除
-     * IDE 的 unused 告警（方法级精确标注，不影响类内其他死代码检查）。 */
+    /* JNI 回调：C 侧经 GetMethodID 反射调用，勿改名（混淆需 keep）。
+     * 以下方法仅在 native 侧被引用，Java 层无调用点：@SuppressWarnings 消除 IDE 的 unused 告警（方法级精确标注）。 */
 
     @SuppressWarnings("unused") // Called from native code
     private void nativeExit(String reason) {
@@ -410,7 +396,6 @@ public class CaptureService extends VpnService {
 
     @SuppressWarnings("unused") // Called from native code
     private CaptureModels.Allowed isAddressAllowed(CaptureModels.Packet packet) {
-        // 新 UDP/TCP 会话建立时记录「客户端源端口 → 包名」：
         // 新 UDP/TCP 会话建立时记录「客户端源端口 → 包名」，供 PacketAnalyzer 判定 authkey 渠道
         if (packet.protocol == 17)
             recordPortPackage(packet.sport, packet.uid);
@@ -456,8 +441,6 @@ public class CaptureService extends VpnService {
     @SuppressWarnings({"unused", "EmptyMethod"}) // Called from native code
     private void accountUsage(CaptureModels.Usage usage) {
     }
-
-    /* ===== 前台服务 ===== */
 
     private void startForeground() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -5,11 +5,9 @@ import android.util.Log;
 import com.muxiao.Venus.BuildConfig;
 
 /**
- * 统一日志门面。
- * 痛点：原代码大量使用 Log.e 输出调试信息，而 R8 仅剥离 v/d/i，不剥离 e/w，
- * 导致发布包残留调试日志与验证码噪声。
- * 方案：调试级日志经 BuildConfig.DEBUG 门控（release 下被 R8 常量折叠消除）；
- * 仅真实错误使用 e/w（始终保留）。
+ * 统一日志门面：调试级日志经 BuildConfig.DEBUG 门控（release 下被 R8 常量折叠消除），
+ * 仅真实错误走 e/w（始终保留）。R8 只剥离 v/d/i、不剥离 e/w，直接用 Log.e 打调试信息
+ * 会让发布包残留日志与验证码噪声。
  */
 public final class Logger {
 

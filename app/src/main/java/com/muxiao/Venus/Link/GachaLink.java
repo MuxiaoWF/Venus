@@ -17,8 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 抽卡链接获取：通过 stoken 获取 authkey，拼接抽卡记录URL。
- * 支持原神和绝区零，自动区分国服/国际服域名和region参数。
+ * 抽卡链接获取：用 stoken 换 authkey 并拼抽卡记录 URL；支持原神/绝区零，自动区分国服/国际服域名与 region 参数。
  */
 public class GachaLink {
     private String stoken_and_mid;
@@ -35,9 +34,8 @@ public class GachaLink {
     }
 
     /**
-     * 从本地读取 stoken/ltoken/mid，拼接为请求 Cookie（stoken 优先，缺失时回退 ltoken）。
-     * 任一 token 均缺失则抛异常，中断抽卡链接获取流程。
-     **/
+    * 读本地 stoken/ltoken/mid 拼请求 Cookie（stoken 优先，缺失时回退 ltoken）；两者皆无则抛异常中断流程。
+    */
     private void initToken() {
         String stoken = tools.read(context, userId, "stoken");
         String ltoken = tools.read(context, userId, "ltoken");
@@ -64,9 +62,8 @@ public class GachaLink {
     }
 
     /**
-     * 调用游戏角色接口，按 game_biz 过滤出当前账号下所有角色，返回其 game_uid 数组。
-     * 接口无 list 数据或解析失败时抛异常。
-     **/
+    * 调游戏角色接口按 game_biz 过滤出当前账号所有角色，返回 game_uid 数组；接口无 list 或解析失败抛异常。
+    */
     private int[] getUID(String game_biz) {
         Map<String, String> user_game_roles_stoken_headers = header_manager.get_user_game_roles_stoken_headers();
         user_game_roles_stoken_headers.put("Cookie", stoken_and_mid);
@@ -96,14 +93,13 @@ public class GachaLink {
     }
 
     /**
-     * 为指定角色申请抽卡记录 authkey：国服/国际服分别设置 region，原神与绝区零参数不同。
-     * 返回已做 URL 编码（%2F、%2B）的 authkey；接口返回错误时抛出含 message 的异常。
-     */
+    * 为指定角色申请抽卡记录 authkey：国服/国际服分别设 region，原神与绝区零参数不同；返回已 URL 编码（%2F、%2B）
+    * 的 authkey，接口返回错误时抛出含 message 的异常。
+    */
     private String getAuthKey(String game_biz, int uid) {
         Map<String, String> authkey_headers = header_manager.get_authkey_headers();
         authkey_headers.put("Cookie", stoken_and_mid);
         Map<String, Object> body = new HashMap<>();
-        // 准备请求体
         String genshinBiz = MiHoYoBBSConstants.name_to_game_id("原神", isOversea);
         String zzzBiz = MiHoYoBBSConstants.name_to_game_id("绝区零", isOversea);
 
@@ -118,12 +114,9 @@ public class GachaLink {
             body.put("game_uid", uid);
             body.put("region", isOversea ? "prod_gf_us" : "prod_gf_cn");
         }
-        // 发送请求
         String authKeyUrl = isOversea ? Constants.Urls.OS_GEN_AUTH_KEY_URL : Constants.Urls.GEN_AUTH_KEY_URL;
         String content = tools.sendPostRequest(authKeyUrl, authkey_headers, body);
-        // 解析 JSON 响应
         JsonObject jsonResponse = JsonParser.parseString(content).getAsJsonObject();
-        // 检查 data 字段是否存在,不存在就使用message提示错误
         JsonElement dataElement = jsonResponse.get("data");
         if (dataElement != null && !dataElement.isJsonNull() && dataElement.isJsonObject()) {
             JsonObject data = dataElement.getAsJsonObject();
@@ -139,11 +132,7 @@ public class GachaLink {
         }
     }
 
-    /**
-     * 获取绝区零抽卡记录url
-     *
-     * @return Map uid-Integer url-String 抽卡记录网址-防止多用户
-     **/
+    /** 获取绝区零抽卡记录 URL（Map uid → 网址）。 */
     public Map<Integer, String> zzz() {
         initToken();
         String game_biz = MiHoYoBBSConstants.name_to_game_id("绝区零", isOversea);

@@ -9,16 +9,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「服务器类型」抽屉内容（原 res/layout/item_setting_server_segmented.xml）。
+ * 设置页「服务器类型」抽屉内容：国服 / 国际服互斥选择，选中即回调，由 Java 侧落盘并
+ * 切换国际服隐藏项。
  *
- * 等价于原 `MaterialButtonToggleGroup(singleSelection, selectionRequired)`：
- * 国服 / 国际服互斥选择，选中即回调，由 Java 侧落盘并切换国际服隐藏项。
- *
- * 分段控件已收口到 [VenusSegmented]（原先本窗格与主题 / 背景两处各写一份 20 行样板），
- * 外层统一走 [DrawerPane]，左右内边距与其它抽屉一致。
+ * 分段控件统一走 [VenusSegmented]，外层统一 [DrawerPane]，内边距与其它抽屉一致。
  *
  * @param selectedIndex 0 = 国服，1 = 国际服
- * @param onSelect 切换回调
  */
 @Composable
 fun ServerSettingPane(
@@ -40,9 +36,8 @@ fun ServerSettingPane(
 }
 
 /**
- * [ServerSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [ServerSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class ServerSettingPaneView {
 

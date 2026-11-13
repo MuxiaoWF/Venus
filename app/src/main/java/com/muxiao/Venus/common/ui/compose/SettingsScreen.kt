@@ -61,17 +61,9 @@ import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * 一扇设置抽屉（替代 `CollapsibleCardView`）。
- *
- * 与原控件的分工一致：**只负责折叠交互与折叠态摘要**，展开内容仍由 Java 侧生成的
- * Compose 宿主（`XxxSettingPaneView`）提供——那 12 个窗格的状态与回调逻辑不搬家，
- * 只是宿主的壳从 View 换成了 Compose。
- *
- * 与原 `CollapsibleCardView` 的行为差异（均为有意为之）：
- * - 不再缓存/动画「展开高度」：Compose 每帧按内容实测高度布局，`notifyContentChanged()`
- *   这类「内容长高要通知父容器重算」的补丁彻底不需要了；
- * - 展开后自动把整卡带入视口改由 [BringIntoViewRequester] 完成（原来是
- *   `requestRectangleOnScreen`），解决底部抽屉展开后被底栏遮挡的问题。
+ * 一扇设置抽屉：只负责折叠交互与折叠态摘要，展开内容由 Java 侧持有的窗格宿主（`XxxSettingPaneView`）提供。
+ * 高度不缓存也不做动画——Compose 每帧按内容实测布局；展开后把整卡带入视口走 [BringIntoViewRequester]，
+ * 解决底部抽屉展开后被底栏遮挡的问题。
  */
 @Stable
 class SettingsCard(@StringRes internal val titleRes: Int) {
@@ -87,15 +79,9 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
     internal var isVisible by mutableStateOf(true)
 
     /**
-     * 展开内容的组合内容，由 [SettingsScreenView] 在构造时注入。
-     *
-     * 迁移前这里是 `contentView: View?`（Java 侧 `new XxxPaneView(context)` 再 `setContent(view)`），
-     * 展开时经 `AndroidView` 把那个 ComposeView 塞进本组合。那条路有两个固有代价：
-     * 1. 抽屉每折叠/展开一次就重建一个 AndroidView 节点，旧节点可能还没释放而目标 View 已挂在它名下
-     *    （所以原来必须手动 `(content.parent as ViewGroup).removeView(content)` 才不报
-     *    "The specified child already has a parent"）；
-     * 2. 内层 CompositionView 的测量要走 View→Compose 两趟，抽屉高度动画期间高度收敛慢一帧。
-     * 现在窗格只是一组 `mutableStateOf` + 一个 `@Composable fun Render()`，直接在本组合里渲染。
+     * 展开内容的组合内容，由 [SettingsScreenView] 构造时注入。窗格只是 `mutableStateOf` + `Render()`，直接在本组合里渲染；
+     * 不要再退回 `AndroidView` 塞内层 ComposeView——那会让折叠/展开重建节点（须手动 removeView 才不报 child already has a parent），
+     * 且内层测量多走一趟 View→Compose，高度收敛慢一帧。
      */
     internal var paneContent by mutableStateOf<(@Composable () -> Unit)?>(null)
 
@@ -121,19 +107,11 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
         isExpanded = !isExpanded
     }
 
-    /**
-     * 跳转定位请求计数：每次自增即让本抽屉执行一次 bringIntoView。
-     *
-     * 与 [isExpanded] 解耦的原因：抽屉此前已展开时，`LaunchedEffect(isExpanded)`
-     * 不会再次触发，跨页跳转就无法把卡片滚进视口。
-     */
+    /** 跳转定位请求计数：自增即执行一次 bringIntoView。与 [isExpanded] 解耦——抽屉已展开时 `LaunchedEffect(isExpanded)` 不会再触发。 */
     internal var scrollRequest by mutableIntStateOf(0)
         private set
 
-    /**
-     * 展开本抽屉并滚动到可见（供跨页跳转定位：用户管理页点凭证状态、任务列表点未配置项）。
-     * 幂等：已展开时只补一次滚动。
-     */
+    /** 展开并滚动到可见（跨页跳转定位：用户管理页点凭证状态、任务列表点未配置项）；已展开时只补一次滚动。 */
     fun expand() {
         isExpanded = true
         scrollRequest++
@@ -141,11 +119,7 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
 }
 
 /**
- * 展开内容的测试标记。
- *
- * 批次 C 之前，抽屉内容是一个经 `AndroidView` 桥接的真实 View，Compose 语义树看不进 View 内部，
- * 只能靠标记判断「这一扇抽屉当前是展开的」；现在内容已是同一组合里的 Composable，
- * 标记仍保留——用它断言「展开时有内容 / 折叠时没有」比逐条断言文案更稳定。
+ * 展开内容的测试标记：内容已是同一组合里的 Composable，仍保留它——断言「展开时有内容 / 折叠时没有」比逐条断言文案更稳定。
  */
 const val SETTINGS_DRAWER_CONTENT_TAG = "settings-drawer-content"
 
@@ -157,13 +131,8 @@ class SettingsUiState {
 }
 
 /**
- * 设置页的 Compose 实现，替代 `fragment_settings.xml` 与 `style_collapsible_card_view.xml`。
- *
- * 结构等价于原 XML：页眉固定 + 正文滚动；正文按「签到 / 配置 / 应用 / 其他」四组，
- * 每组以 mono 区块标签开头，组内每行之间一条发丝线，组尾多留 space_2。
- *
- * 13 个 [SettingsCard] 由宿主按固定顺序构造并逐个传入——顺序即版式，
- * 与原来 XML 里的书写顺序一一对应。
+ * 设置页：页眉固定 + 正文滚动；正文按「签到 / 配置 / 应用 / 其他」四组，每组以 mono 区块标签开头，
+ * 组内每行之间一条发丝线、组尾多留 space_2。13 个 [SettingsCard] 由宿主按固定顺序传入——顺序即版式。
  */
 @Composable
 fun SettingsScreen(
@@ -262,9 +231,7 @@ fun SettingsScreen(
             VenusDivider()
             SettingsCardItem(about)
 
-            // 查看榜单图：独立表面行按钮，与四个分组平级。
-            // 复用 SettingRows.kt 的 GlassActionRow（原先这里是本文件私有的 GlassRowButton，
-            // 与配置信息窗格的行按钮是两套材质：一份 LensGlass、一份九宫格 drawable）
+            // 查看榜单图：独立表面行按钮，与四个分组平级；复用 GlassActionRow，不要再写九宫格 drawable 的私有版本
             GlassActionRow(
                 iconRes = R.drawable.ic_image,
                 text = stringResource(R.string.view_miyoushe_ranking),
@@ -286,11 +253,8 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * 一扇抽屉：标题行（标题 + 摘要 + 箭头）与展开内容。
- *
- * 对应原 `style_collapsible_card_view.xml` 的透明变体：
- * 标题行左右 space_2、上下 space_4；展开内容整体缩进 space_2，左侧画 2dp 引导线
- * （原来由 `bg_drawer_rail` + `InsetDrawable` 表达），表示「从属于父行」的层级。
+ * 一扇抽屉：标题行（标题 + 摘要 + 箭头）与展开内容。标题行左右 space_2、上下 space_4；展开内容整体缩进 space_2，
+ * 左侧 2dp 引导线表示「从属于父行」的层级，缩进量由 DrawerPane 的 space_3 提供，此处不要再叠加。
  */
 @Composable
 private fun SettingsCardItem(card: SettingsCard) {
@@ -302,9 +266,8 @@ private fun SettingsCardItem(card: SettingsCard) {
     val decelerate = rememberVenusEasing(R.anim.emphasized_decelerate)
     val inset = dimensionResource(R.dimen.space_2)
     val railWidthPx = with(density) { dimensionResource(R.dimen.space_hairline).toPx() }
-    // 引导线正好框住「内容本身」：上端让开 DrawerPane 的 4dp 顶部内边距，
-    // 下端让开同外壳的 drawer_content_bottom(16dp) 收尾留白。
-    // 否则抽屉底部一改，竖线就会伸出内容之外（旧值 8dp 就是这种错位）。
+    // 引导线要正好框住内容本身：上让 DrawerPane 的 4dp 顶部内边距、下让 drawer_content_bottom(16dp) 收尾留白，
+    // 否则竖线会伸出内容之外
     val railTopInsetPx = with(density) { dimensionResource(R.dimen.space_1).toPx() }
     val railBottomInsetPx = with(density) { dimensionResource(R.dimen.drawer_content_bottom).toPx() }
     // 引导线颜色与 Widget.Venus.Divider 同源（outlineVariant）
@@ -317,9 +280,8 @@ private fun SettingsCardItem(card: SettingsCard) {
         label = "toggle",
     )
 
-    // 展开完成后把整卡带入视口（原来在高度动画结束时 requestRectangleOnScreen）。
-    // 必须等布局落定再调用：bringIntoView 在未 attach 的节点上会抛 IllegalStateException，
-    // 「减少动态效果」下退化为等一帧，与原实现 `post { ... }` 的时序一致。
+    // 展开后把整卡带入视口，但必须等布局落定：bringIntoView 在未 attach 的节点上会抛 IllegalStateException；
+    // 「减少动态效果」下退化为等一帧
     LaunchedEffect(card.isExpanded) {
         if (!card.isExpanded) return@LaunchedEffect
         delay((if (reducedMotion) 16L else duration.toLong()).milliseconds)
@@ -402,9 +364,8 @@ private fun SettingsCardItem(card: SettingsCard) {
                             .fillMaxWidth()
                             .testTag(SETTINGS_DRAWER_CONTENT_TAG)
                             .padding(start = inset)
-                            // 左侧引导线：2dp 竖线，表达抽屉内容从属于标题行。
-                            // 高度 = 内容高度（上让 4dp、下让 16dp，与 DrawerPane 的内边距同源），
-                            // 既不穿过标题行，也不伸进分隔线前的收尾留白。
+                            // 左侧 2dp 引导线：高度取内容高度并上让 4dp、下让 16dp（与 DrawerPane 内边距同源），
+                            // 既不穿过标题行，也不伸进分隔线前的收尾留白
                             .drawBehind {
                                 drawRect(
                                     color = railColor,
@@ -417,12 +378,9 @@ private fun SettingsCardItem(card: SettingsCard) {
                                 )
                             },
                     ) {
-                        // 这里不再额外缩进：与引导线的间距由 DrawerPane 自身的 space_3(12) 提供
-                        // （竖直 2dp 线 → 内容 = 12 - 2 = 10dp）。
-                        // 早期版本是 `padding(start = 2 + 8)`，那是 AndroidView 桥接时代为了让内层
-                        // View 躲开竖线而加的；窗格自己已有 12dp，叠加后内容被推到 46dp、
-                        // 离竖线 20dp，竖线看起来"飘"在左边。批次 C 去掉桥接后这段缩进成了纯冗余。
-                        // 这里仍是同一组合内的直接调用：展开/折叠不会重建节点。
+                        // 这里不要再加缩进：与引导线的间距由 DrawerPane 的 space_3(12) 提供（12 - 2dp 线宽 = 10dp）；
+                        // 窗格自己也已有 12dp，叠加会把内容推到 46dp，竖线看着"飘"在左边。
+                        // 直接调用而非 AndroidView：展开/折叠不会重建节点。
                         content()
                     }
                 }
@@ -439,14 +397,9 @@ private fun rememberReducedMotion(): Boolean {
 }
 
 /**
- * 设置页的 Compose 宿主。
- *
- * 13 个抽屉与 13 个窗格状态宿主都在此**急切构造**并对外暴露：
- * - 抽屉（[SettingsCard]）给 `SettingsFragment` 调 `setValue` / `setValueColor` / `setVisibility` / `expand`；
- * - 窗格宿主（`XxxSettingPaneView`，已不再是 View）给 `SettingsFragment` 调 `setXxx(...)` 回填状态。
- *
- * 两者的接线在本类构造时完成：`card.setPaneContent { pane.Render() }`。这样抽屉展开时
- * 窗格的组合直接长在设置页的组合里（同一 composition），不再经 `AndroidView` 桥接。
+ * 设置页宿主：13 个抽屉（[SettingsCard]）与 13 个窗格状态宿主都在此急切构造并对外暴露，供 `SettingsFragment`
+ * 调 setValue / setVisibility / expand / setXxx。接线在构造时完成（`card.setPaneContent { pane.Render() }`），
+ * 使窗格组合直接长在设置页的同一 composition 里，不经 `AndroidView` 桥接。
  */
 class SettingsScreenView(context: Context) : AbstractComposeView(context) {
 

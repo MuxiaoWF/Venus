@@ -20,10 +20,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 淡化风格预设序号（对应 BACKGROUND_PRESET：0 轻盈 / 1 标准 / 2 浓郁）。
- *
- * 三个序号必须连读才有意义：0 号当前没有代码直接引用（分段控件按下标取值、历史偏好也可能存 0），
- * 但它是口径的一部分，删掉会让「0 = 轻盈」失去命名锚点，故保留。
+ * 淡化风格预设序号（BACKGROUND_PRESET：0 轻盈 / 1 标准 / 2 浓郁）。0 号暂无代码直接引用，
+ * 但分段控件按下标取值、历史偏好也可能存 0，删掉会让「0 = 轻盈」失去锚点，故保留。
  */
 @Suppress("unused")
 const val BG_PRESET_INDEX_LIGHT = 0
@@ -31,17 +29,13 @@ const val BG_PRESET_INDEX_STANDARD = 1
 const val BG_PRESET_INDEX_RICH = 2
 
 /**
- * 设置页「背景图片」抽屉内容（原 res/layout/item_setting_background_picture.xml）。
+ * 设置页「背景图片」抽屉内容。
  *
- * 结构：两张等宽 Outlined 按钮（选择/清除）+ 淡化风格三档药丸分段 + 不透明度滑块。
- * 风格管质感、滑条管浓度，两者正交（见原 XML 注释）。
+ * 结构：两张等宽按钮（选择/清除）+ 淡化风格三档药丸分段 + 不透明度滑块。
+ * 风格管质感、滑条管浓度，两者正交。
  *
  * @param presetIndex 淡化风格序号（0 轻盈 / 1 标准 / 2 浓郁）
- * @param onPresetSelect 风格切换回调
- * @param onSelectClick 点击「选择图片」
- * @param onClearClick 点击「清除背景」
  * @param alphaPercent 不透明度百分比（0-90，步长 5）
- * @param onAlphaChange 拖动中的值变化回调
  * @param onAlphaChangeFinished 松手回调（用于提示「已设置」）
  */
 @Composable
@@ -62,7 +56,7 @@ fun BackgroundSettingPane(
             style = textStyles.drawerLabel,
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        // 两个等宽按钮收口到 SettingButtonPairRow（更新窗格用的是同一个组件）
+        // 两个等宽按钮收口到 SettingButtonPairRow（更新窗格共用同一组件）
         SettingButtonPairRow(
             leftText = stringResource(R.string.select_image),
             onLeftClick = onSelectClick,
@@ -89,8 +83,7 @@ fun BackgroundSettingPane(
         )
 
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        // 原 XML 用 showValue + floating label 表达「拖到哪了」；
-        // Material3 1.4 的 Slider 已无 label 形参，这里把百分比常驻在标题行右侧，
+        // Material3 1.4 的 Slider 已无 label 形参，故把百分比常驻在标题行右侧：
         // 拖动过程同样可读，且不依赖实验性 API。
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -106,7 +99,7 @@ fun BackgroundSettingPane(
                 style = textStyles.monoValue.copy(color = MaterialTheme.colorScheme.primary),
             )
         }
-        // 原 XML：valueFrom=0 / valueTo=90 / stepSize=5 → 19 个刻度，故 steps = 17
+        // 0..90 每 5 一格共 19 个刻度，故 steps = 17
         Slider(
             value = alphaPercent,
             onValueChange = onAlphaChange,
@@ -123,9 +116,8 @@ fun BackgroundSettingPane(
 }
 
 /**
- * [BackgroundSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [BackgroundSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class BackgroundSettingPaneView {
 

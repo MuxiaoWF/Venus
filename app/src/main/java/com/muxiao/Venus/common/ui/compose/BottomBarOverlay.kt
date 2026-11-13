@@ -7,17 +7,15 @@ import java.lang.ref.WeakReference
 /**
  * 底栏悬浮覆盖高度（玻璃面板高 + 下外边距 + 系统导航栏 inset）的发布中心。
  *
- * 原 Java 版平移为 Compose 状态对象：内容直通屏幕底、可滚进玻璃下方，各页面
- * 控制器把本高度作为底部留白下发（Compose 侧 padding），保证最后一个列表项能
- * 完整滚出玻璃区。高度在底栏布局/insets 就绪后由 `VenusBottomBar` 的
- * onGloballyPositioned 发布，变化时自动通知已注册的滚动容器重涂。
+ * 内容直通屏幕底、可滚进玻璃下方，各页面控制器把本高度作为底部 padding 下发，保证最后
+ * 一个列表项能完整滚出玻璃区。高度在底栏 insets 就绪后由 `VenusBottomBar` 的
+ * onGloballyPositioned 发布，变化时通知已注册的滚动容器重涂。
  *
  * 监听用弱引用持有：页面控制器在 release 时显式 removeListener，不反向保活。
  */
 object BottomBarOverlay {
 
-    /** 覆盖高度（px）。Compose 侧可直接观察（如页面需要驱动重组时）。 */
-    /** 覆盖高度状态（Compose 侧观察用；Java 侧走 [get]）。 */
+    /** 覆盖高度（px）；Compose 侧可直接观察，Java 侧走 [get]。 */
     val heightState: State<Int>
         field = mutableIntStateOf(0)
 
@@ -47,7 +45,6 @@ object BottomBarOverlay {
         }
     }
 
-    /** 解除监听。 */
     @JvmStatic
     fun removeListener(listener: Runnable) {
         synchronized(listeners) { listeners.removeIf { it.get() === listener } }

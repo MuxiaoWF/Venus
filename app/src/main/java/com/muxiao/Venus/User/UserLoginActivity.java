@@ -47,13 +47,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 国服用户登录，两种方式并存：
- * <ul>
- *   <li>扫码登录：扫码获取 gameToken → 换取 stoken → 获取 ltoken；</li>
- *   <li>账号密码登录：RSA 加密账号密码 → loginByPassword 直接拿到 stoken 与 mid → 获取 ltoken。</li>
- * </ul>
- * 两条链路最终写入相同的用户凭证（stoken / mid / stuid / ltoken），下游任务无需区分。
- * 支持重新登录模式（清除旧数据后重新登录）。
+ * 国服用户登录：扫码（gameToken → stoken → ltoken）与账密（RSA 加密 → loginByPassword 直取 stoken+mid → ltoken），
+ * 两条链路写入相同的凭证槽位（stoken/mid/stuid/ltoken），下游无需区分来源。支持重新登录模式（先清旧数据）。
  */
 @AndroidEntryPoint
 public class UserLoginActivity extends BaseActivity {
@@ -112,14 +107,11 @@ public class UserLoginActivity extends BaseActivity {
         pane = new com.muxiao.Venus.common.ui.compose.UserLoginScreenView(this);
         setContentView(pane);
 
-        // 设置状态栏
         EdgeToEdge.enable(this);
 
-        // 单线程池
         executor_service = Executors.newSingleThreadExecutor();
         user_manager = new UserManager(this);
 
-        // 检查是否为重新登录模式
         Intent intent = getIntent();
         relogin_mode = intent.getBooleanExtra("RELOGIN_MODE", false);
         relogin_username = intent.getStringExtra("USERNAME");
@@ -137,11 +129,9 @@ public class UserLoginActivity extends BaseActivity {
             applyLoginMode(MODE_QRCODE);
         } else {
             pane.setOnModeSelectListener(this::applyLoginMode);
-            // 国服默认「扫码登录」
             applyLoginMode(MODE_QRCODE);
         }
 
-        // Notifier更新信息
         status_notifier = new tools.StatusNotifier();
         // 日志追加与自动滚底都在 Compose 侧完成
         status_notifier.addListener(status -> runOnUiThread(() -> pane.appendLog(status)));
@@ -183,9 +173,8 @@ public class UserLoginActivity extends BaseActivity {
     }
 
     /**
-     * 校验用户名/账号密码与重名冲突，重登录模式先清空旧凭证，
-     * 最后按当前登录方式（扫码/密码）提交 LoginTask 执行。
-     */
+    * 校验用户名/密码与重名冲突，重登录模式先清空旧凭证，再按登录方式提交 LoginTask。
+    */
     private void handleLogin() {
         username = pane.getUsername().trim();
         boolean isOversea = MiHoYoBBSConstants.is_oversea(this);
@@ -231,7 +220,6 @@ public class UserLoginActivity extends BaseActivity {
             }
         }
         if (!relogin_mode && user_manager.getUsers().containsKey(username)) {
-            // 检查用户是否属于当前服务器类型
             if (!user_manager.isUserMatchingServerType(username, isOversea)) {
                 String userServer = isOversea ? getString(R.string.server_cn) : getString(R.string.server_os);
                 status_notifier.notifyListeners(getString(R.string.login_username_exists_in_server, userServer));
@@ -259,9 +247,8 @@ public class UserLoginActivity extends BaseActivity {
     }
 
     /**
-     * 「获取验证码」：校验手机号后单独派发短信下发任务。
-     * 与登录提交共用一个单线程池，因此登录进行中点击会排队而不是并发打接口。
-     */
+    * 「获取验证码」：校验手机号后单独派发短信下发任务；与登录共用单线程池，登录进行中点击只会排队而非并发打接口。
+    */
     private void handleSendCode() {
         if (MiHoYoBBSConstants.is_oversea(this)) {
             status_notifier.notifyListeners(getString(R.string.login_sms_only_cn));
@@ -293,10 +280,8 @@ public class UserLoginActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 关闭ExecutorService
         if (executor_service != null && !executor_service.isShutdown())
             executor_service.shutdown();
-        // 移除监听器
         if (status_notifier != null)
             status_notifier.removeAllListeners();
         // 清理二维码图片资源：先解绑再回收，避免 Compose 侧仍持有已回收的 Bitmap
@@ -308,12 +293,9 @@ public class UserLoginActivity extends BaseActivity {
 
 
     /**
-     * 极验统一入口：v4 走 WebView 加载极验官方 gt4.js，v3 走 sensebot（GT3）弹窗，
-     * 两者都返回可直接重提的 x-rpc-aigis 头。
-     * <p>
-     * 账密登录、短信发码、短信登录三个入口共用——它们都可能在响应头里收到 aigis 任务。
-     * 需在后台线程调用（内部会阻塞等待前台验证结果）。
-     */
+    * 极验统一入口：v4 走 WebView 加载极验官方 gt4.js，v3 走 sensebot（GT3），两者都返回可直接重提的 x-rpc-aigis 头。
+    * 账密登录、短信发码、短信登录三个入口共用（都可能在响应头收到 aigis 任务）；须在后台线程调用（内部阻塞等前台结果）。
+    */
     private String resolveAigisHeader(PasswordLogin.AigisInfo info) {
         String header;
         try {
@@ -329,12 +311,9 @@ public class UserLoginActivity extends BaseActivity {
     }
 
     /**
-     * 在前台用 WebView 拉起极验第四代（v4）并阻塞后台线程等待结果。
-     * <p>
-     * v4 与 v3 的差异（详见 {@link GeetestV4Dialog}）：无 challenge、参数是
-     * captchaId + riskType + session_id，结果在 onSuccess 里取。
-     * 成功返回组装好的重提头；用户关闭、加载失败或超时返回 null。
-     */
+    * 在前台用 WebView 拉起极验 v4 并阻塞后台线程等待结果。与 v3 差异（详见 {@link GeetestV4Dialog}）：无 challenge，
+    * 参数为 captchaId + riskType + session_id，结果在 onSuccess 取；成功返回重提头，关闭/加载失败/超时返回 null。
+    */
     private String solveAigisV4(PasswordLogin.AigisInfo info) throws InterruptedException {
         status_notifier.notifyListeners(getString(R.string.login_aigis_v4_start));
         final CountDownLatch latch = new CountDownLatch(1);
@@ -370,9 +349,8 @@ public class UserLoginActivity extends BaseActivity {
     }
 
     /**
-     * 在前台拉起极验（GT3 自定义流程，无需按钮）并阻塞后台线程等待结果。
-     * 成功返回组装好的 x-rpc-aigis 重提头；用户关闭、验证失败或超时返回 null。
-     */
+    * 在前台拉起极验 GT3 自定义流程（无需按钮）并阻塞后台线程等待；成功返回 x-rpc-aigis 重提头，关闭/失败/超时返回 null。
+    */
     private String solveAigis(PasswordLogin.AigisInfo info) throws InterruptedException {
         status_notifier.notifyListeners(getString(R.string.login_aigis_start));
         final CountDownLatch latch = new CountDownLatch(1);
@@ -458,9 +436,9 @@ public class UserLoginActivity extends BaseActivity {
     }
 
     /**
-     * 下发短信验证码任务。与 {@link LoginTask} 分开，因为它是 UI 上的第二个提交入口
-     * （「获取验证码」按钮），且返回的 action_type 要留给随后的登录任务使用。
-     */
+    * 下发短信验证码任务。与 {@link LoginTask} 分开：它是 UI 上的第二个提交入口（「获取验证码」），
+    * 且返回的 action_type 要留给随后的登录任务使用。
+    */
     public class SendCodeTask implements Runnable {
         private final Context context;
         private final HeaderManager header_manager;
@@ -533,9 +511,7 @@ public class UserLoginActivity extends BaseActivity {
         // 后台线程入口：获取设备 ID 后按登录方式分流到扫码或密码登录
         public void run() {
             try {
-                // 先获取设备ID
                 DeviceUtils device_utils = new DeviceUtils(context);
-                // 等待设备ID获取完成
                 this.device_id = device_utils.waitForDeviceId();
 
                 if (mode == MODE_PASSWORD)
@@ -557,10 +533,9 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 扫码登录：取码 → 渲染 → 轮询。
-         * 国服走 passport 新版（createQRLogin / queryQRLoginStatus），二维码过期（-106）自动换码重来；
-         * 国际服仍走 hk4e-sdk 的 combo/panda 旧接口（其 ticket 需要从二维码 URL 里截取）。
-         */
+        * 扫码登录：取码 → 渲染 → 轮询。国服走 passport 新版（createQRLogin / queryQRLoginStatus），
+        * 二维码过期（-106）自动换码重来；国际服仍走 hk4e-sdk 的 combo/panda 旧接口（ticket 需从二维码 URL 截取）。
+        */
         private void run_qrcode_login() throws Exception {
             status_notifier.notifyListeners("\n" + getString(R.string.login_start_task) + "\n");
             for (int round = 0; round <= MAX_QR_REFRESH_COUNT; round++) {
@@ -605,9 +580,8 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 短信验证码登录：用发码阶段拿到的 action_type + 用户输入的验证码换取 stoken，
-         * 之后与账密登录走同一套收尾（写凭证 → 换 ltoken）。
-         */
+        * 短信登录：用发码阶段拿到的 action_type + 用户输入的验证码换 stoken，之后与账密登录同一套收尾（写凭证 → 换 ltoken）。
+        */
         private void run_sms_login() {
             status_notifier.notifyListeners("\n" + getString(R.string.login_sms_start) + "\n");
             SmsLogin.Result result;
@@ -641,10 +615,9 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * Cookie 导入登录：解析浏览器粘贴的米游社 Cookie，得到 stuid/mid/stoken/ltoken，
-         * 与扫码、密码登录写入同一组凭证槽位，下游任务无需区分来源。
-         * 全程不经过极验（aigis），是密码登录被 -3102 风控拦下时的兜底入口。
-         */
+        * Cookie 导入登录：解析浏览器粘贴的米游社 Cookie，得到 stuid/mid/stoken/ltoken，与扫码、密码登录写入同一组凭证槽位。
+        * 全程不经过极验（aigis），是密码登录被 -3102 风控拦下时的兜底入口。
+        */
         private void run_cookie_login() {
             status_notifier.notifyListeners("\n" + getString(R.string.login_cookie_start) + "\n");
             CookieLogin.Result result = CookieLogin.importFromCookie(context, header_manager, cookie);
@@ -672,11 +645,8 @@ public class UserLoginActivity extends BaseActivity {
         }
 
 
-        /**
-         * 两种登录方式共用的收尾：写入服务器类型、登记用户、恢复界面
-         */
+        /** 各登录方式共用的收尾：写入服务器类型、登记用户、恢复界面。 */
         private void finish_login_success() {
-            // 存储服务器类型
             tools.write(context, username, "server_type", isOversea ? "1" : "0");
             // 头像：登录页选过才写，且只在成功后落盘；重登录沿用原账号名
             String avatarUser = relogin_mode && relogin_username != null ? relogin_username : username;
@@ -691,12 +661,9 @@ public class UserLoginActivity extends BaseActivity {
                 // 头像已落盘：清掉预览态，避免下次登录被重复应用
                 pendingAvatar = null;
                 pane.setPendingAvatar(null);
-                // 如果是重新登录模式，则更新现有用户的token
                 if (relogin_mode && relogin_username != null) {
-                    // 设置当前用户为重新登录的用户
                     user_manager.setCurrentUser(relogin_username);
                 } else {
-                    // 登录成功后再添加用户并设置为当前用户
                     user_manager.addUser(username);
                     user_manager.setCurrentUser(username);
                 }
@@ -706,9 +673,8 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 一次扫码会话：二维码内容 + 轮询凭证。
-         * 新版 passport 接口的 ticket 由响应直接给出，不再需要从二维码 URL 里截取。
-         */
+        * 一次扫码会话：二维码内容 + 轮询凭证。passport 接口的 ticket 由响应直接给出，无需从二维码 URL 截取。
+        */
         private final class QrSession {
             final String url;
             final String ticket;
@@ -719,7 +685,6 @@ public class UserLoginActivity extends BaseActivity {
             }
         }
 
-        /** 把二维码内容渲染成图片并推到前台。 */
         private void show_qr_code(String url) {
             try {
                 QRCodeWriter qrCodeWriter = new QRCodeWriter();
@@ -733,7 +698,7 @@ public class UserLoginActivity extends BaseActivity {
                 for (int x = 0; x < bitMatrix.getWidth(); x++)
                     for (int y = 0; y < bitMatrix.getHeight(); y++)
                         bitmap.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
-                // 直接交给 Compose 侧的 state，避免原来的「压 PNG → UI 线程再解一遍」额外开销。
+                // 直接交给 Compose 侧的 state，避免额外的 PNG 压缩与 UI 线程二次解码开销。
                 // 视图会持有它，所以这里不能 recycle；下一次换码或 onDestroy 时自然被替换/回收。
                 runOnUiThread(() -> {
                     pane.setQrBitmap(bitmap);
@@ -746,9 +711,9 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 国服取码：passport {@code createQRLogin}，body 固定 {@code "{}"}，
-         * DS 用 X4 salt + 该 body（见 HeaderManager#get_passport_qr_headers）。
-         */
+        * 国服取码：passport {@code createQRLogin}，body 固定 {@code "{}"}，DS 用 X4 salt + 该 body
+        * （见 HeaderManager#get_passport_qr_headers）。
+        */
         private QrSession fetch_qr_cn() {
             String body = "{}";
             Map<String, String> headers = header_manager.get_passport_qr_headers(body);
@@ -788,12 +753,11 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 国服轮询：{@code queryQRLoginStatus}，body 为 {"ticket":"..."}（DS 必须与该 body 一致）。
-         * 状态机 Init / Created / Scanned / Confirmed；Confirmed 时响应直接带 tokens[] 与 user_info，
-         * 因此不再需要 game_token → getTokenByGameToken 的二次换票。
-         *
-         * @return true = 已确认并完成落库与收尾；false = 二维码过期，需换码
-         */
+        * 国服轮询：{@code queryQRLoginStatus}，body 为 {"ticket":"..."}（DS 必须与该 body 一致）。
+        * 状态机 Init / Created / Scanned / Confirmed；Confirmed 时响应直接带 tokens[] 与 user_info，省掉二次换票。
+        *
+        * @return true = 已确认并完成落库与收尾；false = 二维码过期，需换码
+        */
         private boolean poll_qr_cn(QrSession session) throws Exception {
             String last_status = "";
             for (int times = 1; times <= MAX_QR_POLL_COUNT; times++) {
@@ -833,9 +797,8 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 新版扫码 Confirmed 的凭证落库：{@code tokens[0].token} 即 stoken，
-         * {@code user_info} 里有 mid 与 aid（aid 等价于旧链路的 stuid）。
-         */
+        * 新版扫码 Confirmed 的凭证落库：{@code tokens[0].token} 即 stoken，{@code user_info} 里有 mid 与 aid（等价旧链路的 stuid）。
+        */
         private void save_cn_qr_credentials(JsonObject data) {
             if (data == null)
                 throw new RuntimeException(getString(R.string.login_payload_missing));
@@ -859,11 +822,10 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 国际服轮询：旧接口，状态字段是 {@code stat}，Confirmed 时从 {@code payload.raw}
-         * 里取 game_token 与 uid，再去换 stoken。
-         *
-         * @return true = 已确认并完成落库与收尾；旧接口没有过期码，恒为 true 或抛异常
-         */
+        * 国际服轮询：旧接口，状态字段是 {@code stat}，Confirmed 时从 {@code payload.raw} 取 game_token 与 uid 再去换 stoken。
+        *
+        * @return true = 已确认并完成落库与收尾；旧接口没有过期码，恒为 true 或抛异常
+        */
         private boolean poll_qr_oversea(QrSession session) throws Exception {
             String last_status = "";
             for (int times = 1; times <= MAX_QR_POLL_COUNT; times++) {
@@ -914,11 +876,8 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 用 game_token 换 stoken。
-         * <p>
-         * 仅国际服链路使用：hk4e-sdk 的旧扫码只下发 game_token。国服已迁到 passport 新版扫码，
-         * Confirmed 响应直接给出 stoken 与 mid，不再需要这一步。
-         */
+        * 用 game_token 换 stoken。仅国际服链路使用（hk4e-sdk 旧扫码只下发 game_token）；国服新版扫码 Confirmed 直接给 stoken 与 mid。
+        */
         private void get_stoken_by_game_token(String stuid, String game_token) {
             Map<String, Object> body = new HashMap<>();
             body.put("account_id", Long.parseLong(stuid));

@@ -43,9 +43,8 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * 森空岛签到（明日方舟/终末地）。
- * 流程：grant获取code → 生成cred → 获取绑定角色 → 遍历签到。
- * 使用 HMAC-SHA256 + MD5 签名，设备指纹通过 DES/AES/RSA 加密生成。
+ * 森空岛签到（明日方舟/终末地）：grant 取 code → 换 cred → 取绑定角色 → 逐个签到。
+ * 请求需 HMAC-SHA256 + MD5 签名，设备指纹经 DES/AES/RSA 加密生成。
  */
 public class SklandDaily {
     public static final int GAME_ARKNIGHTS = 1;
@@ -68,9 +67,8 @@ public class SklandDaily {
 
     public SklandDaily(Context context, String userId, tools.StatusNotifier notifier, int gameId) {
         this.context = context;
-        // token 按用户存放（与米游社登录态、云游戏 token 同口径）：切换账号后自动使用
-        // 该账号自己的 token。旧版是 SETTINGS_PREFS_NAME 里的一份全局定值，切换账号不会跟着变，
-        // 结果就是用 A 账号的 token 给 B 账号签到。
+        // token 按用户存放（与米游社登录态、云游戏 token 同口径）：切换账号后自动使用该账号自己的 token，
+        // 不像全局定值那样用 A 账号的 token 给 B 账号签到。
         this.token = tools.read(context, userId, SKLAND_COOKIE);
         if (!isValidToken(token))
             throw new RuntimeException(context.getString(R.string.skland_content_not_set));
@@ -84,8 +82,8 @@ public class SklandDaily {
     }
 
     /**
-     * 森空岛 token 形态是否可信：同时拦住「未填写」与前端拼进去的占位值
-     * （{@code undefined} / {@code null}），语义与 {@link CloudGameDaily#isValidToken} 一致。
+     * token 形态是否可信：同时拦住「未填写」与前端拼进去的占位值（{@code undefined} / {@code null}），
+     * 语义与 {@link CloudGameDaily#isValidToken} 一致。
      */
     public static boolean isValidToken(String token) {
         if (token == null) return false;
@@ -95,10 +93,8 @@ public class SklandDaily {
     }
 
     /**
-     * 把旧版全局存放的森空岛 token 迁移给当前选中账号，并删除全局键。
-     *
-     * <p>旧版所有账号共用一份定值，这份值究竟属于哪个账号无从判断，取「当前选中账号」
-     * 是最合理的推断；其余账号各自在设置里重新配置即可。幂等：迁移后全局键即被移除，
+     * 把旧版全局存放的 token 迁移给当前选中账号并删除全局键：旧版所有账号共用一份定值、无从判断归属，
+     * 取「当前选中账号」是最合理的推断，其余账号各自在设置里重配即可。幂等：迁移后全局键即被移除，
      * 重复调用无副作用（由 {@link VenusApplication#onCreate} 在进程启动时兜底触发）。
      */
     public static void migrateLegacyToken(Context context) {
@@ -118,7 +114,6 @@ public class SklandDaily {
         Cred cred = getCredByToken(token);
         notifier.notifyListeners(context.getString(R.string.skland_cred_success));
         List<Role> roles = getRoles(cred);
-        // 按 gameId 过滤角色
         roles.removeIf(role -> role.gameId != gameId);
         if (roles.isEmpty()) {
             notifier.notifyListeners(context.getString(R.string.skland_no_roles));
@@ -136,11 +131,9 @@ public class SklandDaily {
     }
 
     /**
-     * 用 token 换取 grant code 并生成登录票据 cred（cred + token）。
-     * grant 接口 status≠0 时抛错提示原因。
+     * 用 token 换 grant code 并生成登录票据 cred（cred + token）；grant 接口 status≠0 时抛错提示原因。
      */
     private Cred getCredByToken(String token) throws Exception {
-        // 获取设备ID
         Map<String, String> headers = Map.of(
                 "User-Agent", SKLAND_USER_AGENT,
                 "Accept-Encoding", "gzip",
@@ -163,9 +156,7 @@ public class SklandDaily {
         return new Cred(d.get("cred").getAsString(), d.get("token").getAsString());
     }
 
-    /**
-     * 获取绑定的角色列表
-     */
+    /** 获取绑定的角色列表：明日方舟读平铺的 uid/nickName，终末地读嵌套的 roles[]。 */
     private static List<Role> getRoles(Cred cred) throws Exception {
         Map<String, String> signBase = new LinkedHashMap<>();
         signBase.put("platform", "");
@@ -221,8 +212,7 @@ public class SklandDaily {
     }
 
     /**
-     * 对单个角色执行签到：终末地走 web 接口、明日方舟走 api 接口，均带签名头；
-     * 捕获 403 视为今日已签到（记日志不抛错）。
+     * 对单个角色签到：终末地走 web 接口、明日方舟走 api 接口，均带签名头；403 视为今日已签到（记日志不抛错）。
      */
     private void doSign(Cred cred, Role role) throws Exception {
         Map<String, String> signBase = new LinkedHashMap<>();
@@ -304,24 +294,21 @@ public class SklandDaily {
     }
 
     /**
-     * 按森空岛规范生成请求签名：以 path + body/query + 时间戳 + 关键请求头 JSON 拼接，
-     * 先 HMAC-SHA256 再对结果 MD5，返回 sign 与 timestamp。
+     * 按森空岛规范生成签名：path + body/query + 时间戳 + 关键请求头 JSON 拼接后先 HMAC-SHA256 再 MD5，
+     * 返回 sign 与 timestamp。
      *
      * @param token        cred.token，用作 HMAC 密钥
-     * @param path         接口路径（用于签名串）
      * @param bodyOrQuery  请求体或查询串
      * @param headerForSign 参与签名的请求头（platform/timestamp/dId/vName）
      */
     private static Map<String, String> generateSignature(String token, String path, String bodyOrQuery, Map<String, String> headerForSign) throws Exception {
-        // 生成时间戳
         long timestamp = System.currentTimeMillis() / 1000 - 2;
         String t = String.valueOf(timestamp);
         Map<String, String> headerCopy = new LinkedHashMap<>(headerForSign);
         headerCopy.put("timestamp", t);
         String headerStr = new Gson().toJson(headerCopy);
-        // 构建签名字符串：接口地址+body或query+时间戳+请求头的四个重要参数.tojson()
+        // 签名串 = path + body/query + 时间戳 + 头四要素 JSON
         String signatureBase = path + bodyOrQuery + t + headerStr;
-        // 使用HMAC-SHA256加密
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(token.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         byte[] hmacBytes = mac.doFinal(signatureBase.getBytes(StandardCharsets.UTF_8));
@@ -335,16 +322,14 @@ public class SklandDaily {
     }
 
     /**
-     * 生成设备指纹并调用指纹服务获取 deviceId（返回 "B" + deviceId）。
-     * 过程含构造浏览器环境副本、DES 混淆字段、GZIP 压缩、AES 加密，
-     * 再用 RSA 加密设备 ID 作为 ep 一并上报。
+     * 生成设备指纹并取 deviceId（返回 "B" + deviceId）：构造浏览器环境副本 → DES 混淆字段 → GZIP 压缩 →
+     * AES 加密，再用 RSA 加密设备 ID 作为 ep 一并上报。
      */
     private String getDid() throws Exception {
         byte[] uid = deviceID.getBytes();
         String pri = md5(uid).substring(0, 16);
         String ep = rsa(uid);
         long currentTime = System.currentTimeMillis();
-        // 创建浏览器环境副本
         Map<String, Object> browser = new HashMap<>();
         browser.put("plugins", "MicrosoftEdgePDFPluginPortableDocumentFormatinternal-pdf-viewer1,MicrosoftEdgePDFViewermhjfbmdgcfjbbpaeojofohoefgiehjai1");
         browser.put("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0");
@@ -361,7 +346,6 @@ public class SklandDaily {
         browser.put("trees", deviceID);
         browser.put("pmf", currentTime);
 
-        // 创建目标数据结构
         Map<String, Object> desTarget = new HashMap<>(browser);
         desTarget.put("protocol", 102);
         desTarget.put("organization", "UWXspnCCJN4sfYlNfqps");
@@ -375,7 +359,6 @@ public class SklandDaily {
         desTarget.put("subVersion", "1.0.0");
         desTarget.put("time", 0);
 
-        // 计算tn值
         String tnValue = tn(desTarget);
         desTarget.put("tn", md5(tnValue.getBytes()));
 
@@ -435,7 +418,6 @@ public class SklandDaily {
                     cipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
                     String stringValue = String.valueOf(res);
-                    // 补足字节
                     byte[] data = stringValue.getBytes(StandardCharsets.UTF_8);
                     int blockSize = 8;
                     int padding = blockSize - (data.length % blockSize);

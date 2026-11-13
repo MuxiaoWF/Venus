@@ -12,10 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 迁移回归测试：确保 Compose 版「缓存管理」抽屉与原 XML 行为等价
- * （文案可显示 + 「清理缓存」点击回调能触发）。
- */
+/** 「缓存管理」抽屉：占用文案可显示 + 「清理缓存」点击回调能触发。 */
 class CacheSettingPaneTest {
 
     @get:Rule

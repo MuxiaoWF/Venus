@@ -14,13 +14,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「缓存管理」抽屉内容（原 res/layout/item_setting_cache.xml）。
- *
- * 结构（密度版）：**一行**——左侧缓存占用文案 + 右侧「清理缓存」按钮。
- * 原先是「文案 + 8dp + 全宽胶囊按钮 + 上下 12dp」，占 77dp；收成 44dp 单行。
+ * 设置页「缓存管理」抽屉内容：一行——左侧缓存占用文案 + 右侧「清理缓存」按钮（44dp 单行）。
  *
  * @param cacheSize 已本地化并格式化好的缓存占用文案（由 Java 侧计算后回填）
- * @param onClearClick 点击「清理缓存」回调
  */
 @Composable
 fun CacheSettingPane(
@@ -48,9 +44,8 @@ fun CacheSettingPane(
 }
 
 /**
- * [CacheSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [CacheSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class CacheSettingPaneView {
 
@@ -74,7 +69,6 @@ class CacheSettingPaneView {
         }
     }
 
-    /** 清理缓存点击回调；传 null 取消。 */
     fun setOnClearClickListener(listener: Runnable?) {
         onClearClickListener = listener
     }

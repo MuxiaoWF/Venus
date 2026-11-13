@@ -33,9 +33,8 @@ public class Notification {
     }
 
     /**
-     * 按需创建三个通知渠道（任务/错误/进度），仅 Android O+ 生效，进程内只创建一次。
-     * 采用双重检查 + 类锁：创建动作可能来自后台任务线程与主线程，需避免并发重复创建。
-     * 注意只在创建成功后才置位，创建失败时保留重试机会。
+     * 按需创建三个通知渠道（任务/错误/进度），仅 Android O+ 生效、进程内只建一次。
+     * 用双重检查 + 类锁：创建可能来自后台任务线程与主线程；只在成功后置位，失败时保留重试机会。
      */
     private void ensureChannels() {
         if (channelsCreated) return;
@@ -68,9 +67,7 @@ public class Notification {
         return (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
-    /**
-     * 构造点击通知后跳转主页（home）的 PendingIntent，带唯一 action 时间戳防止复用。
-     */
+    /** 点击通知跳主页（home）的 PendingIntent；action 带时间戳，避免 PendingIntent 被复用。 */
     private PendingIntent createHomePendingIntent() {
         Intent intent = new Intent(context, com.muxiao.Venus.MainActivity.class);
         intent.setAction(Long.toString(System.currentTimeMillis()));
@@ -80,9 +77,7 @@ public class Notification {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    /**
-     * 内部：发送错误通知；force=false 时受设置中的通知开关控制，未开启则直接返回。
-     */
+    /** 发错误通知；force=false 时受设置中的通知开关控制，未开启直接返回。 */
     private void sendErrorSystemNotification(String title, String content, boolean force) {
         if (!force) {
             SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -103,27 +98,20 @@ public class Notification {
         nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
     }
 
-    /**
-     * 发送错误通知，受设置中的通知开关控制（未开启时不弹）。
-     */
+    /** 发送错误通知（受设置中的通知开关控制，未开启不弹）。 */
     public void sendErrorNotification(String title, String content) {
         sendErrorSystemNotification(title, content, false);
     }
 
-    /**
-     * 发送错误通知，force=true 时忽略通知开关强制弹出。
-     */
+    /** 同上，force=true 忽略通知开关强制弹出。 */
     public void sendErrorNotification(String title, String content, boolean force) {
         sendErrorSystemNotification(title, content, force);
     }
 
     /**
-     * 发送人机验证提示通知（受设置中的通知开关控制），点击直达验证流程：
-     * 内容 Intent 携带 {@link Constants#ACTION_HANDLE_CAPTCHA} 打开 MainActivity，
-     * 由其置位 captcha_pending 标记并自动弹出验证框。
-     * 后台任务已不再主动拉起 Activity（屏幕熄灭时拉起无感知且受系统限制），本通知是
-     * 用户进入验证的唯一入口，因此自动附加强调可点击的提示行。
-     * 复用错误通知 ID：多任务先后触发验证时互相覆盖，不在通知栏堆积。
+     * 人机验证提示通知（受通知开关控制），点击直达验证流程：内容 Intent 带 {@link Constants#ACTION_HANDLE_CAPTCHA}
+     * 打开 MainActivity，由其置位 captcha_pending 并自动弹框。后台任务不再主动拉起 Activity，本通知是用户
+     * 进入验证的唯一入口，故附「点击」提示行；复用错误通知 ID，避免多任务触发时在通知栏堆积。
      */
     public void sendCaptchaNotification(String title, String content) {
         SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -153,17 +141,13 @@ public class Notification {
         nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
     }
 
-    /**
-     * 取消并移除错误通知（NOTIFICATION_ID_ERROR）。
-     */
+    /** 取消并移除错误通知（NOTIFICATION_ID_ERROR）。 */
     public void dismissErrorNotification() {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(Constants.NOTIFICATION_ID_ERROR);
     }
 
-    /**
-     * 创建持久进度通知（用于前台 Service）
-     */
+    /** 创建持久进度通知（前台 Service 用）。 */
     public NotificationCompat.Builder createProgressNotification(String title, String content) {
         ensureChannels();
         return new NotificationCompat.Builder(context, CHANNEL_PROGRESS)
@@ -176,9 +160,7 @@ public class Notification {
                 .setSound(null);
     }
 
-    /**
-     * 更新前台进度通知的标题/内容与进度，复用同一 builder 并以其通知 ID 刷新。
-     */
+    /** 更新前台进度通知的标题/内容/进度，用同一通知 ID 刷新。 */
     public void updateProgressNotification(NotificationCompat.Builder builder,
                                             String title, String content,
                                             int progress, int max) {
@@ -189,9 +171,7 @@ public class Notification {
         if (nm != null) nm.notify(Constants.NOTIFICATION_ID_PROGRESS, builder.build());
     }
 
-    /**
-     * 将进度通知转为完成通知（使用默认重要性渠道，确保用户能看到）
-     */
+    /** 进度通知转为完成通知（改用 WORK 渠道，确保用户能看到）。 */
     public void completeProgressNotification(String title, String content) {
         ensureChannels();
         NotificationCompat.Builder completed = new NotificationCompat.Builder(context, CHANNEL_WORK)
@@ -212,17 +192,13 @@ public class Notification {
         if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
     }
 
-    /**
-     * 判断系统级通知是否已被用户关闭（Android N+ 才支持，旧版本恒返回 false）。
-     */
+    /** 系统级通知是否被用户关闭（Android N+ 才支持，旧版本恒 false）。 */
     public boolean areNotificationsDisabled() {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         return !nm.areNotificationsEnabled();
     }
 
-    /**
-     * 构造跳转到本应用通知设置页的 Intent，兼容 Android O 前后不同的 Action 与 Extra。
-     */
+    /** 跳本应用通知设置页的 Intent，兼容 Android O 前后的 Action 与 Extra。 */
     public Intent getNotificationSettingsIntent() {
         Intent intent = new Intent();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

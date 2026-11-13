@@ -10,9 +10,8 @@ public class TaskItem {
         WARNING,
         CANCELLED,
         /**
-         * 仅 UI 展示态、不持久化：任务当日已完成（COMPLETED），但本轮运行尚未执行到，
-         * 绿色结果系沿用上一次运行——与「本轮已重签成功」的实心绿区分，
-         * 避免重跑中途终止时未触达任务看起来像本轮已完成。
+         * 仅 UI 展示态、不持久化：任务当日已完成（COMPLETED）但本轮运行尚未执行到，绿色系沿用
+         * 上一次运行——与「本轮已重签成功」的实心绿区分，避免重跑中途终止时看起来像已完成。
          */
         RETAINED
     }
@@ -20,10 +19,8 @@ public class TaskItem {
     private final String name;
     private TaskStatus status;
     /**
-     * 是否具备执行条件（纯展示态，不持久化）。
-     *
-     * <p>为 false 表示「开关打开了，但这项任务所需的凭证还没配」（云游戏 token / 森空岛 token）。
-     * 列表里以删除线 + 置灰呈现，运行入口直接跳过、不报错——避免用户以为漏跑。
+     * 是否具备执行条件（纯展示态，不持久化）。false = 开关打开但所需凭证未配（云游戏 token /
+     * 森空岛 token）：列表以删除线 + 置灰呈现，运行入口直接跳过、不报错，避免用户以为漏跑。
      */
     private boolean runnable = true;
 

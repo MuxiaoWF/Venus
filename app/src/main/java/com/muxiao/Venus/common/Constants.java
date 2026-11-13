@@ -34,8 +34,8 @@ public class Constants {
         // 极验验证码：API1获取gt/challenge，API2二次验证
         public static final String GEETEST_API1_URL = BBS_BASE_URL + "/misc/api/createVerification?is_high=true";
         public static final String GEETEST_API2_URL = BBS_BASE_URL + "/misc/api/verifyVerification";
-        // 扫码登录：国服已迁到 passport 的 ma-cn-passport（见下方 QR_LOGIN_*），
-        // hk4e-sdk 的 combo/panda 旧接口仅国际服仍在用（见 OS_LOGIN_QR_URL / OS_LOGIN_CHECK_URL）
+        // 扫码登录：国服走 passport 的 ma-cn-passport（见下方 QR_LOGIN_*），
+        // hk4e-sdk 的 combo/panda 接口仅国际服在用（见 OS_LOGIN_QR_URL / OS_LOGIN_CHECK_URL）
         public static final String STOKEN_URL = BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
 
         // 国际服登录
@@ -46,8 +46,7 @@ public class Constants {
         public static final String LTOKEN_URL = "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken";
         // 账号密码登录（国服 passport，返回的 token 即 stoken，user_info 中含 mid）
         public static final String PASSWORD_LOGIN_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByPassword";
-        // 扫码登录（国服 passport 版）：createQRLogin 取码，queryQRLoginStatus 轮询。
-        // Confirmed 时响应里直接带 tokens[]（stoken）与 user_info.mid/aid，无需再走 getTokenByGameToken。
+        // 扫码登录（国服 passport 版）：Confirmed 响应直接带 tokens[] 与 user_info.mid/aid，不必再换票
         public static final String QR_LOGIN_CREATE_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin";
         public static final String QR_LOGIN_QUERY_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus";
         public static final String FP_URL = "https://public-data-api.mihoyo.com/device-fp/api/getFp";
@@ -68,9 +67,8 @@ public class Constants {
         public static final String BBS_GAME_FORUM_POST_LIST_TYPE_URL = BBS_BASE_URL + "/forum/api/getImagePostListType";
         public static final String BBS_GAME_HOT_POST_LIST_URL = BBS_BASE_URL + "/painter/api/getHotForumPostList";
 
-        // 云游戏签到（钱包接口本身即签到：每日首次调用发放免费时长）。
-        // 与游戏签到链路完全独立——只需云游戏 token（x-rpc-combo_token），
-        // 不依赖 cookie/stoken，也不需要 DS 签名。
+        // 云游戏签到（钱包接口本身即签到：每日首次调用发放免费时长）。与游戏签到链路完全独立，
+        // 只需云游戏 token（x-rpc-combo_token），不依赖 cookie/stoken，也不需要 DS 签名
         public static final String CLOUD_GAME_GENSHIN_URL = "https://api-cloudgame.mihoyo.com/hk4e_cg_cn/wallet/wallet/get";
         public static final String CLOUD_GAME_ZZZ_URL = "https://cg-nap-api.mihoyo.com/nap_cn/cg/wallet/wallet/get";
 
@@ -112,7 +110,7 @@ public class Constants {
     }
 
     public static class Prefs {
-        public static final String SETTINGS_PREFS_NAME = "settings_prefs"; // 设置prefs
+        public static final String SETTINGS_PREFS_NAME = "settings_prefs";
         // 米游币和游戏签到
         public static final String DAILY = "daily_switch_button";
         public static final String DAILY_GENSHIN = "daily_checkbox_genshin";
@@ -154,7 +152,6 @@ public class Constants {
         public static final String LANGUAGE_PREFS_NAME = "language_prefs";
         public static final String SELECTED_LANGUAGE = "selected_language";
 
-        // 米游社配置
         public static final String CONFIG_PREFS_NAME = "config_prefs";
         public static final String SALT_6X_PREF = "SALT_6X";
         public static final String SALT_4X_PREF = "SALT_4X";

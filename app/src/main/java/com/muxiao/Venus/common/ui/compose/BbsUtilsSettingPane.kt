@@ -12,9 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
-/**
- * 配置信息 KV 行的标签顺序（与 Java 侧 `displayCurrentConfigValues` 的下标契约一致）。
- */
+/** 配置信息 KV 行的标签顺序（与 Java 侧 `displayCurrentConfigValues` 的下标契约一致）。 */
 private val CONFIG_KEY_LABEL_RES = intArrayOf(
     R.string.config_key_local_time,
     R.string.config_key_cloud_time,
@@ -26,12 +24,10 @@ private val CONFIG_KEY_LABEL_RES = intArrayOf(
 )
 
 /**
- * 设置页「配置信息」抽屉内容（原 res/layout/item_setting_bbs_utils.xml）。
- *
- * 结构：说明副文本 + 7 行「标签左 / 等宽值右对齐」KV + 全宽表面行按钮（更新配置）。
+ * 设置页「配置信息」抽屉内容：说明副文本 + 7 行「标签左 / 等宽值右对齐」KV +
+ * 全宽表面行按钮（更新配置）。
  *
  * @param values 7 个配置值（顺序见 [CONFIG_KEY_LABEL_RES]）
- * @param onUpdateClick 点击「更新配置」
  */
 @Composable
 fun BbsUtilsSettingPane(
@@ -48,7 +44,7 @@ fun BbsUtilsSettingPane(
             style = textStyles.drawerLabel,
         )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        // 7 行 KV 收口到 SettingValueRow（32dp 紧凑行），原先每行手写 Row + 40dp 行高
+        // 7 行 KV 收口到 SettingValueRow（32dp 紧凑行）
         CONFIG_KEY_LABEL_RES.forEachIndexed { index, labelRes ->
             SettingValueRow(
                 label = stringResource(labelRes),
@@ -56,8 +52,7 @@ fun BbsUtilsSettingPane(
             )
         }
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        // 原先是 drawBehind 画 bg_glass_row_button 九宫格（View 时代遗留），
-        // 与页内其它玻璃不是同一套材质；改用 GlassActionRow（LensGlass + GlassSpecs.Inset）
+        // 用 GlassActionRow（LensGlass + GlassSpecs.Inset），与页内其它玻璃同一套材质
         GlassActionRow(
             text = stringResource(R.string.update_config),
             iconRes = R.drawable.ic_refresh,
@@ -67,9 +62,8 @@ fun BbsUtilsSettingPane(
 }
 
 /**
- * [BbsUtilsSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [BbsUtilsSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class BbsUtilsSettingPaneView {
 

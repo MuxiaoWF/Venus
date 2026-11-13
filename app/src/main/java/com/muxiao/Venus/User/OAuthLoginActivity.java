@@ -3,7 +3,6 @@ package com.muxiao.Venus.User;
 import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
-
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -18,10 +17,8 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.tools;
 
-
 /**
- * 国际服用户登录：通过WebView访问HoYoLAB，自动轮询Cookie获取登录凭证。
- * 支持Cookie登录和重新登录两种模式。
+ * 国际服用户登录：WebView 打开 HoYoLAB，轮询 Cookie 拿凭证；支持 Cookie 登录与重新登录两种模式。
  */
 @AndroidEntryPoint
 public class OAuthLoginActivity extends BaseActivity {
@@ -59,10 +56,7 @@ public class OAuthLoginActivity extends BaseActivity {
         pane.setOnWebViewCreatedListener(this::startCookieCapture);
     }
 
-    // ==================== Cookie 登录 ====================
-
-    // 启动 Cookie 抓取：配置 WebView（强制 https、注入 UA）并清空旧 Cookie，随后加载登录页并开启轮询。
-    // 按钮禁用 / 卡片展开 / 进度条由 Compose 宿主在点击时完成，这里只做 WebView 自身的配置。
+    // 配置 WebView（强制 https、注入 UA）、清空旧 Cookie，加载登录页并开始轮询；按钮禁用/卡片展开/进度条由 Compose 宿主处理。
     @SuppressLint("SetJavaScriptEnabled")
     private void startCookieCapture(WebView webView) {
         oauth_webview = webView;
@@ -138,7 +132,6 @@ public class OAuthLoginActivity extends BaseActivity {
     }
 
     // 弹出对话框让用户输入用户名，校验唯一性后保存 Cookie 用户
-    // （Compose 版输入框：校验不通过就地显示错误并保持对话框打开，与原 input.setError 等价）
     private void showUsernameDialog(String cookieString) {
         com.muxiao.Venus.common.ui.compose.VenusDialogs.input(
                 this,

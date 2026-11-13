@@ -23,20 +23,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * HomeFragment 的 UI 状态持有者（Now in Android：ViewModel + 不可变 UiState + 单向数据流）。
+ * HomeFragment 的 UI 状态持有者（ViewModel + 不可变 UiState + 单向数据流）。
  *
- * <p>本类把原先散落在 Fragment 的三类职责收进 ViewModel：
- * <ol>
- *   <li><b>数据访问</b>：任务列表构建（TaskSettings + TaskStatusManager）与任务状态持久化，
- *       Fragment 不再直接 new TaskStatusManager / 读 SharedPreferences；</li>
- *   <li><b>运行形态</b>：以 {@link RunMode} 三态互斥模型取代原先分散在 4 处的 setVisibility 调用，
- *       按钮/下拉框可见性由 {@link TaskUiState} 派生，Fragment 只做渲染；</li>
- *   <li><b>快照不可变</b>：UiState 每次整体替换，items 为只读列表，避免 UI 持有可变模型。</li>
- * </ol>
+ * <p>把原先散落在 Fragment 的三类职责收进来：任务列表构建与状态持久化（Fragment 不再直接 new
+ * TaskStatusManager / 读 SharedPreferences）；运行形态改由 {@link RunMode} 三态互斥，按钮可见性由
+ * {@link TaskUiState} 派生，Fragment 只做渲染；UiState 每次整体替换、items 只读，避免 UI 持有可变模型。
  *
- * <p>继承 AndroidViewModel 以获取 Application Context（无需引入 @HiltViewModel，
- * 默认 ViewModelProvider 工厂即可构造，改动面最小）。
- * 后台线程用 postUiState，主线程用 setUiState，避免裸 runOnUiThread 竞态。
+ * <p>继承 AndroidViewModel 以取 Application Context（无需 @HiltViewModel，默认工厂即可构造）。
+ * 后台线程用 {@link #publishAsync}、主线程用 {@link #publish}，避免裸 runOnUiThread 竞态。
  */
 public class HomeViewModel extends AndroidViewModel {
 
@@ -51,8 +45,7 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 不可变 UI 状态快照。可见性一律由本类派生，禁止 Fragment 自行判断，
-     * 以保证「同一时刻只有一套可见性真相」。
+     * 不可变 UI 状态快照。可见性一律由本类派生，禁止 Fragment 自行判断，保证「同一时刻只有一套可见性真相」。
      */
     public static final class TaskUiState {
         public final List<TaskItem> items;
@@ -80,10 +73,10 @@ public class HomeViewModel extends AndroidViewModel {
 
         /**
          * 后台按钮文案：后台运行中显示「取消任务」，否则显示「后台运行」。
-         *
-         * <p>注意：可见性（下拉框 / 启动 / 取消 / 重试 / 后台行）的派生已随主页迁移到 Compose，
-         * 见 {@code common/ui/compose/HomeScreen.kt} 顶部的私有扩展属性——规则只有那一份。
-         * 这里保留运行形态本身，供 Java 侧判定文案与流程分支。</p>
+         * <p>
+         * 可见性（下拉框/启动/取消/重试/后台行）的派生已随主页迁移到 Compose，见
+         * {@code common/ui/compose/HomeScreen.kt} 顶部的私有扩展属性——规则只有那一份；这里只保留运行形态供
+         * Java 侧判定文案与流程分支。
          */
         public boolean bgButtonShowsCancel() {
             return runMode == RunMode.BACKGROUND;
@@ -91,9 +84,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 权威状态。刻意不用 LiveData.getValue() 作为读取来源：
-     * 任务回调会从后台线程读取当前快照，volatile 字段的可见性语义比 LiveData 内部字段更明确。
-     * LiveData 仅作为向 UI 广播的镜像。
+     * 权威状态。刻意不用 LiveData.getValue() 作为读取来源：任务回调会从后台线程读当前快照，
+     * volatile 字段的可见性语义比 LiveData 内部字段更明确；LiveData 仅作向 UI 广播的镜像。
      */
     private volatile TaskUiState state;
     private final MutableLiveData<TaskUiState> uiState;
@@ -104,9 +96,8 @@ public class HomeViewModel extends AndroidViewModel {
     private volatile String currentUser = "";
 
     /**
-     * 本轮运行中已收到过状态回调的任务名（收到任意状态回调即视为「本轮已执行到」）。
-     * 运行期间凡 COMPLETED 且不在本集合中的任务，按 {@code RETAINED} 展示——
-     * 绿色结果沿用上一次运行，与本轮重签成功的实心绿区分（见 TaskItem.TaskStatus.RETAINED）。
+     * 本轮已收到过状态回调的任务名。运行期间凡 COMPLETED 且不在本集合中的任务按 {@code RETAINED} 展示
+     * ——绿色结果沿用上一次运行，与本轮实心绿区分（见 TaskItem.TaskStatus.RETAINED）。
      * 由 {@link #beginRun()} 在每轮开始时清空，跨轮不残留。
      */
     private final Set<String> touchedTasks = new HashSet<>();
@@ -133,10 +124,10 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /** 任意线程发布新快照。
-     * 注意：不能直接用 uiState.postValue(next)，否则与 publish 的 setValue 存在投递乱序——
-     * 例如后台任务取消时，CANCELLED 状态广播先到（postValue 排队旧 BACKGROUND 快照）、
-     * is_running=false 广播后到（setValue 立即置 IDLE），随后排队的 postValue 会把 IDLE 覆盖回 BACKGROUND，
-     * 导致「取消后开始按钮不回显」。这里改为投递时重读最新 state，保证 LiveData 永远与权威 state 一致。 */
+     * 不能直接用 uiState.postValue(next)：与 {@link #publish} 的 setValue 存在投递乱序——例如后台任务取消时
+     * CANCELLED 广播先到（postValue 排队旧 BACKGROUND 快照）、is_running=false 后到（setValue 立即置 IDLE），
+     * 随后排队的 postValue 会把 IDLE 覆盖回 BACKGROUND，导致「取消后开始按钮不回显」。
+     * 这里改为投递时重读最新 state，保证 LiveData 永远与权威 state 一致。 */
     private void publishAsync(TaskUiState next) {
         state = next;
         mainHandler.post(() -> uiState.setValue(state));
@@ -152,8 +143,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本轮未触达的任务，以 RETAINED 展示。
-     * RETAINED 仅为展示态——持久化与回调链路始终使用原始状态，回到 IDLE 后自然还原为绿色。
+     * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本轮未触达的任务以 RETAINED 展示。
+     * RETAINED 仅为展示态——持久化与回调链路始终用原始状态，回到 IDLE 后自然还原为绿色。
      */
     private TaskItem.TaskStatus deriveDisplayStatus(String taskName, TaskItem.TaskStatus status) {
         if (status == TaskItem.TaskStatus.COMPLETED
@@ -167,8 +158,6 @@ public class HomeViewModel extends AndroidViewModel {
         currentUser = user != null ? user : "";
     }
 
-    // ========== 运行形态 ==========
-
     /** 主线程切换运行形态。 */
     public void setRunMode(RunMode mode) {
         publish(current().withRunMode(mode));
@@ -178,8 +167,7 @@ public class HomeViewModel extends AndroidViewModel {
      * 依据后台服务广播同步运行形态。
      *
      * <p>刻意不覆盖 FOREGROUND：后台服务未运行的广播不应把正在跑的前台任务误判为空闲
-     * （原实现 updateBgButtonState(false) 会在前台任务运行期间把启动按钮恢复可见，
-     * 与取消按钮同时出现，属状态机缺陷，此处一并修正）。
+     * （否则启动按钮会在前台任务期间恢复可见、与取消按钮同时出现）。
      */
     public void applyBackgroundRunning(boolean backgroundRunning) {
         RunMode mode = current().runMode;
@@ -221,8 +209,6 @@ public class HomeViewModel extends AndroidViewModel {
         return prefs.getBoolean(BACKGROUND_TASK_ENABLED, false);
     }
 
-    // ========== 任务列表 ==========
-
     /** 依据当前设置与持久化状态重建任务列表（主线程）。 */
     public void refreshTaskItems() {
         refreshTaskItems(TaskSettings.fromPreferences(getApplication()));
@@ -250,11 +236,10 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 开始新一轮任务前调用：把用户桶内的「瞬态」（进行中/已取消）复位为待执行并重建列表，
-     * 当日「终态结果」（已完成/已签过/失败）保留——重跑中每个任务被真正执行到时才切回
-     * 进行中并覆盖为新结果，因此重跑中途终止不会丢失之前已完成的记录。
-     * 语义以 {@link TaskStatusManager#resetTransientStatuses} 为准；后台按钮与小组件入口的
-     * 复位由 ForegroundTaskService 在任务启动时统一执行，本方法覆盖本页前台运行。
+     * 开始新一轮任务前调用：把用户桶内的瞬态（进行中/已取消）复位为待执行并重建列表，当日终态
+     * （已完成/失败）保留——任务被真正执行到时才切回进行中并覆盖结果，重跑中途终止不会丢失已完成记录。
+     * 语义以 {@link TaskStatusManager#resetTransientStatuses} 为准；后台按钮与小组件入口的复位由
+     * ForegroundTaskService 在启动时统一执行，本方法覆盖本页前台运行。
      */
     public void resetForNewRun() {
         TaskSettings settings = TaskSettings.fromPreferences(getApplication());
@@ -283,9 +268,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。
-     * 用于「本页线程执行任务」的场景（本页是唯一的状态写入方）。
-     * 可从任意线程调用（内部用 postValue）。
+     * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。用于「本页线程执行任务」的场景（本页是唯一写入方）。
+     * 可从任意线程调用。
      */
     public void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
         // 收到回调即视为本轮已触达：该任务此后恢复原始状态展示（不再 RETAINED）
@@ -296,15 +280,12 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 仅更新 UI 快照，不做任何持久化、不刷新小组件。
+     * 仅更新 UI 快照，不做持久化、不刷新小组件。
      * <p>
-     * 用于「后台服务 → 广播 → 本页」的场景：{@code ForegroundTaskService} 已经在写入方
-     * 完成按运行用户的分桶持久化与小组件刷新，本页只负责把图标刷新成最新状态。
-     * 原实现复用 {@link #updateTaskStatus}，导致同一条状态被写两遍 DataStore、
-     * 小组件也被全量刷新两遍。
+     * 用于「后台服务 → 广播 → 本页」：{@code ForegroundTaskService} 已完成按运行用户的分桶持久化与小组件刷新，
+     * 本页只把图标刷成最新状态；复用 {@link #updateTaskStatus} 会让同一条状态写两遍 DataStore、小组件刷两遍。
      *
-     * @param userId 状态归属的运行用户：后台运行 A 期间用户切到 B 时，
-     *               A 的进度不改写 B 的列表（持久化无影响）；切回 A 时
+     * @param userId 状态归属的运行用户：后台运行 A 期间切到 B 时不改写 B 的列表，切回 A 时
      *               {@link #refreshTaskItems()} 会从 A 的桶重新渲染实时进度
      */
     public void applyExternalTaskStatus(String userId, String taskName, TaskItem.TaskStatus status) {
@@ -332,10 +313,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 持久化任务状态。
-     * <p>
-     * 不再逐条调用 {@code setCurrentUser}：当前用户已在 {@link #persistCurrentUserForWidget()}
-     * 于运行开始时写入一次，运行期间恒定；逐条重写只会让 DataStore 多背一条无意义的事务。
+     * 持久化任务状态。不逐条调 {@code setCurrentUser}：当前用户已在 {@link #persistCurrentUserForWidget()}
+     * 于运行开始时写一次、运行期间恒定，逐条重写只会让 DataStore 多背无意义的事务。
      */
     private void persistTaskStatus(String taskName, TaskItem.TaskStatus status) {
         new TaskStatusManager(getApplication()).applyStatus(currentUser, taskName, status);

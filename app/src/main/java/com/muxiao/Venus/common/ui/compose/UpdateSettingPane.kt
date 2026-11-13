@@ -12,13 +12,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「更新」抽屉内容（原 res/layout/item_setting_update.xml）。
- *
- * 结构：自动检查更新行（文案 + Switch）+ 说明副文本 + 两个等宽 Outlined 胶囊按钮。
+ * 设置页「更新」抽屉内容：自动检查更新行（文案 + Switch）+ 说明副文本 + 两个等宽按钮。
  *
  * @param autoUpdateChecked 自动检查更新开关状态
- * @param onAutoUpdateChange 开关变更回调
- * @param onCheckGithubClick 从 Github 检查更新
  * @param onCheckPanClick 从网盘下载
  */
 @Composable
@@ -30,7 +26,7 @@ fun UpdateSettingPane(
     modifier: Modifier = Modifier,
 ) {
     DrawerPane(modifier) {
-        // 原「手写 Row + Switch + 说明 Text + 两个 Spacer」四段，收成一行（说明作副标题）
+        // 说明作开关行副标题，避免多起一段
         SettingSwitchRow(
             title = stringResource(R.string.auto_check_update),
             checked = autoUpdateChecked,
@@ -48,9 +44,8 @@ fun UpdateSettingPane(
 }
 
 /**
- * [UpdateSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [UpdateSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class UpdateSettingPaneView {
 

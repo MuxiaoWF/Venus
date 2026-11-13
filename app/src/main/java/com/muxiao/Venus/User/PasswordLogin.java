@@ -22,16 +22,11 @@ import java.util.Map;
 import javax.crypto.Cipher;
 
 /**
- * 国服账号密码登录（passport-api / ma-cn-passport / loginByPassword）。
- * <p>
- * 关键点（均由真实抓包核对）：
- * <ul>
- *   <li>account / password 需用米游社 1024 位 RSA 公钥做 RSA/ECB/PKCS1Padding 加密后 Base64；</li>
- *   <li>DS 走「账号 SDK 专用 salt + 带 body 的 DS2」算法，非 K2/LK2；</li>
- *   <li>参与签名的 body 必须与实际发出的 body 逐字节一致，因此这里先用 Gson 序列化成
- *       字符串（Gson 默认会把 = 转义成 \\u003d，与官方 App 行为一致），再拿该字符串同时用于签名和发包；</li>
- *   <li>返回的 data.token.token 就是 stoken（token_type = 1），mid 在 data.user_info.mid 中。</li>
- * </ul>
+ * 国服账号密码登录（passport-api / ma-cn-passport / loginByPassword）。关键点（均由真实抓包核对）：
+ * account/password 用米游社 1024 位 RSA 公钥 + RSA/ECB/PKCS1Padding 加密后 Base64；
+ * DS 走「账号 SDK 专用 salt + 带 body 的 DS2」，非 K2/LK2，且参与签名的 body 必须与实际发出的 body 逐字节一致，
+ * 因此先 Gson 序列化成字符串（默认把 = 转义成 \\u003d，与官方 App 一致），同一字符串既用于签名也用于发包；
+ * 返回的 data.token.token 即 stoken（token_type = 1），mid 在 data.user_info.mid。
  */
 public final class PasswordLogin {
 
@@ -64,10 +59,9 @@ public final class PasswordLogin {
     }
 
     /**
-     * 从 x-rpc-aigis 响应头解析出的极验任务信息。
-     * sessionId 用于重提，gt/challenge 用于配置 GT3 弹窗。
-     * v4 只有 gt（captchaId）、无 challenge，额外带 riskType（验证形式）。
-     */
+    * 从 x-rpc-aigis 响应头解析出的极验任务信息：sessionId 用于重提，gt/challenge 配置 GT3 弹窗；
+    * v4 只有 gt（captchaId）、无 challenge，额外带 riskType（验证形式）。
+    */
     public static class AigisInfo {
         public final String sessionId;
         public final String gt;
@@ -101,12 +95,9 @@ public final class PasswordLogin {
     }
 
     /**
-     * 执行账号密码登录。需在后台线程调用。
-     *
-     * @param account  手机号或邮箱（明文，方法内部加密，不做任何持久化）
-     * @param password 密码（明文，同上）
-     * @param aigis    极验通过后的 x-rpc-aigis，首次登录传 null
-     */
+    * 执行账号密码登录，需在后台线程调用。account/password 为明文（内部加密，不做持久化）；
+    * aigis 首次登录传 null，重提时传上轮极验通过后的 x-rpc-aigis 头。
+    */
     public static Result login(Context context, HeaderManager headerManager,
                                String account, String password, String aigis) {
         // 顺序固定为 account、password，与官方请求体一致
@@ -121,7 +112,7 @@ public final class PasswordLogin {
 
         JsonObject result = JsonParser.parseString(response.body).getAsJsonObject();
         JsonElement retcodeElement = result.get("retcode");
-        // retcode 缺失/JsonNull 时原实现直接 getAsInt() 抛 NPE，此处统一按登录失败处理
+        // retcode 缺失/JsonNull 时 getAsInt() 会抛 NPE，统一按登录失败处理
         int retcode = (retcodeElement != null && !retcodeElement.isJsonNull()) ? retcodeElement.getAsInt() : -1;
         String message = result.has("message") && !result.get("message").isJsonNull()
                 ? result.get("message").getAsString() : "";
@@ -146,7 +137,6 @@ public final class PasswordLogin {
         if (data == null)
             throw new RuntimeException(context.getString(R.string.login_password_no_token, response.body));
         Result parsed = new Result();
-        // data.token.token 即 stoken
         JsonObject token = data.getAsJsonObject("token");
         if (token == null || !token.has("token") || token.get("token").isJsonNull())
             throw new RuntimeException(context.getString(R.string.login_password_no_token, response.body));
@@ -173,13 +163,9 @@ public final class PasswordLogin {
     }
 
     /**
-     * 解析 x-rpc-aigis 响应头。真实响应头外层是一个 JSON 数组（取首个元素），
-     * 元素含 session_id，data 是嵌套的 JSON 字符串：
-     * <ul>
-     *   <li>v3：含 gt/challenge，配置 GT3 弹窗；</li>
-     *   <li>v4：use_v4=true，只有 gt（captchaId）、无 challenge，额外带 risk_type。</li>
-     * </ul>
-     * 任何字段缺失或格式异常均返回 null，由调用方走普通失败分支，避免风控残缺 JSON 崩溃。
+     * 解析 x-rpc-aigis 响应头：外层是 JSON 数组（取首个元素），含 session_id，data 是嵌套的 JSON 字符串
+     * （v3 含 gt/challenge；v4 use_v4=true，只有 gt（captchaId）+ risk_type）。字段缺失或格式异常返回 null，
+     * 由调用方走普通失败分支，避免风控残缺 JSON 崩溃。
      */
     static AigisInfo parseAigis(String header) {
         if (header == null || header.isEmpty())
@@ -223,9 +209,8 @@ public final class PasswordLogin {
     }
 
     /**
-     * 用极验 SDK 返回的三参数组装重提头：
-     * {@code session_id + ";" + base64(极验结果JSON)}。
-     * Base64 采用无换行的标准编码（与官方 StdEncoding 一致）。
+     * 用极验 SDK 返回的三参数组装重提头：{@code session_id + ";" + base64(极验结果JSON)}，
+     * Base64 用无换行的标准编码（与官方 StdEncoding 一致）。
      */
     public static String buildAigisHeader(AigisInfo info, String geetestChallenge,
                                           String geetestValidate, String geetestSeccode) {
@@ -240,12 +225,9 @@ public final class PasswordLogin {
     }
 
     /**
-     * 组装 v4 的重提头：{@code session_id + ";" + base64(validate JSON)}。
-     * <p>
-     * 与 v3 不同，v4 的 validate 是极验 SDK 直接给出的原生对象
-     * （lot_number / captcha_output / pass_token / gen_time / captcha_id / sign_token），
-     * 不做字段重排、不挑字段，整体 base64 即可——顺序与内容都参与极验服务端校验。
-     * 该字符串由 WebView 中的 {@code getValidate()} 序列化得到，非空即为验证通过。
+     * 组装 v4 重提头：{@code session_id + ";" + base64(validate JSON)}。validate 是极验 SDK 给出的原生对象
+     * （lot_number / captcha_output / pass_token / gen_time / captcha_id / sign_token），字段顺序与内容都参与服务端校验，
+     * 故不重排不挑选、整体 base64 即可；该串非空即视为验证通过。
      */
     public static String buildAigisV4Header(AigisInfo info, String validateJson) {
         String base64Validate = Base64.encodeToString(
@@ -254,9 +236,7 @@ public final class PasswordLogin {
     }
 
     /**
-     * RSA/ECB/PKCS1Padding 加密后 Base64（单行，无换行）。
-     * <p>
-     * 包内可见：{@link SmsLogin} 也用同一把账号 SDK 公钥加密 area_code 与手机号。
+     * RSA/ECB/PKCS1Padding 加密后 Base64（单行）。包内可见：{@link SmsLogin} 也用同一把账号 SDK 公钥加密 area_code 与手机号。
      */
     static String rsaEncrypt(Context context, String plain) {
         try {

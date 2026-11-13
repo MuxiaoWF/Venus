@@ -14,15 +14,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「关于」抽屉内容（原 res/layout/item_setting_about.xml）。
+ * 设置页「关于」抽屉内容：2 行只读文本（版本号 / 开源协议）+ 2 行外链。
  *
- * 结构（密度版）：2 行只读文本（版本号 / 开源协议）+ 2 行外链。
- * 外链行改用 [SettingLinkRow]（原来本窗格自己写了一份 `AboutLinkLine`，与森空岛的 `SklandLink` 重复）；
- * 只读文本按 4dp 上下留白排布（原先 8dp），无触控语义所以不必占 44dp。
+ * 外链行统一用 [SettingLinkRow]；只读文本 4dp 上下留白，无触控语义，不必占 44dp。
  *
  * @param appVersion 已格式化的版本文案（`R.string.about_version`）
- * @param onGithubClick 点击 Github 链接
- * @param onBlogClick 点击 Blog 链接
  */
 @Composable
 fun AboutSettingPane(
@@ -39,7 +35,7 @@ fun AboutSettingPane(
     }
 }
 
-/** 只读文本行：与原 XML 的 `textAppearance=Body + colorOnSurfaceVariant` 同口径。 */
+/** 只读文本行：body 字号 + onSurfaceVariant。 */
 @Composable
 private fun AboutTextLine(text: String) {
     Text(
@@ -53,9 +49,8 @@ private fun AboutTextLine(text: String) {
 }
 
 /**
- * [AboutSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [AboutSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class AboutSettingPaneView {
 

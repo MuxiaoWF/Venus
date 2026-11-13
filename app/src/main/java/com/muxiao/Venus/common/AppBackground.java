@@ -19,16 +19,9 @@ import java.io.InputStream;
 
 /**
  * 应用背景（壁纸）管线：解码 → 按淡化预设做色彩处理 → 与主题底色一次性掺合。
- *
- * <p>从 {@code MainActivity} 抽出，供所有需要「壁纸 + 液态玻璃」的宿主复用
- * （主界面外壳、图库页、全屏看图）。语义与抽取前完全一致，改动请同步核对三处调用方。</p>
- *
- * <p><b>为什么强调「一次性掺合」</b>：先预处理再叠视图 alpha 等于双重淡化，画面发蒙且
- * 预设档之间的差距被压缩。这里输出的就是<b>全不透明</b>成品位图，
- * 背景层直接铺满即可，不要再叠 alpha。</p>
- *
- * <p>所有方法都是纯位图运算，不触碰 View/主线程约束，但解码与合成开销大，
- * <b>必须在后台线程调用</b>。</p>
+ * 供所有需要「壁纸 + 液态玻璃」的宿主复用（主界面外壳、图库页、全屏看图），改动请同步核对三处调用方。
+ * 输出是全不透明成品位图，背景层直接铺满即可，不要再叠视图 alpha（否则双重淡化、画面发蒙，预设档差距被压缩）。
+ * 纯位图运算、不触碰 View/主线程，但解码与合成开销大，必须在后台线程调用。
  */
 public final class AppBackground {
 
@@ -48,14 +41,11 @@ public final class AppBackground {
     /**
      * 一步产出可直接铺满的背景位图：解码 + 淡化 + 与底色掺合。
      *
-     * @param context     用于 ContentResolver 与资源（判断深色模式）
-     * @param uri         用户选定的图片（null 直接返回 null，调用方回退纯色基底）
      * @param presetIndex 淡化预设下标（越界自动收敛）
      * @param imageWeight 图片权重 0~1（设置页不透明度滑条）
-     * @param surfaceColor 主题底色（主线程解析后传入，后台线程读主题属性不安全）
+     * @param surfaceColor 主题底色（须主线程解析后传入，后台线程读主题属性不安全）
      * @return 全不透明位图；uri 为 null 时返回 null
-     * @throws SecurityException 权限不足（调用方应清除该背景设置并提示）
-     * @throws Exception         解码失败
+     * @throws SecurityException 权限不足，调用方应清除该背景设置并提示
      */
     @Nullable
     public static Bitmap loadComposited(
@@ -107,8 +97,7 @@ public final class AppBackground {
         effect.postConcat(brightness);
         effect.postConcat(contrastMatrix);
 
-        // 先铺满主题底色，再按图片权重叠上预处理图：out = 预处理图 × w + 底色 × (1-w)。
-        // 单次掺合、全不透明输出——不再有第二层 alpha 叠加。
+        // 先铺满主题底色，再按图片权重叠上预处理图：out = 预处理图 × w + 底色 × (1-w)，单次掺合、全不透明输出。
         Bitmap src = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && source.getConfig() == Bitmap.Config.HARDWARE)
                 ? source.copy(Bitmap.Config.ARGB_8888, false) : source;
@@ -131,15 +120,13 @@ public final class AppBackground {
     @Nullable
     public static Bitmap decode(@NonNull Context context, @NonNull Uri uri) throws Exception {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            // Android 9.0 及以上版本使用 ImageDecoder。
-            // 必须强制软件内存分配：ImageDecoder 默认可能返回 HARDWARE 位图，
+            // 必须强制软件分配：ImageDecoder 默认可能返回 HARDWARE 位图，
             // 而后续预合成要在软件 Canvas 上做色彩滤镜重绘，会直接崩溃。
             return ImageDecoder.decodeBitmap(
                     ImageDecoder.createSource(context.getContentResolver(), uri),
                     (decoder, info, source) -> decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
             );
         }
-        // Android 9.0 以下版本使用 BitmapFactory
         InputStream inputStream = context.getContentResolver().openInputStream(uri);
         if (inputStream == null) return null;
         try (InputStream is = inputStream) {

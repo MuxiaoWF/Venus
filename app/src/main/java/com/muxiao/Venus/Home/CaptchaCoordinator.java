@@ -8,14 +8,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 前后台人机验证协调契约（解耦目标）。
- * 取代 BackgroundGeetestController 中散落的静态 CountDownLatch / 全局 pending 状态，
- * 将"后台→前台"的 Challenge/Headers 与"前台→后台"的结果传递集中到单一协调者实例，
- * 前后台通过接口契约通信，而非依赖静态全局变量。
+ * 前后台人机验证的协调契约：把「后台→前台」的 challenge/headers 与「前台→后台」的结果收敛到单一实例，
+ * 前后台只经接口通信，不再依赖 BackgroundGeetestController 里散落的静态 CountDownLatch/全局 pending 状态。
  */
 public interface CaptchaCoordinator {
 
-    /** 开始一次验证：重置 latch 与结果（在后台线程调用） */
+    /** 开始一次验证：重置 latch 与结果，须在后台线程调用。 */
     void reset();
 
     /** 阻塞后台线程，等待前台验证完成（最多 5 分钟） */
@@ -46,10 +44,7 @@ public interface CaptchaCoordinator {
     Map<String, String> consumePendingHeaders();
 }
 
-/**
- * CaptchaCoordinator 的默认实现（同文件包私有）：以实例状态取代全局静态字段。
- * 行为与原 BackgroundGeetestController 的静态字段完全一致，状态收敛到单一协调者。
- */
+/** 默认实现（包私有）：实例状态取代全局静态字段，行为与 BackgroundGeetestController 原静态字段一致。 */
 class DefaultCaptchaCoordinator implements CaptchaCoordinator {
 
     private volatile CountDownLatch latch = new CountDownLatch(1);

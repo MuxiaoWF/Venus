@@ -27,24 +27,17 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 每日定时签到调度器（WorkManager 实现）。
+ * 每日定时签到调度（WorkManager 自链式 OneTimeWorkRequest）。
  *
- * <p>为什么用「自链式 OneTimeWorkRequest」而不用 PeriodicWorkRequest：
- * 周期任务的执行时机是「周期内的浮动窗口」，无法贴近用户设定的时刻；自链式把
- * initialDelay 精确对齐到设定时刻，执行完毕后由 {@link DailyTaskWorker} 在结尾
- * 以 {@link #CHAIN_POLICY} 挂接下一次请求。进程死亡时 WorkManager 会
- * 自动重跑被中断的工作，链条因此自愈；应用冷启动时 {@link #ensureScheduled(Context)}
- * 再以 KEEP 幂等兜底，覆盖「断链 + 长期不打开应用」的场景。</p>
+ * <p>不用 PeriodicWorkRequest：周期任务的执行时机是「周期内的浮动窗口」，无法贴近用户设定时刻；
+ * 自链式把 initialDelay 精确对齐到设定时刻，执行完由 {@link DailyTaskWorker} 以 {@link #CHAIN_POLICY}
+ * 挂接下一次请求。进程死亡时 WorkManager 会自动重跑被中断的工作，链条因此自愈；冷启动再由
+ * {@link #ensureScheduled(Context)} 以 KEEP 幂等兜底，覆盖「断链 + 长期不打开应用」的场景。
  *
- * <p>调度入口按策略分工：
- * <ul>
- *   <li>设置开关/时间变更 → {@link #applySchedule(Context)}（REPLACE，重建链条）；</li>
- *   <li>进程冷启动 → {@link #ensureScheduled(Context)}（KEEP，链存活则不动）；</li>
- *   <li>执行器结尾续链 → {@link #enqueueNext(Context, ExistingWorkPolicy, long)}
-     *       （{@link #CHAIN_POLICY} = APPEND_OR_REPLACE，挂在当前工作之后，不会自取消；
-     *       链尾若已成终态则另起新序列自愈）</li>
-     * </ul></p>
-     */
+ * <p>入口按策略分工：设置变更 {@link #applySchedule(Context)}（REPLACE 重建链条）；冷启动
+ * {@link #ensureScheduled(Context)}（KEEP，链存活则不动）；执行器续链 {@link #enqueueNext}
+ * （{@link #CHAIN_POLICY} = APPEND_OR_REPLACE，挂在当前工作之后，链尾已终态则另起新序列自愈）。
+ */
 public final class DailyTaskScheduler {
 
     /** 唯一工作名：调度、续链、修复共用同一名字，靠 ExistingWorkPolicy 区分语义。 */
@@ -78,14 +71,10 @@ public final class DailyTaskScheduler {
     public static final long MANUAL_BUSY_RECHECK_DELAY_MINUTES = 5;
 
     /**
-     * 自链续接策略（执行器结尾挂接下一次工作）：{@code APPEND_OR_REPLACE} 而非 {@code APPEND}。
-     *
-     * <p>{@code APPEND} 把新工作挂到同名链尾的<b>全部叶子</b>上，并继承其终态；一旦某个叶子
-     * 处于 CANCELLED/FAILED（被系统停止、被取消、被 {@code REPLACE} 打断等），后续 APPEND
-     * 出来的工作会一并被判为终态而<b>永不入队执行</b>——链条静默死亡，当天再无任何信号，
-     * 只能等下次冷启动 {@link #ensureScheduled} 修复。
-     * {@code APPEND_OR_REPLACE} 在探测到叶子已是终态时改为另起一条新序列，等价于
-     * 「续链失败即自愈」，且正常路径行为与 APPEND 完全一致（WorkManager ≥ 2.6）。</p>
+     * 续链策略用 {@code APPEND_OR_REPLACE} 而非 {@code APPEND}：APPEND 把新工作挂到同名链尾的全部叶子并继承其终态，
+     * 某叶子处于 CANCELLED/FAILED（被系统停止、取消、被 REPLACE 打断）时，APPEND 出的工作会一并被判终态而永不执行
+     * ——链条静默死亡，当天再无信号，只能等下次冷启动修复。APPEND_OR_REPLACE 探测到叶子终态就另起新序列，
+     * 即「续链失败自愈」，正常路径行为与 APPEND 一致（WorkManager ≥ 2.6）。
      */
     static final ExistingWorkPolicy CHAIN_POLICY = ExistingWorkPolicy.APPEND_OR_REPLACE;
 
@@ -119,8 +108,7 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 设置变更后的统一入口：开启则按设定时刻重建调度（REPLACE，会取消执行中的旧链），
-     * 关闭则取消全部待执行工作。
+     * 设置变更后的统一入口：开启则按设定时刻重建调度（REPLACE，会取消执行中的旧链），关闭则取消全部待执行工作。
      */
     public static void applySchedule(Context context) {
         if (isEnabled(context)) {
@@ -136,8 +124,8 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 进程冷启动修复（KEEP 幂等：链存活则不动作）。断链重建时按「当天必跑一次」口径：
-     * 时刻未到 → 今天到点；时刻已过且当日未全部完成 → 15 分钟后补跑；已完成 → 明天到点。
+     * 进程冷启动修复（KEEP 幂等：链存活则不动作）。断链重建按「当天必跑一次」：时刻未到 → 今天到点；
+     * 时刻已过且当日未全部完成 → 15 分钟后补跑；已完成 → 明天到点。
      */
     public static void ensureScheduled(Context context) {
         if (!isEnabled(context)) return;
@@ -145,19 +133,16 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 排下一次工作（全量执行，attempt 从 1 起算）。所有入口共用：
-     * constraints 保证有网才跑，退避策略兜底进程死亡重跑。
+     * 排下一次工作（全量执行，attempt 从 1 起算）。所有入口共用：constraints 保证有网才跑，
+     * 退避策略兜底进程死亡重跑。
      *
      * @param policy 设置变更 REPLACE / 冷启动修复 KEEP / 执行器续链 {@link #CHAIN_POLICY}
-     * @param delay  距执行的毫秒数
      */
     static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay) {
         enqueueNext(context, policy, delay, 1, null);
     }
 
-    /**
-     * 排下一次工作；onlyNames 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。
-     */
+    /** 排下一次工作；onlyNames 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。 */
     static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay,
                             int attempt, Set<String> onlyNames) {
         Data.Builder data = new Data.Builder().putInt(KEY_ATTEMPT, attempt);
@@ -180,17 +165,12 @@ public final class DailyTaskScheduler {
         return delayToTarget(context, false);
     }
 
-    /**
-     * 冷启动修复的延迟：今天时刻未到 → 到点执行；已过且当日未跑完 → 补跑；
-     * 已跑完 → 明天到点。
-     */
+    /** 冷启动修复的延迟：今天时刻未到 → 到点执行；已过且当日未跑完 → 补跑；已跑完 → 明天到点。 */
     private static long computeRepairDelay(Context context) {
         return delayToTarget(context, true);
     }
 
-    /**
-     * @param allowCatchUp true 时对「今日时刻已过 + 当日未全部完成 + 有可跑任务」返回补跑延迟
-     */
+    /** @param allowCatchUp true 时对「今日时刻已过 + 当日未全部完成 + 有可跑任务」返回补跑延迟 */
     private static long delayToTarget(Context context, boolean allowCatchUp) {
         // 统一使用应用语言环境：任务名等持久化键与语言相关
         Context localized = LocaleHelper.wrap(context.getApplicationContext());
@@ -219,8 +199,8 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 当日启用的任务是否全部已完成（幂等去重依据：手动跑过/上一轮已跑完则不再重复执行）。
-     * 仅统计 {@code status == completed}，失败/进行中都不算完成。
+     * 当日启用的任务是否全部完成（幂等去重依据：手动跑过/上一轮已跑完则不再重复执行）。
+     * 仅 {@code status == completed} 算完成，失败/进行中都不算。
      */
     public static boolean allEnabledTasksCompletedToday(Context context, String userId) {
         Context localized = LocaleHelper.wrap(context.getApplicationContext());
@@ -237,9 +217,8 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 按失败类别给出同日重试的等待分钟数：HTTP 429 &gt; 默认 &gt; 网络类。
-     * 判定走异常类型链（{@code tools.normalizeRequestError} 归一化网络异常时保留 cause），
-     * 不解析本地化文案；判定不出类别时回落默认间隔。
+     * 按失败类别给同日重试的等待分钟：429 &gt; 默认 &gt; 网络类。判定走异常类型链（{@code tools.normalizeRequestError}
+     * 归一化网络异常时保留 cause），不解析本地化文案；判不出类别时回落默认间隔。
      */
     static long retryDelayMinutes(Throwable cause) {
         boolean network = false;

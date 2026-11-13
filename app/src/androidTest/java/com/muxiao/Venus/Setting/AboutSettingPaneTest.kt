@@ -12,10 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 迁移回归测试：Compose 版「关于」抽屉与原 XML 行为等价
- * （版本文案可显示 + 两个外链各自派发点击）。
- */
+/** 「关于」抽屉：版本文案可显示 + 两个外链各自派发点击。 */
 class AboutSettingPaneTest {
 
     @get:Rule

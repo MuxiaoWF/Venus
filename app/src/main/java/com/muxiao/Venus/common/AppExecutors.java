@@ -5,13 +5,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * 统一线程模型（Now in Android 推荐：结构化并发 + 生命周期感知 Executor）。
- * 替代散落的 new Thread / Executors.newFixedThreadPool(3) / runOnUiThread。
- * - execute()/submit()：后台任务线程池（网络、文件、加解密等）的门面方法。
- * 注意：本类为进程级单例线程池，禁止 shutdown；任务取消请使用 Future.cancel(true)。
- * 对外不暴露 {@link ExecutorService}：compileSdk 34+ 起它实现了 AutoCloseable，
- * 链式调用（如 io().execute(...)）会触发 Lint「AutoCloseable used without try-with-resources」误报，
- * 且门面从类型上杜绝了调用方误 shutdown 共享线程池的可能。
+ * 统一线程模型：进程级单例线程池，后台任务（网络 / 文件 / 加解密）统一走这里。
+ * <p>
+ * 禁止 shutdown，任务取消请用 Future.cancel(true)。不对外暴露 {@link ExecutorService}：
+ * compileSdk 34+ 起它实现 AutoCloseable，链式调用会触发 Lint
+ * 「AutoCloseable used without try-with-resources」误报，且从类型上杜绝误 shutdown 共享池。
  */
 public final class AppExecutors {
 

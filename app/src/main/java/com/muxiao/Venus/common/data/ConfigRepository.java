@@ -22,24 +22,16 @@ import kotlin.OptIn;
 import kotlinx.coroutines.ExperimentalCoroutinesApi;
 
 /**
- * 米游社配置仓储（单一可信数据源，底层 DataStore）。
- * 底层由 RxJava3 Preferences DataStore 承载，替代原 "config_prefs" SharedPreferences。
+ * 米游社配置仓储（单一可信数据源，底层 RxJava3 Preferences DataStore，替代原 "config_prefs" SharedPreferences）。
  * 对外 get/put 同步热读（Write-Through），与原 SP 版签名/语义一致。
  *
- * <p>承载的键（config_prefs 的全部键，已完成收口）：
- * <ul>
- *   <li>字符串：SALT_6X / SALT_4X / LK2 / K2 / bbs_version / update_time / update_time_local
- *       —— 由 MiHoYoBBSConstants 写入、SettingsFragment 展示；</li>
- *   <li>布尔：captcha_pending —— 由 MainActivity 读写（后台人机验证待触发标记）。</li>
- * </ul>
+ * <p>承载 config_prefs 的全部键：字符串 SALT_6X / SALT_4X / LK2 / K2 / bbs_version / update_time /
+ * update_time_local（MiHoYoBBSConstants 写入、SettingsFragment 展示），布尔 captcha_pending（MainActivity 读写）。
+ * 除本类的 {@link #seedCacheFromLegacy}/{@link #clear()}（旧 xml 回灌与清理）外，config_prefs 已无直接
+ * getSharedPreferences 访问点，故不存在「同一键分属 xml 与 pb」的读写分叉。
  *
- * <p>收口说明：自本版本起 config_prefs 不再有任何直接 getSharedPreferences 访问点
- * （唯一例外是本类的 {@link #seedCacheFromLegacy}/{@link #clear()}，用于旧 xml 的回灌与清理），
- * 因此不存在"同一键分属 xml 与 pb 两个文件"的读写分叉。
- *
- * <p>DataStore 按文件应为单例：调用方存在 new ConfigRepository(context) 多次实例化的情况，故 DS / 缓存
- * 均按 prefs 名静态共享，避免"同一文件多 DataStore 实例"异常。
- * 应用为单进程（AndroidManifest 未声明任何 android:process），满足 DataStore 的单进程约束。
+ * <p>DataStore 按文件应为单例：调用方存在多次实例化的情况，故 DS / 缓存均按 prefs 名静态共享，
+ * 避免「同一文件多 DataStore 实例」异常。应用为单进程（Manifest 未声明 android:process），满足其单进程约束。
  */
 @OptIn(markerClass = ExperimentalCoroutinesApi.class)
 public class ConfigRepository {
@@ -48,10 +40,7 @@ public class ConfigRepository {
     /** 同步热读缓存：值类型为 String 或 Boolean。 */
     private static final ConcurrentHashMap<String, Object> cache = new ConcurrentHashMap<>();
     private static final Object initLock = new Object();
-    /**
-     * 持有仓库内所有 fire-and-forget 订阅的 Disposable（同时满足 Lint CheckResult 检查）。
-     * 本仓库与进程同生命周期，订阅不存在被提前取消的需求，故仅收集、从不 dispose。
-     */
+    /** 收集所有 fire-and-forget 订阅（同时满足 Lint CheckResult）；与进程同生命周期，从不 dispose。 */
     private static final CompositeDisposable persistentDisposables = new CompositeDisposable();
 
     private final Context context;
@@ -62,10 +51,9 @@ public class ConfigRepository {
             synchronized (initLock) {
                 if (store == null) {
                     store = new RxPreferenceDataStoreBuilder(this.context, Constants.Prefs.CONFIG_PREFS_NAME).build();
-                    // DataStore 数据变化（含后续写入）同步回写缓存。
-                    // 必须显式消费 onError：RxJava 对未处理错误会抛 OnErrorNotImplementedException，
-                    // 在 DataStore 读取失败（文件损坏/IO 异常）时直接把异常抛到订阅线程。
-                    // 此处降级为「保留既有缓存 + 旧 SP 兜底」，配置读取不因持久层故障而中断。
+                    // 数据变化（含后续写入）同步回写缓存。必须显式消费 onError：RxJava 对未处理错误会抛
+                    // OnErrorNotImplementedException，DataStore 读取失败（文件损坏/IO）时会直接抛到订阅线程；
+                    // 此处降级为「保留既有缓存 + 旧 SP 兜底」，配置读取不因持久层故障中断。
                     persistentDisposables.add(store.data().subscribe(
                             prefs -> {
                                 for (Map.Entry<Preferences.Key<?>, Object> e : prefs.asMap().entrySet()) {
@@ -112,7 +100,6 @@ public class ConfigRepository {
         return v instanceof String ? (String) v : defValue;
     }
 
-    // 同步热读：仅读内存缓存，未命中或类型不符时返回 defValue，不阻塞也不触发持久化。
     public boolean getBoolean(String key, boolean defValue) {
         Object v = cache.get(key);
         return v instanceof Boolean ? (Boolean) v : defValue;
@@ -128,7 +115,6 @@ public class ConfigRepository {
         }).subscribe());
     }
 
-    // 写穿（Write-Through）：先更新内存缓存（写入立即可见），再异步提交 DataStore 持久化。
     public void putBoolean(String key, boolean value) {
         cache.put(key, value);
         persistentDisposables.add(store.updateDataAsync(prefs -> {
@@ -139,11 +125,8 @@ public class ConfigRepository {
     }
 
     /**
-     * 清空全部配置（等价于原 configPrefs.edit().clear().apply()）。
-     * 用于版本升级后回退到内置默认值（见 MainActivity#checkAndUpdateConfig）。
-     *
-     * <p>同时清理旧 xml：否则下次冷启动 {@link #seedCacheFromLegacy} 会把已废弃的旧值重新灌回缓存，
-     * 导致"清空"在重启后失效。
+     * 清空全部配置（用于版本升级后回退内置默认值，见 MainActivity#checkAndUpdateConfig）。
+     * 同时清旧 xml：否则下次冷启动 {@link #seedCacheFromLegacy} 会把已废弃的旧值重新灌回缓存，清空在重启后失效。
      */
     public void clear() {
         cache.clear();

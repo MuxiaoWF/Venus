@@ -15,10 +15,8 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：Compose 版全屏图片页（原 `activity_fullscreen_image.xml` + `ImagePagerAdapter`）。
- *
- * 页面数据传 `imageUrl = null`，避免测试进程发起真实网络请求；
- * 此时每页走「无图」分支显示错误图标，但标题 / 作者 / 计数 / 下载入口的渲染逻辑与真实数据一致。
+ * 全屏图片页：数据传 `imageUrl = null` 以免测试进程发真实网络请求，此时每页走「无图」分支
+ * 显示错误图标，标题 / 作者 / 计数 / 下载入口的渲染逻辑与真实数据一致。
  */
 class FullscreenImageScreenTest {
 

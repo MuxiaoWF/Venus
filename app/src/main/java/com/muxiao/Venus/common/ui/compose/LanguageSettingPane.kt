@@ -20,13 +20,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
 /**
- * 设置页「语言」抽屉内容（原 res/layout/item_setting_language.xml）。
- *
- * 等价于原 `TextInputLayout(Widget.Venus.Dropdown) + MaterialAutoCompleteTextView`：
- * 只读下拉框 + 展开菜单，选中后回调下标，由 Java 侧落盘并 `recreate()` 应用语言。
+ * 设置页「语言」抽屉内容：只读下拉框 + 展开菜单，选中后回调下标，由 Java 侧落盘并
+ * `recreate()` 应用语言。
  *
  * @param options 语言名列表（顺序与 `SELECTED_LANGUAGE` 的下标一致）
- * @param selectedIndex 当前选中下标
  * @param onSelect 选中某语言后的回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,14 +36,13 @@ fun LanguageSettingPane(
 ) {
     var expanded by remember { mutableStateOf(false) }
     DrawerPane(modifier) {
-        // 原先这里先写一行「选择语言」标签、再放带同名 label 的输入框——两处都在重复抽屉标题。
-        // 密度版：标签行删除，输入框也不再带 floating label，直接显示当前语言
+        // 不再重复抽屉标题：省掉标签行与 floating label，直接显示当前语言
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            // 与登录页共用 VenusTextField：只读 + placeholder + 尾随箭头，不再是手抄的一份 OutlinedTextField
+            // 与登录页共用 VenusTextField：只读 + placeholder + 尾随箭头
             VenusTextField(
                 value = options.getOrElse(selectedIndex) { "" },
                 onValueChange = {},
@@ -76,9 +72,8 @@ fun LanguageSettingPane(
 }
 
 /**
- * [LanguageSettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [LanguageSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class LanguageSettingPaneView {
 

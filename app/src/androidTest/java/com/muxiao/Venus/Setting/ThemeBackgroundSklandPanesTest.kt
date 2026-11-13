@@ -20,10 +20,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * 迁移回归测试：主题 / 背景图片 / 森空岛 三个抽屉的 Compose 版行为等价性
- * （圆点与分段按下标派发、滑块按百分比派发、复选框按子项下标派发）。
- */
+/** 主题 / 背景图片 / 森空岛三个抽屉：圆点与分段按下标派发、滑块按百分比派发、复选框按子项下标派发。 */
 class ThemeBackgroundSklandPanesTest {
 
     @get:Rule

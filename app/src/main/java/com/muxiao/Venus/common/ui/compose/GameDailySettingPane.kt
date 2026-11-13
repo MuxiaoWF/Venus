@@ -25,19 +25,14 @@ private val GAME_CHIP_LABEL_RES = intArrayOf(
     R.string.tears_of_themis,
 )
 
-/** 国际服不支持的游戏签到下标（对应原 setupServerSelection 里传入的两个 Chip）。 */
+/** 国际服不支持的游戏签到下标。 */
 const val GAME_CHIP_INDEX_HR2 = 4
 const val GAME_CHIP_INDEX_WEIDING = 5
 
 /**
- * 设置页「游戏签到」抽屉内容（原 res/layout/item_setting_game_daily.xml）。
+ * 设置页「游戏签到」抽屉内容：启用开关 + 6 个多选 FilterChip。
  *
- * 结构：启用开关 + 6 个多选 FilterChip（游戏签到覆盖的游戏）。
- *
- * @param switchChecked 总开关
- * @param onSwitchChange 总开关变更回调
  * @param chipChecked 各游戏勾选态（长度 6，顺序见 [GAME_CHIP_LABEL_RES]）
- * @param onChipToggle 某游戏勾选变更回调
  * @param chipsEnabled 整组 Chip 是否可点
  */
 @Composable
@@ -68,9 +63,8 @@ fun GameDailySettingPane(
 }
 
 /**
- * [GameDailySettingPane] 的状态宿主（原 View 互操作宿主）。
- *
- * 现只承载 `mutableStateOf` 状态与回调，`Render()` 由 `SettingsScreenView` 在同一组合里调用。
+ * [GameDailySettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
+ * 在同一组合里调用。
  */
 class GameDailySettingPaneView {
 
@@ -95,7 +89,7 @@ class GameDailySettingPaneView {
         if (index in chipsState.indices) chipsState[index] = checked
     }
 
-    /** 国际服隐藏不支持的游戏（替代原实现里对 Chip 直接 setVisibility）。 */
+    /** 国际服隐藏不支持的游戏。 */
     fun setChipVisible(index: Int, visible: Boolean) {
         if (index in visibleState.indices) visibleState[index] = visible
     }

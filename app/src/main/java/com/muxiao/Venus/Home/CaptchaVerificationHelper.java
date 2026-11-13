@@ -8,9 +8,7 @@ import com.muxiao.Venus.common.tools;
 
 import java.util.Map;
 
-/**
- * 验证码验证的公共逻辑，供 BBSDaily 和 BBSGameDaily 共用。
- */
+/** 验证码验证的公共逻辑，供 BBSDaily 与 BBSGameDaily 共用。 */
 public class CaptchaVerificationHelper {
 
     /** 等待人机验证结果的最长时间：与前台服务 WakeLock 的 10 分钟上限对齐。 */
@@ -37,17 +35,12 @@ public class CaptchaVerificationHelper {
     }
 
     /**
-     * 发起极验验证并注册回调。
-     * 先重置 verificationComplete，验证成功时写入 geetCode 并唤醒等待线程；
-     * 失败时将 geetCode 置为 null 同样唤醒；结果供 waitForCompletion() 阻塞消费。
+     * 发起极验验证并注册回调：先重置 verificationComplete，成功写入 geetCode、失败置 null，两者都唤醒等待线程。
      *
-     * <p>等待验证码期间<b>不切换任务状态</b>：任务自 TaskExecutor 起就是 IN_PROGRESS，
-     * 「等待人机验证」属于运行中的一部分，应始终保持 RUNNING 展示
-     * （原实现切 WARNING，而列表将 WARNING 渲染为绿色「已签」，造成
-     * 「遇到验证码即显示完成」的观感错误）。这里仅向日志通知等待/恢复事件。
+     * <p>等待验证码期间不切换任务状态：任务自 TaskExecutor 起即 IN_PROGRESS，「等待人机验证」属于运行中；
+     * 切 WARNING 会被列表渲染成绿色「已签」，造成「遇到验证码即显示完成」的观感错误。这里只发日志通知。
      *
-     * @param headers  含 Cookie 的请求头，供 API2 二次验证绑定会话
-     * @param taskName 任务名，用于状态提示
+     * @param headers 含 Cookie 的请求头，供 API2 二次验证绑定会话
      */
     public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
         verificationComplete = false;
@@ -73,16 +66,9 @@ public class CaptchaVerificationHelper {
     }
 
     /**
-     * 阻塞等待验证完成，最多等待 {@link #WAIT_TIMEOUT_MS}。
-     *
-     * <p>三条退出路径：
-     * <ul>
-     *   <li>验证回调完成（成功/失败）→ {@code verificationComplete} 置位后唤醒返回；</li>
-     *   <li>超时（用户长时间未完成验证或无 UI 可交互）→ 提示后返回，调用方据
-     *       {@link #getGeetCode()} 为 null 走既有的验证失败分支，避免线程永久挂起；</li>
-     *   <li>线程被中断（任务取消）→ 立即还原中断标志并返回。原实现在中断后仍留在
-     *       {@code while} 循环中，因中断标志已置位会导致 {@code wait()} 立刻抛异常 → 忙等自旋。</li>
-     * </ul>
+     * 阻塞等待验证完成，最多 {@link #WAIT_TIMEOUT_MS}。三条退出路径：回调完成即被唤醒；超时提示后返回
+     * （调用方据 {@link #getGeetCode()} 为 null 走既有失败分支，避免线程永久挂起）；线程被中断（任务取消）
+     * 时立即还原中断标志返回——中断标志已置位会让 {@code wait()} 立刻抛异常，留在循环里会忙等自旋。
      */
     public synchronized void waitForCompletion() {
         long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS;

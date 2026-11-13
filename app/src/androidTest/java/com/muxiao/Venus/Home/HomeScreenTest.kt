@@ -25,10 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：确保 Compose 版主页与原 XML 行为等价。
- *
- * 重点覆盖「可见性由状态派生」这条新约定——原来这五个可见性散在 `render()` 的
- * 十几次 `setVisibility` 里，现在只由 runMode / bgFeatureEnabled / 任务状态决定：
+ * 主页回归测试：可见性只由 runMode / bgFeatureEnabled / 任务状态派生，不散落在各处 setVisibility：
  * 1. 空闲：开始按钮 + 后台行（开关开启时）+ 失败时出现重试行
  * 2. 前台运行：账号行与开始按钮收起，取消按钮出现，后台行连带收起
  * 3. 任务状态文案与计数器
@@ -93,7 +90,6 @@ class HomeScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.run_sign_in)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.retry_failed_tasks)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.background_running)).assertIsDisplayed()
-        // 空闲态不出现取消按钮
         composeRule.onAllNodesWithText(context.getString(R.string.cancel_task)).assertCountEquals(0)
     }
 

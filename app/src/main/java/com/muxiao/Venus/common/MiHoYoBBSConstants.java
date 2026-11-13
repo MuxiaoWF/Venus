@@ -22,9 +22,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 米游社常量与配置管理：salt/K2/LK2 签名参数（支持云端更新）、
- * 游戏名称到 act_id/game_biz/forum_id 的映射、国服/国际服判断。
- * 内部游戏标识符使用中文（如"原神"、"星铁"），与 API 返回值一致。
+ * 米游社常量与配置管理：salt/K2/LK2 签名参数（支持云端更新）、游戏名 → act_id/game_biz/forum_id 映射、
+ * 国服/国际服判断。内部游戏标识符使用中文（如"原神"、"星铁"），与 API 返回值一致。
  */
 public class MiHoYoBBSConstants {
     /** 不可变快照，volatile 保证跨线程可见性，整体替换保证一致性 */
@@ -40,7 +39,7 @@ public class MiHoYoBBSConstants {
             "4751cb5557bfad5e249e58462c39fb0a", "9c7b896d7483e9070b27c55f1959c4d5",
             "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS", "2.117.0");
 
-    // 实例字段：从 snapshot 读取，保持向后兼容
+    // 实例字段镜像 snapshot（兼容既有的直接字段访问）
     public String SALT_6X, SALT_4X, LK2, K2, SALT_PASSPORT, bbs_version;
 
     public static final String SALT_6X_final = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
@@ -48,10 +47,8 @@ public class MiHoYoBBSConstants {
     public static final String LK2_final = "4751cb5557bfad5e249e58462c39fb0a";
     public static final String K2_final = "9c7b896d7483e9070b27c55f1959c4d5";
     /**
-     * 账号 SDK（passport / ma-cn-passport）专用 salt，与 K2 / LK2 / SALT_6X 均不同。
-     * 用于 loginByPassword 等 passport-api 接口，签名走「带 body 的 DS2」算法：
-     * MD5("salt=" + SALT_PASSPORT + "&t=" + t + "&r=" + r + "&b=" + body + "&q=")
-     * 该值已由真实抓包 DS 反算验证（MD5 完全命中）。
+     * 账号 SDK（passport / ma-cn-passport）专用 salt：签名走「带 body 的 DS2」，
+     * MD5("salt=" + SALT_PASSPORT + "&t=" + t + "&r=" + r + "&b=" + body + "&q=")，已由真实抓包反算验证。
      */
     public static final String SALT_PASSPORT_final = "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS";
     /** 内置米游社版本线；K2/LK2/UA/x-rpc-app_version 都以此为准 */
@@ -73,13 +70,7 @@ public class MiHoYoBBSConstants {
         updateSalt();
     }
 
-    /**
-     * 将内部游戏名称标识符转换为可翻译的显示名称。
-     *
-     * @param context    上下文
-     * @param gameName   内部标识符（如 "原神"、"星铁"）
-     * @return 本地化的显示名称
-     */
+    /** 内部游戏标识 → 可翻译显示名；未命中时返回原名。 */
     public static String game_to_display_name(Context context, String gameName) {
         if (gameName == null) return "";
         switch (gameName) {
@@ -95,12 +86,7 @@ public class MiHoYoBBSConstants {
         }
     }
 
-    /**
-     * 从云端获取最新配置并更新本地 SharedPreferences。
-     * 应在后台线程调用。
-     *
-     * @return true 如果获取并更新成功
-     */
+    /** 从云端拉最新 salt/版本并写入本地；失败返回 false（保留原值）。应在后台线程调用。 */
     public static boolean update_config_from_web(Context context) {
         try {
             java.util.Map<String, String> headers = new java.util.HashMap<>();
@@ -126,18 +112,14 @@ public class MiHoYoBBSConstants {
         }
     }
 
-    /**
-     * 从 JSON 中按 key 取字符串，缺失、null 或非字符串时返回 defaultValue。
-     */
+    /** 按 key 取字符串，缺失、null 或非字符串时返回 defaultValue。 */
     private static String getDataOrDefault(com.google.gson.JsonObject data, String key, String defaultValue) {
         if (data != null && data.has(key) && !data.get(key).isJsonNull())
             return data.get(key).getAsString();
         return defaultValue;
     }
 
-    /**
-     * 从本地 SharedPreferences 读取各 salt 与版本，原子替换快照并同步实例字段（兼容直接字段访问）。
-     */
+    /** 读本地各 salt 与版本，原子替换 snapshot 并同步实例字段（兼容直接字段访问）。 */
     private void updateSalt() {
         ConfigRepository configRepo = new ConfigRepository(context);
         String s6x = configRepo.get(SALT_6X_PREF, SALT_6X_final);
@@ -168,23 +150,12 @@ public class MiHoYoBBSConstants {
     private static final String OS_TearsOfThemis_act_id = "e202202281857121";
     private static final String OS_ZZZ_act_id = "e202406031448091";
 
-    /**
-     * 按国服返回游戏签到 act_id（isOversea 默认 false）。
-     *
-     * @param name 游戏名称，可输入崩坏2、原神、崩坏3、绝区零、星铁、未定事件簿
-     * @return 游戏 act_id，无对应时返回 null
-     */
+    /** 国服游戏名 → 签到 act_id；无对应时返回 null。 */
     public static String name_to_act_id(String name) {
         return name_to_act_id(name, false);
     }
 
-    /**
-     * 返回游戏签到 act_id，isOversea 决定国服/国际服映射；无对应时返回 null。
-     *
-     * @param name 游戏名称，可输入崩坏2、原神、崩坏3、绝区零、星铁、未定事件簿
-     * @param isOversea 是否为国际服
-     * @return 游戏 act_id，无对应时返回 null
-     */
+    /** 按 isOversea 映射签到 act_id；无对应时返回 null。 */
     public static String name_to_act_id(String name, boolean isOversea) {
         if (isOversea) {
             switch (name) {
@@ -281,12 +252,7 @@ public class MiHoYoBBSConstants {
     }};
 
 
-    /**
-     * 获取游戏id（game_biz），可输入崩坏2、原神、崩坏3、绝区零、星铁、崩坏因缘精灵、未定事件簿
-     *
-     * @param isOversea 是否为国际服
-     * @return game_biz
-     */
+    /** 游戏名 → game_biz；无对应时返回 null。 */
     public static String name_to_game_id(String game_name, boolean isOversea) {
         if (isOversea) {
             return name_to_game_id_os.get(game_name);
@@ -294,11 +260,7 @@ public class MiHoYoBBSConstants {
         return name_to_game_id.get(game_name);
     }
 
-    /**
-     * 获取游戏论坛id，可输入崩坏2、原神、崩坏3、绝区零、星铁、大别野、崩坏因缘精灵、星布谷地、未定事件簿
-     *
-     * @return id、forumID、名字的map组合
-     */
+    /** 游戏名 → {id, forumId, name} 组合；无对应时返回 null。 */
     public static Map<String, String> name_to_forum_id(String name) {
         for (Map<String, String> map : bbs_list) {
             if (name.equals(map.get("name")))
@@ -330,9 +292,7 @@ public class MiHoYoBBSConstants {
     // 缓存 is_oversea 结果，避免每次调用都读 SharedPreferences
     private static volatile Boolean cachedIsOversea = null;
 
-    /**
-     * 读取 SERVER_TYPE 判断国际服（1=国际服），首次读取后带进程级缓存。
-     */
+    /** 读 SERVER_TYPE（1=国际服）判断国际服，进程级缓存。 */
     public static boolean is_oversea(Context context) {
         if (cachedIsOversea != null) return cachedIsOversea;
         SharedPreferences prefs = context.getSharedPreferences(Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
@@ -346,15 +306,8 @@ public class MiHoYoBBSConstants {
     }
 
     /**
-     * 获取国际服游戏签到事件API的完整基础URL（含路径前缀）
-     * 不同游戏使用不同的域名和路径：
-     * 原神: sg-hk4e-api.hoyolab.com/event/sol
-     * 星铁: sg-public-api.hoyolab.com/event/luna/os
-     * 崩坏3: sg-public-api.hoyolab.com/event/mani
-     * 绝区零: sg-act-nap-api.hoyolab.com/event/luna/zzz/os
-     *
-     * @param gameName 游戏名称
-     * @return 完整的事件API基础URL，末尾不含斜杠
+     * 国际服活动签到 API 基址（末尾不含斜杠）：各游戏域名与路径不同——原神 sg-hk4e-api/event/sol、
+     * 崩坏3 sg-public-api/event/mani、绝区零 sg-act-nap-api/event/luna/zzz/os、星铁（默认）sg-public-api/event/luna/os。
      */
     public static String get_event_base_url(String gameName) {
         switch (gameName) {

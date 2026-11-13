@@ -29,7 +29,6 @@ public class TaskWidgetService extends RemoteViewsService {
     @Override
     // 返回工厂实例（使用本地化 ApplicationContext），为列表提供任务项视图
     public RemoteViewsFactory onGetViewFactory(Intent intent) {
-        // 用 wrap 后的 Application Context，确保任务名等文本遵循设置语言
         return new TaskRemoteViewsFactory(LocaleHelper.wrap(getApplicationContext()));
     }
 
@@ -124,7 +123,6 @@ public class TaskWidgetService extends RemoteViewsService {
                     break;
             }
 
-            // 设置 fill-in intent 用于列表项点击
             Intent fillIn = new Intent();
             views.setOnClickFillInIntent(R.id.widget_task_item_root, fillIn);
 
@@ -132,9 +130,9 @@ public class TaskWidgetService extends RemoteViewsService {
         }
 
         @Override
-        // 数据重载期间 launcher 会短暂显示加载视图；默认加载视图（居中 spinner）与条目布局
-        // 完全不同，整表重建时表现为肉眼可见的"闪烁"。返回与条目同构的空白 RemoteViews，
-        // 让重载前后视觉保持连续（onDataSetChanged 完成后立即被真实条目覆盖）。
+        // 数据重载期间 launcher 会短暂显示加载视图；默认加载视图（居中 spinner）与条目布局完全不同，
+        // 整表重建时会肉眼可见地闪一下。返回与条目同构的空白 RemoteViews，让重载前后视觉连续
+        // （onDataSetChanged 完成后立即被真实条目覆盖）。
         public RemoteViews getLoadingView() {
             return new RemoteViews(context.getPackageName(), R.layout.widget_task_item);
         }
@@ -145,8 +143,8 @@ public class TaskWidgetService extends RemoteViewsService {
         }
 
         @Override
-        // hasStableIds() 为 true 时 item id 必须由「项目本身」决定。原实现返回 position，
-        // 当用户在设置里增删游戏导致任务顺序变化时，launcher 会把新顺序的条目误判为同一项而复用旧视图。
+        // hasStableIds() 为 true 时 item id 必须由「项目本身」决定：原实现返回 position，用户增删游戏导致
+        // 任务顺序变化时 launcher 会把新顺序的条目误判为同一项而错误复用旧视图。
         public long getItemId(int position) {
             if (position < 0 || position >= taskNames.size()) return 0;
             // 32 位非负稳定 id：顺序变化不再误判为同一项，且不会与 Adapter.NO_ID(-1) 冲突

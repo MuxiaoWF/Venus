@@ -19,72 +19,30 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 /**
- * 液态玻璃采样链：**直接采用 Kyant0/AndroidLiquidGlass 库**（`io.github.kyant0:backdrop`，
- * 见 libs.versions.toml）的 LayerBackdrop 管线，替代旧自研的 GraphicsLayer 快照管线。
+ * 液态玻璃采样链：直接用 Kyant0/AndroidLiquidGlass 库的 LayerBackdrop 管线（libs.versions.toml），
+ * 全分辨率录制 + 零回读 + 同帧跟随，不再有快照管线的栅格感与 1-2 帧滞后。
  *
- * <h3>与旧自研管线的本质差异（为什么画质上限更高）</h3>
- * <ul>
- *   <li><b>全分辨率录制</b>：源子树每帧按原始尺寸 record 进 [LayerBackdrop.graphicsLayer]
- *       ——旧管线 0.4× 快照放大 2.5× 采样是「栅格感/像素块感」的根源，此处结构上不存在；</li>
- *   <li><b>零回读、零快照协程</b>：玻璃透镜在 draw 阶段把源层经
- *       `Modifier.drawBackdrop` 录进自己的层并挂 RenderEffect（blur + AGSL lens），
- *       GPU 直接消费层内容——旧管线的 `toImageBitmap()` 回读栅栏（每次 ~10-25ms）与
- *       32ms 快照循环整个消失；</li>
- *   <li><b>同帧跟随</b>：源重录与玻璃重采样发生在同一帧的绘制遍历内（兄弟节点按组合
- *       顺序先后绘制），无旧管线「录制 → 异步快照 → 下一帧发布 → 玻璃重绘」的 1-2 帧
- *       滞后，切页/滚动的折射延迟感消失。</li>
- * </ul>
+ * 双采样源（防自引用）：玻璃透镜若是采样源的子孙，其输出会进入源层被自己再次折射（雾斑累积）。
+ * 故拆成两棵互不包含的子树——基础源 [GlassBackdrops.base]（底色 + 壁纸，不含透镜）供页内玻璃采样；
+ * 内容源 [GlassBackdrops.content]（底色 + 壁纸 + Pager 全部页面）只供底栏采样（列表内容滚进玻璃下方）。
  *
- * <h3>双采样源架构（防自引用的结构解，沿用）</h3>
- *
- * 「玻璃透镜是采样源的子孙节点」时，透镜渲染会进入源层、下一帧被自己再次折射
- * （自引用反馈 → 雾斑累积）。把采样源拆成两棵互不包含的子树：
- *
- * 1. **基础源**（[GlassBackdrops.base]）：主题底色 + 壁纸图，**不含任何透镜**。
- *    页内玻璃（Home 操作行、chips 等，全在 Pager 子树内）一律采样它——结构上
- *    不可能采到自己的输出，零反馈。
- * 2. **内容源**（[GlassBackdrops.content]）：主题底色 + 壁纸图 + Pager 全部页面。
- *    只有**底栏**玻璃采样它（列表内容滚进玻璃下方）。底栏在内容源子树之外，
- *    其输出不会进入源层——同样无反馈；页内透镜的输出会进入内容源层，底栏折射
- *    「滚到玻璃下的玻璃」语义正确且稳定（页内透镜的输入是基础源，不构成环）。
- *
- * <h3>内容变化信号（旧 motionTick 平移，仍是必需）</h3>
- *
- * Compose 的滚动/翻页是「子树仅 layer 平移」——源节点 draw 不会自动重跑，录制会停在
- * 旧位置。沿用旧管线的两路信号：
- * <ol>
- *   <li><b>滚动旁听</b>：[glassScrollMotion]（nestedScroll onPostScroll）与 Pager 位移
- *       旁听逐帧 bump [GlassBackdropState.contentVersion]；</li>
- *   <li><b>draw-phase 读取</b>：源节点链（[glassBackdropSource] 内）与透镜链
- *       （[LensGlass] 内）各挂一个 [GlassMotionNode] 读 contentVersion——bump 即
- *       失效重画，同布局节点整链重画连带 layerBackdrop 重录 / drawBackdrop 重采样。</li>
- * </ol>
- * 无滚动信号的内容变化（背景位图发布）经 [GlassBackdropState.requestCapture] 显式失效。
+ * 内容变化信号不可省：Compose 滚动/翻页只是子树 layer 平移，源节点 draw 不会重跑，录制会停在旧位置。
+ * 滚动由 [glassScrollMotion] 与 Pager 位移旁听逐帧 bump [GlassBackdropState.contentVersion]；
+ * 无滚动信号的变化（背景位图发布）须显式调 [GlassBackdropState.requestCapture]。
  */
 
-/**
- * 双采样源集合（主界面外壳持有）。见文件头「双采样源架构」。
- *
- * @param base 基础源：底色 + 壁纸，页内玻璃的采样源（无透镜子孙，无自引用）
- * @param content 内容源：底色 + 壁纸 + 页面，底栏玻璃的采样源
- */
+/** 双采样源集合（主界面外壳持有）：base 供页内玻璃、content 供底栏。见文件头「双采样源」。 */
 class GlassBackdrops internal constructor(
     val base: GlassBackdropState,
     val content: GlassBackdropState,
 )
 
-/**
- * 一个采样源的链路状态：库的 [LayerBackdrop]（全分辨率录制层）+ 内容变化信号。
- * 透镜经 [LocalGlassBackdrop]（基础源）或显式参数（底栏 → 内容源）取用。
- */
+/** 一个采样源的链路状态：库的 [LayerBackdrop]（全分辨率录制层）+ 内容变化信号；透镜经 [LocalGlassBackdrop]（基础源）或显式参数（底栏 → 内容源）取用。 */
 class GlassBackdropState internal constructor(val backdrop: LayerBackdrop) {
 
     /**
-     * 内容变化信号：滚动（[glassScrollMotion] / Pager 位移旁听）或显式失效
-     * （[requestCapture]）时 bump。读取方：
-     * - 源节点链上的 [GlassMotionNode]（[glassBackdropSource] 内）：失效 → 同布局节点
-     *   整链重画 → layerBackdrop 重录；
-     * - 透镜链上的 [GlassMotionNode]（LensGlass 内）：失效 → 玻璃重画 → 同帧重采样源层。
+     * 内容变化信号：滚动（[glassScrollMotion] / Pager 旁听）或 [requestCapture] 时 bump。源节点链与透镜链上的
+     * [GlassMotionNode] 在 draw 中读它，失效即整链重画 → layerBackdrop 重录 / drawBackdrop 重采样。
      */
     val contentVersion = mutableIntStateOf(0)
 
@@ -99,10 +57,7 @@ class GlassBackdropState internal constructor(val backdrop: LayerBackdrop) {
     }
 }
 
-/**
- * 创建双采样源（主界面外壳组合期调用一次）。每源一个 [LayerBackdrop] 录制层，
- * 无快照协程、无回读——源层随源节点 draw 自动推进（见文件头）。
- */
+/** 创建双采样源（主界面外壳组合期调用一次）：每源一个 [LayerBackdrop] 录制层，无快照协程、无回读。 */
 @Composable
 fun rememberGlassBackdrops(): GlassBackdrops {
     val base = rememberLayerBackdrop()
@@ -119,10 +74,8 @@ val LocalGlassBackdrop = staticCompositionLocalOf<GlassBackdropState?> { null }
 val LocalGlassContentBackdrop = staticCompositionLocalOf<GlassBackdropState?> { null }
 
 /**
- * 玻璃采样源标记。挂在与采样范围对应的子树根上（见文件头双源架构）：
- * 链上先挂库的 [layerBackdrop]（每帧 draw 把子树全分辨率 record 进源层），再挂
- * [GlassMotionElement] 读 [GlassBackdropState.contentVersion]——滚动信号 bump 即
- * 失效重画（同一布局节点的 draw modifier 整链重跑），保证纯平移滚动期间录制跟随。
+ * 玻璃采样源标记，挂在与采样范围对应的子树根上：先挂库的 [layerBackdrop]（每帧 draw 把子树全分辨率 record 进源层），
+ * 再挂 [GlassMotionElement] 读 [GlassBackdropState.contentVersion]——滚动 bump 即失效重画（整链重跑），保证纯平移滚动期间录制跟随。
  */
 fun Modifier.glassBackdropSource(state: GlassBackdropState): Modifier =
     this
@@ -130,21 +83,16 @@ fun Modifier.glassBackdropSource(state: GlassBackdropState): Modifier =
         .then(GlassMotionElement(state.contentVersion))
 
 /**
- * 把 Compose 的滚动告诉液态玻璃。**带玻璃的滚动页面必须在根节点挂上它。**
- *
- * Compose 的 LazyColumn / verticalScroll / HorizontalPager 走自己的滚动（子树仅 layer
- * 平移，父级 draw 不会自动重跑），内容源节点收不到任何通知——录制会停在旧位置，
- * 底栏玻璃内容冻结。这里用 nestedScroll 的 onPostScroll 旁听每一帧被内层滚容器消费掉
- * 的位移，bump 内容源的 [GlassBackdropState.contentVersion]：源节点整链重画（重录），
- * 玻璃链同步重画（重采样）。不改动任何滚动行为，只旁听。
+ * 把 Compose 的滚动告诉液态玻璃。带玻璃的滚动页面必须在根节点挂上它：LazyColumn / verticalScroll /
+ * HorizontalPager 的滚动只是子树 layer 平移，内容源节点收不到通知，录制会停在旧位置（底栏玻璃内容冻结）。
+ * 这里只旁听 onPostScroll 的已消费位移并 bump contentVersion，不消费位移，滚动/惯性/回弹行为不变。
  */
 @Composable
 fun Modifier.glassScrollMotion(): Modifier {
     val backdrop = LocalGlassContentBackdrop.current
     val connection = remember(backdrop) {
         object : NestedScrollConnection {
-            // available/source 为接口契约参数，本旁听逻辑只需要 consumed，故抑制未使用告警
-            // （IDE 侧这条检查的 key 是 unused，编译器侧是 UNUSED_PARAMETER，两个都写）
+            // available/source 为接口契约参数，本处只要 consumed；IDE key 是 unused、编译器是 UNUSED_PARAMETER，两者都写
             @Suppress("unused", "UNUSED_PARAMETER")
             override fun onPostScroll(
                 consumed: Offset,
@@ -163,11 +111,8 @@ fun Modifier.glassScrollMotion(): Modifier {
 }
 
 /**
- * 内容变化信号的 draw-phase 读取节点：draw 中读 [tick]，bump 即失效重画（Compose 对
- * draw 内的状态读自动注册观察）。挂点决定作用域：
- * - 源节点链（[glassBackdropSource]）：重画连带 [layerBackdrop] 重录；
- * - 透镜链（[LensGlass]）：重画连带 drawBackdrop 重采样源层。
- * 同一布局节点上的 draw modifier 共享一次 draw 遍历——任一节点失效即整链重跑。
+ * 内容变化信号的 draw-phase 读取节点：draw 中读 [tick] 即自动注册观察，bump 即失效重画；
+ * 挂在源节点链上连带 [layerBackdrop] 重录，挂在透镜链上连带 drawBackdrop 重采样。
  */
 internal class GlassMotionNode(var tick: IntState) : Modifier.Node(), DrawModifierNode {
 

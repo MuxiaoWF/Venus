@@ -39,19 +39,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.muxiao.Venus.R
 
 /**
- * 国际服登录页（原 res/layout/activity_oauth_login.xml）。
+ * 国际服登录页：工具栏（返回 + 标题）+ 可滚动内容区，含「Cookie 登录」卡与
+ * 「OAuth WebView」卡（点击开始抓取后才展开，固定 800dp 高 + 顶部线性进度）。
  *
- * 结构：工具栏（返回 + 标题）+ 可滚动内容区，内含「Cookie 登录」卡与
- * 「OAuth WebView」卡（点击开始抓取后才显示，固定 800dp 高 + 顶部线性进度）。
- *
- * WebView 通过 `AndroidView` 桥接：Compose 侧只负责容器与进度，配置/加载仍由 Activity 完成
- * （见 [OauthLoginScreenView.setOnWebViewCreatedListener]）。这样既拿到 Compose 的排版，
- * 又不把 WebView 的生命周期从 Activity 手里夺走。
+ * WebView 通过 `AndroidView` 桥接：Compose 只负责容器与进度，配置/加载仍由 Activity 完成
+ * （见 [OauthLoginScreenView.setOnWebViewCreatedListener]），免得把生命周期从 Activity 手里夺走。
  *
  * @param webViewVisible 是否显示 WebView 卡（点「Cookie 登录」后才为 true）
  * @param buttonEnabled Cookie 登录按钮是否可点（抓取期间禁用，防重复触发）
- * @param loading 是否显示顶部进度条（页面加载完成后隐藏）
- * @param onBackClick 返回
+ * @param loading 是否显示顶部进度条
  * @param onStartCapture 点击「Cookie 登录」（宿主据此禁用按钮 / 展开卡 / 开进度）
  * @param onWebViewCreated WebView 实例就绪（Activity 在此配置 UA/Cookie/Client 并 loadUrl）
  */
@@ -71,7 +67,7 @@ fun OauthLoginScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface),
     ) {
-        // 工具栏：替代 MaterialToolbar（原样式 Widget.Venus.Toolbar：透明底 + ToolbarTitle）
+        // 工具栏（Widget.Venus.Toolbar 口径：透明底 + ToolbarTitle）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -108,7 +104,7 @@ fun OauthLoginScreen(
                     bottom = dimensionResource(R.dimen.space_4),
                 ),
         ) {
-            // ---- Cookie 登录卡 ----
+            // Cookie 登录卡
             VenusCard {
                 Column(modifier = Modifier.padding(dimensionResource(R.dimen.space_4))) {
                     Row(
@@ -141,8 +137,8 @@ fun OauthLoginScreen(
                         modifier = Modifier.padding(bottom = dimensionResource(R.dimen.space_3)),
                     )
                     Button(
-                        // 点击后由宿主禁用按钮 / 展开卡片 / 打开进度条，
-                        // 真正的 WebView 配置与加载在 onWebViewCreated 回调里由 Activity 完成
+                        // 点击后由宿主禁用按钮 / 展开卡片 / 打开进度条；WebView 的配置与加载
+                        // 在 onWebViewCreated 回调里由 Activity 完成
                         onClick = onStartCapture,
                         enabled = buttonEnabled,
                         shape = CircleShape,
@@ -156,7 +152,7 @@ fun OauthLoginScreen(
                 }
             }
 
-            // ---- OAuth WebView 卡（点击后才展开）----
+            // OAuth WebView 卡（点击后才展开）
             if (webViewVisible) {
                 Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
                 VenusCard {
@@ -198,14 +194,12 @@ class OauthLoginScreenView(context: Context) : AbstractComposeView(context) {
     private var onBackClickListener: Runnable? = null
     private var onWebViewCreatedListener: WebViewConsumer? = null
 
-    /** WebView 卡是否展开。 */
     var webViewVisible: Boolean
         get() = webViewVisibleState.value
         set(value) {
             webViewVisibleState.value = value
         }
 
-    /** Cookie 登录按钮是否可点。 */
     var cookieButtonEnabled: Boolean
         get() = buttonEnabledState.value
         set(value) {

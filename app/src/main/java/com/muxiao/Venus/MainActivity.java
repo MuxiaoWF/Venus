@@ -39,17 +39,11 @@ import com.muxiao.Venus.common.ui.compose.MainShellView;
 import com.muxiao.Venus.common.data.ConfigRepository;
 
 /**
- * 主Activity：底部导航（主页/用户管理/抽卡链接/设置）、背景图片加载、
- * 语言/主题切换、深色模式跟随系统、后台人机验证入口。
- *
- * <p>界面外壳已迁到 Compose（{@link MainShellView}：背景层 + HorizontalPager +
- * 玻璃底栏，见 docs/module-ui.md）。本类只做业务编排：四个页面控制器
- * （原 Fragment 收敛为控制器）的创建与 show/hide、背景预合成管线、
- * 页面程序化跳转、人机验证触发链。</p>
- *
- * <p>控制器生命周期对齐原 FragmentStateAdapter 的 maxLifecycle 语义：
- * 仅当前选中页处于「已恢复」态——页面选中回调与 Activity onResume/onPause
- * 统一折算为控制器的 show()/hide()（见 {@link #setShownPage}）。</p>
+ * 主 Activity：底部导航（主页/用户管理/抽卡链接/设置）、背景图加载、语言/主题切换、后台人机验证入口。
+ * 界面外壳在 Compose（{@link MainShellView}：背景层 + HorizontalPager + 玻璃底栏，见 docs/module-ui.md），
+ * 本类只做业务编排：四个页面控制器的创建与 show/hide、背景预合成管线、页面程序化跳转、人机验证触发链。
+ * 控制器生命周期对齐 FragmentStateAdapter 的 maxLifecycle：仅当前选中页处于「已恢复」态，页面选中回调与
+ * onResume/onPause 统一折算为 show()/hide()（见 {@link #setShownPage}）。
  */
 @AndroidEntryPoint
 public class MainActivity extends BaseActivity {
@@ -75,11 +69,9 @@ public class MainActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 启动闪屏
         SplashScreen.installSplashScreen(this);
-        // 应用选定的主题（含换肤 overlay）。
-        // 注意必须放在 installSplashScreen 之后：闪屏库内部 setTheme(postSplashScreenTheme)
-        // 会重置主题、冲掉此前 applyStyle 的换肤 overlay，导致窗口背景回落到系统动态色。
+        // 必须放在 installSplashScreen 之后：闪屏库内部 setTheme(postSplashScreenTheme) 会重置
+        // 主题、冲掉此前 applyStyle 的换肤 overlay，导致窗口背景回落到系统动态色。
         SettingsFragment.applyAppTheme(this);
 
         super.onCreate(savedInstanceState);
@@ -87,7 +79,6 @@ public class MainActivity extends BaseActivity {
         // 状态栏/导航栏全出血（inset 由外壳与各页在 Compose 侧自行消费）
         EdgeToEdge.enable(this);
 
-        // 检查更新
         checkForUpdatesIfNeeded();
         checkAndUpdateConfig(this);
 
@@ -105,23 +96,20 @@ public class MainActivity extends BaseActivity {
                 default: return homeController.createView(context);
             }
         });
-        // 页面选中 → 控制器 show/hide（对齐 FragmentStateAdapter 的 maxLifecycle 语义）
+        // 页面选中 → 控制器 show/hide（对齐 maxLifecycle 语义）
         shell.setOnPageSelectedListener(this::setShownPage);
 
-        // 设置背景图片（发布给外壳背景层；玻璃采样源为 Compose GraphicsLayer，见 MainShellView）
+        // 背景图发布给外壳背景层；玻璃采样源为 Compose GraphicsLayer（见 MainShellView）
         setupBackground();
-        // 监听背景 prefs 变化：预设档/不透明度/图片更换即时重合成。
-        // 此前只在 onResume 检测——切页不触发 Activity 生命周期，导致设置页里
-        // 切换淡化风格「无感」。300ms 防抖合并滑条连续写值。
+        // 监听背景 prefs 变化即时重合成：切页不触发 Activity 生命周期，只靠 onResume 会让
+        // 设置页内切换淡化风格「无感」；300ms 防抖合并滑条连续写值。
         getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(backgroundPrefListener);
 
         setContentView(shell);
 
-        // 主页控制器就绪 → 触发后台人机验证（替代原先的 FragmentResult + postDelayed 轮询）
         homeController.setHomeReadyCallback(this::tryTriggerCaptchaIfReady);
 
-        // 处理后台人机验证通知跳转
         handleCaptchaIntent(getIntent());
     }
 
@@ -165,8 +153,6 @@ public class MainActivity extends BaseActivity {
             settingsCropLauncher, settingsBatteryLauncher, settingsCloudTokenLauncher);
     }
 
-    // ===== 页面控制器生命周期（对齐 FragmentStateAdapter maxLifecycle） =====
-
     /**
      * 页面选中回调（含外壳首次组合的初始页）：上一个选中页 hide、当前页 show。
      * 已暂停状态下不会收到页面回调（Pager 不可交互），故无需额外的暂停分支。
@@ -196,7 +182,6 @@ public class MainActivity extends BaseActivity {
         super.onResume();
         triggerCaptchaIfPending();
         refreshBackgroundIfPrefsChanged();
-        // 与 Fragment 时代同口径：Activity 恢复时当前页控制器收到 show（回到前台刷新）
         if (shownPage >= 0) controllerAt(shownPage).show();
     }
 
@@ -219,16 +204,10 @@ public class MainActivity extends BaseActivity {
         super.onDestroy();
     }
 
-    // ===== 后台人机验证触发链（原 ViewPager 时代逻辑平移） =====
-
-    /** 待触发的后台人机验证标记（替代原先 postDelayed 轮询的状态机）。 */
+    /** 待触发的后台人机验证标记（避免轮询）。 */
     private boolean captchaPending = false;
 
-    /**
-     * 检查是否有待处理的后台人机验证，有则触发。
-     * 主页控制器通过 {@link HomeFragment#setHomeReadyCallback} 通知就绪，
-     * 由 {@link #tryTriggerCaptchaIfReady()} 触发。
-     */
+    /** 检查是否有待处理的后台人机验证，有则触发（就绪回调见 {@link #tryTriggerCaptchaIfReady()}）。 */
     private void triggerCaptchaIfPending() {
         ConfigRepository configRepo = new ConfigRepository(this);
         boolean pending = configRepo.getBoolean(PREF_CAPTCHA_PENDING, false);
@@ -244,10 +223,7 @@ public class MainActivity extends BaseActivity {
         tryTriggerCaptchaIfReady();
     }
 
-    /**
-     * 主页控制器已就绪（或刚就绪）时尝试触发后台人机验证。
-     * 仅当 captchaPending 为真且能立即取到主页控制器实例时触发，避免轮询。
-     */
+    /** 主页控制器就绪时尝试触发后台人机验证；未就绪则等就绪回调，避免轮询。 */
     private void tryTriggerCaptchaIfReady() {
         if (!captchaPending) return;
         if (homeController.isReady()) {
@@ -273,10 +249,7 @@ public class MainActivity extends BaseActivity {
         triggerCaptchaIfPending();
     }
 
-    /**
-     * 供控制器程序化跳转到指定页（无用户引导：账号行/运行签到跳用户管理页）。
-     * 页面选中回调会联动控制器 show/hide，此处只需切 Pager。
-     */
+    /** 供控制器程序化跳转（账号行/运行签到跳用户管理页）；show/hide 由页面选中回调联动。 */
     public void navigateToPage(int position) {
         shell.setCurrentPage(position, true);
     }
@@ -287,21 +260,17 @@ public class MainActivity extends BaseActivity {
     private String pendingCredentialUser;
 
     /**
-     * 当前账号被本页之外改动（用户管理页的凭证 chip 会先切账号、再跳设置页）。
-     *
-     * <p>必须立刻通知首页：账号行文案是控制器直接写进 Compose 状态的，不经过
-     * ViewModel 的 UiState，只等首页下次 show() 的话，切页动画期间会露出旧账号，
-     * 看起来像「切了号但主页没变」。
+     * 当前账号被本页之外改动（用户管理页的凭证 chip 会先切账号、再跳设置页）。必须立刻通知首页：
+     * 账号行文案由控制器直接写进 Compose 状态、不经过 ViewModel 的 UiState，只等首页下次 show()
+     * 会在切页动画期间露出旧账号。
      */
     public void onCurrentUserChanged() {
         homeController.refreshUserContext();
     }
 
     /**
-     * 当前账号的头像被更换或重置：首页需显式重载。
-     *
-     * <p>头像文件按用户名定址、内容被原地覆盖，用户名与路径都不变——
-     * 不通知的话首页会一直显示旧图（Compose 不重组 + Glide 命中缓存）。
+     * 当前账号的头像被更换或重置：首页需显式重载——头像文件按用户名定址、内容原地覆盖，用户名与路径都不变，
+     * 不通知会一直显示旧图（Compose 不重组 + Glide 命中缓存）。
      */
     public void onAvatarChanged() {
         homeController.refreshAvatar();
@@ -310,13 +279,8 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 切到设置页并展开指定抽屉——「凭证快捷配置」的统一入口。
-     *
-     * <p>两个调用方：用户管理页每张用户卡上的云游戏/森空岛状态 chip、
-     * 首页任务列表里未配置的划线项。展开动作必须等页面 show() 之后执行，
-     * 因为抽屉宿主视图是设置页首次组合时才装配的。
-     *
-     * @param pane {@link SettingsFragment#PANE_CLOUD_GAME} / {@link SettingsFragment#PANE_SKLAND}
+     * 切到设置页并展开指定抽屉——「凭证快捷配置」的统一入口。调用方：用户管理页用户卡的云游戏/森空岛 chip、
+     * 首页未配置的划线项。展开必须等页面 show() 之后执行，因为抽屉宿主是设置页首次组合时才装配的。
      */
     public void openSettingsPane(int pane) {
         openSettingsPane(pane, null);
@@ -324,11 +288,7 @@ public class MainActivity extends BaseActivity {
 
     /**
      * 切到设置页、展开指定抽屉，并为它指定「凭证配置目标账号」。
-     *
-     * <p>用户管理页每个账号的凭证 chip 走这个重载：凭证按账号存放，但配置别人的凭证
-     * 不该以「切换全局当前账号」为代价（会连带首页数据与任务上下文）。</p>
-     *
-     * @param credentialUser 目标账号；null = 跟随当前登录账号
+     * 凭证按账号存放，配置别人的凭证不该以切换全局当前账号为代价（会连带首页数据与任务上下文）。
      */
     public void openSettingsPane(int pane, String credentialUser) {
         pendingSettingsPane = pane;
@@ -350,15 +310,10 @@ public class MainActivity extends BaseActivity {
         settingsController.expandPane(pane, credentialUser);
     }
 
-    // ===== 背景预合成管线（原 ImageView 版逻辑平移到 Compose 背景） =====
-
     /**
-     * 加载用户设定的背景图：后台解码 → 预合成（按淡化风格预设降饱和提亮/压暗，
-     * 再按不透明度滑条与主题底色一次性掺合）→ 主线程发布给外壳背景层。
-     * 关键：淡化只发生一次且全部烘进位图——先预处理再叠 alpha 等于双重淡化，
-     * 画面发蒙且预设档差距被压缩。预合成后滑条直接控制图片权重，预设控制质感。
-     * 权限不足或解码失败时回退纯色基底（底栏玻璃保留磨砂）并提示。
-     * 同时在后台线程生成底栏毛玻璃用的模糊小样（连续降采样），主线程只做矩阵对齐。
+     * 加载背景图：后台解码 → 预合成（按预设降饱和提亮/压暗，再按不透明度与主题底色掺合）→ 主线程发布给外壳背景层。
+     * 淡化只做一次且全烘进位图——先预处理再叠 alpha 等于双重淡化，画面发蒙且预设档差距被压缩。
+     * 同时在后台生成底栏毛玻璃用的模糊小样（连续降采样），主线程只做矩阵对齐；权限不足/解码失败回退纯色基底并提示。
      */
     private void setupBackground() {
         Uri backgroundImageUri = SettingsFragment.getBackgroundImageUri(this);
@@ -428,8 +383,7 @@ public class MainActivity extends BaseActivity {
             };
 
     /**
-     * 设置页改了淡化风格/不透明度后无需重启：二者现在都烘在位图里，
-     * 任一变化都走完整重合成（后台线程，开销一次性，可接受）。
+     * 淡化风格/不透明度变化都烘在位图里，无需重启，走完整重合成（后台线程，一次性开销）；
      * 首次添加背景图（此前为纯色基底）也在这里兜底触发。
      */
     private void refreshBackgroundIfPrefsChanged() {
@@ -443,11 +397,8 @@ public class MainActivity extends BaseActivity {
     }
 
 
-    /**
-     * 读取设置中的自动更新开关，开启时启动 UpdateChecker 检查新版本。
-     */
+    /** 自动更新开关开启时启动 UpdateChecker 检查新版本。 */
     private void checkForUpdatesIfNeeded() {
-        // 检查是否启用了自动更新
         boolean autoUpdateEnabled = getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(AUTO_UPDATE_ENABLED, true);
 
@@ -457,9 +408,7 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 检查应用版本并在更新时自动从云端获取最新配置
-     */
+    /** 版本号变化（覆盖安装升级）时清除旧配置并从云端拉取最新配置。 */
     public static void checkAndUpdateConfig(Context context) {
         SharedPreferences appPrefs = context.getSharedPreferences(APP_INFO_PREFS_NAME, Context.MODE_PRIVATE);
         int lastVersion = appPrefs.getInt(LAST_VERSION, 0);
@@ -470,9 +419,7 @@ public class MainActivity extends BaseActivity {
             boolean captchaPending = configRepo.getBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, false);
             configRepo.clear();
             if (captchaPending) configRepo.putBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, true);
-            // 更新最后运行的版本号
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
-            // 后台自动从云端获取最新配置
             new Thread(() -> MiHoYoBBSConstants.update_config_from_web(context)).start();
         }
     }

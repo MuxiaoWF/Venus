@@ -39,8 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 从 SharedPreferences 读取用户配置的任务开关，组装成不可变的任务列表。
- * 国际服自动禁用米游币签到（需要stoken，Cookie登录不提供）和部分游戏签到。
+ * 用户配置的任务开关快照：从 SharedPreferences 读取并组装为不可变列表，供 TaskExecutor 执行。
  */
 public class TaskSettings {
     private final boolean dailyEnabled;
@@ -48,8 +47,8 @@ public class TaskSettings {
     private final boolean sklandArknightsEnabled;
     private final boolean sklandEndfieldEnabled;
     /**
-     * 云游戏「总开关」状态，与 {@link #cloudGames}（具体勾选了哪几款）是两回事：
-     * 总开关开着但一款都没勾时，列表里不会有云游戏任务，运行入口会据此给出可读提示。
+     * 云游戏「总开关」，与 {@link #cloudGames}（具体勾了哪几款）是两回事：总开关开着但一款未勾时
+     * 列表里不会有云游戏任务，运行入口据此给出可读提示。
      */
     private final boolean cloudGameEnabled;
     /** 当前服务器类型：决定云游戏 token 的存储键（两服云原神 token 不通用）。 */
@@ -73,13 +72,10 @@ public class TaskSettings {
         this.cloudGames = cloudGames;
     }
 
-    /**
-     * 从 SharedPreferences 组装不可变任务配置；国际服自动禁用米游币签到与部分国服专属游戏签到。
-     */
+    /** 国际服自动禁用米游币签到（需 stoken，Cookie 登录不提供）与部分国服专属游戏签到。 */
     public static TaskSettings fromPreferences(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
 
-        // 国际服禁用米游币签到（需要stoken，Cookie登录不提供）
         boolean isOversea = MiHoYoBBSConstants.is_oversea(context);
         boolean dailyEnabled = !isOversea && prefs.getBoolean(DAILY, true);
         boolean gameDailyEnabled = prefs.getBoolean(GAME_DAILY, true);
@@ -155,17 +151,15 @@ public class TaskSettings {
     }
 
     /**
-     * 是否所有任务大类（米游币/游戏签到/云游戏/森空岛）均被关闭，用于提示用户未选择任何任务。
-     * 云游戏按「总开关」判定：开了总开关即视为用户已选择该大类（未勾具体游戏由运行入口另行提示）。
+     * 所有任务大类（米游币/游戏签到/云游戏/森空岛）是否全关，用于提示未选择任何任务。
+     * 云游戏按「总开关」判定（未勾具体游戏由运行入口另行提示）。
      */
     public boolean hasAnyTaskDisabled() {
         return !dailyEnabled && !gameDailyEnabled && !cloudGameEnabled
                 && !sklandArknightsEnabled && !sklandEndfieldEnabled;
     }
 
-    /**
-     * 返回已启用任务的本地化名称列表，用于通知与日志展示。
-     */
+    /** 已启用任务的本地化名称列表，用于通知与日志展示。 */
     public List<String> getTaskNames(Context context) {
         List<String> names = new ArrayList<>();
         if (dailyEnabled) names.add(context.getString(R.string.task_name_bbs_daily));
@@ -181,13 +175,10 @@ public class TaskSettings {
     }
 
     /**
-     * 返回「任务名 → 是否具备执行条件」映射，供任务列表划线提示与执行期跳过使用。
-     *
-     * <p>只覆盖<b>需要额外凭证</b>的两类：云游戏 token、森空岛 token。米游币签到与游戏签到
-     * 依赖的是账号登录态本身——未登录时用户列表里没有该账号、也就不会有它的任务，故恒为可执行。
-     *
-     * <p>键为本地化任务名，与 {@link #getTaskNames(Context)} 严格同源（同一批 getString 口径），
-     * 调用方按名字查即可；未出现在映射里的任务视为可执行。
+     * 「任务名 → 是否具备执行条件」，供列表划线提示与执行期跳过。
+     * 只覆盖需额外凭证的云游戏 token 与森空岛 token：米游币/游戏签到依赖登录态本身，
+     * 未登录时用户列表里没有该账号、也就不会有它的任务，故恒为可执行。
+     * 键为本地化任务名，与 {@link #getTaskNames(Context)} 严格同源（同一批 getString 口径），未出现在映射里即视为可执行。
      *
      * @param userId 当前选中用户；为空时云游戏与森空岛一律视为未配置
      */

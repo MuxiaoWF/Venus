@@ -28,14 +28,9 @@ private val DAILY_CHIP_LABEL_RES = intArrayOf(
 )
 
 /**
- * 设置页「米游币签到」抽屉内容（原 res/layout/item_setting_bbs_daily.xml）。
+ * 设置页「米游币签到」抽屉内容：启用开关 + 说明副文本 + 9 个多选 FilterChip。
  *
- * 结构：启用开关 + 说明副文本 + 9 个多选 FilterChip（米游社签到可覆盖的游戏）。
- *
- * @param switchChecked 总开关
- * @param onSwitchChange 总开关变更回调
  * @param chipChecked 各游戏勾选态（长度 9，顺序见 [DAILY_CHIP_LABEL_RES]）
- * @param onChipToggle 某游戏勾选变更回调
  * @param chipsEnabled 整组 Chip 是否可点（国际服等场景由外部禁用）
  */
 @Composable
@@ -48,7 +43,7 @@ fun DailySettingPane(
     chipsEnabled: Boolean = true,
 ) {
     DrawerPane(modifier) {
-        // 说明（34 字，2~3 行）内联为开关行的副标题：原先是「开关 + Spacer + 独立 Text + Spacer」四段
+        // 说明（34 字，2~3 行）内联为开关行副标题，避免多起一段
         SettingSwitchRow(
             title = stringResource(R.string.enable_feature),
             checked = switchChecked,
@@ -67,11 +62,8 @@ fun DailySettingPane(
 }
 
 /**
- * [DailySettingPane] 的状态宿主。
- *
- * 迁移前是 `AbstractComposeView` 子类（由 Java 侧 `new DailySettingPaneView(context)` 再塞进
- * `AndroidView`）；现在只是状态容器，`Render()` 直接由 `SettingsScreenView` 在设置页的
- * 同一组合里调用，Java 侧只负责 `setXxx(...)` 回填状态。
+ * [DailySettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView` 在
+ * 设置页的同一组合里调用，Java 侧只负责 `setXxx(...)` 回填状态。
  */
 class DailySettingPaneView {
 

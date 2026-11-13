@@ -14,8 +14,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 /**
- * 任务调度器：根据 TaskSettings 配置，使用线程池并发执行米游币签到、游戏签到、森空岛签到。
- * 每个子任务通过 Callback 上报状态（进行中/完成/失败/取消），支持中途取消。
+ * 任务调度器：按 TaskSettings 用线程池并发执行米游币/游戏/森空岛签到；子任务经 Callback 上报状态，支持中途取消。
  */
 public class TaskExecutor {
 
@@ -48,10 +47,9 @@ public class TaskExecutor {
     /**
      * 游戏签到专用线程池（并发度 2，进程级、禁止 shutdown）。
      * <p>
-     * 刻意不复用共享 IO 池：executeGameDaily 自身已占用共享池的一个线程并阻塞等待结果，
-     * 若游戏子任务也提交到同一池，在池较小（双核设备 = 4 线程）且米游币/森空岛任务占满
-     * 其余线程时，游戏任务只能排队等到它们全部结束才开始——并发形同虚设。专用小池让
-     * 游戏签到始终以固定并发 2 执行，与其他任务互不抢占。
+     * 刻意不复用共享 IO 池：executeGameDaily 自身已占用共享池一个线程并阻塞等结果，子任务若同池提交，
+     * 在双核设备（4 线程）且米游币/森空岛任务占满其余线程时，游戏任务只能排队到它们全部结束——并发
+     * 形同虚设。专用小池让游戏签到恒以并发 2 执行，与其他任务互不抢占。
      */
     private static final java.util.concurrent.ExecutorService GAME_SIGN_POOL =
             java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
@@ -71,22 +69,19 @@ public class TaskExecutor {
     }
 
     /**
-     * 按设置并发执行所有启用的签到任务（米游币/游戏/森空岛）。
-     * 提交到共享 IO 线程池后等待全部完成；任一层级抛错仅提示不中断其余任务，
-     * 全部结束后若未被取消则回调 onAllTasksCompleted()。
+     * 按设置并发执行所有启用的签到任务：提交到共享 IO 池后等待全部完成；任一层级抛错仅提示不中断其余任务，
+     * 全部结束且未被取消则回调 onAllTasksCompleted()。
      */
     public void executeAll(TaskSettings settings) {
         executeAll(settings, null);
     }
 
     /**
-     * 同 {@link #executeAll(TaskSettings)}，但 onlyNames 非空时只执行名称命中的任务
-     * （「重试失败任务」的部分执行入口）。
-     *
-     * <p>onlyNames 为本地化任务名，与 {@link TaskSettings#getTaskNames(Context)} /
-     * {@code TaskStatusManager} 持久化键同源（同一 getString 口径），因此按名称匹配即可
-     * 精确定位失败项；游戏签到按「单游戏名」粒度过滤，命中的游戏子集交由原有并发逻辑执行。
-     * 候选任务全部被过滤掉时视为无事可做，直接回调完成而非空跑一轮。
+     * 同 {@link #executeAll(TaskSettings)}，但 onlyNames 非空时只执行名称命中的任务（「重试失败任务」的部分执行入口）。
+     * <p>
+     * onlyNames 为本地化任务名，与 {@link TaskSettings#getTaskNames(Context)} / {@code TaskStatusManager} 持久化键
+     * 同源（同一 getString 口径），按名称匹配即可精确定位失败项；游戏签到按「单游戏名」粒度过滤。
+     * 候选任务全被过滤时视为无事可做，直接回调完成而非空跑一轮。
      */
     public void executeAll(TaskSettings settings, java.util.Set<String> onlyNames) {
         boolean runAll = onlyNames == null || onlyNames.isEmpty();
@@ -95,10 +90,8 @@ public class TaskExecutor {
         // 凭证就绪表：云游戏/森空岛未配置 token 的任务在列表里已划线，这里同样跳过，
         // 既不浪费请求也不把「没配」误报成「失败」。
         java.util.Map<String, Boolean> readiness = settings.getTaskReadiness(context, userId);
-        // 统一线程池（AppExecutors）：米游币签到、游戏签到、森空岛签到可并行。
-        // 注意：共享线程池不可 shutdown，取消时改为 future.cancel(true)。
-        // 经 AppExecutors.submit() 门面提交：不暴露 ExecutorService（AutoCloseable），
-        // 从源头避免 Lint「AutoCloseable used without try-with-resources」误报。
+        // 统一线程池（AppExecutors）：三类签到可并行；共享池不可 shutdown，取消时改为 future.cancel(true)。
+        // 经 AppExecutors.submit() 门面提交（不暴露 AutoCloseable 的 ExecutorService），避免 Lint 误报。
         if (settings.isDailyEnabled()
                 && (runAll || onlyNames.contains(context.getString(R.string.task_name_bbs_daily))))
             futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums())));
@@ -146,14 +139,10 @@ public class TaskExecutor {
     }
 
     /**
-     * 凭证未配置的任务直接跳过。
+     * 凭证未配置的任务直接跳过。任务列表里已用删除线标出，这里再补一条进度提示：否则用户看到项还在、
+     * 结束后状态仍是「待执行」，会以为漏跑。
      *
-     * <p>任务列表里已用删除线标出，这里再补一条进度提示：否则用户看到项还在、
-     * 运行结束后状态仍是「待执行」，会以为是漏跑。
-     *
-     * @param taskName 就绪表中的键（本地化任务名）
-     * @param label    提示里展示的名字（云游戏用游戏名，森空岛用任务名本身）
-     * @return true 表示可以执行
+     * @param label 提示里展示的名字（云游戏用游戏名，森空岛用任务名本身）
      */
     private boolean isReady(java.util.Map<String, Boolean> readiness, String taskName, String label) {
         Boolean ready = readiness.get(taskName);
@@ -163,8 +152,7 @@ public class TaskExecutor {
     }
 
     /**
-     * 游戏签到按名称过滤：runAll 时原样返回全部游戏；部分执行时只保留
-     * 「本地化任务名命中 onlyNames」的游戏（返回列表可能为空，由调用方跳过提交）。
+     * 游戏签到按名称过滤：runAll 原样返回全部；否则只保留任务名命中 onlyNames 的游戏（可能为空，由调用方跳过提交）。
      */
     private List<String> filterGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
         List<String> result = new ArrayList<>();
@@ -190,7 +178,7 @@ public class TaskExecutor {
      * 等待全部子任务完成（{@link #executeAll} 与 {@link #executeGameDaily} 共用的等待与异常语义）：
      * 子任务抛错仅提示、不中断其余任务；等待期间被中断/取消则取消其余子任务。
      *
-     * @return {@code true} 表示全部完成；{@code false} 表示被中断/取消，调用方应立即返回
+     * @return {@code true} 全部完成；{@code false} 被中断/取消，调用方应立即返回
      */
     private boolean awaitAll(List<Future<?>> futures) {
         for (Future<?> f : futures) {
@@ -212,8 +200,7 @@ public class TaskExecutor {
     }
 
     /**
-     * 取异常链中最内层消息：Future.get() 抛出的 ExecutionException 文案形如
-     * "java.lang.RuntimeException: xxx"，直接展示会把异常类名暴露给用户。
+     * 取异常链最内层消息：ExecutionException 的文案形如 "java.lang.RuntimeException: xxx"，直接展示会暴露异常类名。
      */
     private static String rootMessage(Throwable t) {
         Throwable cause = t;
@@ -223,8 +210,8 @@ public class TaskExecutor {
     }
 
     /**
-     * 包裹单个任务的执行与状态上报：先置 IN_PROGRESS，正常完成置 COMPLETED，
-     * 被取消置 CANCELLED，异常置 ERROR 并回调 onError；中断时还原中断标志。
+     * 包裹单个任务的执行与状态上报：先置 IN_PROGRESS，完成置 COMPLETED、取消置 CANCELLED、异常置 ERROR 并
+     * 回调 onTaskError；中断时还原中断标志。
      */
     private void executeTask(String name, RunnableWithException task) {
         callback.onTaskStatusChanged(name, TaskItem.TaskStatus.IN_PROGRESS);
@@ -250,10 +237,7 @@ public class TaskExecutor {
         }
     }
 
-    /**
-     * 待执行目标为空（用户未勾选任何板块/游戏）时的统一处理：
-     * 任务置错误态 + 回调错误提示，调用方据此直接 return。
-     */
+    /** 待执行目标为空（未勾选任何板块/游戏）的统一处理：任务置错误态 + 回调错误提示，调用方据此直接 return。 */
     private void reportEmptyTargets(int taskNameRes, int emptyMessageRes) {
         callback.onTaskStatusChanged(context.getString(taskNameRes), TaskItem.TaskStatus.ERROR);
         callback.onError(context.getString(emptyMessageRes));
@@ -272,11 +256,8 @@ public class TaskExecutor {
     }
 
     /**
-     * 并发执行游戏签到（并发度 2，由 {@link #GAME_SIGN_POOL} 保证）。
-     * <p>
-     * 每款游戏内部仍保留原有的「请求前后 2~9 秒随机风控延时」，跨游戏并行只提高账号的
-     * 请求密度、不改变单游戏节奏；429 限流仍由 {@code BBSGameDaily} 的冷却逻辑兜底。
-     * 等待方式与 {@link #executeAll} 一致：任一游戏抛错仅提示不中断其余游戏。
+     * 并发执行游戏签到（并发度 2，由 {@link #GAME_SIGN_POOL} 保证）。每款游戏内部仍保留请求前后 2~9 秒随机
+     * 风控延时，跨游戏并行只提高请求密度、不改变单游戏节奏，429 仍由 {@code BBSGameDaily} 冷却逻辑兜底。
      */
     private void executeGameDaily(List<String> games) {
         if (games == null || games.isEmpty()) {
@@ -299,10 +280,7 @@ public class TaskExecutor {
         notifier.notifyListeners(context.getString(R.string.task_game_sign_in_done));
     }
 
-    /**
-     * 云游戏按名称过滤：口径同 {@link #filterGames}，任务名为
-     * {@code R.string.task_name_cloud_game_sign_in + 云游戏名}。
-     */
+    /** 云游戏按名称过滤：口径同 {@link #filterGames}，任务名为 {@code R.string.task_name_cloud_game_sign_in + 云游戏名}。 */
     private List<String> filterCloudGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
         List<String> result = new ArrayList<>();
         if (games == null) return result;
@@ -314,8 +292,7 @@ public class TaskExecutor {
     }
 
     /**
-     * 执行单个云游戏签到（云原神 / 云绝区零）。
-     * token 未配置、失效等均以异常形式抛出，由 {@link #executeTask} 统一记为 ERROR。
+     * 执行单个云游戏签到（云原神 / 云绝区零）。token 未配置/失效均以异常抛出，由 {@link #executeTask} 记为 ERROR。
      */
     private void executeCloudGame(String gameName) {
         String displayName = CloudGameDaily.displayName(context, gameName);

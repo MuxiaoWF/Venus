@@ -81,22 +81,10 @@ private val NAV_ITEMS = listOf(
 )
 
 /**
- * 主界面外壳（activity_main.xml 的 Compose 终态）：玻璃采样源子树（背景图片层 +
- * HorizontalPager 四页内容）+ 液态玻璃底栏（宽屏为 NavigationRail）。
- *
- * <p>迁移自 ViewPager2 + BottomNavigationView + 背景 ImageView 三件 View：
- * - 页面容器 → [HorizontalPager]（`beyondViewportPageCount` 全量常驻，等价原
- *   `offscreenPageLimit(3)`——四页的 Compose 宿主视图不拆卸）；
- * - 页面切换动效 → 每页 `graphicsLayer`（轻微淡入 + 缩放，与原 applyPageTransform 同参数，
- *   尊重系统「减少动态效果」）；
- * - 底栏 → Compose 手写玻璃底栏 [VenusBottomBar]（[LensGlass] 面板 18/26dp + 选中态
- *   药丸 12/24dp）——样式链/选中态/度量与迁移前的 Material 控件一致；
- * - 背景 → Compose Image（centerCrop），位图由 MainActivity 后台预合成后发布。
- *
- * <p>玻璃采样链（GlassBackdrop.kt，Kyant0/AndroidLiquidGlass 库 LayerBackdrop + 双采样源
- * 架构）：**基础源**（底色 + 背景图，不含透镜）供页内玻璃采样——结构上无自引用；
- * **内容源**（底色 + 背景图 + Pager）供底栏玻璃采样（列表滚进玻璃下方），底栏在源子树
- * 之外同样无反馈。宽屏（≥840dp）无底栏，不挂载内容源，与原 NavigationRail 布局同构。
+ * 主界面外壳：玻璃采样源子树（背景图片层 + HorizontalPager 四页）+ 液态玻璃底栏（宽屏 ≥840dp 为 NavigationRail）。
+ * Pager 用 `beyondViewportPageCount` 全量常驻（等价原 offscreenPageLimit(3)，四页宿主视图不拆卸）；切页动效走每页
+ * `graphicsLayer` 淡入 + 缩放，尊重系统「减少动态效果」；背景为 Compose Image（centerCrop），位图由 MainActivity 后台预合成后发布。
+ * 采样链见 GlassBackdrop.kt：基础源（底色 + 背景图）供页内玻璃，内容源（再加 Pager）供底栏；宽屏无底栏故不挂内容源。
  */
 class MainShellView(context: Context) : AbstractComposeView(context) {
 
@@ -107,9 +95,8 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
     internal val currentPage = mutableIntStateOf(0)
 
     /**
-     * 页面连续位置（含拖动/动画偏移）= currentPage + currentPageOffsetFraction。
-     * 由 PagerHostView 逐帧更新，驱动底栏单颗药丸横向滑动，与 HorizontalPager 完全同步
-     * （手势拖动与点击 animateScrollToPage 都连续），避免“先切页再动药丸”。
+     * 页面连续位置（含拖动/动画偏移）= currentPage + currentPageOffsetFraction，由 PagerHostView 逐帧更新，
+     * 驱动底栏单颗药丸横向滑动；手势拖动与点击 animateScrollToPage 都连续，避免「先切页再动药丸」。
      */
     internal val pagePosition = mutableFloatStateOf(0f)
 
@@ -119,8 +106,7 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
     internal data class Jump(val index: Int, val smooth: Boolean)
 
     init {
-        // 与原 activity_main.xml 根节点同语义：显式着主题底色——闪屏库会在首帧前后
-        // 重置主题，窗口背景回落系统动态色（偏蓝），显式着色保证主题淡色底
+        // 显式着主题底色：闪屏库会在首帧前后重置主题，窗口背景回落系统动态色（偏蓝）
         setBackgroundColor(
             MaterialColors.getColor(context, android.R.attr.colorBackground, Color.TRANSPARENT)
         )
@@ -138,8 +124,7 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
         onPageSelectedListener = listener
     }
 
-    /** 发布背景位图（MainActivity 后台预合成的成品；null = 无背景图，纯色基底模式）。
-     *  重采请求由 Content 的 LaunchedEffect(bg) 处理（此处调用时 backdrops 可能未创建）。 */
+    /** 发布背景位图（MainActivity 后台预合成的成品；null = 纯色基底模式）。重采由 Content 的 LaunchedEffect(bg) 处理。 */
     fun publishBackground(bitmap: Bitmap?) {
         pagerHost.backgroundBitmap = bitmap
     }
@@ -152,18 +137,15 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
     @Composable
     override fun Content() {
         VenusTheme {
-            // 双采样源（见 GlassBackdrop.kt 文件头）：base = 底色+壁纸（页内玻璃采样，
-            // 不含透镜 → 无自引用）；content = 底色+壁纸+页面（底栏玻璃采样，底栏在源外）
+            // 双采样源（见 GlassBackdrop.kt）：base = 底色+壁纸（页内玻璃，无透镜 → 无自引用）；content = 再加 Pager（底栏玻璃）
             val backdrops = rememberGlassBackdrops()
             pagerHost.baseBackdrop = backdrops.base
             pagerHost.contentBackdrop = backdrops.content
-            // 用 LocalWindowInfo.containerSize（像素）取窗口宽度，再按当前密度换算为 dp，
-            // 替代不感知窗口变化的 Configuration.screenWidthDp。
+            // 用 LocalWindowInfo.containerSize（像素）换算 dp，替代不感知窗口变化的 Configuration.screenWidthDp
             val wide = with(LocalDensity.current) {
                 LocalWindowInfo.current.containerSize.width.toDp() >= WIDE_SCREEN_MIN_DP
             }
-            // 采样源子树的纯色基底（无背景图时玻璃折射主题底色，与原
-            // GlassBackdrop.setSolidSurface 的采样锚底色同源）
+            // 采样源子树的纯色基底：无背景图时玻璃折射的就是这个主题底色
             val baseColor = remember {
                 androidx.compose.ui.graphics.Color(
                     MaterialColors.getColor(
@@ -172,16 +154,14 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
                 )
             }
             val bg = pagerHost.backgroundBitmap
-            // 背景位图发布/变更不经滚动信号（contentVersion 不会被 bump），源节点自身
-            // 会随重组重录，但玻璃透镜链不会自动重画——在这里以 bg 为 key 显式失效两个
-            // 源，保证壁纸切换后玻璃折射与磨砂立即跟随新壁纸。
+            // 背景位图发布不经滚动信号（contentVersion 不 bump）：源节点随重组重录，但透镜链不会自动重画，
+            // 故以 bg 为 key 显式失效两个源，保证换壁纸后折射与磨砂立即跟随
             LaunchedEffect(bg) {
                 backdrops.base.requestCapture()
                 backdrops.content.requestCapture()
             }
             Box(modifier = Modifier.fillMaxSize()) {
-                // 基础源：底色 + 背景图（页内玻璃的采样源）。屏幕上被内容源完全覆盖，
-                // 只为录制而画；静止壁纸的录制随本节点 draw 推进，成本趋近于零。
+                // 基础源：底色 + 背景图。屏幕上被内容源完全覆盖，只为录制而画，静止壁纸的录制成本趋近于零
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -198,8 +178,7 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
                     }
                 }
                 if (wide) {
-                    // 宽屏：左 NavigationRail + 右内容区（无底栏，与原 w840dp 布局同构）。
-                    // 无玻璃采样内容源 → 不挂载 content source（省每帧录制与快照）。
+                    // 宽屏：左 NavigationRail + 右内容区；无底栏故不挂内容源（省每帧录制）
                     LaunchedEffect(Unit) { BottomBarOverlay.update(0) }
                     Row(modifier = Modifier.fillMaxSize()) {
                         VenusNavRail(
@@ -216,8 +195,7 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
                         )
                     }
                 } else {
-                    // 内容源：底色 + 背景图 + Pager（底栏玻璃的采样源）。页内透镜输出
-                    // 会进入此源层，底栏折射「滚进玻璃下的玻璃」语义正确且无反馈环。
+                    // 内容源：底色 + 背景图 + Pager。页内透镜输出会进入此层，底栏折射「滚进玻璃下的玻璃」正确且无反馈环
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -264,12 +242,10 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
 }
 
 /**
- * Pager 宿主：仅承载 HorizontalPager（背景层在外壳，保持采样源子树与原 viewPager 一致）。
- * 独立成 AbstractComposeView 的原因：玻璃采样需要「子树 = 四页内容」与底栏分树，
- * 避免底栏玻璃采到自己（自引用残影）。
+ * Pager 宿主：仅承载 HorizontalPager（背景层在外壳）。独立成 AbstractComposeView 是为了让「子树 = 四页内容」与底栏分树，
+ * 底栏玻璃才不会采到自己（自引用残影）。
  */
-// 非 private：MainActivity 引用该类型（public 属性要求类型可见性不低于属性本身，
-// Kotlin 有效可见性规则）
+// 非 private：MainActivity 引用该类型（属性可见性不得高于其类型）
 class PagerHostView(context: Context) : AbstractComposeView(context) {
     var shell: MainShellView? = null
     var pageFactory: ((index: Int, context: Context) -> View)? = null
@@ -292,9 +268,8 @@ class PagerHostView(context: Context) : AbstractComposeView(context) {
     @Composable
     override fun Content() {
         VenusTheme {
-            // 独立 composition（AndroidView 子树不继承外壳的 CompositionLocal）：
-            // 两个采样源都要在此重新提供。页内透镜默认读 base（LocalGlassBackdrop），
-            // 滚动旁听读 content（LocalGlassContentBackdrop → 重录内容源）。
+            // AndroidView 子树是独立 composition，不继承外壳的 CompositionLocal，两个采样源都要在此重新提供：
+            // 页内透镜读 base，滚动旁听读 content
             CompositionLocalProvider(
                 LocalGlassBackdrop provides baseBackdrop,
                 LocalGlassContentBackdrop provides contentBackdrop,
@@ -309,8 +284,7 @@ class PagerHostView(context: Context) : AbstractComposeView(context) {
         val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
         val reducedMotion = remember { tools.isReducedMotionEnabled(context) }
 
-        // 带玻璃的滚动页面必须挂 glassScrollMotion（Compose 滚动不触发 View 滚动回调）：
-        // HorizontalPager 的拖动/惯性经 nestedScroll 汇到这里，逐帧驱动采样源重录
+        // 带玻璃的滚动页面必须挂 glassScrollMotion：Pager 的拖动/惯性经 nestedScroll 汇到这里，逐帧驱动重录
         Box(modifier = Modifier.fillMaxSize().glassScrollMotion()) {
             HorizontalPager(
                 state = pagerState,
@@ -338,15 +312,13 @@ class PagerHostView(context: Context) : AbstractComposeView(context) {
             }
         }
 
-        // 翻页（点击 Tab 的 animateScrollToPage / 手势拖拽）不产生 LazyColumn 那样的
-        // nestedScroll 消费——页面位移只体现在 pagerState 的 offset 上，捕获门控会把
-        // 这类「无 motion 的内容变化」拦下，底栏折射就停留在切页前的内容。逐帧旁听
-        // pager 位移推进内容源重采，切页全程底栏折射实时跟随。
+        // 翻页不产生 LazyColumn 那样的 nestedScroll 消费，位移只在 pagerState 的 offset 上——不逐帧旁听的话
+        // 内容源不会重采，底栏折射会停留在切页前的内容
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }
                 .collect { position ->
                     contentBackdrop?.onContentMoved()
-                    // 逐帧同步连续位置给外壳，驱动底栏药丸与页面同帧滑动。
+                    // 逐帧同步连续位置给外壳，驱动底栏药丸与页面同帧滑动
                     shell?.pagePosition?.floatValue = position
                 }
         }
@@ -370,9 +342,8 @@ class PagerHostView(context: Context) : AbstractComposeView(context) {
 }
 
 /**
- * 底部导航容器高度。M3 NavigationBar 规范为 80dp（内容区 64 + 上下 8），本项目先收窄到
- * 64dp，再略微回调到 68dp：内部内容（选中药丸 40dp + 标签行高约 16dp ≈ 56dp）放得下，
- * 点击区 68dp（≥ 触摸目标 48dp），多出的 4dp 让标签文字与面板底部边缘留出间隙、不贴边。
+ * 底栏容器高度 68dp：M3 规范 80dp（内容 64 + 上下 8）偏松——内部选中药丸 40dp + 标签行约 16dp ≈ 56dp 已放得下，
+ * 68dp 的点击区（≥ 触摸目标 48dp）还留 4dp 让标签不贴面板底边。
  */
 private val BOTTOM_BAR_HEIGHT = 68.dp
 
@@ -380,22 +351,10 @@ private val BOTTOM_BAR_HEIGHT = 68.dp
 private val BOTTOM_BAR_ICON_SIZE = 24.dp
 
 /**
- * 玻璃底栏（Compose 原生实现，替代原 Material3Expressive `BottomNavigationView`
- * + `LensGlassDrawable` 的 View 桥接）。
- *
- * 与旧实现的关键差异：**单颗药丸在 4 个 tab 之间横向滑动**，位置由 [pagePosition]
- * （HorizontalPager 的 currentPage + offsetFraction 连续值）驱动，手势拖动与点击切页时
- * 药丸都与页面**同帧同步**，不再各自淡入淡出、也不先切页再动药丸。
- *
- * 度量与样式：
- * - 容器 68dp 高、背景 = [LensGlass]（面板 18/26dp、圆角 shape_corner_lg），表面透度
- *   统一在 [GlassSpecs.BottomBar] 的 surfaceAlpha（不再外部读取资源计算）；
- * - 单颗药丸 64×40dp、药丸形、玻璃 [GlassSpecs.BottomBarIndicator]；
- * - 每个 tab 的图标/标签颜色、图标上移、标签显隐都由该 tab 的连续选中分数（0..1）插值，
- *   滑动时相邻 tab 平滑过渡。
- *
- * 根节点 onGloballyPositioned 把「玻璃面板高 + 导航栏 inset + 底边距」发布给
- * [BottomBarOverlay]。
+ * 玻璃底栏。单颗药丸在 4 个 tab 间横向滑动，位置由 [pagePosition]（Pager 的 currentPage + offsetFraction 连续值）驱动，
+ * 手势与点击切页都同帧同步，不各自淡入淡出。容器 68dp、面板 [GlassSpecs.BottomBar]（18/26dp，圆角 shape_corner_lg）、
+ * 药丸 64×40dp 用 [GlassSpecs.BottomBarIndicator]；每个 tab 的颜色/图标上移/标签显隐都按连续选中分数插值。
+ * 根节点 onGloballyPositioned 把「面板高 + 导航栏 inset + 底边距」发布给 [BottomBarOverlay]。
  */
 @Composable
 private fun VenusBottomBar(
@@ -439,8 +398,7 @@ private fun VenusBottomBar(
                 val pillTopPx = with(density) {
                     (BOTTOM_BAR_HEIGHT / 2 - pillHeight / 2 - 8.dp).toPx()
                 }
-                // 单颗滑动药丸：水平位置 = 连续页位置 × tab 宽，在目标 tab 内居中。
-                // left 做边界限制：overscroll 时药丸停在面板边缘、不溢出。
+                // 药丸水平位置 = 连续页位置 × tab 宽并在目标 tab 内居中；clamp 到边界，overscroll 时不溢出面板
                 val maxPillLeft = tabWidthPx * PAGE_COUNT - indicatorWidthPx
                 LensGlass(
                     modifier = Modifier
@@ -480,8 +438,7 @@ private fun VenusBottomBar(
     }
 }
 
-/** 单个 tab 点击区：图标（选中上移）+ 标签（选中淡入），颜色随连续选中分数插值。
- *  不需要 RowScope：调用处的 Row 已提供 modifier.weight 所需作用域，本函数内部不使用 Row 成员。 */
+/** 单个 tab 点击区：图标（选中上移）+ 标签（选中淡入），颜色随连续选中分数插值；内部不用 Row 成员，故不需要 RowScope。 */
 @Composable
 private fun SlidingTabButton(
     item: NavItem,
@@ -491,7 +448,7 @@ private fun SlidingTabButton(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val label = stringResource(item.labelRes)
-    // 颜色在未选 onSurfaceVariant → 选中 onSecondaryContainer 之间按分数连续插值
+    // 未选 onSurfaceVariant → 选中 onSecondaryContainer，按分数连续插值
     val contentColor = lerp(
         colorScheme.onSurfaceVariant,
         colorScheme.onSecondaryContainer,
@@ -532,7 +489,7 @@ private fun SlidingTabButton(
 @Composable
 private fun VenusNavRail(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
     val colorScheme = MaterialTheme.colorScheme
-    // 纵贯全高，底部让出导航栏 inset（原 ViewCompat 监听给 rail 加 bottomPadding）
+    // 纵贯全高，底部让出导航栏 inset
     NavigationRail(modifier = modifier.navigationBarsPadding()) {
         NAV_ITEMS.forEachIndexed { index, item ->
             NavigationRailItem(

@@ -114,7 +114,7 @@
     <string name="gacha_fetching">Fetching…</string>
     <string name="gacha_chip_pending">Pending</string>
     <string name="cloud_open_hint">Open cloud page · link captured automatically</string>
-    <!-- VPN capture fetch (HSR gacha link, ported from SRGachaLink) -->
+    <!-- VPN capture fetch (HSR gacha link) -->
     <string name="vpn_capture_title">VPN Capture Fetch (Star Rail)</string>
     <string name="vpn_capture_hint">Star Rail only: start capture, then restart the game and open the gacha records page</string>
     <string name="vpn_capture_running_hint">Capturing · tap row to stop</string>
@@ -561,9 +561,6 @@
     <string name="gacha_cookie_null">Cookie parameter (stoken/mid) is null, please try re-fetching</string>
     <string name="gacha_get_roles_failed">Failed to get game character info</string>
 
-    <!-- UserLoginActivity -->
-
-
     <!-- Geetest additional -->
     <string name="geetest_captcha_failed_network">Failed to get captcha: no network response</string>
     <string name="geetest_captcha_failed_api">Failed to get captcha</string>
@@ -672,7 +669,7 @@
 
     <string name="password_show">Show password</string>
     <string name="password_hide">Hide password</string>
-    <!-- Gallery / fullscreen viewer (redesign) -->
+    <!-- Gallery / fullscreen viewer -->
     <string name="action_cancel">Cancel</string>
     <string name="action_retry">Retry</string>
     <string name="gallery_empty">No images here yet</string>

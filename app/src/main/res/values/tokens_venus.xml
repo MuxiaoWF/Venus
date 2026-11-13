@@ -1,27 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ============================================================================
-  Venus 统一设计 Token（布局组件体系 v2）
-  本文件只新增 Token，不覆盖 dimens.xml / colors.xml / styles.xml 中的既有定义。
-  间距 / 圆角 / 配色角色以既有 space_* / shape_corner_* / color* 为准，这里补充
-  语义别名、层级(阴影)刻度、字体层级与组件尺寸，供统一组件库引用。
-  规则：布局中禁止写裸 dp/sp，一律走 Token。
+  Venus 统一设计 Token：只新增，不覆盖 dimens.xml / colors.xml / styles.xml；间距/圆角/配色以既有
+  space_* / shape_corner_* / color* 为准，此处补语义别名、层级刻度、字体层级与组件尺寸。
 
-  命名纪律（2026-09 复审后固化）：
-  1. 语义别名只允许「一层」——别名必须直接指向 space_* / shape_corner_* / elevation_level*，
-     不得再定义「别名的别名」，避免同值多路径、改一处不生效。
-  2. 每个别名都必须有真实引用点；零引用的别名即死 Token，随稽核删除。
-  3. 间距/形状/图标刻度（space_* / shape_corner_* / icon_* / widget_*）允许暂未使用，
-     它们表达的是"可选档位"；别名、层级(elevation_level*)与组件专用尺寸则必须被引用，
-     零引用即删除（elevation_level3/4/5 与 task_progress_width 即因此移除）。
-  ============================================================================
+  命名纪律：语义别名只允许一层并直接指向 space_* / shape_corner_* / elevation_level*；别名、
+  elevation_level* 与组件专用尺寸必须有真实引用点，零引用即删；间距/形状/图标刻度可暂未使用。
 -->
 <resources>
 
-    <!-- ========== 1. 间距语义别名（基准仍为 space_* 的 4dp 刻度） ========== -->
-    <!-- 屏幕级左右留白。定标 16dp（M3 8dp 网格标准页边距）。
-         历史遗留：曾同时存在 gutter_screen(20dp) 与 gutter_screen_md(16dp) 两条互相否定的
-         注释与取值，导致"新开页面按规范 16dp、老页面 20dp"的节奏漂移。现单点定标 16dp。 -->
+    <!-- 1. 间距语义别名（基准仍是 space_* 4dp 刻度） -->
+    <!-- 屏幕级左右留白，单点定标 16dp（M3 8dp 网格标准页边距） -->
     <dimen name="gutter_screen">@dimen/space_4</dimen>
     <!-- 卡片内边距基准 -->
     <dimen name="gutter_card">@dimen/space_4</dimen>
@@ -30,46 +18,37 @@
     <!-- 列表行内部上下留白 -->
     <dimen name="gap_row">@dimen/space_3</dimen>
 
-    <!-- ========== 2. 圆角角色 ==========
-         既有刻度统一在 dimens.xml：shape_corner_xxs/xs/sm/md/lg/pill。
-         此处不再重定义 —— 历史遗留的 shape_corner_xl(36dp)、shape_corner_none(0dp)、
-         radius_group(别名) 均零引用，已随稽核删除（避免"同值多路径"）。 -->
+    <!-- 2. 圆角角色：刻度统一在 dimens.xml 的 shape_corner_xxs/xs/sm/md/lg/pill，
+         此处不重定义（避免同值多路径）。 -->
 
-    <!-- ========== 3. 层级 / 阴影刻度（统一 elevation 口径） ==========
-         level0(扁平/嵌入) / level1(卡片静止) / level2(抬升卡/图片卡)
-         / level3(悬浮工具条/图片操作层) / level4(底部导航毛玻璃)。
-         历史遗留的 level3/4/5 曾因零引用删除；本次为消除布局裸 dp
-         （activity_image 4dp、底栏 8dp）按"引用了就补档位"纪律恢复两档。 -->
-    <dimen name="elevation_level1">1dp</dimen>   <!-- 卡片静止 -->
-    <dimen name="elevation_level2">3dp</dimen>   <!-- 抬升卡 / 图片卡 -->
-    <!-- 悬浮工具条 / 图片操作层 -->
-    <!-- 底部导航毛玻璃 -->
-    <!-- 描边统一口径：Filled/Outlined/State 卡共用 1dp 发丝描边，颜色走 outlineVariant；
+    <!-- 3. 层级 / 阴影刻度：level1(卡片静止) / level2(抬升卡 / 图片卡)，已无 level0/3/4 token。 -->
+    <dimen name="elevation_level1">1dp</dimen>
+    <dimen name="elevation_level2">3dp</dimen>
+    <!-- 描边口径：Filled/Outlined/State 卡共用 1dp 发丝描边，色走 outlineVariant；
          Elevated 主卡（Widget.Venus.Card）走 none，仅靠阴影区分，避免双重边界。 -->
     <dimen name="stroke_width_hairline">1dp</dimen>
     <dimen name="stroke_width_focused">1.5dp</dimen>  <!-- 输入框聚焦描边 -->
     <dimen name="stroke_width_selected">2.5dp</dimen>  <!-- 主题选中态圆环 -->
 
-    <!-- ========== 4. 组件尺寸 ========== -->
+    <!-- 4. 组件尺寸 -->
     <dimen name="row_min_height">56dp</dimen>        <!-- 列表/设置行最小触控高度 -->
     <dimen name="list_header_min_height">24dp</dimen> <!-- 列表区块标题行最小高度 -->
     <!-- 设置抽屉单行高度：44dp 是「有副标题也放得下」且不低于无障碍下限的密度口径。
-         密度调整只改这里与 SettingRows 的行内 padding，不要在调用处各自写高度。 -->
+         密度调整只改这里与 SettingRows 的行内 padding，调用处不要各自写高度。 -->
     <dimen name="setting_row_min_height">44dp</dimen>
     <!-- 设置抽屉动作行（主按钮/次按钮）高度：M3 Button 默认 40dp -->
     <dimen name="setting_action_height">40dp</dimen>
     <!-- 设置抽屉的「纯文本紧凑行」：配置信息 KV 行、分段控件的内层高度（无触控语义，仅排布） -->
     <dimen name="setting_compact_row_height">32dp</dimen>
-    <!-- 抽屉展开内容的底部收尾留白：抽屉标题行自带上下 16dp，展开内容下方只剩分隔线（0.5dp）
-         与下一条标题行的 16dp，若此处不留，内容会紧贴分隔线（上下 20 / 4 的失衡）。
-         取 16dp 使分隔线恰好居中于「内容末行」与「下一条标题」之间。
-         DrawerPane 的底部内边距与引导线底端内缩共用此值，保证竖线正好收在内容末尾。 -->
+    <!-- 抽屉展开内容底部收尾留白：不留则内容紧贴分隔线（0.5dp），上下失衡；
+         16dp 让分隔线正好居中于「内容末行」与「下一条标题」之间。DrawerPane 的底部内边距
+         与引导线底端内缩共用此值，保证竖线收在内容末尾。 -->
     <dimen name="drawer_content_bottom">16dp</dimen>
     <dimen name="icon_badge_lg">48dp</dimen>         <!-- 状态卡/空态大徽标 -->
     <dimen name="icon_badge_md">32dp</dimen>         <!-- 行内中号徽标 -->
     <dimen name="icon_badge_sm">22dp</dimen>         <!-- 缩略图角标（多选勾选圆） -->
-    <!-- 顶栏玻璃圆按钮的**视觉直径**：栅格与触控仍占 touch_target_min(48dp)，
-         圆本身收到 40dp —— 48dp 画满时在 56dp 的行里顶满上下边，视觉上压过标题。 -->
+    <!-- 顶栏玻璃圆按钮的视觉直径：触控仍占 touch_target_min(48dp)，圆本身收到 40dp
+         —— 48dp 画满时在 56dp 的行里顶满上下边，视觉上压过标题。 -->
     <dimen name="icon_button_glass">40dp</dimen>
     <!-- 图库页玻璃顶栏 / 筛选 chip / 骨架卡 -->
     <dimen name="gallery_chip_height">32dp</dimen>
@@ -77,24 +56,12 @@
     <dimen name="gallery_skeleton_height">200dp</dimen>
     <dimen name="icon_avatar_md">40dp</dimen>        <!-- 用户头像中号 -->
 
-    <!-- ========== 5. 字体层级（强制走 TextAppearance.Venus.*，禁止裸 ?attr） ========== -->
-    <!-- 全部 TextAppearance.Venus.* 统一定义在 widget_venus.xml 单文件。
-         行标题、副标题、操作按钮等一律引用对应 TextAppearance，
-         避免"同一处字体三套写法"。 -->
-
-    <!-- ========== 6. 动效基线（与既有 motion_duration_* 对齐，统一缓动） ========== -->
-    <!-- M3 官方缓动曲线，沉淀在 res/anim/（注意：不是 res/interpolator）：
-         emphasized_decelerate.xml  cubic-bezier(0.05,0.7,0.1,1.0)  进入元素（淡入/上滑入场）
-         emphasized_accelerate.xml  cubic-bezier(0.3,0,0.8,0.15)    退出元素（淡出/收起）
-         emphasized.xml             cubic-bezier(0.2,0,0,1.0)       持久容器（ChangeBounds 等）
-         时长 token：short=100ms（退出）/ medium=250ms（常规）/ long=350ms（页面转场），
-         全部动效必须尊重系统「减少动态效果」（tools.isReducedMotionEnabled）。 -->
-    <!-- 按压态抬升量：卡片/行按下时 elevation +1 档，释放回落，营造"可点"质感 -->
-
-    <!-- ========== 7. 配色角色（语义层，全部指向 M3 theme attr，禁止硬编码） ========== -->
-    <!-- 表面层级：colorSurface(最底) / colorSurfaceContainerLow(卡) / colorSurfaceContainer(容器) / colorSurfaceContainerHigh(凸面) -->
-    <!-- 文本：colorOnSurface(主) / colorOnSurfaceVariant(次) -->
-    <!-- 描边：colorOutline(强) / colorOutlineVariant(弱，发丝描边用) -->
-    <!-- 强调：colorPrimary / colorPrimaryContainer(徽标底) / colorSecondaryContainer(导航选中) -->
-    <!-- 状态：colorError / colorErrorContainer -->
+    <!-- 5. 动效基线：M3 官方缓动曲线沉淀在 res/anim/（不是 res/interpolator）——
+         emphasized_decelerate / emphasized_accelerate / emphasized 分别用于进入 / 退出 / 持久容器；
+         时长 short=100ms / medium=250ms / long=350ms，且必须尊重系统「减少动态效果」。 -->
+    <!-- 6. 配色角色（语义层，全部指向 M3 theme attr，禁止硬编码）
+         表面：colorSurface / colorSurfaceContainerLow(卡) / colorSurfaceContainer(容器) / colorSurfaceContainerHigh(凸面)
+         文本：colorOnSurface(主) / colorOnSurfaceVariant(次)
+         描边：colorOutline(强) / colorOutlineVariant(弱，发丝描边用)
+         强调：colorPrimary / colorPrimaryContainer(徽标底) / colorSecondaryContainer(导航选中)；状态：colorError* -->
 </resources>

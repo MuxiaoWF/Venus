@@ -26,22 +26,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 每日定时签到执行器：WorkManager 到点拉起，在 Worker 线程内直接驱动
- * {@link TaskExecutor}（与手动后台运行共用执行链路），通过普通通知展示进度，
- * 状态照常写入 {@link TaskStatusManager}（小组件/首页自动联动）。
+ * 每日定时签到执行器：WorkManager 到点拉起，在 Worker 线程内直接驱动 {@link TaskExecutor}
+ * （与手动后台运行共用执行链路），用普通通知展示进度，状态照常写入 {@link TaskStatusManager}
+ * （小组件/首页自动联动）。
  *
- * <p>为什么不在 Worker 里拉起 {@link ForegroundTaskService}：Android 12+ 限制
- * 从后台启动前台服务，定时触发时进程通常不在前台，直接 startForegroundService
- * 会抛 ForegroundServiceStartNotAllowedException。Worker 本身由 JobScheduler
- * 调度、系统在执行期间持有 WakeLock，无需自持；单轮任务与手动运行一样控制在
- * 10 分钟内（多任务风控延时叠加的上限），超出该量级才需要长运行 Worker 方案。</p>
+ * <p>不在 Worker 里拉起 {@link ForegroundTaskService}：Android 12+ 限制后台启动前台服务，定时触发时进程
+ * 通常不在前台，startForegroundService 会抛 ForegroundServiceStartNotAllowedException；Worker 由
+ * JobScheduler 调度、系统执行期间持有 WakeLock，无需自持。单轮与手动运行一样控制在 10 分钟内
+ * （多任务风控延时叠加的上限），超出该量级才需要长运行 Worker 方案。
  *
- * <p>续链契约：doWork 结束前必须以 {@link DailyTaskScheduler#CHAIN_POLICY}
- * （APPEND_OR_REPLACE）挂接下一次请求（同日重试或明日到点），否则链条断裂只能靠冷启动修复；
- * 用 APPEND_OR_REPLACE 而非 APPEND，是为了在链尾已落入取消/失败终态时另起新序列，
- * 避免后续续链被一并判为终态而静默死亡。关闭开关的场景由 isEnabled 短路：不再续链，
- * 链条自然终止。同日重试只重跑非验证码失败项——验证码失败需人工介入，
- * 自动重试大概率再次超时，改为通知用户手动处理。</p>
+ * <p>续链契约：doWork 结束前必须用 {@link DailyTaskScheduler#CHAIN_POLICY}（APPEND_OR_REPLACE）挂下一次
+ * 请求（同日重试或明日到点），否则链条断裂只能靠冷启动修复；链尾已落入取消/失败终态时 APPEND_OR_REPLACE
+ * 会另起新序列，避免后续续链被一并判终态而静默死亡。开关关闭时 isEnabled 短路不再续链，链条自然终止。
+ * 同日重试只重跑非验证码失败项——验证码失败需人工介入，自动重试大概率再次超时，改为通知用户手动处理。
  */
 public class DailyTaskWorker extends Worker {
 
@@ -82,9 +79,8 @@ public class DailyTaskWorker extends Worker {
             return Result.success();
         }
 
-        // 与手动入口互斥：前台/后台任务在跑则短延时后复查而非直接排明天——
-        // 手动轮结束（含失败收场）后仍能当日兜底；若手动轮已跑完全部任务，
-        // 下方幂等检查会直接排明天，复查本身不产生多余执行
+        // 与手动入口互斥：前台/后台任务在跑则短延时后复查而非直接排明天，手动轮结束（含失败收场）后
+        // 仍能当日兜底；若手动轮已跑完全部任务，下方幂等检查会直接排明天，复查不产生多余执行
         if (ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning()) {
             tools.writeLog(context, TAG + ": manual run active, recheck in "
                     + DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES + " min");
@@ -207,9 +203,8 @@ public class DailyTaskWorker extends Worker {
                 notificationHelper.cancelProgressNotification();
         }
 
-        // 续链决策：验证码失败不自动重试——用户不在场时重试大概率再次超时，改为发通知
-        // 告知用户手动处理（首页「重试失败任务」按钮；次日到点的定时执行仍会再试）。
-        // 其余失败（网络等瞬时故障）在重试额度内只重跑这些项（部分执行名单随 WorkData 传递）。
+        // 续链决策：验证码失败不自动重试（用户不在场时大概率再次超时），改为发通知让用户手动处理
+        // （首页「重试失败任务」；次日到点的定时执行仍会再试）。其余失败在重试额度内只重跑这些项（名单随 WorkData 传递）。
         if (DailyTaskScheduler.isEnabled(appContext)) {
             if (!executed) {
                 // 任务体整体未执行（提交阶段异常）：按全量重试处理
@@ -246,9 +241,8 @@ public class DailyTaskWorker extends Worker {
     }
 
     /**
-     * 同日重试的等待分钟数：取失败名单内各项判定结果的最保守值——
-     * 未判到类别的项按默认间隔计，避免混合类别时用偏短的间隔
-     * 提前撞上尚未恢复的故障（如限流窗口未过）。
+     * 同日重试的等待分钟数：取失败名单内各项判定结果的最保守值（未判到类别的按默认间隔计），
+     * 避免混合类别时用偏短间隔提前撞上尚未恢复的故障（如限流窗口未过）。
      */
     private static long retryDelayMinutesFor(Set<String> retryable, Map<String, Long> hints) {
         long max = 0;
@@ -261,8 +255,8 @@ public class DailyTaskWorker extends Worker {
     }
 
     /**
-     * 解析同日重试的部分执行名单：上一轮经 WorkData 传入，只保留当前仍处于
-     * ERROR 状态的项。无名单（首跑/全量重试）返回 {@code null} 表示全量执行。
+     * 解析同日重试名单：上一轮经 WorkData 传入，只保留当前仍处于 ERROR 的项。
+     * 无名单（首跑/全量重试）返回 {@code null} 表示全量执行。
      */
     private Set<String> resolveOnlyNames(Context context, String userId) {
         String[] raw = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_ONLY_NAMES);
@@ -276,7 +270,6 @@ public class DailyTaskWorker extends Worker {
 
     /** 距下一个设定时刻的毫秒数（明天到点或同日时刻未到则今天到点）。 */
     private long delayToNextOccurrence() {
-        // 复用调度器的私有计算：经包内静态方法转发
         return DailyTaskScheduler.delayToNextOccurrence(getApplicationContext());
     }
 

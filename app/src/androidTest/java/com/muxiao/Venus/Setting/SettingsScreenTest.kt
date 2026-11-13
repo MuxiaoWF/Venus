@@ -19,11 +19,9 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * 迁移回归测试：确保 Compose 版设置页与原 `CollapsibleCardView` 行为等价。
- *
- * 覆盖点：
+ * 设置页回归测试，覆盖：
  * 1. 13 个抽屉标题全部渲染（顺序即版式，漏一个就是版式错位）
- * 2. 默认折叠 → 点击标题展开内容 → 再点收起
+ * 2. 默认折叠 → 点标题展开内容 → 再点收起
  * 3. 折叠态摘要（`setValue`）与标题同排显示
  * 4. `setVisibility(GONE)` 收起整扇抽屉（国际服隐藏米游币签到用）
  */
@@ -75,12 +73,7 @@ class SettingsScreenTest {
         }
     }
 
-    /**
-     * 抽屉展开内容。
-     *
-     * 迁移前这里塞一个 `TextView`（经 `AndroidView` 桥接，Compose 语义树看不进去）；
-     * 批次 C 后展开内容是同一组合里的 Composable，直接给一段文本即可被语义树识别。
-     */
+    /** 抽屉展开内容：同一组合里的 Composable，给一段文本即可被语义树识别。 */
     private fun SettingsCard.setDummyPane() {
         setPaneContent { Text("缓存 12.4 MB") }
     }

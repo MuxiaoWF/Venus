@@ -26,13 +26,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * VPN 抓包链路的 JNI 数据模型（源自 NetGuard，GPLv3）。
- * 四个数据类由 C 层（netguard.c）经 FindClass/NewObject 构造并按字段名读写，
- * 类名/包名变更必须同步 netguard.c 中的 FindClass 字符串与 JNI 签名
- * （现为 com/muxiao/Venus/Link/CaptureModels$X），并由 proguard-rules.pro keep。
- *
- * <p>类级 {@code @SuppressWarnings("unused")}：字段由 C 层 GetFieldID 按名读写，
- * IDE 的 "never assigned / never used" 检查看不到反射访问，均属误报。</p>
+ * VPN 抓包链路的 JNI 数据模型（源自 NetGuard，GPLv3）：四个数据类由 C 层（netguard.c）经 FindClass/NewObject 构造
+ * 并按字段名读写，类名/包名变更必须同步 netguard.c 的 FindClass 字符串与 JNI 签名（现为
+ * com/muxiao/Venus/Link/CaptureModels$X），并由 proguard-rules.pro keep。类级 {@code @SuppressWarnings("unused")}
+ * 是必须的：字段由 C 层 GetFieldID 按名读写，IDE 的 never assigned / never used 检查看不到反射访问，均属误报。
  */
 @SuppressWarnings("unused")
 public final class CaptureModels {
@@ -40,11 +37,9 @@ public final class CaptureModels {
     }
 
     /**
-     * 单个 IP 包的解析结果（C 层 create_packet 构造并按字段名逐个写入，
-     * 作为 isAddressAllowed / logPacket 的回调入参）。字段增删必须与
-     * netguard.c 的 fid* GetFieldID 查找表同步，IDE 的 "never used" 警告
-     * 看不到 C 层按名反射访问，属误报。
-     */
+    * 单个 IP 包的解析结果（C 层 create_packet 构造并按字段名逐个写入，作为 isAddressAllowed / logPacket 的回调入参）。
+    * 字段增删必须与 netguard.c 的 fid* GetFieldID 查找表同步。
+    */
     public static final class Packet {
         public long time;
         public int version;
@@ -67,10 +62,9 @@ public final class CaptureModels {
     }
 
     /**
-     * 地址放行判定结果：由 Java 侧 isAddressAllowed 返回，C 层 netguard.c
-     * is_address_allowed 按 GetFieldID 读取 raddr/rport（不经构造器），
-     * raddr 非空且 rport 非 0 表示把该连接重定向到该地址。
-     */
+    * 地址放行判定结果：由 Java 侧 isAddressAllowed 返回，C 层 is_address_allowed 按 GetFieldID 读取 raddr/rport
+    * （不经构造器）；raddr 非空且 rport 非 0 表示把该连接重定向到该地址。
+    */
     public static final class Allowed {
         public final String raddr;
         public final int rport;
@@ -81,10 +75,9 @@ public final class CaptureModels {
         }
 
         /**
-         * 上游 NetGuard 的重定向契约构造器：当前端口 Java 侧恒返回无参实例
-         * （不启用重定向），故无 Java 调用点；保留以维持与 C 层读取端
-         * （fidRaddr/fidRport）对应的完整语义。删除不影响编译与运行。
-         */
+        * 上游 NetGuard 的重定向契约构造器：当前 Java 侧恒返回无参实例（不启用重定向），故无调用点，
+        * 保留以维持与 C 层读取端（fidRaddr/fidRport）对应的完整语义；删除不影响编译与运行。
+        */
         public Allowed(String raddr, int rport) {
             this.raddr = raddr;
             this.rport = rport;

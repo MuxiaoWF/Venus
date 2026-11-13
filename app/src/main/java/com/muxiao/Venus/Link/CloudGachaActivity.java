@@ -24,22 +24,13 @@ import com.muxiao.Venus.common.tools;
 
 
 /**
- * 云游戏 WebView 页，两种用途共用同一套页面外壳（顶栏 / 提示行 / 加载·失败·重试三态）：
- * <ul>
- *   <li><b>抽卡链接</b>（默认）：访问米哈游云游戏平台，自动拦截含 authkey 的抽卡链接并复制；</li>
- *   <li><b>抓取云游戏 Token</b>（{@link #MODE_CLOUD_TOKEN}）：访问云游戏网页，
- *       从 {@code wallet/wallet.get} 的**请求头**里取 {@code x-rpc-combo_token} 并按用户落库。</li>
- * </ul>
- * 返回键优先回退 WebView 历史，无历史时退出页面。
+ * 云游戏 WebView 页，两种用途共用同一套外壳（顶栏 / 提示行 / 加载·失败·重试三态）：
+ * 抽卡链接（默认）：访问米哈游云游戏平台，拦截含 authkey 的抽卡链接并复制；
+ * 抓取云游戏 Token（{@link #MODE_CLOUD_TOKEN}）：打开云游戏网页，从 {@code wallet/wallet.get} 的请求头取
+ * {@code x-rpc-combo_token} 并按用户落库。返回键优先回退 WebView 历史，无历史时退出页面。
  * <p>
- * 体验要点：
- * <ul>
- *   <li>WebView 经 ViewStub 延迟到首帧后再展开——其首次初始化是主线程重活，
- *       同步展开会拖慢首帧、表现为点击入口后卡顿才进入本页；</li>
- *   <li>顶栏注入状态栏内边距（与其他二级页同一套 insets 处理）；</li>
- *   <li>加载中/失败/重试三态：主帧请求失败或 HTTP 错误时显示失败态并隐藏
- *       WebView，不再表现为无感知白屏。</li>
- * </ul>
+ * 体验要点：WebView 延迟到首帧后再展开（首次初始化是主线程重活，同步展开会表现为点击入口后卡顿才进本页）；
+ * 主帧请求失败或 HTTP 错误时显示失败态并隐藏 WebView，不再是无感知白屏。
  */
 public class CloudGachaActivity extends BaseActivity {
 
@@ -50,32 +41,28 @@ public class CloudGachaActivity extends BaseActivity {
 
     public static final String EXTRA_MODE = "extra_mode";
     /**
-     * 可选：指定关心的云游戏（{@code CloudGameDaily.GAME_GENSHIN} / {@code GAME_ZZZ}），
-     * 仅影响「完成」判据（回传 RESULT_OK 的时机），不影响入口网址——
-     * 抓取按请求域名自动识别归属，非目标游戏的 token 也会落库。
-     */
+    * 可选：只影响「完成」判据（回传 RESULT_OK 的时机），不影响入口网址——
+    * 抓取按请求域名自动识别归属，非目标游戏的 token 也会落库。
+    */
     public static final String EXTRA_CLOUD_GAME = "extra_cloud_game";
     /**
-     * 可选：token 的落库账号（缺省 = 当前登录账号）。
-     *
-     * <p>凭证抽屉支持「配置目标账号」，从用户管理页给别的账号配 token 时会带上它；
-     * 不带就会把抓到的 token 写到当前账号名下。</p>
-     */
+    * 可选：token 的落库账号（缺省 = 当前登录账号）。用户管理页的「配置目标账号」会带上它，
+    * 不带就会把抓到的 token 写到当前账号名下。
+    */
     public static final String EXTRA_TARGET_USER = "extra_target_user";
 
     /** 抽卡模式入口：米哈游云游戏平台（含原神/星铁/绝区零入口）。 */
     private static final String GACHA_URL = "https://mhyy.mihoyo.com/";
     /**
      * 抓 Token 模式入口：云原神网页版（登录后即发 api-cloudgame 的 wallet 请求）。
-     * 仅此一款有官方网页版——云绝区零没有网页版（zzz.mihoyo.com/cloud-feat 并不存在），
-     * 其 token 无法在本页抓取，只能手动填写。
+     * 仅此一款有官方网页版——云绝区零没有，其 token 只能手动填写。
      */
     private static final String GENSHIN_CLOUD_URL = "https://ys.mihoyo.com/cloud/";
 
     private WebView webView;
     /** Compose 版页面宿主：顶栏 / 提示行 / 内容区三态都由它绘制。 */
     private com.muxiao.Venus.common.ui.compose.CloudGachaScreenView pane;
-    /** 抽卡链接只需复制一次：页面加载会触发多次含 authkey 的资源请求，原实现每次都弹提示。 */
+    /** 抽卡链接只复制一次：页面加载会触发多次含 authkey 的资源请求，每次都提示会刷屏。 */
     private boolean linkCopied = false;
     /** 主帧加载是否失败：onPageFinished 与错误回调都可能出现，以最后一次状态为准。 */
     private boolean loadFailed = false;
@@ -106,11 +93,9 @@ public class CloudGachaActivity extends BaseActivity {
 
         pane.setOnCloseClickListener(this::finish);
         pane.setOnRetryClickListener(this::retryLoad);
-        // WebView 延迟到首帧后由 Compose 侧挂载（原 ViewStub + root.post 的等价实现），
-        // 创建完成即回到这里配置参数与客户端
+        // WebView 延迟到首帧后由 Compose 侧挂载
         pane.setOnWebViewCreatedListener(this::setupWebView);
 
-        // 返回键优先回退 WebView 历史，无历史时退出页面。
         // 注：onBackPressed 在预测性返回手势下不再被调用，改用 OnBackPressedDispatcher 注册。
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -126,10 +111,9 @@ public class CloudGachaActivity extends BaseActivity {
 
     /**
      * 解析 Intent 决定模式、入口地址与提示行文案。
-     *
-     * <p>抓 Token <b>不绑定目标游戏</b>：云游戏平台页里可先后进入云原神与云绝区零，
-     * 两边的 wallet 请求都会被拦截、按请求域名自动识别归属。token 本身互不通用
-     * （按云游戏服务签发），但共用同一份通行证登录态，所以一次会话就能把两份都拿到。
+     * <p>
+     * 抓 Token 不绑定目标游戏：云游戏平台页可先后进入云原神与云绝区零，两边 wallet 请求都会被拦截并按域名识别归属。
+     * token 互不通用（按云游戏服务签发），但共用同一份通行证登录态，故一次会话就能把两份都拿到。
      */
     private void resolveModeFromIntent() {
         if (!MODE_CLOUD_TOKEN.equals(getIntent().getStringExtra(EXTRA_MODE))) return;
@@ -140,7 +124,6 @@ public class CloudGachaActivity extends BaseActivity {
         pane.setPromptText(getString(R.string.cloud_game_fetch_prompt));
     }
 
-    /** WebView 就绪后配置参数与客户端并发起首次加载。 */
     @SuppressLint("SetJavaScriptEnabled")
     private void setupWebView(WebView view) {
         webView = view;
@@ -169,7 +152,6 @@ public class CloudGachaActivity extends BaseActivity {
                 super.onPageFinished(view, url);
                 if (loadFailed) return; // 失败态保持失败提示，避免白屏盖住
                 showContent();
-                // 修改 navigator.language 和 navigator.languages 属性
                 view.evaluateJavascript(
                         "Object.defineProperty(navigator, 'language', {get: function(){return 'zh-CN';}});" +
                                 "Object.defineProperty(navigator, 'languages', {get: function(){return ['zh-CN'];}});",
@@ -238,12 +220,9 @@ public class CloudGachaActivity extends BaseActivity {
     }
 
     /**
-     * 抓 Token 模式：从请求头取 {@code x-rpc-combo_token}。
-     *
-     * <p>云游戏登录成功后必然请求自家的 wallet 接口，token 就在这次请求的**请求头**里
-     * —— 这正是上游文档要求「登录后在 DevTools 里翻 Request Headers」的原因。
-     * 本方法在 {@code shouldInterceptRequest}（IO 线程）中执行，只做解析与去重，
-     * 落库与提示切回主线程。
+     * 抓 Token 模式：从请求头取 {@code x-rpc-combo_token}。云游戏登录成功后必然请求 wallet 接口，token 就在该请求的
+     * 请求头里（上游文档要求「登录后在 DevTools 翻 Request Headers」即因于此）。本方法运行在
+     * {@code shouldInterceptRequest}（IO 线程），只做解析与去重，落库与提示切回主线程。
      */
     private void captureCloudGameToken(WebResourceRequest request) {
         String host = request.getUrl().getHost();
@@ -266,8 +245,7 @@ public class CloudGachaActivity extends BaseActivity {
     }
 
     /**
-     * 大小写不敏感地取请求头值：WebView 给出的键名大小写不稳定，
-     * 个别机型在请求头不可用时还会抛异常，故整体兜底。
+     * 大小写不敏感地取请求头值：WebView 给出的键名大小写不稳定，个别机型在请求头不可用时还会抛异常，故整体兜底。
      */
     private static String headerValue(WebResourceRequest request, String name) {
         try {
@@ -281,12 +259,11 @@ public class CloudGachaActivity extends BaseActivity {
     }
 
     /**
-     * 按用户落库并提示。抓到哪款存哪款——用户可能两款都进入过，两份 token 一并留下；
-     * 未指定目标游戏（统一入口的常态）时任意一款命中都回传 RESULT_OK 供设置页刷新进度。
-     *
-     * <p><b>先校验形态再落库</b>：未登录时页面照样请求钱包接口，请求头里是
-     * {@code "undefined"} / {@code "null"} 这类由前端拼进去的占位值。若当成 token 保存，
-     * 会立刻弹「已获取」（实际什么都没拿到），还会覆盖掉上次登录拿到的真 token。
+     * 按用户落库并提示。抓到哪款存哪款（用户可能两款都进过，两份 token 一并留下）；未指定目标游戏时
+     * 任意一款命中都回传 RESULT_OK 供设置页刷新进度。
+     * <p>
+     * <b>先校验形态再落库</b>：未登录时页面照样请求钱包接口，请求头里是 {@code "undefined"} / {@code "null"}
+     * 这类前端拼进去的占位值；当成 token 保存会立刻弹「已获取」（其实什么都没拿到），还会覆盖上次的真 token。
      */
     private void saveCloudGameToken(String game, String token, boolean oversea) {
         if (!CloudGameDaily.isValidToken(token)) {
@@ -324,7 +301,7 @@ public class CloudGachaActivity extends BaseActivity {
         webView.loadUrl(targetUrl);
     }
 
-    // 三态只改宿主状态：WebView 不被移除，加载中/失败时由覆盖层遮住（等价于原来的 INVISIBLE）
+    // 三态只改宿主状态：WebView 不被移除，加载中/失败时由覆盖层遮住
     private void showLoading() {
         pane.setStage(com.muxiao.Venus.common.ui.compose.CloudGachaScreenKt.CLOUD_STAGE_LOADING);
     }

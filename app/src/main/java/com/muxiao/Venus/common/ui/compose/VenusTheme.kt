@@ -26,15 +26,9 @@ import com.google.android.material.R as MaterialR
 import com.google.android.material.color.MaterialColors
 
 /**
- * Venus 的 Compose 主题（增量迁移专用，最小实现）。
- *
- * 设计约束来自项目既有主题体系，务必保留：
- * 1. 应用主题是 `Theme.Material3Expressive.DynamicColors.DayNight`，且运行时通过
- *    `getTheme().applyStyle(ThemeOverlay.Venus.Xxx)` 切换 6 套调色板（见 Setting 页配色选择）。
- *    因此**不能**在 Compose 侧写死色值——这里逐项读取当前 theme 已解析的属性值，
- *    保证 Compose 与 XML 视图共用同一套颜色，切主题/切日夜自动跟随。
- * 2. 只映射本阶段迁移布局真正用到的角色，不整体搬运 XML 主题（迁移 skill 的约束）。
- * 3. 字号沿用 `TextAppearance.Venus.*` 的既有刻度（DrawerLabel = 13sp）。
+ * Venus 的 Compose 主题：运行时通过 `applyStyle(ThemeOverlay.Venus.Xxx)` 切换 6 套调色板，
+ * 不能写死色值，故逐项读取 theme 已解析属性，与 XML 视图共用同一套颜色。
+ * 只映射当前布局用到的角色；字号按角色在此定义（对应 XML 的 TextAppearance 体系已随 styles.xml 删除）。
  */
 @Composable
 fun VenusTheme(content: @Composable () -> Unit) {
@@ -46,28 +40,19 @@ fun VenusTheme(content: @Composable () -> Unit) {
         val typography = MaterialTheme.typography
         val textStyles = remember(colorScheme, typography) {
             VenusTextStyles(
-                // 对应 TextAppearance.Venus.DrawerLabel（BodyMedium + 13sp + colorOnSurface）
                 drawerLabel = typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     color = colorScheme.onSurface,
                 ),
-                // 对应 TextAppearance.Venus.Body（BodyMedium，颜色由调用方或 LocalContentColor 决定）
+                // 颜色由调用方或 LocalContentColor 决定
                 body = typography.bodyMedium,
-                // 对应 TextAppearance.Venus.Body.Small（辅助说明文字）
                 bodySmall = typography.bodySmall,
-                // 对应 TextAppearance.Venus.Label.Medium（按钮内小号标签）
                 labelMedium = typography.labelMedium,
-                // 对应 TextAppearance.Venus.Label.Large（行内大号标签，如取消任务/用户管理操作）
                 labelLarge = typography.labelLarge,
-                // 对应 TextAppearance.Venus.Title（TitleMedium.Emphasized）
                 title = typography.titleMedium,
-                // 对应 TextAppearance.Venus.Title.Large（TitleLarge.Emphasized）
                 titleLarge = typography.titleLarge,
-                // 对应 TextAppearance.Venus.ToolbarTitle（HeadlineSmall.Emphasized）
                 toolbarTitle = typography.headlineSmall,
-                // 对应 TextAppearance.Venus.RowSubtitle（BodySmall + colorOnSurfaceVariant）
                 rowSubtitle = typography.bodySmall.copy(color = colorScheme.onSurfaceVariant),
-                // 对应 TextAppearance.Venus.Eyebrow（等宽 10sp 粗体，字距 0.15）
                 eyebrow = typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
@@ -75,7 +60,7 @@ fun VenusTheme(content: @Composable () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.onSurfaceVariant,
                 ),
-                // 对应 Widget.Venus.SectionLabel（Eyebrow + 字距 0.25 的区块标签）
+                // 对应 Widget.Venus.SectionLabel
                 sectionLabel = typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
@@ -83,39 +68,33 @@ fun VenusTheme(content: @Composable () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.onSurfaceVariant,
                 ),
-                // 对应 TextAppearance.Venus.HeaderTitle（28sp Emphasized）
                 headerTitle = typography.headlineLarge.copy(
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.01).em,
                     color = colorScheme.onSurface,
                 ),
-                // 对应 TextAppearance.Venus.HeaderSubtitle（13sp 副标题）
                 headerSubtitle = typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     color = colorScheme.onSurfaceVariant,
                 ),
-                // 对应 TextAppearance.Venus.Body.Large
                 bodyLarge = typography.bodyLarge,
-                // 对应 TextAppearance.Venus.RowTitle（BodyLarge + colorOnSurface）
                 rowTitle = typography.bodyLarge.copy(color = colorScheme.onSurface),
-                // 对应 TextAppearance.Venus.MonoValue（等宽 10sp 值摘要）
                 monoValue = typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
                     color = colorScheme.onSurfaceVariant,
                 ),
-                // 链接结果 URL：等宽 labelSmall，沿用其默认 11sp 字号（不覆盖），主色 onSurface
+                // 链接结果 URL：沿用 labelSmall 默认 11sp，不覆盖字号
                 urlMono = typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     color = colorScheme.onSurface,
                 ),
             )
         }
-        // LocalContentColor 的默认值是 Color.Black，不是主题色 —— 页面根容器若不是 Surface
-        // （本项目多数页面是普通 Column/Box + 壁纸背景），未显式指定颜色的 Text 会渲染成纯黑，
-        // 深色模式下直接看不见。这里把默认内容色钉在 onSurface 上；
-        // Button / Card / Surface / 输入框等自带容器色的组件会各自覆盖，不受影响。
+        // LocalContentColor 默认是 Color.Black 而非主题色：页面根多为普通 Column/Box +
+        // 壁纸背景，未指定颜色的 Text 在深色下会看不见，故钉在 onSurface；
+        // 自带容器色的组件（Button/Card/Surface/输入框）各自覆盖，不受影响。
         CompositionLocalProvider(
             LocalVenusTextStyles provides textStyles,
             LocalContentColor provides colorScheme.onSurface,
@@ -124,7 +103,7 @@ fun VenusTheme(content: @Composable () -> Unit) {
     }
 }
 
-/** Venus 语义文本样式（对齐 res/values/styles.xml 的 TextAppearance.Venus.*）。 */
+/** Venus 语义文本样式：字号/字距在此定义，经 `LocalVenusTextStyles` 取用（styles.xml 的 TextAppearance 体系已删除）。 */
 @Immutable
 class VenusTextStyles internal constructor(
     val drawerLabel: TextStyle,
@@ -155,9 +134,7 @@ private fun Configuration.isNightMode(): Boolean =
     (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
 /**
- * 把当前 theme 的 M3 颜色角色映射为 Compose [ColorScheme]。
- *
- * 用 [MaterialColors.getColor] 读取已解析值（而非资源里的字面量），
+ * 把当前 theme 的 M3 角色映射为 [ColorScheme]：必须用 [MaterialColors.getColor] 读已解析值，
  * 才能跟上 DynamicColors 取色与 ThemeOverlay 运行时切换。
  */
 private fun android.content.Context.venusColorScheme(dark: Boolean): ColorScheme {
@@ -184,8 +161,7 @@ private fun android.content.Context.venusColorScheme(dark: Boolean): ColorScheme
     val error = themeColor(AppCompatR.attr.colorError)
     val onError = themeColor(MaterialR.attr.colorOnError)
 
-    // 日夜两个构造器只为让 Compose 侧正确判定亮暗（影响默认内容色/涟漪等内部行为）；
-    // 具体色值都来自当前 theme，因此两套传同一批角色。
+    // 日夜构造器只为让 Compose 判定亮暗（影响默认内容色/涟漪等），色值都来自当前 theme，故两套传同一批角色。
     return if (dark) {
         darkColorScheme(
             primary = primary,

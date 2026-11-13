@@ -22,28 +22,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 极验验证码封装：调用API1获取gt/challenge → SDK弹出验证 → API2二次验证。
- * 支持前台（HomeFragment）和后台（BackgroundGeetestController）两种模式。
+ * 极验验证码封装：API1 取 gt/challenge → SDK 弹窗验证 → API2 二次验证；前台/后台控制器共用同一流程。
  */
 public class Geetest {
     private static final Gson GSON = new Gson();
 
-    /** 验证码验证完成回调接口。 */
     public interface GeetestVerificationCallback {
-        /** 验证成功，geetest_code 含二次验证结果（x-rpc-challenge/validate/seccode）。 */
+        /** 成功：geetest_code 为 API2 二次验证结果（x-rpc-challenge/validate/seccode）。 */
         void onVerificationSuccess(Map<String, String> geetest_code);
 
-        /** 验证失败或被用户关闭，error 为原因描述。 */
+        /** 失败或被用户关闭，error 为原因描述。 */
         void onVerificationFailed(String error);
     }
 
     /**
-     * 完整验证流程：先 API1 取 gt/challenge，再配置极验 SDK 弹窗并注册结果回调。
-     * 若控制器为后台类型，则把 challenge/headers 暂存供前台复用同一 challenge 验证。
+     * 完整验证流程：API1 取 gt/challenge → 配置极验 SDK 弹窗 → 回调结果。后台控制器会额外暂存
+     * challenge/headers 供前台复用同一 challenge（重复调 API1 会拿到不匹配的 challenge）。
      *
-     * @param headers  含 Cookie 的请求头（API1 与 API2 共用）
-     * @param callback 验证成功/失败的回调
-     * @param gt3Controller 前台或后台的极验控制器
+     * @param headers 含 Cookie 的请求头，API1 与 API2 共用
      */
     public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback, GeetestController gt3Controller) {
         Logger.debug("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
@@ -79,10 +75,7 @@ public class Geetest {
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
     }
 
-    /**
-     * 使用已有的 gt 和 challenge 进行验证（跳过 API1 调用）。
-     * 用于前台复用后台任务的 challenge，避免重复 API1 导致 challenge 不匹配。
-     */
+    /** 用已有 gt/challenge 验证（跳过 API1）：前台复用后台任务的 challenge，避免重复 API1 后 challenge 不匹配。 */
     public static void geetestWithChallenge(Context context, String gt, String challenge, Map<String, String> headers,
                                             GeetestVerificationCallback callback, GeetestController gt3Controller) {
         Logger.debug("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
@@ -91,30 +84,25 @@ public class Geetest {
     }
 
     /**
-     * 配置 GT3ConfigBean 与监听并创建验证按钮。
-     * onDialogResult 内做 API2 二次验证并回传 geetCode；onClosed 仅在未成功时视为失败。
-     * 后台控制器在 createButton 返回后直接从静态字段读取结果并触发回调。
+     * 配置 GT3ConfigBean 与监听并创建按钮。onDialogResult 内做 API2 二次验证后回传 geetCode，
+     * onClosed 仅在未成功时视为失败；后台控制器在 createButton 返回后直接读静态字段取结果。
      */
     private static void setupAndCreateButton(Context context, String gt, String challenge, Map<String, String> headers,
                                              GeetestVerificationCallback callback, GeetestController gt3Controller) {
-        // 配置bean文件，也可在oncreate初始化
         GT3ConfigBean gt3ConfigBean = new GT3ConfigBean();
-        // 设置验证模式，1：bind，2：unbind
+        // 验证模式：1 = bind，2 = unbind
         gt3ConfigBean.setPattern(1);
         gt3ConfigBean.setLang("zh");
         // 标记验证是否已成功，防止 showSuccessDialog 触发 onClosed 后误报失败
         final boolean[] verificationSucceeded = {false};
-        // 设置回调监听
         gt3ConfigBean.setListener(new GT3Listener() {
             @Override
             public void onButtonClick() {
                 Logger.debug("VenusCaptcha", "onButtonClick fired, calling getGeetest()");
-                // 将参数传递给Geetest SDK
                 Map<String, Object> mapData = new HashMap<>();
                 mapData.put("gt", gt);
                 mapData.put("challenge", challenge);
                 mapData.put("success", 1);
-                // 设置API1的JSON数据
                 gt3ConfigBean.setApi1Json(new JSONObject(mapData));
                 gt3Controller.getGeetestUtils().getGeetest();
             }
@@ -192,7 +180,7 @@ public class Geetest {
             }
         });
         Logger.debug("VenusCaptcha", "Calling gt3Controller.createButton()");
-        gt3Controller.createButton(gt3ConfigBean); // 配置完毕，创建按钮
+        gt3Controller.createButton(gt3ConfigBean);
 
         // 后台控制器：前台验证完成后，回调链被 HomeFragment 的回调覆盖，
         // CaptchaVerificationHelper 的回调不会触发。直接从静态字段读取结果。

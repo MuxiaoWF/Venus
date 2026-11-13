@@ -34,9 +34,7 @@ public class UpdateChecker {
         this.sharedPreferences = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    /**
-     * 检查是否需要执行更新检查（每隔3天）
-     */
+    /** 每隔 3 天（随启动触发）才真正检查一次。 */
     public void checkForUpdatesIfNeeded() {
         long lastCheckTime = sharedPreferences.getLong(LAST_CHECK_TIME, 0);
         long currentTime = System.currentTimeMillis();
@@ -45,26 +43,17 @@ public class UpdateChecker {
             checkForUpdates(false);
     }
 
-    /**
-     * 立即检查更新
-     */
+    /** 立即检查更新（手动触发，失败会弹出错误框）。 */
     public void checkForUpdatesImmediately() {
         checkForUpdates(true);
     }
 
-    /**
-     * 检查更新
-     *
-     * @param isManual 是否是用户手动触发的检查
-     */
+    /** @param isManual 用户手动触发：失败与新版本提示都直接弹窗；自动检查则静默，等下次启动再试 */
     private void checkForUpdates(boolean isManual) {
         new Thread(() -> {
             try {
-                // 保存检查时间
                 sharedPreferences.edit().putLong(LAST_CHECK_TIME, System.currentTimeMillis()).apply();
-                // 获取当前应用版本
                 String currentVersion = BuildConfig.VERSION_NAME;
-                // 从GitHub获取最新版本信息
                 JsonObject releaseInfo = getLatestReleaseInfo();
                 if (releaseInfo == null) {
                     // 失败只报一次错：错误文案已由 getLatestReleaseInfo 记入 lastFetchError；
@@ -83,7 +72,6 @@ public class UpdateChecker {
                     return;
                 }
 
-                // 比较版本
                 if (isUpdateAvailable(currentVersion, latestVersion))
                     showUpdateDialog(latestVersion, releaseInfo);
                 else if (isManual)
@@ -136,9 +124,7 @@ public class UpdateChecker {
         });
     }
 
-    /**
-     * 比较版本号判断是否有更新
-     */
+    /** 比较版本号（忽略前缀 v）判断是否有更新。 */
     private boolean isUpdateAvailable(String currentVersion, String latestVersion) {
         if (latestVersion.startsWith("v"))
             latestVersion = latestVersion.substring(1);
@@ -148,9 +134,8 @@ public class UpdateChecker {
     }
 
     /**
-     * 按“.”分段比较版本号，返回 version1 减 version2 的差值（>0 表示 v1 更新）。
-     * 段内出现非纯数字（如 {@code 1.2.3-beta}）时退化为字符串比较，
-     * 避免 Integer.parseInt 抛 NumberFormatException 导致整个更新检查以错误弹窗收场。
+     * 按「.」分段比较，返回 v1 减 v2 的差值（>0 表示 v1 更新）。段内出现非纯数字（如 {@code 1.2.3-beta}）时
+     * 退化为字符串比较，避免 Integer.parseInt 抛 NumberFormatException 让整个检查以错误弹窗收场。
      */
     private int compareVersions(String version1, String version2) {
         String[] parts1 = version1.split("\\.");
@@ -180,13 +165,10 @@ public class UpdateChecker {
         }
     }
 
-    /**
-     * 显示更新对话框，引导用户前往浏览器下载
-     */
+    /** 显示更新对话框，引导用户前往浏览器下载。 */
     private void showUpdateDialog(String latestVersion, JsonObject releaseInfo) {
         new Handler(Looper.getMainLooper()).post(() -> {
             String releaseNotes = releaseInfo.has("body") ? releaseInfo.get("body").getAsString() : "";
-            // 构造 releases 页面链接
             String tagName = releaseInfo.has("tag_name") ? releaseInfo.get("tag_name").getAsString() : latestVersion;
             String releasesPageUrl = Constants.Urls.MUXIAO_MINE_GITHUB_URL + "/releases/tag/" + tagName;
 

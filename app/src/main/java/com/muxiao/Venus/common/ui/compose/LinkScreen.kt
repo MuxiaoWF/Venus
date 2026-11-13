@@ -59,9 +59,7 @@ import androidx.compose.ui.unit.em
 import com.muxiao.Venus.R
 import com.muxiao.Venus.common.tools
 
-/* ===== 来源行状态（对齐原 LinkFragment.ChipState） ===== */
-
-/** 待获取：中性 chip，图标圆为灰表面。 */
+/** 来源行状态，数值对齐 LinkFragment.ChipState · 待获取：中性 chip，图标圆为灰表面。 */
 const val LINK_CHIP_PENDING = 0
 
 /** 获取中：主色 chip + 刷新图标无限旋转。 */
@@ -70,19 +68,12 @@ const val LINK_CHIP_FETCHING = 1
 /** 已获取：成功绿 chip，图标圆点回主色底。 */
 const val LINK_CHIP_FETCHED = 2
 
-/* ===== VPN 抓包行语义状态（对齐原 LinkFragment.VpnStatus） ===== */
-
 const val VPN_STATUS_DEFAULT = 0
 const val VPN_STATUS_RUNNING = 1
 const val VPN_STATUS_SUCCESS = 2
 const val VPN_STATUS_WARN = 3
 
-/**
- * 一条抽卡链接结果：标签（`UID 100000001` 或渠道名）+ 完整 URL。
- *
- * 原实现是 `buildLinkRow` 里命令式拼 `LinearLayout`，迁移后只保留数据，
- * 由 Compose 渲染，Java 侧只负责把 `Map<Integer, String>` 转成这个列表。
- */
+/** 一条抽卡链接结果：标签（`UID 100000001` 或渠道名）+ 完整 URL；Java 侧只把 `Map<Integer, String>` 转成此列表。 */
 @Immutable
 class LinkRow(val label: String, val url: String)
 
@@ -95,11 +86,8 @@ class LinkSourceState {
 }
 
 /**
- * 抽卡链接页的全部可变状态。
- *
- * 与设置页各 pane 的「宿主是受控组件」约定一致：Java 只写状态，Compose 只读状态；
- * 状态切换后的视觉（chip 文案/配色/图标底/旋转）全部由 [LinkScreen] 依 [LinkSourceState.state] 派生，
- * Java 不再逐控件 setText/setBackground/setTint。
+ * 抽卡链接页的全部可变状态（受控组件，同 pane 约定）：Java 只写状态，Compose 只读；
+ * chip 文案/配色/图标底/旋转全部由 [LinkScreen] 依 [LinkSourceState.state] 派生，不要逐控件 setText/setBackground。
  */
 @Stable
 class LinkUiState {
@@ -122,16 +110,9 @@ fun interface UrlConsumer {
 }
 
 /**
- * 抽卡链接页（命令台来源列表）的 Compose 实现。
- *
- * 与原 `fragment_link.xml` 的对应关系：
- * - 页眉固定、正文滚动（原 ConstraintLayout + NestedScrollView）
- * - 账号行 = 头像徽标 + 无框下拉 + 上下箭头；无用户时整行变「前往添加」引导
- * - 原神 / 绝区零 = 点行获取，结果与就地错误长在行下
- * - 云游戏 = 导航行；VPN 抓包 = 导航行 + 常驻结果区
- *
- * 玻璃：4 个图标圆 + 2 个状态 chip + 每条结果的复制按钮，均经 [LensGlass] 复用
- * `LensGlassDrawable`（与原实现同一套折射渲染，无观感差异）。
+ * 抽卡链接页：页眉固定 + 正文滚动；账号行 = 头像 + 无框下拉 + 上下箭头（无用户时整行变「前往添加」引导）；
+ * 原神 / 绝区零点行获取，结果与就地错误长在行下；云游戏为导航行，VPN 抓包 = 导航行 + 常驻结果区。
+ * 图标圆、状态 chip 与结果复制按钮统一用 [LensGlass]，保持与页内其它玻璃同一套折射。
  */
 @Composable
 fun LinkScreen(
@@ -170,8 +151,7 @@ fun LinkScreen(
             collapse = headerCollapse,
         )
 
-        // 正文：等价于 Widget.Venus.ScreenScaffold（左右 gutter、上 space_2、下 space_4）
-        // + BottomBarOverlay 的底部避让（原来由 attachClearance 直接改 padding）
+        // 正文：左右 gutter、上 space_2、下 space_4 + 底栏避让
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -249,12 +229,7 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * 账号上下文行：头像 + 用户名（带服务器后缀）+ 上下箭头。
- *
- * 有用户时点整行展开下拉；无用户时整行变成引导（原 updateUserGuideState 的
- * 「hint + 跳转用户管理页」语义），点击回调由 Java 注入。
- */
+/** 账号上下文行：头像 + 用户名（带服务器后缀）+ 上下箭头。有用户时点整行展开下拉，无用户时整行变引导（跳用户管理页）。 */
 @Composable
 private fun AccountRow(
     state: LinkUiState,
@@ -298,8 +273,7 @@ private fun AccountRow(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        // 原 MaterialAutoCompleteTextView.showDropDown()：列表项为「头像 + 原始用户名」
-        // （item_user_dropdown 不带服务器后缀，后缀只在行内展示）
+        // 下拉项为「头像 + 原始用户名」，不带服务器后缀（后缀只在行内展示）
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             state.users.forEachIndexed { index, username ->
                 DropdownMenuItem(
@@ -316,12 +290,8 @@ private fun AccountRow(
 }
 
 /**
- * 来源行：图标圆 + 标题/状态 + 状态 chip + 刷新圆。
- *
- * 三个状态的差异全部在此派生（原来散在 `setChipState` 的 30 行里）：
- * - PENDING：灰 chip + 灰描边，图标圆灰表面，不转
- * - FETCHING：主色 chip + 主色描边，刷新图标无限旋转
- * - FETCHED：成功绿 chip + 成功绿描边，图标圆回主色底（`bg_icon_circle`）
+ * 来源行：图标圆 + 标题/状态 + 状态 chip + 刷新圆。三个状态的视觉差异全部在此派生，不要散回 setter：
+ * PENDING 灰 chip 灰描边不转；FETCHING 主色 chip 主色描边 + 刷新图标无限旋转；FETCHED 成功绿 chip，图标圆回主色底。
  */
 @Composable
 private fun SourceRow(
@@ -459,12 +429,7 @@ private fun StatusChip(
     }
 }
 
-/**
- * 刷新圆：获取中无限旋转（原 `ObjectAnimator` + LinearInterpolator，1000ms/圈）。
- *
- * 只旋转图标本体：原实现旋转整个 View 是为了让圆内壁纸一起转，而圆形取景下
- * 玻璃旋转与不旋转在视觉上等价，旋转图标即可，且省掉对透镜 View 的动画驱动。
- */
+/** 刷新圆：获取中无限旋转（1000ms/圈）。只旋转图标本体——圆形取景下玻璃转与不转等价，也省掉对透镜的动画驱动。 */
 @Composable
 private fun RefreshBadge(spinning: Boolean, onClick: () -> Unit) {
     val reducedMotion = rememberReducedMotion()
@@ -500,11 +465,8 @@ private fun RefreshBadge(spinning: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * 行内结果区 + 就地错误。
- *
- * 两者互斥：错误出现时结果区收起（原 showInlineError 里 `result.removeAllViews()`），
- * 错误顶替结果的位置出现，不另起全局提示块。
- * 进入动效为淡入 + 8dp 上滑，时长取 motion_duration_medium；尊重「减少动态效果」。
+ * 行内结果区 + 就地错误。两者互斥：有错误时结果区收起，错误顶替其位置，不另起全局提示块。
+ * 进入动效为淡入 + 8dp 上滑（motion_duration_medium），尊重「减少动态效果」。
  */
 @Composable
 private fun ResultArea(source: LinkSourceState, onCopy: (String) -> Unit) {
@@ -555,12 +517,7 @@ private fun ResultArea(source: LinkSourceState, onCopy: (String) -> Unit) {
     }
 }
 
-/**
- * 单条链接行：小字标签（UID / 渠道）+ 截断链接 + 玻璃复制按钮。
- *
- * 对应原 `buildLinkRow`：标签 10sp 等宽、URL 11sp 等宽单行截断、
- * 复制按钮 32dp（8dp 圆角玻璃 + 18dp 图标，左边距 12dp）。
- */
+/** 单条链接行：小字标签（UID / 渠道）+ 截断链接 + 玻璃复制按钮（标签 10sp / URL 11sp 等宽单行截断）。 */
 @Composable
 private fun LinkResultRow(row: LinkRow, onCopy: (String) -> Unit) {
     val textStyles = LocalVenusTextStyles.current
@@ -649,7 +606,7 @@ private fun NavRow(
                 modifier = Modifier.padding(top = dimensionResource(R.dimen.space_hairline)),
             )
         }
-        // 原 XML 的 android:rotation="270"：chevron 向下 → 指向右
+        // chevron 默认向下，旋转 270° 指向右
         Icon(
             painter = painterResource(R.drawable.ic_chevron),
             contentDescription = title,
@@ -666,12 +623,7 @@ private fun rememberReducedMotion(): Boolean {
     return remember(context) { tools.isReducedMotionEnabled(context) }
 }
 
-/**
- * 抽卡链接页的 Compose 宿主：把 [LinkUiState] 与 Java 侧回调收敛成普通 setter。
- *
- * 用法（LinkFragment.onCreateView）：new LinkScreenView(requireContext()) 作为根视图返回，
- * 之后所有 UI 更新都走 `setSourceState` / `setSourceResult` / `setVpnStatus` 等方法。
- */
+/** 抽卡链接页宿主：`LinkFragment` 直接 new 来当根视图，之后 UI 更新全走 setSourceState / setSourceResult / setVpnStatus。 */
 class LinkScreenView(context: Context) : AbstractComposeView(context) {
 
     internal val uiState = LinkUiState()
