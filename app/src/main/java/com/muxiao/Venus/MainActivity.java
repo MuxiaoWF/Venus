@@ -17,7 +17,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
@@ -38,8 +37,6 @@ import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.common.ui.compose.MainShellView;
 import com.muxiao.Venus.common.data.ConfigRepository;
-
-import java.io.InputStream;
 
 /**
  * 主Activity：底部导航（主页/用户管理/抽卡链接/设置）、背景图片加载、

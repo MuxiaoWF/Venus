@@ -221,10 +221,12 @@ public class UserManagementFragment implements PageController {
         }
         int done = cloud.configured + skland.configured;
         int total = cloud.total + skland.total;
+        int pending = Math.max(total - done, 0);
         boolean allReady = total > 0 && done >= total;
         String label = allReady
                 ? activity.getString(R.string.credential_chip_ready, done, total)
-                : activity.getString(R.string.credential_chip_pending, Math.max(total - done, 0));
+                : activity.getResources().getQuantityString(
+                        R.plurals.credential_chip_pending, pending, pending);
         return new CredentialChipRow(label, allReady);
     }
 

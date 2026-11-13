@@ -130,7 +130,7 @@ public final class CookieLogin {
             ltoken = fetchLtoken(context, headerManager, stoken, mid, stuid);
         }
 
-        int retcode = verify(context, headerManager, stoken, ltoken, mid, stuid);
+        int retcode = verify(headerManager, stoken, ltoken, mid, stuid);
         if (retcode == RETCODE_LOGIN_EXPIRED) {
             // 区分两种 -100：只有 ltoken 时是被接口拒收（BBS/签到接口要 stoken），
             // 有 stoken 时才是真的过期。实测 bbs-api / api-takumi 对 ltoken_v2 一律返回 -100。
@@ -179,9 +179,9 @@ public final class CookieLogin {
      */
     private static String fetchLtoken(Context context, HeaderManager headerManager,
                                       String stoken, String mid, String stuid) {
-        String ltoken = requestLtoken(context, headerManager, stoken, mid);
+        String ltoken = requestLtoken(headerManager, stoken, mid);
         if (ltoken == null && !mid.equals(stuid)) {
-            ltoken = requestLtoken(context, headerManager, stoken, stuid);
+            ltoken = requestLtoken(headerManager, stoken, stuid);
         }
         if (ltoken == null) {
             throw new RuntimeException(context.getString(R.string.login_cookie_stoken_expired));
@@ -190,7 +190,7 @@ public final class CookieLogin {
     }
 
     /** 单次 getLTokenBySToken 调用，失败返回 null（由上层决定是否重试/报错）。 */
-    private static String requestLtoken(Context context, HeaderManager headerManager,
+    private static String requestLtoken(HeaderManager headerManager,
                                         String stoken, String mid) {
         Map<String, String> headers = headerManager.get_bbs_headers();
         headers.put("Cookie", "stoken=" + stoken + ";mid=" + mid);
@@ -217,7 +217,7 @@ public final class CookieLogin {
      *
      * @return retcode（0 = 正常；-100 = 登录态失效；其余原样返回，由调用方按「可用但被限流/风控」处理）
      */
-    private static int verify(Context context, HeaderManager headerManager, String stoken,
+    private static int verify(HeaderManager headerManager, String stoken,
                               String ltoken, String mid, String stuid) {
         Map<String, String> headers = headerManager.get_bbs_headers();
         StringBuilder cookie = new StringBuilder();

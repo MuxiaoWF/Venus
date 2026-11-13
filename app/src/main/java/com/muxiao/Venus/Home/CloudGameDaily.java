@@ -163,7 +163,9 @@ public class CloudGameDaily {
         int sendFreeTime = JsonAccess.optInt(freeTimeObject, "send_freetime", 0);
 
         if (sendFreeTime > 0) {
-            report(context.getString(R.string.cloud_game_sign_success, sendFreeTime));
+            // 分钟数决定单复数：1 minute / N minutes
+            report(context.getResources().getQuantityString(
+                    R.plurals.cloud_game_sign_success, sendFreeTime, sendFreeTime));
         } else if (freeTime < FREE_TIME_CONFIRM_THRESHOLD) {
             // 接口未回报发放量且余额偏低：间隔数秒再查一次，用增量确认是否真的发放
             tools.randomDelay(CONFIRM_DELAY_MIN_MS, CONFIRM_DELAY_RANGE_MS);
@@ -171,7 +173,9 @@ public class CloudGameDaily {
             JsonObject secondFreeTime = child(second, "free_time");
             int freeTimeAfter = JsonAccess.optInt(secondFreeTime, "free_time", freeTime);
             if (freeTimeAfter > freeTime) {
-                report(context.getString(R.string.cloud_game_sign_success, freeTimeAfter - freeTime));
+                int granted = freeTimeAfter - freeTime;
+                report(context.getResources().getQuantityString(
+                        R.plurals.cloud_game_sign_success, granted, granted));
             } else {
                 report(context.getString(R.string.cloud_game_already_signed));
             }

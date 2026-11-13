@@ -145,7 +145,6 @@ fun LinkScreen(
     onCopy: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val textStyles = LocalVenusTextStyles.current
     val density = LocalDensity.current
     val clearance = with(density) { state.bottomClearancePx.toDp() }
     val gutter = dimensionResource(R.dimen.gutter_screen)
@@ -155,7 +154,7 @@ fun LinkScreen(
     val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
     val scrollState = rememberScrollState()
     val atTop by remember { derivedStateOf { scrollState.value == 0 } }
-    headerCollapse.expandWhenAtTop(atTop)
+    headerCollapse.ExpandWhenAtTop(atTop)
 
     Column(
         modifier = modifier

@@ -90,9 +90,12 @@ private fun settingToneColor(tone: SettingTone): Color = when (tone) {
  *
  * 交互修饰符由调用方以 [interaction] 传入（`clickable` / `toggleable` / 空），
  * 这样开关行与复选框行能把语义 role 挂在整行上，而不是只有控件本体可点。
+ *
+ * [modifier] 是调用方给的外部修饰符（尺寸/权重/边距），挂在最外层；[interaction] 只承载交互语义。
  */
 @Composable
 private fun SettingRowLayout(
+    modifier: Modifier = Modifier,
     title: String,
     subtitle: String?,
     note: String?,
@@ -111,7 +114,7 @@ private fun SettingRowLayout(
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     val alpha = if (enabled) 1f else 0.38f
     Row(
-        modifier = Modifier
+        modifier = modifier
             // 放进 FlowRow 的复选行不能撑满宽度，否则会各占一行、并排失效
             .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
             .heightIn(min = dimensionResource(R.dimen.setting_row_min_height))
@@ -189,6 +192,7 @@ internal fun SettingRow(
     onClick: (() -> Unit)? = null,
 ) {
     SettingRowLayout(
+        modifier = modifier,
         title = title,
         subtitle = subtitle,
         note = null,
@@ -205,7 +209,7 @@ internal fun SettingRow(
 /**
  * 开关行：整行可点（`toggleable` + `Role.Switch`），Switch 本体只负责显示状态。
  *
- * 原 [LabeledSwitchRow] 只有 Switch 本体可点，行高仅 32dp，与 `touch_target_min` 的意图不符；
+ * 原 `LabeledSwitchRow` 只有 Switch 本体可点，行高仅 32dp，与 `touch_target_min` 的意图不符；
  * 这里把语义与可点区收回到整行，行高按 44dp 起算。
  *
  * @param subtitle 该开关的说明文本。说明属于这一行，不要再在外面单独加 Text。
@@ -226,6 +230,7 @@ internal fun SettingSwitchRow(
     noteMaxLines: Int = 3,
 ) {
     SettingRowLayout(
+        modifier = modifier,
         title = title,
         subtitle = subtitle,
         note = note,
@@ -268,6 +273,7 @@ internal fun SettingNavRow(
     val textStyles = LocalVenusTextStyles.current
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     SettingRowLayout(
+        modifier = modifier,
         title = title,
         subtitle = subtitle,
         note = null,
@@ -303,7 +309,7 @@ internal fun SettingNavRow(
 /**
  * 复选行：左侧 Checkbox + 标题，整行可点（语义挂在行上，Checkbox 只显示状态）。
  *
- * @param fillWidth false 表示按内容宽度收缩，用于放进 [FlowRow] 与其它复选项并排
+ * @param fillWidth false 表示按内容宽度收缩，用于放进 `androidx.compose.foundation.layout.FlowRow` 与其它复选项并排
  */
 @Composable
 internal fun SettingCheckRow(
@@ -315,6 +321,7 @@ internal fun SettingCheckRow(
     fillWidth: Boolean = true,
 ) {
     SettingRowLayout(
+        modifier = modifier,
         title = title,
         subtitle = null,
         note = null,

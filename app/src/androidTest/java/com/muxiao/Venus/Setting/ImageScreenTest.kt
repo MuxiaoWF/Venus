@@ -98,7 +98,7 @@ class ImageScreenTest {
     }
 
     @Test
-    fun selectionModeShowsCountTitleAndDownloadEntry() {
+    fun selectionModeKeepsTitleAndShowsCountInActionBar() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val state = stateOf()
         var downloads = 0
@@ -108,13 +108,15 @@ class ImageScreenTest {
         composeRule.onNodeWithText(context.getString(R.string.toolbar_image_browse)).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(context.getString(R.string.download_image)).assertDoesNotExist()
 
-        // 多选态：标题换成「N 项已选择」，下载入口出现
+        // 多选态：顶栏保持页面标题，选中数只出现在底部操作条，下载入口出现
         composeRule.runOnIdle {
             state.selectionMode = true
             state.selected = setOf(1)
         }
-        val countTitle = context.resources.getQuantityString(R.plurals.toolbar_items_selected, 1, 1)
-        composeRule.onNodeWithText(countTitle).assertIsDisplayed()
+        // onNodeWithText 要求唯一匹配：能命中即证明顶栏没有重复渲染同一句计数
+        val countLabel = context.resources.getQuantityString(R.plurals.toolbar_items_selected, 1, 1)
+        composeRule.onNodeWithText(countLabel).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.toolbar_image_browse)).assertIsDisplayed()
         composeRule.onNodeWithContentDescription(context.getString(R.string.download_image))
             .assertIsDisplayed()
             .performClick()

@@ -25,7 +25,7 @@ import com.muxiao.Venus.R
  *
  * <p>密度口径：
  * - 每个开关只占一行，原「开关 32dp + 独立说明 Text + 前后 8dp」合成 44dp 单行；
- * - 验证码提醒（警告色）作为 [SettingSwitchRow.note] 挂在定时签到行，不再单起一段；
+ * - 验证码提醒（警告色）作为 [SettingSwitchRow] 的 `note` 参数挂在定时签到行，不再单起一段；
  * - 时刻行 / 电池行的「图标 + 两段文案 + 右侧值 + 箭头」原先手写两遍，现统一为 [SettingNavRow]。
  *
  * @param backgroundChecked 后台运行开关

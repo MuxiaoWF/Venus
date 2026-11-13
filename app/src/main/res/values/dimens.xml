@@ -47,10 +47,6 @@
     <dimen name="bottom_nav_indicator_width">64dp</dimen>
     <dimen name="bottom_nav_indicator_expanded_height">40dp</dimen>
 
-    <!-- 卡片阴影（轻盈克制：rest 仅微抬，避免厚重感）
-         数值统一收口到 elevation_level* 刻度，此处仅为语义别名。 -->
-    <dimen name="card_elevation_image">10dp</dimen>
-
     <!-- Widget 专用字号（RemoteViews 不随主题走，字号刻度独立于全局 type 刻度）；
          间距/图标尺寸无主题问题，直接复用全局 space_* / icon_*，不再另设同值路径 -->
     <dimen name="widget_text_title">15sp</dimen>

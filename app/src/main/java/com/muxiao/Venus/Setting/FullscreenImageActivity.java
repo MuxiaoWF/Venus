@@ -91,7 +91,7 @@ public class FullscreenImageActivity extends BaseActivity {
     }
 
     /**
-     * 退出转场统一挂在 {@link #finish()} 上：顶栏返回、系统返回键、下拉关闭、异常兜底
+     * 退出转场统一挂在 {@code finish()} 上：顶栏返回、系统返回键、下拉关闭、异常兜底
      * 全都走同一条路径，不需要各自再建方法或回调。
      *
      * <p>为什么必须覆盖：Activity 默认退场是系统横向滑动，而本页的主要退出手势是「向下拖」，

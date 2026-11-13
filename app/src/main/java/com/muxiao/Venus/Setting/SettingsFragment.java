@@ -402,7 +402,7 @@ public class SettingsFragment implements PageController {
                             activity.getString(R.string.dialog_need_battery_optimization),
                             activity.getString(R.string.msg_scheduled_battery_hint),
                             activity.getString(R.string.btn_go_to_settings),
-                            () -> BatteryHelper.openVendorBatterySettings(context),
+                            this::openBatteryOptimizationSettings,
                             activity.getString(R.string.btn_ignore));
                 }
             } else {
@@ -427,7 +427,7 @@ public class SettingsFragment implements PageController {
         });
 
         // 电池优化豁免行：厂商省电策略是定时任务失准与 VPN 抓包挂机断连（游戏闪退）的根源。
-        // 未豁免时点击打开系统省电白名单列表页（用户手动勾选，无需权限），返回后刷新行值；
+        // 未豁免时点击打开系统省电白名单页（用户手动勾选，无需权限），返回后刷新行值；
         // 机型不支持该设置页时退回应用详情页
         updateBatteryOptValue();
         notificationPane.setOnBatteryRowClickListener(() -> {
@@ -436,12 +436,7 @@ public class SettingsFragment implements PageController {
                         activity.getString(R.string.battery_already_exempted));
                 return;
             }
-            try {
-                batteryOptLauncher.launch(
-                        BatteryHelper.buildBatteryOptimizationSettingsIntent(context));
-            } catch (Exception e) {
-                BatteryHelper.openVendorBatterySettings(context);
-            }
+            openBatteryOptimizationSettings();
         });
 
         // 关于（Compose 版内容）
@@ -564,7 +559,13 @@ public class SettingsFragment implements PageController {
         return root;
     }
 
-    /** 页面成为当前选中页 / Activity 恢复：同步后台运行开关状态。 */
+    /**
+     * 页面成为当前选中页 / Activity 恢复：同步后台运行开关、电池优化豁免等「外部可变」状态。
+     *
+     * <p>本方法同时承担「从系统设置返回后对账」的职责：系统白名单没有变更广播，
+     * 所有用户离开 App 去改设置的路径（行内跳转、引导弹窗跳转、自己从桌面进设置）
+     * 都会在回到前台时经过这里，比逐个路口补刷新更可靠。
+     */
     @Override
     public void show() {
         // 目标账号只在「从用户管理页跳过来」的这一次有效：
@@ -574,6 +575,9 @@ public class SettingsFragment implements PageController {
         if (sharedPreferences != null && screenView != null) {
             notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
             updateNotificationCardValue(notificationPane.getBackgroundChecked());
+            // 电池豁免是系统级开关，没有变更广播：用户无论是从本页跳系统设置、还是自己从桌面
+            // 进设置改完再回来，都只能在这里对账。否则要等应用重启才刷新（行值会一直停在旧状态）
+            updateBatteryOptValue();
         }
         // 用户可能在「用户管理」页切换过账号：云游戏 token 按用户存放，需重新判定已配置状态
         if (cloudGamePane != null) refreshCloudGameTokens();
@@ -585,21 +589,13 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 展开并滚动到指定抽屉。
+     * 展开指定抽屉，并指定该抽屉的凭证配置目标账号。
      *
      * <p>供「凭证快捷配置」两个入口复用：用户管理页的凭证状态 chip、任务列表里
      * 未配置的划线项。调用方（{@code MainActivity.openSettingsPane}）保证本页视图
      * 已创建、且当前页已切到设置页。
      *
-     * @param pane {@link #PANE_CLOUD_GAME} 或 {@link #PANE_SKLAND}
-     */
-    public void expandPane(int pane) {
-        expandPane(pane, null);
-    }
-
-    /**
-     * 展开指定抽屉，并指定该抽屉的凭证配置目标账号。
-     *
+     * @param pane           {@link #PANE_CLOUD_GAME} 或 {@link #PANE_SKLAND}
      * @param credentialUser 目标账号；null = 跟随当前登录账号
      */
     public void expandPane(int pane, String credentialUser) {
@@ -1229,8 +1225,31 @@ public class SettingsFragment implements PageController {
         setCardValue(notificationCard, activity.getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 
+    /**
+     * 打开系统电池优化豁免页（本页所有入口的唯一出口：行点击、定时签到引导弹窗）。
+     *
+     * <p>走 {@code ActivityResultLauncher} 而不是裸 {@code startActivity}：系统白名单没有变更广播，
+     * App 只能自己回查，而 result 回调是「用户从该系统页返回」唯一可靠的时点——
+     * 之前定时签到弹窗走的是裸 startActivity，那条路径回来后没有任何刷新，
+     * 行值要等应用重启才更新。机型未导出该设置页时退回应用详情页。
+     */
+    private void openBatteryOptimizationSettings() {
+        if (batteryOptLauncher != null) {
+            try {
+                batteryOptLauncher.launch(
+                        BatteryHelper.buildBatteryOptimizationSettingsIntent(activity));
+                return;
+            } catch (Exception ignored) {
+                // 部分 ROM 未导出「忽略电池优化」列表页：落到应用详情兜底
+            }
+        }
+        BatteryHelper.openVendorBatterySettings(activity);
+    }
+
     /** 刷新电池优化豁免行的值：已豁免=成功绿，未豁免=警告黄。 */
     public void updateBatteryOptValue() {
+        // 启动器回调可能早于视图装配（或页面从未打开）：无窗格可刷时直接跳过
+        if (notificationPane == null) return;
         boolean exempted = BatteryHelper.isIgnoringBatteryOptimizations(activity);
         String text = activity.getString(exempted
                 ? R.string.battery_exempted_value : R.string.battery_not_exempted_value);

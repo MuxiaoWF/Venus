@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
@@ -107,8 +108,12 @@ fun CloudGameSettingPane(
         SettingActionRow(
             primaryText = stringResource(R.string.cloud_game_fetch_token),
             // 「N/M 已配置」是这次点击的结果，属于按钮本身，不再独占一行
-            primaryBadge = stringResource(
-                R.string.cloud_game_configured_summary, configuredCount, configuredTotal
+            // 数量取总数：句式里的数词是分母（3/3 而非 1/3），单复数由它决定
+            primaryBadge = pluralStringResource(
+                R.plurals.cloud_game_configured_summary,
+                configuredTotal,
+                configuredCount,
+                configuredTotal,
             ),
             onPrimaryClick = onFetchClick,
             secondaryText = stringResource(R.string.cloud_game_token_manual),

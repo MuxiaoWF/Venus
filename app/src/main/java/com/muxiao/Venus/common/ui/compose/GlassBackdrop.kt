@@ -144,7 +144,8 @@ fun Modifier.glassScrollMotion(): Modifier {
     val connection = remember(backdrop) {
         object : NestedScrollConnection {
             // available/source 为接口契约参数，本旁听逻辑只需要 consumed，故抑制未使用告警
-            @Suppress("UNUSED_PARAMETER")
+            // （IDE 侧这条检查的 key 是 unused，编译器侧是 UNUSED_PARAMETER，两个都写）
+            @Suppress("unused", "UNUSED_PARAMETER")
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,

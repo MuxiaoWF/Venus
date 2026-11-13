@@ -120,6 +120,8 @@ internal fun rememberHeaderCollapseConnection(state: HeaderCollapseState): Neste
                 return Offset(0f, consumed)
             }
 
+            // consumed/available 为接口契约参数，本处只要「甩动结束」这一时机，故抑制未使用告警
+            @Suppress("unused", "UNUSED_PARAMETER")
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 state.settleJob?.cancel()
                 state.settleJob = scope.launch { state.settle() }
@@ -134,9 +136,11 @@ internal fun rememberHeaderCollapseConnection(state: HeaderCollapseState): Neste
  *
  * 必要性：惯性滚动不驱动收缩（见 [rememberHeaderCollapseConnection]），所以「一路甩回顶部」
  * 之后页眉会停在收起态；这里按 atTop 兜底展开，让顶部永远对应完整页眉。
+ *
+ * 首字母大写：本函数返回 Unit，按 Compose 命名约定必须以大写开头（lint: ComposableNaming）。
  */
 @Composable
-internal fun HeaderCollapseState.expandWhenAtTop(atTop: Boolean) {
+internal fun HeaderCollapseState.ExpandWhenAtTop(atTop: Boolean) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(atTop) {
         if (!atTop) return@LaunchedEffect

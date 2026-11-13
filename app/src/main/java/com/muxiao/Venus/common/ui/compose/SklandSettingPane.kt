@@ -133,16 +133,18 @@ fun SklandSettingPane(
         }
 
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
-        // 三条补充说明合并为一段。注意必须用 inline 的 map 再 joinToString：
-        // joinToString 的 transform 是普通函数类型（非 inline），在里面调 stringResource 会报
-        // "@Composable invocations can only happen from the context of a @Composable function"
+        // 三条补充说明合并为一段，直接字符串拼接——**不要**改回
+        // `listOf(...).map { stringResource(it) }.joinToString("\n")`：
+        // joinToString 的 transform 声明为可空函数类型 `((T) -> CharSequence)?`，而 inline 只能
+        // 内联非空函数类型参数，所以它必定不是 inline；在它的 lambda 里调 stringResource 会报
+        // "@Composable invocations can only happen from the context of a @Composable function"。
+        // （IDE 会建议把 map+joinToString 合成一个调用链，那条建议对 @Composable 不可用。）
+        // 拼接写法则没有这层限制：每个 stringResource 都在参数表达式位置求值。
         // maxLines 放到 6：三条中文按当前宽度最多换到 6 行，截断会丢"内容获取"这条关键提示
         SettingHint(
-            text = listOf(
-                R.string.skland_403_tip,
-                R.string.skland_midnight_tip,
-                R.string.skland_content_tip,
-            ).map { stringResource(it) }.joinToString("\n"),
+            text = stringResource(R.string.skland_403_tip) + "\n" +
+                    stringResource(R.string.skland_midnight_tip) + "\n" +
+                    stringResource(R.string.skland_content_tip),
             maxLines = 6,
         )
 

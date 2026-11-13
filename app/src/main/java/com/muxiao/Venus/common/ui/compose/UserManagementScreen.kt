@@ -151,7 +151,7 @@ fun UserManagementScreen(
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         }
     }
-    headerCollapse.expandWhenAtTop(listAtTop)
+    headerCollapse.ExpandWhenAtTop(listAtTop)
 
     Box(
         modifier = modifier

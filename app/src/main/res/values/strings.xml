@@ -148,7 +148,6 @@
     <string name="user_logged_in_status">已登录</string>
     <string name="user_cred_cloud_game">云游戏</string>
     <string name="user_cred_skland">森空岛</string>
-    <string name="user_cred_disabled">未开启</string>
     <string name="user_cred_missing">未配置</string>
     <string name="user_cred_ready">已配置</string>
     <string name="user_cred_partial">%1$d/%2$d</string>
@@ -204,7 +203,6 @@
     <string name="theme_follow">跟随</string>
     <string name="theme_light">浅色</string>
     <string name="theme_variant_setting">主题深浅设置：</string>
-    <string name="type">类型</string>
     <string name="update">更新</string>
     <string name="update_config">更新配置</string>
     <string name="user_login_title">用户登录</string>
@@ -371,7 +369,6 @@
     <string name="image_tab_monthly">月榜</string>
     <string name="image_tab_hot">热门</string>
     <string name="image_author_prefix">作者: </string>
-    <string name="image_time_prefix">时间: </string>
     <string name="image_unknown_author">未知作者</string>
 
     <!-- Widget -->
@@ -639,7 +636,9 @@
     <string name="cloud_game_fetch_token">一键获取 Token</string>
     <string name="cloud_game_token_manual">手动填写</string>
     <string name="cloud_game_select_game">选择要填写的云游戏</string>
-    <string name="cloud_game_configured_summary">%1$d/%2$d 已配置</string>
+    <plurals name="cloud_game_configured_summary">
+        <item quantity="other">%1$d/%2$d 已配置</item>
+    </plurals>
     <string name="cloud_game_missing_tokens">未配置：%1$s</string>
     <string name="cloud_game_fetch_prompt">请用当前选中的米游社账号登录并进入云原神，Token 会自动保存</string>
     <string name="cloud_game_token_missing">%1$s 未配置 Token，请前往设置填写</string>
@@ -647,7 +646,9 @@
     <string name="cloud_game_unsupported">%1$s 不支持当前服务器</string>
     <string name="cloud_game_bad_response">云游戏接口返回异常，请稍后重试</string>
     <string name="cloud_game_failed">%1$s 签到失败：%2$s (retcode=%3$d)</string>
-    <string name="cloud_game_sign_success">签到成功，获得 %1$d 分钟免费时长</string>
+    <plurals name="cloud_game_sign_success">
+        <item quantity="other">签到成功，获得 %1$d 分钟免费时长</item>
+    </plurals>
     <string name="cloud_game_already_signed">未获得免费时长，可能今日已签到或已达上限</string>
     <string name="cloud_game_status">剩余 %1$s · 畅玩卡 %2$s · %3$s %4$d 枚</string>
     <string name="cloud_game_play_card_unknown">未知</string>
@@ -670,7 +671,6 @@
     <string name="action_retry">重试</string>
     <string name="gallery_empty">这里还没有图片</string>
     <string name="gallery_empty_hint">换个分类或榜单试试</string>
-    <string name="gallery_selected_count">已选 %1$d 项</string>
     <string name="gallery_downloading">下载中 %1$d / %2$d</string>
     <string name="fullscreen_load_failed">图片加载失败</string>
     <string name="fullscreen_info_expand">展开信息</string>
@@ -681,7 +681,9 @@
     <string name="credential_account_status_other">正在配置：%1$s（非当前账号）· %2$s</string>
     <!-- 用户卡：云游戏/森空岛合并成一枚凭证入口 -->
     <string name="credential_chip_ready">凭证 %1$d/%2$d</string>
-    <string name="credential_chip_pending">凭证 待配 %1$d</string>
+    <plurals name="credential_chip_pending">
+        <item quantity="other">凭证 待配 %1$d</item>
+    </plurals>
     <string name="credential_choose_pane">配置哪一项凭证？</string>
     <!-- 用户卡：凭证选择弹窗的条目，带该项自身状态，便于看出哪一项还没配 -->
     <string name="credential_dialog_item">%1$s · %2$s</string>
@@ -689,6 +691,4 @@
     <string name="login_avatar_label">头像</string>
     <string name="login_avatar_hint">选填，登录成功后应用到这个账号</string>
     <string name="login_avatar_picked">已选择，登录成功后应用</string>
-    <string name="login_avatar_pick">选择</string>
-    <string name="login_avatar_clear">清除</string>
 </resources>

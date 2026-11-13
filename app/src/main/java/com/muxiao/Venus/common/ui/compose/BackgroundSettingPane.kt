@@ -19,7 +19,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 
-/** 淡化风格预设序号（对应 BACKGROUND_PRESET：0 轻盈 / 1 标准 / 2 浓郁）。 */
+/**
+ * 淡化风格预设序号（对应 BACKGROUND_PRESET：0 轻盈 / 1 标准 / 2 浓郁）。
+ *
+ * 三个序号必须连读才有意义：0 号当前没有代码直接引用（分段控件按下标取值、历史偏好也可能存 0），
+ * 但它是口径的一部分，删掉会让「0 = 轻盈」失去命名锚点，故保留。
+ */
+@Suppress("unused")
 const val BG_PRESET_INDEX_LIGHT = 0
 const val BG_PRESET_INDEX_STANDARD = 1
 const val BG_PRESET_INDEX_RICH = 2

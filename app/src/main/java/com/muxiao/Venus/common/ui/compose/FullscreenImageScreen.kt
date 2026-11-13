@@ -431,7 +431,16 @@ private fun FullscreenTopBar(
     }
 }
 
-/** 顶栏圆形按钮（半透明白表面 + 发丝描边；下载中显示不定长进度环）。 */
+/**
+ * 顶栏圆形按钮：与本项目其它顶栏（图库 / 登录 / OAuth / 云游戏）同一颗 [GlassCircleButton]，
+ * 只是表面换成照片上更合适的「白色 16%」——`surfaceContainer` 在暗色照片上会糊成一团灰。
+ *
+ * <h3>这里仍然没有折射的原因</h3>
+ * 见本文件头「为什么这里不用 LensGlass」：本页没有 `VenusBackdropHost`，采样源为 null，
+ * 透镜按既定降级只画表面材质。所以拿到的是统一外观，不是每帧重录整屏照片的开销。
+ *
+ * 下载中不换按钮、只换内芯：进度环顶掉图标，避免用户以为点空。
+ */
 @Composable
 private fun ChromeCircle(
     iconRes: Int,
@@ -439,18 +448,10 @@ private fun ChromeCircle(
     onClick: () -> Unit,
     busy: Boolean = false,
 ) {
-    Box(
-        modifier = Modifier
-            .size(dimensionResource(R.dimen.touch_target_min))
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.16f))
-            .border(
-                width = dimensionResource(R.dimen.stroke_width_hairline),
-                color = Color.White.copy(alpha = 0.18f),
-                shape = CircleShape,
-            )
-            .clickable(enabled = !busy, onClick = onClick),
-        contentAlignment = Alignment.Center,
+    GlassCircleButton(
+        onClick = onClick,
+        enabled = !busy,
+        spec = GlassSpecs.Standard.copy(surfaceColor = Color.White, surfaceAlpha = 0.16f),
     ) {
         if (busy) {
             CircularProgressIndicator(

@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,7 +41,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -98,7 +95,6 @@ fun UserLoginScreen(
     avatarUri: Uri?,
     onBackClick: () -> Unit,
     onPickAvatarClick: () -> Unit,
-    onClearAvatarClick: () -> Unit,
     onModeSelect: (Int) -> Unit,
     onUsernameChange: (String) -> Unit,
     onAccountChange: (String) -> Unit,
@@ -144,18 +140,18 @@ fun UserLoginScreen(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = stringResource(R.string.close_webpage),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.rotate(90f),
-                )
-            }
+            GlassIconButton(
+                iconRes = R.drawable.ic_chevron,
+                contentDescription = stringResource(R.string.close_webpage),
+                onClick = onBackClick,
+                // chevron 默认朝下，顺时针 90° 后朝左（与全项目返回箭头同一处理）
+                iconModifier = Modifier.rotate(90f),
+            )
             Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
             Text(
                 text = stringResource(R.string.user_login_title),
                 style = textStyles.toolbarTitle,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
 
@@ -236,7 +232,6 @@ fun UserLoginScreen(
                         // 登录进行中禁止换头像：此时提交的任务已经带走凭证，再改会与落盘时序打架
                         enabled = inputsEnabled,
                         onPick = onPickAvatarClick,
-                        onClear = onClearAvatarClick,
                     )
                     // 重登录模式：用户名固定展示在按钮上，输入框隐藏
                     if (!reloginMode) {
@@ -411,6 +406,9 @@ private fun LoginHeader() {
             Text(
                 text = stringResource(R.string.user_login_welcome),
                 style = textStyles.title,
+                // 样式只带字号不带颜色，必须显式给：否则继承 LocalContentColor 的默认纯黑，
+                // 深色模式下与背景同色（兜底在 VenusTheme，这里仍写明以免被误删）
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.alignByBaseline(),
             )
             Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
@@ -442,22 +440,21 @@ private fun LoginAvatarRow(
     avatarUri: Uri?,
     enabled: Boolean,
     onPick: () -> Unit,
-    onClear: () -> Unit,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val avatarSize = dimensionResource(R.dimen.icon_badge_lg)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = dimensionResource(R.dimen.space_3)),
+            .padding(bottom = dimensionResource(R.dimen.space_3))
+            .clickable(enabled = enabled, onClick = onPick),
         verticalAlignment = Alignment.CenterVertically,
+
     ) {
         Box(
             modifier = Modifier
                 .size(avatarSize)
                 .clip(CircleShape)
-                // 点头像直接换图，与右侧按钮同义；这里不弹菜单，少一次点击
-                .clickable(enabled = enabled, onClick = onPick),
         ) {
             if (avatarUri != null) {
                 AvatarPreview(model = avatarUri, size = avatarSize)
@@ -477,17 +474,6 @@ private fun LoginAvatarRow(
                 ),
                 style = textStyles.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(
-            onClick = if (avatarUri == null) onPick else onClear,
-            enabled = enabled,
-        ) {
-            Text(
-                text = stringResource(
-                    if (avatarUri == null) R.string.login_avatar_pick else R.string.login_avatar_clear
-                ),
-                style = textStyles.labelMedium,
             )
         }
     }
@@ -624,10 +610,6 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     avatarUri = avatarUriState.value,
                     onBackClick = { onBackClickListener?.run() },
                     onPickAvatarClick = { onPickAvatarClickListener?.run() },
-                    onClearAvatarClick = {
-                        avatarUriState.value = null
-                        onClearAvatarClickListener?.run()
-                    },
                     onModeSelect = { mode ->
                         // 受控组件：先落自身状态再回调，Java 侧据此切换业务模式
                         modeState.intValue = mode
@@ -701,7 +683,6 @@ private fun UserLoginScreenPreview() {
             avatarUri = null,
             onBackClick = {},
             onPickAvatarClick = {},
-            onClearAvatarClick = {},
             onModeSelect = {},
             onUsernameChange = {},
             onAccountChange = {},

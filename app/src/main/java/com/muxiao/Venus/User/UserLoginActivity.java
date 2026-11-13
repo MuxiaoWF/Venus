@@ -441,6 +441,8 @@ public class UserLoginActivity extends BaseActivity {
         });
 
         // 阻塞后台线程，最多等待 5 分钟；超时后 geetest 仍为 null，返回 null
+        // 返回值（是否在超时前唤醒）无需区分：超时与「用户取消」都走下面的空值分支
+        //noinspection ResultOfMethodCallIgnored
         latch.await(5, TimeUnit.MINUTES);
         // 回到后台线程后在主线程释放 SDK 资源
         runOnUiThread(() -> {

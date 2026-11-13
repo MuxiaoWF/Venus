@@ -210,7 +210,7 @@ fun HomeScreen(
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         }
     }
-    headerCollapse.expandWhenAtTop(listAtTop)
+    headerCollapse.ExpandWhenAtTop(listAtTop)
 
     Column(
         modifier = modifier

@@ -155,7 +155,6 @@
     <string name="user_logged_in_status">Signed in</string>
     <string name="user_cred_cloud_game">Cloud game</string>
     <string name="user_cred_skland">Skland</string>
-    <string name="user_cred_disabled">Off</string>
     <string name="user_cred_missing">Not configured</string>
     <string name="user_cred_ready">Configured</string>
     <string name="user_cred_partial">%1$d/%2$d</string>
@@ -202,7 +201,6 @@
     <string name="theme_follow">Follow System</string>
     <string name="theme_light">Light</string>
     <string name="theme_variant_setting">Theme Variant:</string>
-    <string name="type">Type</string>
     <string name="update">Update</string>
     <string name="update_config">Update Config</string>
     <string name="user_login_title">User Login</string>
@@ -367,7 +365,6 @@
     <string name="image_tab_monthly">Monthly</string>
     <string name="image_tab_hot">Hot</string>
     <string name="image_author_prefix">Author: </string>
-    <string name="image_time_prefix">Time: </string>
     <string name="image_unknown_author">Unknown Author</string>
 
     <!-- Widget -->
@@ -639,7 +636,11 @@
     <string name="cloud_game_fetch_token">Fetch Token</string>
     <string name="cloud_game_token_manual">Enter manually</string>
     <string name="cloud_game_select_game">Select the cloud game to configure</string>
-    <string name="cloud_game_configured_summary">%1$d/%2$d configured</string>
+    <!-- "configured" 不随数字变形（1/1 与 3/3 同形），保留 plurals 结构仅为与其它计数文案一致 -->
+    <plurals name="cloud_game_configured_summary">
+        <item quantity="one">%1$d/%2$d configured</item>
+        <item quantity="other">%1$d/%2$d configured</item>
+    </plurals>
     <string name="cloud_game_missing_tokens">Not configured: %1$s</string>
     <string name="cloud_game_fetch_prompt">Sign in with the currently selected account and open Genshin Cloud — the token is saved automatically</string>
     <string name="cloud_game_token_missing">%1$s has no token configured, please set it in Settings</string>
@@ -647,7 +648,10 @@
     <string name="cloud_game_unsupported">%1$s is not supported on the current server</string>
     <string name="cloud_game_bad_response">Unexpected cloud game API response, please retry later</string>
     <string name="cloud_game_failed">%1$s sign-in failed: %2$s (retcode=%3$d)</string>
-    <string name="cloud_game_sign_success">Sign-in success, %1$d minutes of free time granted</string>
+    <plurals name="cloud_game_sign_success">
+        <item quantity="one">Sign-in success, %1$d minute of free time granted</item>
+        <item quantity="other">Sign-in success, %1$d minutes of free time granted</item>
+    </plurals>
     <string name="cloud_game_already_signed">No free time granted; already signed in or at the cap</string>
     <string name="cloud_game_status">Remaining %1$s · Play card %2$s · %3$s %4$d</string>
     <string name="cloud_game_play_card_unknown">Unknown</string>
@@ -673,7 +677,6 @@
     <string name="action_retry">Retry</string>
     <string name="gallery_empty">No images here yet</string>
     <string name="gallery_empty_hint">Try another category or ranking</string>
-    <string name="gallery_selected_count">%1$d selected</string>
     <string name="gallery_downloading">Downloading %1$d / %2$d</string>
     <string name="fullscreen_load_failed">Failed to load image</string>
     <string name="fullscreen_info_expand">Show info</string>
@@ -684,7 +687,11 @@
     <string name="credential_account_status_other">Configuring: %1$s (not the current account) · %2$s</string>
     <!-- User card: cloud game + Skland merged into one credential entry -->
     <string name="credential_chip_ready">Creds %1$d/%2$d</string>
-    <string name="credential_chip_pending">Creds · %1$d pending</string>
+    <!-- "pending" 不随数字变形（1 pending 与 3 pending 同形），保留 plurals 结构仅为与其它计数文案一致 -->
+    <plurals name="credential_chip_pending">
+        <item quantity="one">Creds · %1$d pending</item>
+        <item quantity="other">Creds · %1$d pending</item>
+    </plurals>
     <string name="credential_choose_pane">Which credential to configure?</string>
     <!-- User card: credential chooser items carry the item's own status -->
     <string name="credential_dialog_item">%1$s · %2$s</string>
@@ -692,6 +699,4 @@
     <string name="login_avatar_label">Avatar</string>
     <string name="login_avatar_hint">Optional · applied to this account after sign-in</string>
     <string name="login_avatar_picked">Selected · applied after sign-in</string>
-    <string name="login_avatar_pick">Choose</string>
-    <string name="login_avatar_clear">Clear</string>
 </resources>

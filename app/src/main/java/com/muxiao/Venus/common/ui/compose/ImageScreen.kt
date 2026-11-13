@@ -44,7 +44,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -167,12 +166,14 @@ fun ImageScreen(
     val chipHeight = dimensionResource(R.dimen.gallery_chip_height)
     val gapSmall = dimensionResource(R.dimen.space_2)
 
-    // 可收起的只有「筛选 chip 行 + 它的下间距」这一段：标题行（返回 + 标题）常驻 56dp。
+    // 可收起的只有「筛选 chip 行 + 它上下各 8dp 的呼吸」这一段：标题行（返回 + 标题）常驻 56dp。
+    // chip 行上下对称留白：贴着顶栏底边（含 20dp 圆角）会让 chip 与玻璃边缘粘在一起，
+    // 看起来像"没有间隔"，所以下留白与上留白同宽。
     // 折叠量交给 HeaderCollapseState 统一驱动（与四个主页面的页眉同一套手感）：
     // 手指拖动逐像素跟随、松手过半对齐、惯性不参与、回顶自动展开。
     // 区别只是这里范围是常量，直接回填给它，不必像页眉那样等布局实测。
-    val collapseRange = chipHeight + gapSmall
-    val collapseRangePx = with(LocalDensity.current) { collapseRange.toPx() }
+    val chipBlock = chipHeight + gapSmall * 2
+    val collapseRangePx = with(LocalDensity.current) { chipBlock.toPx() }
     val collapse = rememberHeaderCollapseState()
     SideEffect { collapse.updateRange(collapseRangePx) }
     // 展开程度 1 → 0，供顶栏做高度裁切与渐隐
@@ -188,13 +189,13 @@ fun ImageScreen(
             gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
         }
     }
-    collapse.expandWhenAtTop(atTop)
+    collapse.ExpandWhenAtTop(atTop)
 
     // 每张卡片的窗口坐标（仅用于转场起点，点击时读一次）
     val cardBounds = remember { mutableStateMapOf<Int, Rect>() }
     // 浮层不占布局，列表要给顶栏让位。padding 跟着折叠量一起收：
     // 顶栏少一段，列表就从少一段的位置开始，两者始终贴合，不会在顶栏下方露出壁纸断带。
-    val topInset = statusTop + rowHeight + chipHeight + gapSmall + gapSmall
+    val topInset = statusTop + rowHeight + chipBlock + gapSmall
     // 收起量（正值 dp）：offsetPx 是负的，取反即"顶栏少了多少高度"
     val collapsedDp = with(LocalDensity.current) { (-collapse.offsetPx).toDp() }
     val contentTopInset = topInset - collapsedDp
@@ -293,13 +294,12 @@ private fun GalleryTopBar(
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
+    // 收起段高度 = chip 行 + 上下各 8dp（与 ImageScreen 的 chipBlock 同一口径，改一处必改另一处）
     val filterHeight = (dimensionResource(R.dimen.gallery_chip_height) +
-        dimensionResource(R.dimen.space_2)) * expandedFraction
-    val title = if (state.selectionMode) {
-        pluralStringResource(R.plurals.toolbar_items_selected, state.selected.size, state.selected.size)
-    } else {
-        stringResource(R.string.toolbar_image_browse)
-    }
+        dimensionResource(R.dimen.space_2) * 2) * expandedFraction
+    // 顶栏固定页面标题：选中数的唯一展示位是底部操作条（GallerySelectionBar）。
+    // 两处都放会让同一句计数上下各出现一次，且顶栏是标题语义、不适合承载计数。
+    val title = stringResource(R.string.toolbar_image_browse)
     Box(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -324,13 +324,11 @@ private fun GalleryTopBar(
                         .padding(horizontal = dimensionResource(R.dimen.space_2)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = stringResource(R.string.content_description_back),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
+                    GlassIconButton(
+                        iconRes = R.drawable.ic_arrow_back,
+                        contentDescription = stringResource(R.string.content_description_back),
+                        onClick = onBack,
+                    )
                     Text(
                         text = title,
                         style = textStyles.toolbarTitle,
@@ -373,11 +371,15 @@ private fun GalleryFilterRow(
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
-        // requiredHeight：父容器（顶栏折叠段）会把高度裁到 0~40dp，普通 height 会被压缩，
-        // required 让 chip 行保持原高，由外部 clipToBounds 裁切，chip 不会被挤扁
+        // requiredHeight：父容器（顶栏折叠段）会把高度裁到 0~48dp，普通 height 会被压缩，
+        // required 让 chip 行保持原高，由外部 clipToBounds 裁切，chip 不会被挤扁。
+        // 高度含上下各 8dp 留白（chip 垂直居中），使 chip 不贴顶栏底边/圆角
         modifier = modifier
             .fillMaxWidth()
-            .requiredHeight(dimensionResource(R.dimen.gallery_chip_height)),
+            .requiredHeight(
+                dimensionResource(R.dimen.gallery_chip_height) +
+                    dimensionResource(R.dimen.space_2) * 2,
+            ),
         contentPadding = PaddingValues(horizontal = dimensionResource(R.dimen.space_4)),
         horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
         verticalAlignment = Alignment.CenterVertically,
@@ -542,7 +544,12 @@ private fun GallerySelectionBar(
                                     state.downloadTotal,
                                 )
                             } else {
-                                stringResource(R.string.gallery_selected_count, state.selected.size)
+                                // 与顶栏标题共用同一份计数文案（原 gallery_selected_count 已合并至此）
+                                pluralStringResource(
+                                    R.plurals.toolbar_items_selected,
+                                    state.selected.size,
+                                    state.selected.size,
+                                )
                             },
                             style = textStyles.labelLarge,
                             color = MaterialTheme.colorScheme.onSurface,

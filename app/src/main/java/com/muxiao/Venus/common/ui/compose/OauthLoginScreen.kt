@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -85,14 +84,12 @@ fun OauthLoginScreen(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = stringResource(R.string.close_webpage),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.rotate(90f),
-                )
-            }
+            GlassIconButton(
+                iconRes = R.drawable.ic_chevron,
+                contentDescription = stringResource(R.string.close_webpage),
+                onClick = onBackClick,
+                iconModifier = Modifier.rotate(90f),
+            )
             Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
             Text(
                 text = stringResource(R.string.oauth_login_title),

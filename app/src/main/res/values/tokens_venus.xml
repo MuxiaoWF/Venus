@@ -42,7 +42,7 @@
          （activity_image 4dp、底栏 8dp）按"引用了就补档位"纪律恢复两档。 -->
     <dimen name="elevation_level1">1dp</dimen>   <!-- 卡片静止 -->
     <dimen name="elevation_level2">3dp</dimen>   <!-- 抬升卡 / 图片卡 -->
-    <dimen name="elevation_level3">4dp</dimen>   <!-- 悬浮工具条 / 图片操作层 -->
+    <!-- 悬浮工具条 / 图片操作层 -->
     <!-- 底部导航毛玻璃 -->
     <!-- 描边统一口径：Filled/Outlined/State 卡共用 1dp 发丝描边，颜色走 outlineVariant；
          Elevated 主卡（Widget.Venus.Card）走 none，仅靠阴影区分，避免双重边界。 -->
@@ -68,6 +68,9 @@
     <dimen name="icon_badge_lg">48dp</dimen>         <!-- 状态卡/空态大徽标 -->
     <dimen name="icon_badge_md">32dp</dimen>         <!-- 行内中号徽标 -->
     <dimen name="icon_badge_sm">22dp</dimen>         <!-- 缩略图角标（多选勾选圆） -->
+    <!-- 顶栏玻璃圆按钮的**视觉直径**：栅格与触控仍占 touch_target_min(48dp)，
+         圆本身收到 40dp —— 48dp 画满时在 56dp 的行里顶满上下边，视觉上压过标题。 -->
+    <dimen name="icon_button_glass">40dp</dimen>
     <!-- 图库页玻璃顶栏 / 筛选 chip / 骨架卡 -->
     <dimen name="gallery_chip_height">32dp</dimen>
     <dimen name="gallery_bar_corner">20dp</dimen>

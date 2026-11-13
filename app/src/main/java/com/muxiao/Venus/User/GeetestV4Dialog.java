@@ -199,7 +199,8 @@ public final class GeetestV4Dialog {
             int read;
             while ((read = in.read(buffer)) > 0)
                 out.write(buffer, 0, read);
-            return out.toString(StandardCharsets.UTF_8);
+            // ByteArrayOutputStream#toString(Charset) 需 API 33，minSdk 23 只能走 String 构造
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
         } catch (java.io.IOException e) {
             Logger.debug("VenusGeetestV4", "read asset failed: " + e);
             return null;

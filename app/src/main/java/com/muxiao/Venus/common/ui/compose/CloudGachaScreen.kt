@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,14 +99,12 @@ fun CloudGachaScreen(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onCloseClick) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = stringResource(R.string.close_webpage),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.rotate(90f),
-                )
-            }
+            GlassIconButton(
+                iconRes = R.drawable.ic_chevron,
+                contentDescription = stringResource(R.string.close_webpage),
+                onClick = onCloseClick,
+                iconModifier = Modifier.rotate(90f),
+            )
             Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
             Text(
                 text = stringResource(R.string.cloud_gaming),

@@ -193,7 +193,7 @@ fun SettingsScreen(
     val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
     val scrollState = rememberScrollState()
     val atTop by remember { derivedStateOf { scrollState.value == 0 } }
-    headerCollapse.expandWhenAtTop(atTop)
+    headerCollapse.ExpandWhenAtTop(atTop)
 
     Column(
         modifier = modifier

@@ -3,6 +3,7 @@ package com.muxiao.Venus.common.ui.compose
 import android.content.res.Configuration
 import androidx.annotation.AttrRes
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -111,7 +112,15 @@ fun VenusTheme(content: @Composable () -> Unit) {
                 ),
             )
         }
-        CompositionLocalProvider(LocalVenusTextStyles provides textStyles, content = content)
+        // LocalContentColor 的默认值是 Color.Black，不是主题色 —— 页面根容器若不是 Surface
+        // （本项目多数页面是普通 Column/Box + 壁纸背景），未显式指定颜色的 Text 会渲染成纯黑，
+        // 深色模式下直接看不见。这里把默认内容色钉在 onSurface 上；
+        // Button / Card / Surface / 输入框等自带容器色的组件会各自覆盖，不受影响。
+        CompositionLocalProvider(
+            LocalVenusTextStyles provides textStyles,
+            LocalContentColor provides colorScheme.onSurface,
+            content = content,
+        )
     }
 }
 
