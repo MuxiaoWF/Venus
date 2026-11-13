@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -45,6 +47,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
@@ -139,21 +142,35 @@ fun UserManagementScreen(
     val gutter = dimensionResource(R.dimen.gutter_screen)
     val reducedMotion = rememberReducedMotion()
 
+    // 页眉随滚动收缩 / 展开（与首页同一套手感）
+    val headerCollapse = rememberHeaderCollapseState()
+    val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
+    val listState = rememberLazyListState()
+    val listAtTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        }
+    }
+    headerCollapse.expandWhenAtTop(listAtTop)
+
     Box(
         modifier = modifier
             .glassScrollMotion()
-            .fillMaxSize(),
+            .fillMaxSize()
+            .nestedScroll(headerScroll),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             CommandHeader(
                 title = stringResource(R.string.user_management_title),
                 chipText = state.dateChip,
                 subtitle = state.subtitle,
+                collapse = headerCollapse,
             )
 
             // 正文：等价于 Widget.Venus.ScreenScaffold（左右 gutter、上 space_2、下 space_4）
             // + BottomBarOverlay 的底部避让 + 原容器自身的 space_bottom_fab（给 FAB 让位）
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),

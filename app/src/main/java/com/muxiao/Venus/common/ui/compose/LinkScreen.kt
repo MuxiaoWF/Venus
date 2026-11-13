@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -52,6 +53,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.muxiao.Venus.R
@@ -148,34 +150,26 @@ fun LinkScreen(
     val clearance = with(density) { state.bottomClearancePx.toDp() }
     val gutter = dimensionResource(R.dimen.gutter_screen)
 
+    // 页眉随滚动收缩 / 展开；本页是 verticalScroll，回顶判定读 ScrollState.value
+    val headerCollapse = rememberHeaderCollapseState()
+    val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
+    val scrollState = rememberScrollState()
+    val atTop by remember { derivedStateOf { scrollState.value == 0 } }
+    headerCollapse.expandWhenAtTop(atTop)
+
     Column(
         modifier = modifier
             .glassScrollMotion()
-            .fillMaxSize(),
+            .fillMaxSize()
+            .nestedScroll(headerScroll),
     ) {
-        // 页眉（固定，不随正文滚动）
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = gutter,
-                    end = gutter,
-                    top = dimensionResource(R.dimen.space_5),
-                    bottom = dimensionResource(R.dimen.space_3),
-                ),
-        ) {
-            Text(text = stringResource(R.string.venus_eyebrow), style = textStyles.eyebrow)
-            Text(
-                text = stringResource(R.string.gacha_link_title),
-                style = textStyles.headerTitle,
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.space_1)),
-            )
-            Text(
-                text = stringResource(R.string.gacha_link_subtitle),
-                style = textStyles.headerSubtitle,
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.space_1)),
-            )
-        }
+        // 页眉：原先这里手抄了一份与 CommandHeader 同结构的实现，现直接复用
+        CommandHeader(
+            title = stringResource(R.string.gacha_link_title),
+            chipText = "",
+            subtitle = stringResource(R.string.gacha_link_subtitle),
+            collapse = headerCollapse,
+        )
 
         // 正文：等价于 Widget.Venus.ScreenScaffold（左右 gutter、上 space_2、下 space_4）
         // + BottomBarOverlay 的底部避让（原来由 attachClearance 直接改 padding）
@@ -183,7 +177,7 @@ fun LinkScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(
                     start = gutter,
                     end = gutter,

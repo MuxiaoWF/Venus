@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -64,6 +66,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import com.muxiao.Venus.R
@@ -198,18 +201,32 @@ fun HomeScreen(
             shrinkVertically(tween(short, easing = accelerate))
     }
 
+    // 页眉随滚动收缩 / 展开：状态与滚动链归页面所有，列表只是被它推上去
+    val headerCollapse = rememberHeaderCollapseState()
+    val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
+    val listState = rememberLazyListState()
+    val listAtTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        }
+    }
+    headerCollapse.expandWhenAtTop(listAtTop)
+
     Column(
         modifier = modifier
             .glassScrollMotion()
-            .fillMaxSize(),
+            .fillMaxSize()
+            .nestedScroll(headerScroll),
     ) {
         CommandHeader(
             title = stringResource(R.string.daily_tasks_title),
             chipText = state.dateChip,
             subtitle = state.subtitle,
+            collapse = headerCollapse,
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),

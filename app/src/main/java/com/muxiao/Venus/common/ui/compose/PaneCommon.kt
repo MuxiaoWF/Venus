@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
@@ -208,6 +212,9 @@ internal fun VenusDivider(modifier: Modifier = Modifier) {
  *
  * @param chipText 右上角 chip 文案（日期 `MM/dd E` 或版本号）；空串则不显示
  * @param subtitle 副标题；null 表示无（settings 页有固定副标题，其余两页由 Java 动态回填）
+ * @param collapse 传 `rememberHeaderCollapseState()` 的实例即启用「随滚动收缩 / 展开」；
+ *        null = 固定页眉。收缩顺序为「顶部留白 → 眉标 → 副标题」，标题行（含 chip）常驻，
+ *        因此收起后列表上方仍有一个可读的页面标题
  */
 @Composable
 internal fun CommandHeader(
@@ -215,20 +222,50 @@ internal fun CommandHeader(
     chipText: String,
     subtitle: String?,
     modifier: Modifier = Modifier,
+    collapse: HeaderCollapseState? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
+    val density = LocalDensity.current
     val gutter = dimensionResource(R.dimen.gutter_screen)
+    val expandedTop = dimensionResource(R.dimen.space_5)
+    val compactTop = dimensionResource(R.dimen.space_2)
+    val topDeltaPx = with(density) { (expandedTop - compactTop).toPx() }
+
+    // 眉标 / 副标题的自然高度：收缩时逐块裁掉，标题行常驻（列表永远有个可读的归属标题）
+    var eyebrowPx by remember { mutableFloatStateOf(0f) }
+    var subtitlePx by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(topDeltaPx, eyebrowPx, subtitlePx) {
+        collapse?.updateRange(topDeltaPx + eyebrowPx + subtitlePx)
+    }
+
+    // 收缩预算按「顶部留白 → 眉标 → 副标题」的顺序分配：前一项裁完才轮到下一项，
+    // 所以拖动过程中先收紧留白、再吃掉眉标、最后收副标题，不会出现半行文字被切断
+    var budgetPx = collapse?.let { (-it.offsetPx).coerceAtLeast(0f) } ?: 0f
+    val topCutPx = budgetPx.coerceIn(0f, topDeltaPx).also { budgetPx -= it }
+    val eyebrowCutPx = budgetPx.coerceIn(0f, eyebrowPx).also { budgetPx -= it }
+    val subtitleCutPx = budgetPx.coerceIn(0f, subtitlePx)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(
                 start = gutter,
                 end = gutter,
-                top = dimensionResource(R.dimen.space_5),
+                top = expandedTop - with(density) { topCutPx.toDp() },
                 bottom = dimensionResource(R.dimen.space_3),
             ),
     ) {
-        Text(text = stringResource(R.string.venus_eyebrow), style = textStyles.eyebrow)
+        CollapsibleBlock(
+            naturalPx = eyebrowPx,
+            visiblePx = eyebrowPx - eyebrowCutPx,
+            alpha = collapseAlpha(eyebrowPx, eyebrowCutPx),
+        ) {
+            Text(
+                text = stringResource(R.string.venus_eyebrow),
+                style = textStyles.eyebrow,
+                modifier = Modifier.onSizeChanged { eyebrowPx = it.height.toFloat() },
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -243,14 +280,27 @@ internal fun CommandHeader(
             if (chipText.isNotEmpty()) HeaderChip(chipText)
         }
         if (subtitle != null) {
-            Text(
-                text = subtitle,
-                style = textStyles.headerSubtitle,
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.space_1)),
-            )
+            CollapsibleBlock(
+                naturalPx = subtitlePx,
+                visiblePx = subtitlePx - subtitleCutPx,
+                alpha = collapseAlpha(subtitlePx, subtitleCutPx),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { subtitlePx = it.height.toFloat() },
+                ) {
+                    Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+                    Text(text = subtitle, style = textStyles.headerSubtitle)
+                }
+            }
         }
     }
 }
+
+/** 随裁切比例淡出：裁掉多少就淡多少，避免高度归零前还留一行实心文字。 */
+private fun collapseAlpha(naturalPx: Float, cutPx: Float): Float =
+    if (naturalPx <= 0f) 1f else (1f - cutPx / naturalPx).coerceIn(0f, 1f)
 
 /** 页眉右上角的 mono 值 chip（日期 / 版本号）：液态玻璃 + 4dp 圆角 + 半透渐变底。 */
 @Composable

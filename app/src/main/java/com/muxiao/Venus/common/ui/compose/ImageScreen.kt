@@ -3,7 +3,6 @@ package com.muxiao.Venus.common.ui.compose
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -49,12 +48,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -65,11 +63,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
@@ -81,7 +76,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.Velocity
 import com.muxiao.Venus.R
 import kotlin.math.roundToInt
 
@@ -174,40 +168,19 @@ fun ImageScreen(
     val gapSmall = dimensionResource(R.dimen.space_2)
 
     // 可收起的只有「筛选 chip 行 + 它的下间距」这一段：标题行（返回 + 标题）常驻 56dp。
+    // 折叠量交给 HeaderCollapseState 统一驱动（与四个主页面的页眉同一套手感）：
+    // 手指拖动逐像素跟随、松手过半对齐、惯性不参与、回顶自动展开。
+    // 区别只是这里范围是常量，直接回填给它，不必像页眉那样等布局实测。
     val collapseRange = chipHeight + gapSmall
     val collapseRangePx = with(LocalDensity.current) { collapseRange.toPx() }
-    // 折叠位移：0 = 完整展开，-collapseRangePx = 完全收起。由嵌套滚动逐像素驱动，跟手而非跳变。
-    var collapsePx by remember(collapseRangePx) { mutableFloatStateOf(0f) }
+    val collapse = rememberHeaderCollapseState()
+    SideEffect { collapse.updateRange(collapseRangePx) }
     // 展开程度 1 → 0，供顶栏做高度裁切与渐隐
-    val expandedFraction = if (collapseRangePx <= 0f) {
-        1f
-    } else {
-        (1f + collapsePx / collapseRangePx).coerceIn(0f, 1f)
-    }
+    val expandedFraction = 1f - collapse.fraction
 
     // 手势 ↔ 顶栏：上滑（内容向上滚、继续往下浏览）先收顶栏，下滑（往回翻）先展开，
-    // 顶栏走完自己的行程才把剩余位移交给列表；松手后过半对齐到收起、未过半回弹展开。
-    val collapseOnScroll = remember(collapseRangePx) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // 惯性（SideEffect）不驱动折叠，交给 onPostFling 一次性对齐，避免边飞边抖
-                if (source == NestedScrollSource.SideEffect) return Offset.Zero
-                val current = collapsePx
-                val next = (current + available.y).coerceIn(-collapseRangePx, 0f)
-                val consumed = next - current
-                if (consumed != 0f) collapsePx = next
-                return Offset(0f, consumed)
-            }
-
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                val target = if (-collapsePx > collapseRangePx * 0.5f) -collapseRangePx else 0f
-                if (collapsePx != target) {
-                    animate(collapsePx, target) { value, _ -> collapsePx = value }
-                }
-                return Velocity.Zero
-            }
-        }
-    }
+    // 顶栏走完自己的行程才把剩余位移交给列表。
+    val collapseOnScroll = rememberHeaderCollapseConnection(collapse)
 
     // 回到顶部后不能再有收起态：列表 padding 是展开态预留的，收起时第一行上方会露出空档
     val atTop by remember {
@@ -215,18 +188,15 @@ fun ImageScreen(
             gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
         }
     }
-    LaunchedEffect(atTop) {
-        if (atTop && collapsePx != 0f) {
-            animate(collapsePx, 0f) { value, _ -> collapsePx = value }
-        }
-    }
+    collapse.expandWhenAtTop(atTop)
 
     // 每张卡片的窗口坐标（仅用于转场起点，点击时读一次）
     val cardBounds = remember { mutableStateMapOf<Int, Rect>() }
     // 浮层不占布局，列表要给顶栏让位。padding 跟着折叠量一起收：
     // 顶栏少一段，列表就从少一段的位置开始，两者始终贴合，不会在顶栏下方露出壁纸断带。
     val topInset = statusTop + rowHeight + chipHeight + gapSmall + gapSmall
-    val collapsedDp = with(LocalDensity.current) { (-collapsePx).toDp() }
+    // 收起量（正值 dp）：offsetPx 是负的，取反即"顶栏少了多少高度"
+    val collapsedDp = with(LocalDensity.current) { (-collapse.offsetPx).toDp() }
     val contentTopInset = topInset - collapsedDp
     val bottomInset = if (state.selectionMode) {
         dimensionResource(R.dimen.space_9) * 2

@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -50,6 +51,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -186,22 +188,31 @@ fun SettingsScreen(
     val clearance = with(density) { state.bottomClearancePx.toDp() }
     val gutter = dimensionResource(R.dimen.gutter_screen)
 
+    // 页眉随滚动收缩 / 展开；本页是 verticalScroll，回顶判定读 ScrollState.value
+    val headerCollapse = rememberHeaderCollapseState()
+    val headerScroll = rememberHeaderCollapseConnection(headerCollapse)
+    val scrollState = rememberScrollState()
+    val atTop by remember { derivedStateOf { scrollState.value == 0 } }
+    headerCollapse.expandWhenAtTop(atTop)
+
     Column(
         modifier = modifier
             .glassScrollMotion()
-            .fillMaxSize(),
+            .fillMaxSize()
+            .nestedScroll(headerScroll),
     ) {
         CommandHeader(
             title = stringResource(R.string.settings_title),
             chipText = state.versionChip,
             subtitle = stringResource(R.string.settings_subtitle),
+            collapse = headerCollapse,
         )
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(
                     start = gutter,
                     end = gutter,
