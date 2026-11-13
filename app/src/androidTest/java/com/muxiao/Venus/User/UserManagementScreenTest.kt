@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.muxiao.Venus.R
+import com.muxiao.Venus.common.ui.compose.CredentialChipRow
 import com.muxiao.Venus.common.ui.compose.UserCardRow
 import com.muxiao.Venus.common.ui.compose.UserManagementScreen
 import com.muxiao.Venus.common.ui.compose.UserManagementUiState
@@ -53,8 +54,7 @@ class UserManagementScreenTest {
                     onRenameClick = {},
                     onReloginClick = {},
                     onDeleteClick = {},
-                    onCloudGameClick = {},
-                    onSklandClick = {},
+                    onCredentialClick = {},
                 )
             }
         }
@@ -81,8 +81,7 @@ class UserManagementScreenTest {
                     onRenameClick = {},
                     onReloginClick = {},
                     onDeleteClick = {},
-                    onCloudGameClick = {},
-                    onSklandClick = {},
+                    onCredentialClick = {},
                 )
             }
         }
@@ -105,16 +104,14 @@ class UserManagementScreenTest {
                 UserManagementScreen(
                     state = state(users = listOf(UserCardRow(
                         "muxiao", "muxiao · 国服", true,
-                        cloudGameLabel = "云游戏 未配置",
-                        sklandLabel = "森空岛 未开启",
+                        credential = CredentialChipRow("凭证 待配 2", false),
                     ))),
                     onAddUserClick = { added = true },
                     onAvatarClick = {},
                     onRenameClick = { renamed = it },
                     onReloginClick = { relogin = it },
                     onDeleteClick = { deleted = it },
-                    onCloudGameClick = {},
-                    onSklandClick = {},
+                    onCredentialClick = {},
                 )
             }
         }

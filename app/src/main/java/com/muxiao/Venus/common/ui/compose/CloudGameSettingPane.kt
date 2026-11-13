@@ -69,6 +69,8 @@ fun CloudGameSettingPane(
     modifier: Modifier = Modifier,
     chipVisible: List<Boolean> = List(CLOUD_GAME_CHIP_LABEL_RES.size) { true },
     accountLabel: String? = null,
+    /** false = 该账号不是当前登录账号（从用户管理页指定），归属文案要明说，避免误以为是当前账号的配置。 */
+    accountIsCurrent: Boolean = true,
 ) {
     DrawerPane(modifier) {
         SettingSwitchRow(
@@ -80,10 +82,18 @@ fun CloudGameSettingPane(
         // 开关的点击区（误触）且会被 maxLines 截断。长说明一律独立成 [SettingHint]
         Spacer(Modifier.height(dimensionResource(R.dimen.space_hairline)))
         SettingHint(text = stringResource(R.string.cloud_game_tip), maxLines = 6)
-        // token 按用户存放：不标出当前账号，切号后会以为配置丢了
+        // token 按用户存放：不标出归属账号，切号后会以为配置丢了。
+        // 目标账号可能是从用户管理页指定的其它账号，此时必须说明「非当前账号」。
         if (accountLabel != null) {
             Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-            SettingHint(text = stringResource(R.string.credential_account, accountLabel))
+            SettingHint(
+                text = stringResource(
+                    if (accountIsCurrent) R.string.credential_account
+                    else R.string.credential_account_other,
+                    accountLabel,
+                ),
+                tone = if (accountIsCurrent) SettingTone.Info else SettingTone.Warning,
+            )
         }
         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
         FilterChipFlow(
@@ -132,6 +142,7 @@ class CloudGameSettingPaneView {
     private val configuredTotalState = mutableIntStateOf(CLOUD_GAME_CHIP_LABEL_RES.size)
     private val missingGamesState = mutableStateOf<String?>(null)
     private val accountLabelState = mutableStateOf<String?>(null)
+    private val accountIsCurrentState = mutableStateOf(true)
 
     private var onEnabledChangeListener: BooleanConsumer? = null
     private var onChipChangeListener: IndexedCheckedConsumer? = null
@@ -187,13 +198,19 @@ class CloudGameSettingPaneView {
                 onManualClick = { onManualClickListener?.run() },
                 chipVisible = visibleState.toList(),
                 accountLabel = accountLabelState.value,
+                accountIsCurrent = accountIsCurrentState.value,
             )
         }
     }
 
-    /** 当前账号名（token 按用户存放，界面需标明归属）；null 表示未登录。 */
-    fun setAccountLabel(label: String?) {
+    /**
+     * 归属账号名（token 按用户存放，界面需标明归属）；null 表示未登录。
+     *
+     * @param isCurrent false = 该账号不是当前登录账号（设置了「配置目标账号」）
+     */
+    fun setAccountLabel(label: String?, isCurrent: Boolean = true) {
         accountLabelState.value = label
+        accountIsCurrentState.value = isCurrent
     }
 
     fun setOnEnabledChangeListener(listener: BooleanConsumer?) {

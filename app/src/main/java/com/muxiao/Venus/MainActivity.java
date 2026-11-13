@@ -286,6 +286,8 @@ public class MainActivity extends BaseActivity {
 
     /** 待展开的设置抽屉（0 = 无），见 {@link #openSettingsPane(int)}。 */
     private int pendingSettingsPane = 0;
+    /** 待下发给设置页的凭证配置目标账号（null = 跟随当前账号），与 {@link #pendingSettingsPane} 同寿命。 */
+    private String pendingCredentialUser;
 
     /**
      * 当前账号被本页之外改动（用户管理页的凭证 chip 会先切账号、再跳设置页）。
@@ -320,7 +322,20 @@ public class MainActivity extends BaseActivity {
      * @param pane {@link SettingsFragment#PANE_CLOUD_GAME} / {@link SettingsFragment#PANE_SKLAND}
      */
     public void openSettingsPane(int pane) {
+        openSettingsPane(pane, null);
+    }
+
+    /**
+     * 切到设置页、展开指定抽屉，并为它指定「凭证配置目标账号」。
+     *
+     * <p>用户管理页每个账号的凭证 chip 走这个重载：凭证按账号存放，但配置别人的凭证
+     * 不该以「切换全局当前账号」为代价（会连带首页数据与任务上下文）。</p>
+     *
+     * @param credentialUser 目标账号；null = 跟随当前登录账号
+     */
+    public void openSettingsPane(int pane, String credentialUser) {
         pendingSettingsPane = pane;
+        pendingCredentialUser = credentialUser;
         if (shownPage == 3) {
             // 已在设置页：setShownPage 不会被触发，直接消费
             consumePendingSettingsPane();
@@ -333,7 +348,9 @@ public class MainActivity extends BaseActivity {
         int pane = pendingSettingsPane;
         if (pane == 0) return;
         pendingSettingsPane = 0;
-        settingsController.expandPane(pane);
+        String credentialUser = pendingCredentialUser;
+        pendingCredentialUser = null;
+        settingsController.expandPane(pane, credentialUser);
     }
 
     // ===== 背景预合成管线（原 ImageView 版逻辑平移到 Compose 背景） =====

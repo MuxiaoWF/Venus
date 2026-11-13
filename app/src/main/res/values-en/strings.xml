@@ -286,7 +286,6 @@
     <string name="snack_task_running_cannot_relogin">Task running, cannot re-login</string>
     <string name="snack_task_running_cannot_rename">Task running, cannot rename user</string>
     <string name="snack_task_running_cannot_delete">Task running, cannot delete user</string>
-    <string name="snack_task_running_cannot_switch">Task running, cannot switch user</string>
     <string name="snack_username_exists">Username already exists</string>
     <string name="snack_user_renamed">User renamed to: %s</string>
     <string name="snack_user_deleted">User deleted: %s</string>
@@ -680,4 +679,19 @@
     <string name="fullscreen_info_expand">Show info</string>
     <string name="fullscreen_info_collapse">Hide info</string>
     <string name="fullscreen_page_indicator">%1$d / %2$d</string>
+    <!-- Credential drawer: target account differs from the current one -->
+    <string name="credential_account_other">Configuring: %1$s (not the current account)</string>
+    <string name="credential_account_status_other">Configuring: %1$s (not the current account) · %2$s</string>
+    <!-- User card: cloud game + Skland merged into one credential entry -->
+    <string name="credential_chip_ready">Creds %1$d/%2$d</string>
+    <string name="credential_chip_pending">Creds · %1$d pending</string>
+    <string name="credential_choose_pane">Which credential to configure?</string>
+    <!-- User card: credential chooser items carry the item's own status -->
+    <string name="credential_dialog_item">%1$s · %2$s</string>
+    <!-- Login: optional avatar -->
+    <string name="login_avatar_label">Avatar</string>
+    <string name="login_avatar_hint">Optional · applied to this account after sign-in</string>
+    <string name="login_avatar_picked">Selected · applied after sign-in</string>
+    <string name="login_avatar_pick">Choose</string>
+    <string name="login_avatar_clear">Clear</string>
 </resources>

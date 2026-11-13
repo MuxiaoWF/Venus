@@ -9,10 +9,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.MotionEvent;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -89,6 +93,17 @@ public class UserLoginActivity extends BaseActivity {
     private volatile String sms_phone_input = null;
     private volatile String sms_code_input = null;
 
+    /** 登录页选好、尚未落盘的头像；登录成功才写入该账号（失败不留孤儿文件）。 */
+    private volatile Uri pendingAvatar;
+
+    /** 相册选头像：Photo Picker 不需要存储权限，选完只做预览，落盘推迟到登录成功。 */
+    private final ActivityResultLauncher<PickVisualMediaRequest> avatarPicker =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                if (uri == null) return;
+                pendingAvatar = uri;
+                if (pane != null) pane.setPendingAvatar(uri);
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -141,6 +156,16 @@ public class UserLoginActivity extends BaseActivity {
         });
         // 短信登录：获取验证码是独立于「登录」提交的第二个动作，由宿主单独派发
         pane.setOnSendCodeClickListener(this::handleSendCode);
+        // 头像：先选后存（Compose 侧只做预览，落盘在 finish_login_success）
+        pane.setOnPickAvatarClickListener(this::pickAvatar);
+        pane.setOnClearAvatarClickListener(() -> pendingAvatar = null);
+    }
+
+    /** 打开系统相册选头像（Photo Picker，无需存储权限）。 */
+    private void pickAvatar() {
+        avatarPicker.launch(new PickVisualMediaRequest.Builder()
+                .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
+                .build());
     }
 
     /**
@@ -651,10 +676,19 @@ public class UserLoginActivity extends BaseActivity {
         private void finish_login_success() {
             // 存储服务器类型
             tools.write(context, username, "server_type", isOversea ? "1" : "0");
+            // 头像：登录页选过才写，且只在成功后落盘；重登录沿用原账号名
+            String avatarUser = relogin_mode && relogin_username != null ? relogin_username : username;
+            Uri avatarToSave = pendingAvatar;
+            if (avatarToSave != null) {
+                AvatarStore.saveFromUri(getApplicationContext(), avatarUser, avatarToSave);
+            }
             runOnUiThread(() -> {
                 setQrVisible();
                 // 清空密码输入，避免明文长期驻留界面
                 pane.clearPassword();
+                // 头像已落盘：清掉预览态，避免下次登录被重复应用
+                pendingAvatar = null;
+                pane.setPendingAvatar(null);
                 // 如果是重新登录模式，则更新现有用户的token
                 if (relogin_mode && relogin_username != null) {
                     // 设置当前用户为重新登录的用户

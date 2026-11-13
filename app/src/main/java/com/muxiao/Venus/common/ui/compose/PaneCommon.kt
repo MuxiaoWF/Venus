@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -325,36 +326,93 @@ internal fun VenusAvatar(username: String?, size: Dp = 32.dp, refreshToken: Int 
                     })
             }
         }
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), CircleShape)
-                .border(
-                    width = dimensionResource(R.dimen.stroke_width_hairline),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                    shape = CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
+        AvatarFrame(size) {
             val loaded = bitmap
             if (hasCustom && loaded != null) {
-                Image(
-                    bitmap = loaded.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                AvatarImage(loaded)
             } else {
-                Icon(
-                    painter = painterResource(R.drawable.ic_user),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(dimensionResource(R.dimen.space_2)),
-                )
+                AvatarPlaceholderIcon()
             }
         }
     }
+}
+
+/**
+ * 尚未落盘的头像预览（相册 Uri / File）。
+ *
+ * 登录页「选择头像」在登录成功前不写盘（避免给一个没登成功的账号留孤儿文件），
+ * 所以不能走 [VenusAvatar]（它按用户名读文件），这里直接按任意 Glide model 加载预览。
+ * 外框、默认图标、加载失败回退都与 [VenusAvatar] 同一套，两处观感不会分叉。
+ */
+@Composable
+internal fun AvatarPreview(model: Any, size: Dp = 32.dp) {
+    val context = LocalContext.current
+    var bitmap by remember(model) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(model) {
+        Glide.with(context)
+            .asBitmap()
+            .load(model)
+            .circleCrop()
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(
+                    resource: Bitmap,
+                    transition: Transition<in Bitmap>?,
+                ) {
+                    bitmap = resource
+                }
+
+                override fun onLoadCleared(placeholder: Drawable?) {
+                    bitmap = null
+                }
+
+                override fun onLoadFailed(errorDrawable: Drawable?) {
+                    bitmap = null
+                }
+            })
+    }
+    AvatarFrame(size) {
+        val loaded = bitmap
+        if (loaded != null) AvatarImage(loaded) else AvatarPlaceholderIcon()
+    }
+}
+
+/** 头像外框：圆形主色淡底 + 发丝描边（同 `bg_icon_circle` 的 oval solid/stroke）。 */
+@Composable
+private fun AvatarFrame(size: Dp, content: @Composable BoxScope.() -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), CircleShape)
+            .border(
+                width = dimensionResource(R.dimen.stroke_width_hairline),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                shape = CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+        content = content,
+    )
+}
+
+@Composable
+private fun AvatarImage(bitmap: Bitmap) {
+    Image(
+        bitmap = bitmap.asImageBitmap(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.fillMaxSize(),
+    )
+}
+
+/** 默认态：ic_user 主色着色 + space_2 内边距。 */
+@Composable
+private fun AvatarPlaceholderIcon() {
+    Icon(
+        painter = painterResource(R.drawable.ic_user),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(dimensionResource(R.dimen.space_2)),
+    )
 }

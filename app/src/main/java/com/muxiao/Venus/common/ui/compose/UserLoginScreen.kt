@@ -2,8 +2,10 @@ package com.muxiao.Venus.common.ui.compose
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -18,17 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,20 +39,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
 import kotlinx.coroutines.delay
@@ -73,11 +65,12 @@ const val LOGIN_MODE_SMS = 3
 /**
  * 国服用户登录页（原 res/layout/activity_user_login.xml）。
  *
- * 结构：工具栏 → 品牌欢迎区 → 登录方式切换（国际服隐藏）→ 二维码卡 → 账号密码卡 → 状态日志卡。
+ * 结构：工具栏 → 页头（一行欢迎语 + 安全说明）→ 登录方式切换（国际服隐藏）→ 二维码卡
+ * → 账号密码卡（含可选头像）→ 状态日志卡。
  *
  * 与原 XML 的对应关系：
- * - 两枚 TabLayout 页签 → [SingleChoiceSegmentedButtonRow] + [SegmentedButton] 单选分段
- * - 三个 `TextInputLayout(OutlinedBox)` → [OutlinedTextField] + `shape_corner_sm` 圆角
+ * - 两枚 TabLayout 页签 → [VenusSegmented]（`glass = false`，与设置页同一实现）
+ * - `TextInputLayout(OutlinedBox)` → [VenusTextField] + `shape_corner_sm` 圆角（见 VenusInputs.kt）
  * - 密码框的 `endIconMode=password_toggle` → trailingIcon 文案按钮（显示/隐藏）
  * - 状态日志 `ScrollView`（固定 `login_log_height`）→ `verticalScroll` + 追加后自动滚到底
  *
@@ -101,7 +94,11 @@ fun UserLoginScreen(
     qrVisible: Boolean,
     qrBitmap: Bitmap?,
     log: String,
+    /** 登录页选好但尚未落盘的头像（登录成功才写入该账号）；null = 用默认头像。 */
+    avatarUri: Uri?,
     onBackClick: () -> Unit,
+    onPickAvatarClick: () -> Unit,
+    onClearAvatarClick: () -> Unit,
     onModeSelect: (Int) -> Unit,
     onUsernameChange: (String) -> Unit,
     onAccountChange: (String) -> Unit,
@@ -166,60 +163,34 @@ fun UserLoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                // 与其余页面同一栅格：左右 gutter_screen(16dp)，底部让开导航栏
+                .navigationBarsPadding()
                 .padding(
-                    start = dimensionResource(R.dimen.space_5),
-                    end = dimensionResource(R.dimen.space_5),
+                    start = dimensionResource(R.dimen.gutter_screen),
+                    end = dimensionResource(R.dimen.gutter_screen),
                     top = dimensionResource(R.dimen.space_2),
                     bottom = dimensionResource(R.dimen.space_4),
                 ),
         ) {
-            BrandHeader()
-
-            // 安全承诺：登录全程在本机完成，避免用户误以为应用会远程代登录
-            Text(
-                text = stringResource(R.string.login_local_notice),
-                style = textStyles.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = dimensionResource(R.dimen.space_4)),
-            )
+            LoginHeader()
 
             // 登录方式切换：账号密码/短信/Cookie 仅国服可用，国际服整卡隐藏
             if (!oversea) {
-                    // Tab 用短名称（扫码/密码/短信/Cookie），否则 4 段在窄屏上会被截断；
-                    // 按钮文案仍用完整名称，见下方 Button 的 when 分支
-                    val loginOptions = listOf(
-                        stringResource(R.string.login_tab_qrcode_short) to LOGIN_MODE_QRCODE,
-                        stringResource(R.string.login_tab_password_short) to LOGIN_MODE_PASSWORD,
-                        stringResource(R.string.login_tab_sms_short) to LOGIN_MODE_SMS,
-                        stringResource(R.string.login_tab_cookie_short) to LOGIN_MODE_COOKIE,
-                    )
-                    SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                    ) {
-                        loginOptions.forEachIndexed { index, (text, mode) ->
-                            SegmentedButton(
-                                selected = loginMode == mode,
-                                onClick = { onModeSelect(mode) },
-                                // 按位置给出形状：首尾圆角、中间段直角，相邻段共用边框
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = loginOptions.size,
-                                ),
-                                label = {
-                                    Text(
-                                        text = text,
-                                        style = textStyles.labelMedium,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                            )
-                        }
-                    }
+                // 四段在窄屏上只放短名（扫码 / 密码 / 短信 / Cookie），完整名称留给提交按钮。
+                // 分段控件统一走 VenusSegmented（与设置页同一实现），本页非玻璃页故 glass = false。
+                val loginOptions = listOf(
+                    stringResource(R.string.login_tab_qrcode_short) to LOGIN_MODE_QRCODE,
+                    stringResource(R.string.login_tab_password_short) to LOGIN_MODE_PASSWORD,
+                    stringResource(R.string.login_tab_sms_short) to LOGIN_MODE_SMS,
+                    stringResource(R.string.login_tab_cookie_short) to LOGIN_MODE_COOKIE,
+                )
+                VenusSegmented(
+                    options = loginOptions.map { it.first },
+                    selectedIndex = loginOptions.indexOfFirst { it.second == loginMode }.coerceAtLeast(0),
+                    onSelect = { index -> onModeSelect(loginOptions[index].second) },
+                    glass = false,
+                )
+                Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
             }
 
             // 二维码卡（切到账号密码时收起，避免残留旧 ticket）
@@ -259,6 +230,14 @@ fun UserLoginScreen(
             // 账号密码卡
             VenusCard(modifier = Modifier.padding(bottom = dimensionResource(R.dimen.space_3))) {
                 Column(modifier = Modifier.padding(dimensionResource(R.dimen.space_4))) {
+                    // 头像：选填，登录成功后写到这个账号名下（重登录时也能顺手换）
+                    LoginAvatarRow(
+                        avatarUri = avatarUri,
+                        // 登录进行中禁止换头像：此时提交的任务已经带走凭证，再改会与落盘时序打架
+                        enabled = inputsEnabled,
+                        onPick = onPickAvatarClick,
+                        onClear = onClearAvatarClick,
+                    )
                     // 重登录模式：用户名固定展示在按钮上，输入框隐藏
                     if (!reloginMode) {
                         VenusTextField(
@@ -296,20 +275,15 @@ fun UserLoginScreen(
                     if (isCookieMode) {
                         Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
                         // Cookie 整段可能很长（十几个键值对），给多行输入框而不是单行
-                        OutlinedTextField(
+                        VenusTextField(
                             value = cookie,
                             onValueChange = onCookieChange,
-                            label = { Text(stringResource(R.string.login_cookie_hint)) },
+                            label = stringResource(R.string.login_cookie_hint),
                             enabled = inputsEnabled,
+                            imeAction = ImeAction.Done,
                             minLines = 3,
                             maxLines = 6,
-                            shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text,
-                                imeAction = ImeAction.Done,
-                            ),
-                            keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                            modifier = Modifier.fillMaxWidth(),
+                            onSubmit = onSubmit,
                         )
                         Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
                         Text(
@@ -414,108 +388,109 @@ fun UserLoginScreen(
     }
 }
 
-/** 品牌欢迎区：圆底徽标 + 欢迎语 + 副标题。 */
+/**
+ * 页头：一行欢迎语 + 安全说明。
+ *
+ * 原实现是 48dp 圆底徽标 +「欢迎」大标题 +「登录以继续」副标题，上下再各留 20/16dp，
+ * 合计约 150dp —— 在 640dp 高的屏幕上占近四分之一，而它只是装饰。这里去掉徽标、
+ * 两行文案压成一行、外层留白收到 4/12dp，同样的信息高度降到约 60dp。
+ */
 @Composable
-private fun BrandHeader() {
+private fun LoginHeader() {
     val textStyles = LocalVenusTextStyles.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                top = dimensionResource(R.dimen.space_5),
-                bottom = dimensionResource(R.dimen.space_4),
+                top = dimensionResource(R.dimen.space_1),
+                bottom = dimensionResource(R.dimen.space_3),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(dimensionResource(R.dimen.icon_badge_lg))
-                .clip(CircleShape)
-                .background(colorResource(R.color.primary_alpha_10))
-                .padding(dimensionResource(R.dimen.space_3)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_brand),
-                contentDescription = null,
-                // 矢量自带 icon_foreground 填充色，不应用 Icon 默认 tint，保留原 Image 行为
-                tint = Color.Unspecified,
-                modifier = Modifier.fillMaxSize(),
+        Row {
+            Text(
+                text = stringResource(R.string.user_login_welcome),
+                style = textStyles.title,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(dimensionResource(R.dimen.space_2)))
+            Text(
+                text = stringResource(R.string.user_login_subtitle),
+                style = textStyles.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
             )
         }
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
-        Text(
-            text = stringResource(R.string.user_login_welcome),
-            style = textStyles.titleLarge,
-        )
         Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
-        Text(
-            text = stringResource(R.string.user_login_subtitle),
-            style = textStyles.rowSubtitle,
+        // 安全承诺：登录全程在本机完成，避免用户误以为应用会远程代登录
+        SettingHint(
+            text = stringResource(R.string.login_local_notice),
+            maxLines = 3,
+            textAlign = TextAlign.Center,
         )
     }
 }
 
-/** 单行输入框，等价于 `Widget.Venus.TextInput`（OutlinedBox + shape_corner_sm）。 */
-@Composable
-private fun VenusTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    enabled: Boolean,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    onSubmit: () -> Unit = {},
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        enabled = enabled,
-        singleLine = true,
-        shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
-        keyboardActions = KeyboardActions(onDone = { onSubmit() }, onGo = { onSubmit() }),
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
 /**
- * 密码输入框：保留原 `endIconMode=password_toggle` 的能力。
+ * 登录页头像行：选填，登录成功后写到该账号名下。
  *
- * Compose 没有内置的眼睛图标（material-icons-extended 未引入），
- * 用「显示 / 隐藏」文字按钮达成同样的可见性切换，且读屏可读。
+ * 与用户管理页共用同一个 AvatarStore 与同一套头像外框（AvatarPreview / VenusAvatar），
+ * 区别只在「先选、登录成功才落盘」——登录失败不会给不存在的账号留下孤儿头像文件。
  */
 @Composable
-private fun VenusPasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
+private fun LoginAvatarRow(
+    avatarUri: Uri?,
     enabled: Boolean,
-    onSubmit: () -> Unit,
+    onPick: () -> Unit,
+    onClear: () -> Unit,
 ) {
-    var visible by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        enabled = enabled,
-        singleLine = true,
-        shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Password,
-            imeAction = ImeAction.Done,
-        ),
-        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-        trailingIcon = {
-            TextButton(onClick = { visible = !visible }) {
-                Text(
-                    text = stringResource(if (visible) R.string.password_hide else R.string.password_show),
-                    style = LocalVenusTextStyles.current.labelMedium,
-                )
+    val textStyles = LocalVenusTextStyles.current
+    val avatarSize = dimensionResource(R.dimen.icon_badge_lg)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = dimensionResource(R.dimen.space_3)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(avatarSize)
+                .clip(CircleShape)
+                // 点头像直接换图，与右侧按钮同义；这里不弹菜单，少一次点击
+                .clickable(enabled = enabled, onClick = onPick),
+        ) {
+            if (avatarUri != null) {
+                AvatarPreview(model = avatarUri, size = avatarSize)
+            } else {
+                VenusAvatar(username = null, size = avatarSize)
             }
-        },
-        modifier = Modifier.fillMaxWidth(),
-    )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = dimensionResource(R.dimen.space_3)),
+        ) {
+            Text(text = stringResource(R.string.login_avatar_label), style = textStyles.drawerLabel)
+            Text(
+                text = stringResource(
+                    if (avatarUri == null) R.string.login_avatar_hint else R.string.login_avatar_picked
+                ),
+                style = textStyles.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(
+            onClick = if (avatarUri == null) onPick else onClear,
+            enabled = enabled,
+        ) {
+            Text(
+                text = stringResource(
+                    if (avatarUri == null) R.string.login_avatar_pick else R.string.login_avatar_clear
+                ),
+                style = textStyles.labelMedium,
+            )
+        }
+    }
 }
 
 /** [UserLoginScreen] 的 View 互操作宿主。 */
@@ -536,12 +511,16 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     private val qrVisibleState = mutableStateOf(false)
     private val qrBitmapState = mutableStateOf<Bitmap?>(null)
     private val logState = mutableStateOf("")
+    /** 登录页选好的头像（尚未落盘）；登录成功后由 Activity 写入该账号。 */
+    private val avatarUriState = mutableStateOf<Uri?>(null)
 
     private var onBackClickListener: Runnable? = null
     private var onModeSelectListener: IndexConsumer? = null
     private var onLoginClickListener: Runnable? = null
     private var onSubmitListener: Runnable? = null
     private var onSendCodeClickListener: Runnable? = null
+    private var onPickAvatarClickListener: Runnable? = null
+    private var onClearAvatarClickListener: Runnable? = null
 
     /** 当前登录方式（0 扫码 / 1 账号密码）。 */
     var loginMode: Int
@@ -604,6 +583,11 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
         qrBitmapState.value = bitmap
     }
 
+    /** 相册选好后的头像预览；真正的落盘由 Activity 在登录成功后执行。 */
+    fun setPendingAvatar(uri: Uri?) {
+        avatarUriState.value = uri
+    }
+
     /** 清空密码框（登录成功后避免明文长期驻留界面）。 */
     fun clearPassword() {
         passwordState.value = ""
@@ -637,7 +621,13 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     qrVisible = qrVisibleState.value,
                     qrBitmap = qrBitmapState.value,
                     log = logState.value,
+                    avatarUri = avatarUriState.value,
                     onBackClick = { onBackClickListener?.run() },
+                    onPickAvatarClick = { onPickAvatarClickListener?.run() },
+                    onClearAvatarClick = {
+                        avatarUriState.value = null
+                        onClearAvatarClickListener?.run()
+                    },
                     onModeSelect = { mode ->
                         // 受控组件：先落自身状态再回调，Java 侧据此切换业务模式
                         modeState.intValue = mode
@@ -678,6 +668,14 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     fun setOnSendCodeClickListener(listener: Runnable?) {
         onSendCodeClickListener = listener
     }
+
+    fun setOnPickAvatarClickListener(listener: Runnable?) {
+        onPickAvatarClickListener = listener
+    }
+
+    fun setOnClearAvatarClickListener(listener: Runnable?) {
+        onClearAvatarClickListener = listener
+    }
 }
 
 @Preview(name = "用户登录", showBackground = true)
@@ -700,7 +698,10 @@ private fun UserLoginScreenPreview() {
             qrVisible = false,
             qrBitmap = null,
             log = stringResource(R.string.waiting),
+            avatarUri = null,
             onBackClick = {},
+            onPickAvatarClick = {},
+            onClearAvatarClick = {},
             onModeSelect = {},
             onUsernameChange = {},
             onAccountChange = {},

@@ -62,6 +62,8 @@ fun SklandSettingPane(
     modifier: Modifier = Modifier,
     accountLabel: String? = null,
     tokenConfigured: Boolean = false,
+    /** false = 该账号不是当前登录账号（从用户管理页指定），归属文案要明说。 */
+    accountIsCurrent: Boolean = true,
 ) {
     DrawerPane(modifier) {
         SettingSwitchRow(
@@ -72,15 +74,23 @@ fun SklandSettingPane(
 
         if (accountLabel != null) {
             Spacer(Modifier.height(dimensionResource(R.dimen.space_1)))
+            val status = stringResource(
+                if (tokenConfigured) R.string.user_cred_ready else R.string.user_cred_missing
+            )
             SettingHint(
+                // 目标账号不是当前账号时用「正在配置：xxx（非当前账号）」，
+                // 否则沿用「当前账号：xxx · 状态」
                 text = stringResource(
-                    R.string.credential_account_status,
+                    if (accountIsCurrent) R.string.credential_account_status
+                    else R.string.credential_account_status_other,
                     accountLabel,
-                    stringResource(
-                        if (tokenConfigured) R.string.user_cred_ready else R.string.user_cred_missing
-                    ),
+                    status,
                 ),
-                tone = if (tokenConfigured) SettingTone.Success else SettingTone.Info,
+                tone = when {
+                    !accountIsCurrent -> SettingTone.Warning
+                    tokenConfigured -> SettingTone.Success
+                    else -> SettingTone.Info
+                },
             )
         }
 
@@ -155,6 +165,7 @@ class SklandSettingPaneView {
     private val arknightsState = mutableStateOf(false)
     private val endfieldState = mutableStateOf(false)
     private val accountLabelState = mutableStateOf<String?>(null)
+    private val accountIsCurrentState = mutableStateOf(true)
     private val tokenConfiguredState = mutableStateOf(false)
 
     private var onEnabledChangeListener: BooleanConsumer? = null
@@ -203,13 +214,19 @@ class SklandSettingPaneView {
                 onSaveClick = { onSaveClickListener?.run() },
                 accountLabel = accountLabelState.value,
                 tokenConfigured = tokenConfiguredState.value,
+                accountIsCurrent = accountIsCurrentState.value,
             )
         }
     }
 
-    /** 当前账号名（凭证按用户存放，界面必须标明归属）；null 表示未登录。 */
-    fun setAccountLabel(label: String?) {
+    /**
+     * 归属账号名（凭证按用户存放，界面必须标明归属）；null 表示未登录。
+     *
+     * @param isCurrent false = 该账号不是当前登录账号（设置了「配置目标账号」）
+     */
+    fun setAccountLabel(label: String?, isCurrent: Boolean = true) {
         accountLabelState.value = label
+        accountIsCurrentState.value = isCurrent
     }
 
     /** 当前账号是否已配置森空岛 token。 */

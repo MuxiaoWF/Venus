@@ -162,6 +162,14 @@ public class SettingsFragment implements PageController {
     private BbsUtilsSettingPaneView utilsPane;
     private SklandSettingPaneView sklandPane;
     private CloudGameSettingPaneView cloudGamePane;
+    /**
+     * 凭证抽屉的「配置目标账号」；null = 跟随当前账号。
+     *
+     * <p>凭证按账号存放，但设置页原先只能配当前账号，从用户管理页点别人的凭证 chip
+     * 必须先切换全局账号——副作用会连带首页数据与任务上下文。这里让抽屉自己带一个目标账号，
+     * 切换账号不再是配置凭证的前置条件。仅本次打开有效：{@link #show()} 会清空。
+     */
+    private String credentialUserId;
     // 「通知 / 后台运行」抽屉内容为 Compose。
     private NotificationSettingPaneView notificationPane;
     // 「米游币签到」「游戏签到」抽屉内容为 Compose。
@@ -528,7 +536,7 @@ public class SettingsFragment implements PageController {
         sklandPane.setOnCookieLinkClickListener(() -> activity.startActivity(
                 new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_COOKIE_URL))));
         sklandPane.setOnSaveClickListener(() -> {
-            String userId = new UserManager(activity).getCurrentUser();
+            String userId = credentialUser();
             if (userId == null || userId.isEmpty()) {
                 showCustomSnackbar(screenView, activity, activity.getString(R.string.common_need_login));
                 return;
@@ -559,6 +567,9 @@ public class SettingsFragment implements PageController {
     /** 页面成为当前选中页 / Activity 恢复：同步后台运行开关状态。 */
     @Override
     public void show() {
+        // 目标账号只在「从用户管理页跳过来」的这一次有效：
+        // 正常从底栏切到设置页时回到当前账号，避免残留成幽灵上下文
+        credentialUserId = null;
         // 更新后台运行开关状态
         if (sharedPreferences != null && screenView != null) {
             notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
@@ -583,6 +594,17 @@ public class SettingsFragment implements PageController {
      * @param pane {@link #PANE_CLOUD_GAME} 或 {@link #PANE_SKLAND}
      */
     public void expandPane(int pane) {
+        expandPane(pane, null);
+    }
+
+    /**
+     * 展开指定抽屉，并指定该抽屉的凭证配置目标账号。
+     *
+     * @param credentialUser 目标账号；null = 跟随当前登录账号
+     */
+    public void expandPane(int pane, String credentialUser) {
+        // 先定目标再展开：抽屉的账号归属与 token 进度都是展开时读的
+        setCredentialUser(credentialUser);
         if (pane == PANE_CLOUD_GAME && cloudGameCard != null) cloudGameCard.expand();
         else if (pane == PANE_SKLAND && sklandCard != null) sklandCard.expand();
     }
@@ -1264,12 +1286,42 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 刷新 token 配置进度（按当前选中用户读取，未登录时均视为未配置）。
+     * 凭证抽屉当前应从哪个账号读写：显式指定的目标账号优先，否则跟随当前登录账号。
+     *
+     * <p>所有凭证读写都必须经这里，不要直接 {@code getCurrentUser()}——
+     * 否则从用户管理页指定的目标账号会被绕过，token 写到当前账号名下。
+     * 指定账号可能已被删除或重命名，此时自动回退当前账号，避免往幽灵用户名写数据。</p>
+     */
+    private String credentialUser() {
+        if (credentialUserId != null && !credentialUserId.isEmpty()) {
+            if (new UserManager(activity).isUserExists(credentialUserId)) return credentialUserId;
+            credentialUserId = null;
+        }
+        return new UserManager(activity).getCurrentUser();
+    }
+
+    /**
+     * 指定凭证抽屉的配置目标账号；传 null 表示跟随当前账号。
+     *
+     * <p>由「用户管理页点凭证 chip」经 {@code MainActivity.openSettingsPane(pane, user)} 传入，
+     * 使配置别人的凭证不必先切换全局账号。目标账号仅本次打开有效（{@link #show()} 清空）。</p>
+     */
+    public void setCredentialUser(String username) {
+        credentialUserId = (username == null || username.isEmpty()) ? null : username;
+        if (cloudGamePane != null) {
+            refreshCloudGameTokens();
+        } else {
+            refreshCredentialAccountLabels();
+        }
+    }
+
+    /**
+     * 刷新 token 配置进度（按凭证目标账号读取，未登录时均视为未配置）。
      *
      * <p>国际服只有云原神一个可用项，分母随之为 1——否则「1/2 已配置」会让人误以为漏配。
      */
     private void refreshCloudGameTokens() {
-        String userId = new UserManager(activity).getCurrentUser();
+        String userId = credentialUser();
         boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
         String[] games = oversea
                 ? new String[]{CloudGameDaily.GAME_GENSHIN}
@@ -1290,17 +1342,21 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 刷新两个凭证抽屉的「当前账号」归属与森空岛配置状态。
+     * 刷新两个凭证抽屉的「归属账号」与森空岛配置状态。
      *
-     * <p>凭证按用户存放，而这个页面每次显示都可能换了账号（用户在用户管理页切换过），
-     * 所以归属文案不能只在装配时写一次。
+     * <p>凭证按账号存放，而「要配哪个账号」有两个来源：当前登录账号，或从用户管理页
+     * 指定的目标账号（{@link #setCredentialUser(String)}）。两者不同时文案必须明说，
+     * 否则用户会以为自己配的是当前账号。归属文案不能只在装配时写一次——页面每次显示
+     * 都可能换了账号。</p>
      */
     private void refreshCredentialAccountLabels() {
-        String userId = new UserManager(activity).getCurrentUser();
+        String userId = credentialUser();
         boolean hasUser = userId != null && !userId.isEmpty();
-        if (cloudGamePane != null) cloudGamePane.setAccountLabel(hasUser ? userId : null);
+        // 目标账号可能是别的账号：文案要区分，否则会被当成「当前账号」的配置
+        boolean isCurrent = hasUser && userId.equals(new UserManager(activity).getCurrentUser());
+        if (cloudGamePane != null) cloudGamePane.setAccountLabel(hasUser ? userId : null, isCurrent);
         if (sklandPane != null) {
-            sklandPane.setAccountLabel(hasUser ? userId : null);
+            sklandPane.setAccountLabel(hasUser ? userId : null, isCurrent);
             sklandPane.setTokenConfigured(hasUser
                     && SklandDaily.isValidToken(tools.read(activity, userId, SKLAND_COOKIE)));
         }
@@ -1320,7 +1376,7 @@ public class SettingsFragment implements PageController {
      * 国际服只有云原神一项，跳过选择直接进输入框。
      */
     private void showCloudGameManualPicker() {
-        String userId = new UserManager(activity).getCurrentUser();
+        String userId = credentialUser();
         if (userId == null || userId.isEmpty()) {
             showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
             return;
@@ -1350,7 +1406,7 @@ public class SettingsFragment implements PageController {
      * 页面里若进入其他云游戏抓到的 token 也会一并落库。
      */
     private void showCloudGameFetchPicker() {
-        String userId = new UserManager(activity).getCurrentUser();
+        String userId = credentialUser();
         if (userId == null || userId.isEmpty()) {
             showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
             return;
@@ -1363,6 +1419,12 @@ public class SettingsFragment implements PageController {
         Intent intent = new Intent(activity, CloudGachaActivity.class);
         intent.putExtra(CloudGachaActivity.EXTRA_MODE, CloudGachaActivity.MODE_CLOUD_TOKEN);
         intent.putExtra(CloudGachaActivity.EXTRA_CLOUD_GAME, gameName);
+        // token 按账号存放：把抽屉当前的目标账号带过去，
+        // 否则从用户管理页给别的账号配 token 会落到当前账号名下
+        String targetUser = credentialUser();
+        if (targetUser != null && !targetUser.isEmpty()) {
+            intent.putExtra(CloudGachaActivity.EXTRA_TARGET_USER, targetUser);
+        }
         cloudTokenLauncher.launch(intent);
     }
 

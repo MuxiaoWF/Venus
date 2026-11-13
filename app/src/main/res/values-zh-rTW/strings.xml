@@ -282,7 +282,6 @@
     <string name="snack_task_running_cannot_relogin">任務執行中，無法重新登入</string>
     <string name="snack_task_running_cannot_rename">任務執行中，無法重新命名使用者</string>
     <string name="snack_task_running_cannot_delete">任務執行中，無法刪除使用者</string>
-    <string name="snack_task_running_cannot_switch">任務執行中，無法切換使用者</string>
     <string name="snack_username_exists">使用者名稱已存在</string>
     <string name="snack_user_renamed">使用者已重新命名為：%s</string>
     <string name="snack_user_deleted">使用者已刪除：%s</string>
@@ -669,4 +668,19 @@
     <string name="fullscreen_info_expand">展開資訊</string>
     <string name="fullscreen_info_collapse">收起資訊</string>
     <string name="fullscreen_page_indicator">%1$d / %2$d</string>
+    <!-- 憑證抽屜：指定了「非目前帳號」時的歸屬提示 -->
+    <string name="credential_account_other">正在設定：%1$s（非目前帳號）</string>
+    <string name="credential_account_status_other">正在設定：%1$s（非目前帳號）· %2$s</string>
+    <!-- 使用者卡：雲遊戲／森空島合併為一枚憑證入口 -->
+    <string name="credential_chip_ready">憑證 %1$d/%2$d</string>
+    <string name="credential_chip_pending">憑證 待配 %1$d</string>
+    <string name="credential_choose_pane">要設定哪一項憑證？</string>
+    <!-- 使用者卡：憑證選擇彈窗的項目，帶該項自身狀態 -->
+    <string name="credential_dialog_item">%1$s · %2$s</string>
+    <!-- 登入頁：可選頭像 -->
+    <string name="login_avatar_label">頭像</string>
+    <string name="login_avatar_hint">選填，登入成功後套用到這個帳號</string>
+    <string name="login_avatar_picked">已選擇，登入成功後套用</string>
+    <string name="login_avatar_pick">選擇</string>
+    <string name="login_avatar_clear">清除</string>
 </resources>

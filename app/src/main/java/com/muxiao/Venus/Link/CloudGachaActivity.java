@@ -55,6 +55,13 @@ public class CloudGachaActivity extends BaseActivity {
      * 抓取按请求域名自动识别归属，非目标游戏的 token 也会落库。
      */
     public static final String EXTRA_CLOUD_GAME = "extra_cloud_game";
+    /**
+     * 可选：token 的落库账号（缺省 = 当前登录账号）。
+     *
+     * <p>凭证抽屉支持「配置目标账号」，从用户管理页给别的账号配 token 时会带上它；
+     * 不带就会把抓到的 token 写到当前账号名下。</p>
+     */
+    public static final String EXTRA_TARGET_USER = "extra_target_user";
 
     /** 抽卡模式入口：米哈游云游戏平台（含原神/星铁/绝区零入口）。 */
     private static final String GACHA_URL = "https://mhyy.mihoyo.com/";
@@ -291,7 +298,11 @@ public class CloudGachaActivity extends BaseActivity {
             return;
         }
         if (!capturedTokens.add(game + "|" + token)) return;
-        String userId = new UserManager(this).getCurrentUser();
+        // 落库账号优先取调用方指定的目标账号（配置别人的凭证），缺省回退当前登录账号
+        String userId = getIntent().getStringExtra(EXTRA_TARGET_USER);
+        if (userId == null || userId.isEmpty()) {
+            userId = new UserManager(this).getCurrentUser();
+        }
         if (userId == null || userId.isEmpty()) return;
         tools.write(this, userId,
                 CloudGameDaily.tokenKey(game, oversea), token);

@@ -2,15 +2,11 @@ package com.muxiao.Venus.common.ui.compose
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,7 +15,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
@@ -51,19 +46,13 @@ fun LanguageSettingPane(
             onExpandedChange = { expanded = it },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            OutlinedTextField(
+            // 与登录页共用 VenusTextField：只读 + placeholder + 尾随箭头，不再是手抄的一份 OutlinedTextField
+            VenusTextField(
                 value = options.getOrElse(selectedIndex) { "" },
                 onValueChange = {},
+                placeholder = stringResource(R.string.select_language),
                 readOnly = true,
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.select_language)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)),
-                colors = OutlinedTextFieldDefaults.colors(
-                    // 原 XML 显式指定 android:textColor="?attr/colorOnSurface"
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),

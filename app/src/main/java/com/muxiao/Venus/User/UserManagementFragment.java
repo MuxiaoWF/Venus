@@ -25,10 +25,12 @@ import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.CredentialChipRow;
 import com.muxiao.Venus.common.ui.compose.UserCardRow;
 import com.muxiao.Venus.common.ui.compose.UserManagementScreenView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -84,11 +86,8 @@ public class UserManagementFragment implements PageController {
         root.setOnRenameClickListener(this::onRenameClick);
         root.setOnReloginClickListener(this::performRelogin);
         root.setOnDeleteClickListener(this::showDeleteUserDialog);
-        // 凭证状态 chip：一键跳到设置页对应抽屉，省去「去设置里找哪一页」的来回
-        root.setOnCloudGameClickListener(username ->
-                openCredentialPane(username, SettingsFragment.PANE_CLOUD_GAME));
-        root.setOnSklandClickListener(username ->
-                openCredentialPane(username, SettingsFragment.PANE_SKLAND));
+        // 凭证入口：一键跳到设置页配置该账号，省去「去设置里找哪一页」的来回
+        root.setOnCredentialClickListener(this::onCredentialClick);
 
         // 页眉日期 chip：MM/dd 周几（与设计稿一致）
         root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
@@ -168,28 +167,65 @@ public class UserManagementFragment implements PageController {
         TaskSettings settings = TaskSettings.fromPreferences(getContext());
         List<UserCardRow> rows = new ArrayList<>(users.size());
         for (String username : users) {
-            Credential cloud = cloudGameCredential(settings, username, isOversea);
-            Credential skland = sklandCredential(settings, username);
             rows.add(new UserCardRow(
                     username,
                     activity.getString(R.string.user_label_with_server, username, serverType),
                     // 当前用户标注「默认」chip（设计稿语义）
                     username.equals(currentUsername),
-                    cloud.label, cloud.ready,
-                    skland.label, skland.ready));
+                    credentialChip(settings, username, isOversea)));
         }
         screenView.setUsers(rows);
     }
 
-    /** 一张用户卡上的单项凭证状态：展示文案 + 是否就绪（决定 chip 配色）。 */
+    /**
+     * 一张用户卡上的单项凭证状态：名称 + 状态文案 + 是否就绪 + 进度计数。
+     * 返回 null 表示「该功能未开启，卡片上不显示这一项」。
+     *
+     * <p>{@code total} 恒 ≥ 1：功能开着就等于「有一条凭证待配」。云游戏开了总开关却没勾
+     * 任何游戏时若记 0，汇总就会把这一项从分母里抹掉——配齐森空岛后显示「凭证 1/1」，
+     * 而云游戏其实一条都没配，用户会以为已经全部就绪。</p>
+     */
     private static final class Credential {
-        final String label;
+        /** 「云游戏」/「森空岛」 */
+        final String name;
+        /** 「已配置」/「未配置」/「1/2」 */
+        final String status;
         final boolean ready;
+        /** 该项下的凭证条数与已配好条数，用于两功能合并后的「n/m」汇总。 */
+        final int configured;
+        final int total;
 
-        Credential(String label, boolean ready) {
-            this.label = label;
+        Credential(String name, String status, boolean ready, int configured, int total) {
+            this.name = name;
+            this.status = status;
             this.ready = ready;
+            this.configured = configured;
+            this.total = total;
         }
+    }
+
+    /**
+     * 把两项合并成卡片上的唯一一枚凭证入口。
+     *
+     * <p>只开一个功能时沿用该项的具体文案（「云游戏 1/2」），点了直接进对应抽屉；
+     * 两个都开时压成汇总（「凭证 3/3」/「凭证 待配 2」），点开由 {@link #onCredentialClick}
+     * 先让用户选。两个都没开则返回 null，卡片上整项不渲染。</p>
+     */
+    private CredentialChipRow credentialChip(TaskSettings settings, String username, boolean isOversea) {
+        Credential cloud = cloudGameCredential(settings, username, isOversea);
+        Credential skland = sklandCredential(settings, username);
+        if (cloud == null && skland == null) return null;
+        if (cloud == null || skland == null) {
+            Credential only = cloud != null ? cloud : skland;
+            return new CredentialChipRow(formatCredential(only.name, only.status), only.ready);
+        }
+        int done = cloud.configured + skland.configured;
+        int total = cloud.total + skland.total;
+        boolean allReady = total > 0 && done >= total;
+        String label = allReady
+                ? activity.getString(R.string.credential_chip_ready, done, total)
+                : activity.getString(R.string.credential_chip_pending, Math.max(total - done, 0));
+        return new CredentialChipRow(label, allReady);
     }
 
     /**
@@ -199,32 +235,38 @@ public class UserManagementFragment implements PageController {
      * 开了但该账号没配显示「未配置」，配齐显示「已配置」，部分配置给出 n/m 进度。
      */
     private Credential cloudGameCredential(TaskSettings settings, String username, boolean isOversea) {
+        // 功能没开就别在卡片上占位：返回 null，Compose 侧整项不渲染
+        if (!settings.isCloudGameEnabled()) return null;
         String name = activity.getString(R.string.user_cred_cloud_game);
-        if (!settings.isCloudGameEnabled())
-            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_disabled)), false);
         String[] games = settings.getCloudGames();
+        // 开了总开关却没勾游戏：仍占 1 条待配名额，否则汇总会把它从分母里漏掉
         if (games == null || games.length == 0)
-            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_missing)), false);
+            return new Credential(
+                    name, activity.getString(R.string.user_cred_missing), false, 0, 1);
         int ready = 0;
         for (String game : games) {
             if (CloudGameDaily.isValidToken(
                     tools.read(getContext(), username, CloudGameDaily.tokenKey(game, isOversea)))) ready++;
         }
         if (ready == games.length)
-            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_ready)), true);
+            return new Credential(
+                    name, activity.getString(R.string.user_cred_ready),
+                    true, ready, games.length);
         return new Credential(
-                formatCredential(name, activity.getString(R.string.user_cred_partial, ready, games.length)), false);
+                name, activity.getString(R.string.user_cred_partial, ready, games.length),
+                false, ready, games.length);
     }
 
     /** 森空岛凭证状态（两款游戏共用同一个 token，状态必然一致）。 */
     private Credential sklandCredential(TaskSettings settings, String username) {
+        // 同上：两个子游戏都没勾选时这一项没有意义
+        if (!settings.isSklandArknightsEnabled() && !settings.isSklandEndfieldEnabled()) return null;
         String name = activity.getString(R.string.user_cred_skland);
-        if (!settings.isSklandArknightsEnabled() && !settings.isSklandEndfieldEnabled())
-            return new Credential(formatCredential(name, activity.getString(R.string.user_cred_disabled)), false);
         boolean ready = SklandDaily.isValidToken(tools.read(getContext(), username, SKLAND_COOKIE));
         return new Credential(
-                formatCredential(name, activity.getString(
-                        ready ? R.string.user_cred_ready : R.string.user_cred_missing)), ready);
+                name,
+                activity.getString(ready ? R.string.user_cred_ready : R.string.user_cred_missing),
+                ready, ready ? 1 : 0, 1);
     }
 
     private String formatCredential(String name, String status) {
@@ -232,25 +274,46 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 点凭证 chip：先把当前账号切到这张卡的用户，再跳设置页展开对应抽屉。
+     * 点凭证入口：只开一个功能时直达对应抽屉，两个都开时先让用户选要配哪一项。
      *
-     * <p>必须先切账号——凭证按账号存放，不切就会把 token 配到另一个人名下。
-     * 任务运行中禁止切换，与其它用户操作同口径（运行时 userId 已固定在任务执行器里）。
+     * <p>业务判断留在 Java 侧，Compose 只上报被点的用户名。</p>
      */
-    private void openCredentialPane(String username, int pane) {
-        if (isTaskRunning()) {
-            showCustomSnackbar(screenView, getContext(),
-                    activity.getString(R.string.snack_task_running_cannot_switch));
+    private void onCredentialClick(String username) {
+        TaskSettings settings = TaskSettings.fromPreferences(getContext());
+        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        Credential cloud = cloudGameCredential(settings, username, isOversea);
+        Credential skland = sklandCredential(settings, username);
+        // 两个都开才需要选。弹窗条目带该项自身状态（「云游戏 · 未配置」「森空岛 · 已配置」），
+        // 汇总 chip 只显示「待配 N」看不出缺哪一项，这里补上。
+        if (cloud != null && skland != null) {
+            VenusDialogs.items(
+                    activity,
+                    activity.getString(R.string.credential_choose_pane),
+                    Arrays.asList(credentialOption(cloud), credentialOption(skland)),
+                    index -> openCredentialPane(username,
+                            index == 0 ? SettingsFragment.PANE_CLOUD_GAME : SettingsFragment.PANE_SKLAND),
+                    activity.getString(R.string.btn_cancel));
             return;
         }
-        if (!username.equals(userManager.getCurrentUser())) {
-            userManager.setCurrentUser(username);
-            // 立刻回灌首页：账号行不经过 ViewModel 的 UiState，不在这里通知的话，
-            // 用户切回首页时会先看到上一个账号的名字
-            activity.onCurrentUserChanged();
-            refreshUserList(); // 「默认」chip 与状态跟着换位
-        }
-        activity.openSettingsPane(pane);
+        if (cloud == null && skland == null) return;
+        openCredentialPane(username,
+                cloud != null ? SettingsFragment.PANE_CLOUD_GAME : SettingsFragment.PANE_SKLAND);
+    }
+
+    /** 弹窗条目：`云游戏 · 未配置` / `森空岛 · 1/2`，一目了然该配哪一项。 */
+    private String credentialOption(Credential credential) {
+        return activity.getString(R.string.credential_dialog_item, credential.name, credential.status);
+    }
+
+    /**
+     * 把这张卡的用户作为「凭证配置目标账号」交给设置页，展开对应抽屉。
+     *
+     * <p>不再切换全局当前账号：设置页的凭证抽屉自带目标账号，读写都按它走。
+     * 切账号会连带首页数据与任务上下文一起变，代价远大于收益；
+     * 目标账号只对这一次跳转有效，设置页 {@code show()} 时即复位。</p>
+     */
+    private void openCredentialPane(String username, int pane) {
+        activity.openSettingsPane(pane, username);
     }
 
     /** 信息行点击 = 重命名（设计稿无独立重命名按钮，保留原入口能力）。 */

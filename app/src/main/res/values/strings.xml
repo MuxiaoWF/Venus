@@ -291,7 +291,6 @@
     <string name="snack_task_running_cannot_relogin">任务运行中，无法重新登录</string>
     <string name="snack_task_running_cannot_rename">任务运行中，无法重命名用户</string>
     <string name="snack_task_running_cannot_delete">任务运行中，无法删除用户</string>
-    <string name="snack_task_running_cannot_switch">任务运行中，无法切换用户</string>
     <string name="snack_username_exists">用户名已存在</string>
     <string name="snack_user_renamed">用户已重命名为: %s</string>
     <string name="snack_user_deleted">用户已删除: %s</string>
@@ -677,4 +676,19 @@
     <string name="fullscreen_info_expand">展开信息</string>
     <string name="fullscreen_info_collapse">收起信息</string>
     <string name="fullscreen_page_indicator">%1$d / %2$d</string>
+    <!-- 凭证抽屉：从用户管理页指定了「非当前账号」时的归属提示 -->
+    <string name="credential_account_other">正在配置：%1$s（非当前账号）</string>
+    <string name="credential_account_status_other">正在配置：%1$s（非当前账号）· %2$s</string>
+    <!-- 用户卡：云游戏/森空岛合并成一枚凭证入口 -->
+    <string name="credential_chip_ready">凭证 %1$d/%2$d</string>
+    <string name="credential_chip_pending">凭证 待配 %1$d</string>
+    <string name="credential_choose_pane">配置哪一项凭证？</string>
+    <!-- 用户卡：凭证选择弹窗的条目，带该项自身状态，便于看出哪一项还没配 -->
+    <string name="credential_dialog_item">%1$s · %2$s</string>
+    <!-- 登录页：可选头像 -->
+    <string name="login_avatar_label">头像</string>
+    <string name="login_avatar_hint">选填，登录成功后应用到这个账号</string>
+    <string name="login_avatar_picked">已选择，登录成功后应用</string>
+    <string name="login_avatar_pick">选择</string>
+    <string name="login_avatar_clear">清除</string>
 </resources>

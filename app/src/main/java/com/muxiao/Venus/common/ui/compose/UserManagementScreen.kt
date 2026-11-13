@@ -62,13 +62,26 @@ class UserCardRow(
     val displayName: String,
     /** 当前默认账号：名称后显示「默认」chip。 */
     val isDefault: Boolean,
-    /** 云游戏凭证状态文案（「1/2」「未配置」「未开启」），点击 chip 直达该账号的配置。 */
-    val cloudGameLabel: String = "",
-    /** 云游戏凭证是否全部就绪（决定 chip 配色，与功能开关无关）。 */
-    val cloudGameReady: Boolean = false,
-    /** 森空岛凭证状态文案。 */
-    val sklandLabel: String = "",
-    val sklandReady: Boolean = false,
+    /**
+     * 凭证入口（云游戏 + 森空岛合并为一枚）；null = 两个功能都没开启，卡片上不出现。
+     *
+     * <p>合并的动机：两项分别列胶囊时，卡片里会并排出现两枚状态块，
+     * 与「头像 + 名称 + 已登录」的信息层级打架；合并后无论启用几个功能都只占一枚。</p>
+     */
+    val credential: CredentialChipRow? = null,
+)
+
+/**
+ * 用户卡上的凭证入口数据。
+ *
+ * @param label 由 Java 侧拼好：只开一个功能时是该功能的具体状态（「云游戏 1/2」），
+ *              两个都开时是汇总（「凭证 3/3」/「凭证 待配 2」）
+ * @param ready 是否全部就绪（决定配色，不代表能不能点）
+ */
+@Immutable
+class CredentialChipRow(
+    val label: String,
+    val ready: Boolean,
 )
 
 /**
@@ -118,8 +131,7 @@ fun UserManagementScreen(
     onRenameClick: (String) -> Unit,
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
-    onCloudGameClick: (String) -> Unit,
-    onSklandClick: (String) -> Unit,
+    onCredentialClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -172,8 +184,7 @@ fun UserManagementScreen(
                         onRenameClick = onRenameClick,
                         onReloginClick = onReloginClick,
                         onDeleteClick = onDeleteClick,
-                        onCloudGameClick = onCloudGameClick,
-                        onSklandClick = onSklandClick,
+                        onCredentialClick = onCredentialClick,
                         // 结构性增删/重排的让位动画：与 View 侧 LayoutTransition 同一用途。
                         // 「减少动态效果」下不挂，避免列表整体位移。
                         modifier = Modifier
@@ -260,8 +271,7 @@ private fun UserCard(
     onRenameClick: (String) -> Unit,
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
-    onCloudGameClick: (String) -> Unit,
-    onSklandClick: (String) -> Unit,
+    onCredentialClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -318,10 +328,9 @@ private fun UserCard(
                         if (user.isDefault) DefaultChip()
                     }
                     LoggedInStatus()
-                    CredentialChips(
+                    CredentialEntry(
                         user = user,
-                        onCloudGameClick = onCloudGameClick,
-                        onSklandClick = onSklandClick,
+                        onClick = { onCredentialClick(user.username) },
                     )
                 }
 
@@ -365,29 +374,18 @@ private fun UserCard(
     }
 }
 
-/**
- * 凭证状态 chip 组：云游戏 / 森空岛。
- *
- * 点 chip 即跳到设置页对应抽屉并展开——让「看到某账号没配」和「去配」之间没有断点。
- * 两个 chip 独立可点，与卡片信息行（整行点击 = 重命名）互不干扰：内层 clickable 优先消费。
- */
+/** 卡片上的凭证入口：最多一枚。 */
 @Composable
-private fun CredentialChips(
+private fun CredentialEntry(
     user: UserCardRow,
-    onCloudGameClick: (String) -> Unit,
-    onSklandClick: (String) -> Unit,
+    onClick: () -> Unit,
 ) {
+    val credential = user.credential ?: return
     Row(modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2))) {
         CredentialChip(
-            label = user.cloudGameLabel,
-            ready = user.cloudGameReady,
-            onClick = { onCloudGameClick(user.username) },
-        )
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.space_2)))
-        CredentialChip(
-            label = user.sklandLabel,
-            ready = user.sklandReady,
-            onClick = { onSklandClick(user.username) },
+            label = credential.label,
+            ready = credential.ready,
+            onClick = onClick,
         )
     }
 }
@@ -519,8 +517,7 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
     private var onRenameClickListener: UsernameConsumer? = null
     private var onReloginClickListener: UsernameConsumer? = null
     private var onDeleteClickListener: UsernameConsumer? = null
-    private var onCloudGameClickListener: UsernameConsumer? = null
-    private var onSklandClickListener: UsernameConsumer? = null
+    private var onCredentialClickListener: UsernameConsumer? = null
 
     @Composable
     override fun Content() {
@@ -532,8 +529,7 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
                 onRenameClick = { onRenameClickListener?.accept(it) },
                 onReloginClick = { onReloginClickListener?.accept(it) },
                 onDeleteClick = { onDeleteClickListener?.accept(it) },
-                onCloudGameClick = { onCloudGameClickListener?.accept(it) },
-                onSklandClick = { onSklandClickListener?.accept(it) },
+                onCredentialClick = { onCredentialClickListener?.accept(it) },
             )
         }
     }
@@ -588,14 +584,14 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
         onDeleteClickListener = listener
     }
 
-    /** 点云游戏凭证 chip：跳设置页「云游戏签到」抽屉。 */
-    fun setOnCloudGameClickListener(listener: UsernameConsumer?) {
-        onCloudGameClickListener = listener
-    }
-
-    /** 点森空岛凭证 chip：跳设置页「森空岛签到」抽屉。 */
-    fun setOnSklandClickListener(listener: UsernameConsumer?) {
-        onSklandClickListener = listener
+    /**
+     * 点凭证入口：跳设置页完成该账号的凭证配置。
+     *
+     * <p>只开一个功能时直达对应抽屉；两个都开时由 Java 侧先弹「云游戏 / 森空岛」选择——
+     * 这些业务判断不进 UI 层。</p>
+     */
+    fun setOnCredentialClickListener(listener: UsernameConsumer?) {
+        onCredentialClickListener = listener
     }
 }
 
@@ -609,11 +605,9 @@ private fun UserManagementScreenPreview() {
                 subtitle = "管理登录账号 · 共 2 个账号"
                 users = listOf(
                     UserCardRow("muxiao", "muxiao · 国服", true,
-                        cloudGameLabel = "云游戏 2/2", cloudGameReady = true,
-                        sklandLabel = "森空岛 已配置", sklandReady = true),
+                        credential = CredentialChipRow("凭证 3/3", true)),
                     UserCardRow("venus", "venus · 国际服", false,
-                        cloudGameLabel = "云游戏 未配置",
-                        sklandLabel = "森空岛 未开启"),
+                        credential = CredentialChipRow("凭证 待配 2", false)),
                 )
             },
             onAddUserClick = {},
@@ -621,8 +615,7 @@ private fun UserManagementScreenPreview() {
             onRenameClick = {},
             onReloginClick = {},
             onDeleteClick = {},
-            onCloudGameClick = {},
-            onSklandClick = {},
+            onCredentialClick = {},
         )
     }
 }
@@ -642,8 +635,7 @@ private fun UserManagementScreenEmptyPreview() {
             onRenameClick = {},
             onReloginClick = {},
             onDeleteClick = {},
-            onCloudGameClick = {},
-            onSklandClick = {},
+            onCredentialClick = {},
         )
     }
 }

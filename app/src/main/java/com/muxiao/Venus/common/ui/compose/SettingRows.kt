@@ -386,6 +386,7 @@ internal fun SettingHint(
     modifier: Modifier = Modifier,
     tone: SettingTone = SettingTone.Info,
     maxLines: Int = 4,
+    textAlign: TextAlign = TextAlign.Start,
 ) {
     Text(
         text = text,
@@ -393,6 +394,7 @@ internal fun SettingHint(
         color = settingToneColor(tone),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
+        textAlign = textAlign,
         modifier = modifier.fillMaxWidth(),
     )
 }
