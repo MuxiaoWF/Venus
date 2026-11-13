@@ -58,7 +58,8 @@
 
         <activity
             android:name=".Setting.FullscreenImageActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.Venus.Fullscreen" />
         <activity
             android:name=".Setting.ImageActivity"
             android:exported="false" />

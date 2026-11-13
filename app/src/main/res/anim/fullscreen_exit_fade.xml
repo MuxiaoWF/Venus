@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  全屏看图的退出转场：淡出 + 轻微缩小。
+
+  为什么需要它：Activity 的默认退出是系统横向转场（页面向侧边滑出），
+  而本页的主要退出方式是「向下拖」，方向相反，收尾时会看到页面往侧边甩出去，
+  与手势过程割裂。统一改为淡出缩小后：
+  - 下拉关闭：本页已先把内容滑出屏幕（见 FullscreenImageScreen 的 dismiss 动画），
+    这里只负责让剩余的黑底淡掉，衔接图库页；
+  - 点返回 / 系统返回：整页淡出缩小，与进入时的 makeScaleUpAnimation（从缩略图放大）对称。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@anim/emphasized_accelerate">
+    <alpha
+        android:duration="140"
+        android:fromAlpha="1.0"
+        android:toAlpha="0.0" />
+    <scale
+        android:duration="140"
+        android:fromXScale="1.0"
+        android:fromYScale="1.0"
+        android:pivotX="50%"
+        android:pivotY="50%"
+        android:toXScale="0.96"
+        android:toYScale="0.96" />
+</set>

@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -102,6 +105,25 @@ fun ImageCard(
                     imageUrl = imageUrl,
                     modifier = Modifier.fillMaxSize(),
                 )
+                // 选中徽标：原先只有主色描边，缩略图占满时几乎看不出是否已选
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(dimensionResource(R.dimen.space_1))
+                            .size(dimensionResource(R.dimen.icon_badge_sm))
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_check),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
             Text(

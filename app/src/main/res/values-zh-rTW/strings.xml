@@ -658,4 +658,15 @@
 
     <string name="password_show">顯示密碼</string>
     <string name="password_hide">隱藏密碼</string>
+    <!-- 圖庫 / 全螢幕看圖（重繪） -->
+    <string name="action_cancel">取消</string>
+    <string name="action_retry">重試</string>
+    <string name="gallery_empty">這裡還沒有圖片</string>
+    <string name="gallery_empty_hint">換個分類或榜單試試</string>
+    <string name="gallery_selected_count">已選 %1$d 項</string>
+    <string name="gallery_downloading">下載中 %1$d / %2$d</string>
+    <string name="fullscreen_load_failed">圖片載入失敗</string>
+    <string name="fullscreen_info_expand">展開資訊</string>
+    <string name="fullscreen_info_collapse">收起資訊</string>
+    <string name="fullscreen_page_indicator">%1$d / %2$d</string>
 </resources>

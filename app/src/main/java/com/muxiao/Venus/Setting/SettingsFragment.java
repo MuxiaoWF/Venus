@@ -64,6 +64,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.annotation.StyleRes;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
 
@@ -882,7 +883,18 @@ public class SettingsFragment implements PageController {
      * 必须在 setContentView 之前调用。
      */
     public static void applyAppTheme(Activity activity) {
-        activity.setTheme(R.style.Theme_Venus);
+        applyAppTheme(activity, R.style.Theme_Venus);
+    }
+
+    /**
+     * 指定基础主题的版本：窗口级属性（如 {@code android:windowIsTranslucent}）只能由主题提供，
+     * 而 {@link #applyAppTheme(Activity)} 固定 setTheme(Theme_Venus) 会抹掉 manifest 上的主题，
+     * 所以需要透明窗口的页面（全屏看图）走这个重载，配色 overlay 的叠加逻辑完全一致。
+     *
+     * @param baseTheme 基础主题资源，如 {@code R.style.Theme_Venus_Fullscreen}
+     */
+    public static void applyAppTheme(Activity activity, @StyleRes int baseTheme) {
+        activity.setTheme(baseTheme);
         int index = getSelectedThemeIndex(activity);
         if (index >= 0 && index < COLOR_OVERLAYS.length) {
             int overlay = COLOR_OVERLAYS[index];

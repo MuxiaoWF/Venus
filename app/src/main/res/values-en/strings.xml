@@ -669,4 +669,15 @@
 
     <string name="password_show">Show password</string>
     <string name="password_hide">Hide password</string>
+    <!-- Gallery / fullscreen viewer (redesign) -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Retry</string>
+    <string name="gallery_empty">No images here yet</string>
+    <string name="gallery_empty_hint">Try another category or ranking</string>
+    <string name="gallery_selected_count">%1$d selected</string>
+    <string name="gallery_downloading">Downloading %1$d / %2$d</string>
+    <string name="fullscreen_load_failed">Failed to load image</string>
+    <string name="fullscreen_info_expand">Show info</string>
+    <string name="fullscreen_info_collapse">Hide info</string>
+    <string name="fullscreen_page_indicator">%1$d / %2$d</string>
 </resources>

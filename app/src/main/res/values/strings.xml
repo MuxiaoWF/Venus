@@ -666,4 +666,15 @@
 
     <string name="password_show">显示密码</string>
     <string name="password_hide">隐藏密码</string>
+    <!-- 图库 / 全屏看图（重绘）：通用动作与状态文案 -->
+    <string name="action_cancel">取消</string>
+    <string name="action_retry">重试</string>
+    <string name="gallery_empty">这里还没有图片</string>
+    <string name="gallery_empty_hint">换个分类或榜单试试</string>
+    <string name="gallery_selected_count">已选 %1$d 项</string>
+    <string name="gallery_downloading">下载中 %1$d / %2$d</string>
+    <string name="fullscreen_load_failed">图片加载失败</string>
+    <string name="fullscreen_info_expand">展开信息</string>
+    <string name="fullscreen_info_collapse">收起信息</string>
+    <string name="fullscreen_page_indicator">%1$d / %2$d</string>
 </resources>

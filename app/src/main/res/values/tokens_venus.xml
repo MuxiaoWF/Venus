@@ -67,6 +67,11 @@
     <dimen name="drawer_content_bottom">16dp</dimen>
     <dimen name="icon_badge_lg">48dp</dimen>         <!-- 状态卡/空态大徽标 -->
     <dimen name="icon_badge_md">32dp</dimen>         <!-- 行内中号徽标 -->
+    <dimen name="icon_badge_sm">22dp</dimen>         <!-- 缩略图角标（多选勾选圆） -->
+    <!-- 图库页玻璃顶栏 / 筛选 chip / 骨架卡 -->
+    <dimen name="gallery_chip_height">32dp</dimen>
+    <dimen name="gallery_bar_corner">20dp</dimen>
+    <dimen name="gallery_skeleton_height">200dp</dimen>
     <dimen name="icon_avatar_md">40dp</dimen>        <!-- 用户头像中号 -->
 
     <!-- ========== 5. 字体层级（强制走 TextAppearance.Venus.*，禁止裸 ?attr） ========== -->

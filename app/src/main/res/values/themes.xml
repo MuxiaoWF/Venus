@@ -50,6 +50,17 @@
          修正原先固定 Theme.AppCompat.Light 导致的夜间闪白。 -->
     <style name="Theme.Venus.UCrop" parent="Theme.Venus" />
 
+    <!-- 全屏看图：窗口透明，让下拉关闭时下方图库页逐渐透出（iOS 式收尾）。
+         windowIsTranslucent 只能由主题提供（不是 Window flag），而 SettingsFragment.applyAppTheme
+         会 setTheme(Theme.Venus) 把 manifest 上的主题覆盖掉，所以这里作为独立基主题存在，
+         由 applyAppTheme(activity, R.style.Theme_Venus_Fullscreen) 指定。
+         窗口透明后，内容未绘制前的短暂空窗也能看到下层，不会闪黑。 -->
+    <style name="Theme.Venus.Fullscreen" parent="Theme.Venus">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
     <!-- 蓝色主题 -->
     <style name="ThemeOverlay.Venus.Blue" parent="Theme.Venus">
         <item name="colorPrimary">@color/blue_theme_primary</item>

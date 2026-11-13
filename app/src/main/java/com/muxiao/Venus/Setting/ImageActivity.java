@@ -113,6 +113,7 @@ public class ImageActivity extends BaseActivity {
     private String currentCategoryId = ""; // 当前分类ID
     private boolean isUpdatingInternal = false; // 是否正在内部更新
     private int pendingTabPosition = -1; // 待处理的Tab位置
+    private int currentTabPosition = 0; // 当前已生效的榜单Tab下标（空态重试要按它重新拉取）
     private int[] currentListTypes = new int[0]; // 当前可用的榜单类型
 
     // 缓存机制
@@ -160,6 +161,8 @@ public class ImageActivity extends BaseActivity {
         pane.setOnItemLongClickListener(this::onItemLongClick);
         pane.setOnDownloadClickListener(this::onDownloadClick);
         pane.setOnBackClickListener(this::handleBack);
+        pane.setOnCancelSelectionListener(this::exitSelectionMode);
+        pane.setOnRetryClickListener(this::retryCurrentList);
 
         // 返回键处理
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -172,6 +175,24 @@ public class ImageActivity extends BaseActivity {
         // 默认加载首个游戏的榜单数据（原 setupListenersAndLoadData 的收尾动作）
         isUpdatingInternal = true;
         handleForumSelection(forumNames[0]);
+    }
+
+    /**
+     * 空态「重试」：按当前分类与榜单重新拉取。
+     * 先清 lastLoadedParams，否则 loadImages 会因「参数与上次相同」直接短路。
+     */
+    private void retryCurrentList() {
+        if (currentCategoryId == null || currentCategoryId.isEmpty() || currentListTypes.length == 0) {
+            // 连分类都没拿到：从游戏维度重来一遍（会重建分类与榜单类型）
+            handleForumSelection(forumNames[0]);
+            return;
+        }
+        int position = Math.min(Math.max(currentTabPosition, 0), currentListTypes.length - 1);
+        Map<String, String> params = new HashMap<>();
+        params.put("forum_id", currentCategoryId);
+        params.put("type", String.valueOf(currentListTypes[position]));
+        lastLoadedParams = null;
+        loadImages(params);
     }
 
     /** 返回：多选态先退出多选，否则关闭页面。 */
@@ -213,6 +234,7 @@ public class ImageActivity extends BaseActivity {
             return;
         }
         if (position < 0 || position >= currentListTypes.length) return;
+        currentTabPosition = position;
         Map<String, String> params = new HashMap<>();
         params.put("forum_id", currentCategoryId);
         params.put("type", String.valueOf(currentListTypes[position]));
@@ -315,6 +337,7 @@ public class ImageActivity extends BaseActivity {
         currentListTypes = listTypes;
         int targetPosition = Math.min(Math.max(pendingTabPosition, 0), Math.max(listTypes.length - 1, 0));
         pendingTabPosition = -1;
+        currentTabPosition = targetPosition;
 
         List<String> labels = new ArrayList<>(listTypes.length);
         for (int serverType : listTypes) labels.add(tabLabel(serverType));
@@ -350,6 +373,7 @@ public class ImageActivity extends BaseActivity {
         if (params.equals(lastLoadedParams) || isLoading) return;
 
         isLoading = true;
+        if (pane != null) pane.setLoading(true);
         lastLoadedParams = new HashMap<>(params);
 
         // 生成缓存键并检查缓存
@@ -359,6 +383,7 @@ public class ImageActivity extends BaseActivity {
             mainHandler.post(() -> {
                 renderItems();
                 isLoading = false;
+                if (pane != null) pane.setLoading(false);
             });
             return;
         }
@@ -395,6 +420,7 @@ public class ImageActivity extends BaseActivity {
                 mainHandler.post(() -> {
                     renderItems();
                     isLoading = false;
+                    if (pane != null) pane.setLoading(false);
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
@@ -404,6 +430,7 @@ public class ImageActivity extends BaseActivity {
                         isLoading = false;
                         return;
                     }
+                    if (pane != null) pane.setLoading(false);
                     show_error_dialog(ImageActivity.this, getString(R.string.err_load_failed, tools.describeError(e)));
                     isLoading = false;
                 });
@@ -493,8 +520,18 @@ public class ImageActivity extends BaseActivity {
         Intent intent = new Intent(this, FullscreenImageActivity.class);
         intent.putExtra("imageDataListJson", new Gson().toJson(List.of(imageDataList.get(position))));
         intent.putExtra("position", 0);
-        Bundle options = ActivityOptionsCompat.makeCustomAnimation(this,
-                android.R.anim.fade_in, android.R.anim.fade_out).toBundle();
+        // 转场：从被点卡片的矩形放大（原先是共享元素 transitionName + 整页淡入）。
+        // 卡片是 Compose 节点、没有对应 View，故由 ImageScreen 上报点击时的窗口矩形，
+        // 用 makeScaleUpAnimation 以 decor 为参照做同视觉的放大；缺坐标时退回淡入。
+        int[] bounds = pane == null ? null : pane.getLastClickBounds();
+        Bundle options;
+        if (bounds != null && bounds.length == 4 && bounds[2] > 0 && bounds[3] > 0) {
+            options = ActivityOptionsCompat.makeScaleUpAnimation(
+                    getWindow().getDecorView(), bounds[0], bounds[1], bounds[2], bounds[3]).toBundle();
+        } else {
+            options = ActivityOptionsCompat.makeCustomAnimation(this,
+                    android.R.anim.fade_in, android.R.anim.fade_out).toBundle();
+        }
         startActivity(intent, options);
     }
 
@@ -521,6 +558,7 @@ public class ImageActivity extends BaseActivity {
             downloadProgress = 0;
             currentPostIndex = 0;
             currentImageIndexInPost = 0;
+            if (pane != null) pane.setDownloadProgress(0, totalDownloads);
             downloadImage();
         }
     }
@@ -545,6 +583,7 @@ public class ImageActivity extends BaseActivity {
      */
     private void downloadImage() {
         if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
+            if (pane != null) pane.setDownloadProgress(0, 0);
             showCustomSnackbar(this, getString(R.string.snack_download_complete));
             exitSelectionMode();
             return;
@@ -555,6 +594,7 @@ public class ImageActivity extends BaseActivity {
         while (currentImageIndexInPost >= currentPostImages.size()) {
             if (currentPostIndex >= itemsToDownload.size()) {
                 // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
+                if (pane != null) pane.setDownloadProgress(0, 0);
                 showCustomSnackbar(this, getString(R.string.snack_download_complete));
                 exitSelectionMode();
                 return;
@@ -579,6 +619,7 @@ public class ImageActivity extends BaseActivity {
                     mainHandler.post(() -> {
                         downloadProgress++;
                         currentImageIndexInPost++;
+                        if (pane != null) pane.setDownloadProgress(downloadProgress, totalDownloads);
                         downloadImage();
                     });
                 });
@@ -594,6 +635,7 @@ public class ImageActivity extends BaseActivity {
                 downloadTarget = null;
                 downloadProgress++;
                 currentImageIndexInPost++;
+                if (pane != null) pane.setDownloadProgress(downloadProgress, totalDownloads);
                 downloadImage();
             }
         };

@@ -16,12 +16,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
-import android.graphics.ImageDecoder;
-import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -372,9 +366,11 @@ public class MainActivity extends BaseActivity {
 
         com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
             String error = null;
-            Bitmap source = null;
+            Bitmap composited = null;
             try {
-                source = getBitmapFromUri(backgroundImageUri);
+                // 解码 + 淡化 + 掺合一次性在后台算好（管线已抽到 AppBackground，供其它页面复用）
+                composited = com.muxiao.Venus.common.AppBackground.loadComposited(
+                        MainActivity.this, backgroundImageUri, backgroundPreset, backgroundAlpha, surfaceColor);
             } catch (SecurityException e) {
                 // 权限不足，清除背景设置
                 getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
@@ -387,10 +383,7 @@ public class MainActivity extends BaseActivity {
                 error = getString(R.string.err_background_setup_error,
                         e.getMessage() != null ? e.getMessage() : e.toString());
             }
-            // 预合成在后台一次算好：纯位图运算，无版本兼容问题
-            final Bitmap composited = source != null
-                    ? createCompositedBitmap(source, backgroundPreset, backgroundAlpha, surfaceColor)
-                    : null;
+            final Bitmap result = composited;
             final String errorMsg = error;
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
@@ -401,7 +394,7 @@ public class MainActivity extends BaseActivity {
                 }
                 // 发布背景位图：玻璃采样源子树的背景 Image 同帧入画（GraphicsLayer 录制）
                 // 淡化已全部烘进位图：背景层恒为全不透明，绝不再叠加 alpha
-                shell.publishBackground(composited);
+                shell.publishBackground(result);
             });
         });
     }
@@ -435,95 +428,6 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    /**
-     * 淡化风格预设：每档 {饱和度, 亮度偏移(0~1), 对比度}。亮度方向随昼夜翻转——
-     * 浅色模式提亮（向主题浅底融合），深色模式压暗（向主题深底融合），
-     * 避免深色模式下背景刺眼、浅色模式下背景发闷。
-     * 淡化只过一遍位图（预合成），三档从「水彩」到「接近原图」拉开明显差距：
-     * 轻盈大幅降饱和降对比，浓郁保持全饱和并轻微提升对比。
-     */
-    private static final float[][] BACKGROUND_PRESETS = {
-            {0.25f, 0.15f, 0.85f},  // 0 轻盈：水彩感
-            {0.60f, 0.06f, 0.95f},  // 1 标准（默认）：柔和
-            {1.00f, 0.00f, 1.10f},  // 2 浓郁：接近原图
-    };
-
-    /**
-     * 预合成：降饱和 + 亮度偏移（ColorMatrix）→ 与主题底色按图片权重一次性掺合。
-     * 输出为全不透明位图（out = 预处理图 × w + 底色 × (1-w)），背景层直接铺满即可，
-     * 不再依赖视图 alpha——那是此前「发蒙 + 预设无感」的根源。
-     */
-    private Bitmap createCompositedBitmap(Bitmap source, int presetIndex, float imageWeight,
-            int surfaceColor) {
-        float[] preset = BACKGROUND_PRESETS[
-                Math.max(0, Math.min(presetIndex, BACKGROUND_PRESETS.length - 1))];
-        boolean darkMode = (getResources().getConfiguration()
-                .uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
-                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-
-        ColorMatrix saturation = new ColorMatrix();
-        saturation.setSaturation(preset[0]);
-        float translate = (darkMode ? -1f : 1f) * preset[1] * 255f;
-        ColorMatrix brightness = new ColorMatrix(new float[]{
-                1, 0, 0, 0, translate,
-                0, 1, 0, 0, translate,
-                0, 0, 1, 0, translate,
-                0, 0, 0, 1, 0
-        });
-        float contrast = preset[2];
-        ColorMatrix contrastMatrix = new ColorMatrix(new float[]{
-                contrast, 0, 0, 0, (1 - contrast) * 128f,
-                0, contrast, 0, 0, (1 - contrast) * 128f,
-                0, 0, contrast, 0, (1 - contrast) * 128f,
-                0, 0, 0, 1, 0
-        });
-        // 依序串联：降饱和 → 提亮/压暗 → 对比度（postConcat 语义为「后乘」，执行顺序按添加顺序）
-        ColorMatrix effect = new ColorMatrix();
-        effect.postConcat(saturation);
-        effect.postConcat(brightness);
-        effect.postConcat(contrastMatrix);
-
-        // 先铺满主题底色，再按图片权重叠上预处理图：out = 预处理图 × w + 底色 × (1-w)。
-        // 单次掺合、全不透明输出——不再有第二层 alpha 叠加。
-        Bitmap src = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                && source.getConfig() == Bitmap.Config.HARDWARE)
-                ? source.copy(Bitmap.Config.ARGB_8888, false) : source;
-        if (src == null) return source;
-        Bitmap out = src.copy(Bitmap.Config.ARGB_8888, true);
-        if (out == null) return src;
-        Canvas canvas = new Canvas(out);
-        canvas.drawColor(surfaceColor);
-        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-        paint.setAlpha(Math.round(Math.max(0f, Math.min(1f, imageWeight)) * 255f));
-        paint.setColorFilter(new ColorMatrixColorFilter(effect));
-        canvas.drawBitmap(src, 0, 0, paint);
-        return out;
-    }
-
-    /**
-     * 按系统版本从 Uri 解码 Bitmap（Android P+ 用 ImageDecoder，自动处理 EXIF 旋转；
-     * 否则 BitmapFactory）。失败时抛出异常，由调用方（后台线程）统一收集并回主线程提示。
-     */
-    private Bitmap getBitmapFromUri(Uri uri) throws Exception {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            // Android 9.0及以上版本使用ImageDecoder。
-            // 必须强制软件内存分配：ImageDecoder 默认可能返回 HARDWARE 位图，
-            // 而后续预合成要在软件 Canvas 上做色彩滤镜重绘，会直接崩溃。
-            return ImageDecoder.decodeBitmap(
-                    ImageDecoder.createSource(getContentResolver(), uri),
-                    (decoder, info, source) ->
-                            decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE)
-            );
-        }
-        // Android 9.0以下版本使用BitmapFactory
-        InputStream inputStream = getContentResolver().openInputStream(uri);
-        if (inputStream == null) return null;
-        Bitmap bitmap;
-        try (InputStream is = inputStream) {
-            bitmap = BitmapFactory.decodeStream(is);
-        }
-        return bitmap;
-    }
 
     /**
      * 读取设置中的自动更新开关，开启时启动 UpdateChecker 检查新版本。

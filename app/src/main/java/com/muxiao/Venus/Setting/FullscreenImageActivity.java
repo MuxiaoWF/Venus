@@ -54,8 +54,9 @@ public class FullscreenImageActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 应用选定的主题（含换肤 overlay）
-        SettingsFragment.applyAppTheme(this);
+        // 应用选定的主题（含换肤 overlay）。这里用透明窗口主题，
+        // 下拉关闭时才能透出下层图库页（见 Theme.Venus.Fullscreen）
+        SettingsFragment.applyAppTheme(this, R.style.Theme_Venus_Fullscreen);
 
         super.onCreate(savedInstanceState);
 
@@ -87,6 +88,22 @@ public class FullscreenImageActivity extends BaseActivity {
 
         // 设置状态栏
         EdgeToEdge.enable(this);
+    }
+
+    /**
+     * 退出转场统一挂在 {@link #finish()} 上：顶栏返回、系统返回键、下拉关闭、异常兜底
+     * 全都走同一条路径，不需要各自再建方法或回调。
+     *
+     * <p>为什么必须覆盖：Activity 默认退场是系统横向滑动，而本页的主要退出手势是「向下拖」，
+     * 方向相反，收尾会看到页面往侧边甩出去。下拉关闭时 Compose 已把内容滑出屏幕
+     * （见 {@code FullscreenImageScreen} 的 dismiss 动画），这里只让残留黑底淡掉，
+     * 两段动画同向，不会割裂。</p>
+     */
+    @SuppressWarnings("deprecation") // API 34+ 仍生效，minSdk 23 只能走它
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(0, R.anim.fullscreen_exit_fade);
     }
 
     /**
@@ -163,6 +180,8 @@ public class FullscreenImageActivity extends BaseActivity {
         String imageUrl = pages.get(currentPosition).getImageUrl();
 
         if (imageUrl != null && !imageUrl.isEmpty()) {
+            // 顶栏下载按钮换成进度环并禁用重复点击，所有收尾分支都要复位
+            pane.setDownloading(true);
             Glide.with(this)
                     .asBitmap()
                     .load(imageUrl)
@@ -179,6 +198,7 @@ public class FullscreenImageActivity extends BaseActivity {
 
                         @Override
                         public void onLoadFailed(Drawable errorDrawable) {
+                            if (pane != null) pane.setDownloading(false);
                             show_error_dialog(FullscreenImageActivity.this, getString(R.string.err_image_load_failed_download));
                         }
                     });
@@ -194,12 +214,16 @@ public class FullscreenImageActivity extends BaseActivity {
         AppExecutors.get().execute(() -> {
             try {
                 com.muxiao.Venus.common.tools.saveBitmapToGallery(this, bitmap, fileName);
-                runOnUiThread(() -> showCustomSnackbar(this,
-                        getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName)));
+                runOnUiThread(() -> {
+                    if (pane != null) pane.setDownloading(false);
+                    showCustomSnackbar(this, getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName));
+                });
             } catch (IOException e) {
-                runOnUiThread(() -> show_error_dialog(this,
-                        getString(R.string.err_save_image_failed,
-                                com.muxiao.Venus.common.tools.describeError(e))));
+                runOnUiThread(() -> {
+                    if (pane != null) pane.setDownloading(false);
+                    show_error_dialog(this, getString(R.string.err_save_image_failed,
+                            com.muxiao.Venus.common.tools.describeError(e)));
+                });
             }
         });
     }
