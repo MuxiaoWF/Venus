@@ -11,14 +11,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import com.google.android.material.color.MaterialColors
 import com.muxiao.Venus.Setting.SettingsFragment
 import com.muxiao.Venus.common.AppBackground
 import com.muxiao.Venus.common.AppExecutors
@@ -45,23 +45,9 @@ fun VenusBackdropHost(
 ) {
     val context = LocalContext.current
     val backdrops = rememberGlassBackdrops()
-    // 主题属性必须在主线程解析（后台读不安全），且要容忍 Preview 缺属性
-    val baseColor = remember(context) {
-        Color(
-            runCatching {
-                MaterialColors.getColor(context, android.R.attr.colorBackground, android.graphics.Color.BLACK)
-            }.getOrDefault(android.graphics.Color.BLACK)
-        )
-    }
-    val surfaceColor = remember(context) {
-        runCatching {
-            MaterialColors.getColor(
-                context,
-                com.google.android.material.R.attr.colorSurface,
-                android.graphics.Color.BLACK,
-            )
-        }.getOrDefault(android.graphics.Color.BLACK)
-    }
+    val baseColor = MaterialTheme.colorScheme.background
+    // Java 侧 loadComposited 需要 ColorInt
+    val surfaceColorArgb = MaterialTheme.colorScheme.surface.toArgb()
 
     var wallpaper by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -74,7 +60,7 @@ fun VenusBackdropHost(
         AppExecutors.get().execute {
             // 失败（权限/解码）时保持 null → 纯色基底，不打断页面
             wallpaper = runCatching {
-                AppBackground.loadComposited(context, uri, preset, alpha, surfaceColor)
+                AppBackground.loadComposited(context, uri, preset, alpha, surfaceColorArgb)
             }.getOrNull()
         }
     }

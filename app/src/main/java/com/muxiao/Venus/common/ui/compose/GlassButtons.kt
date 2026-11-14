@@ -1,7 +1,6 @@
 package com.muxiao.Venus.common.ui.compose
 
 import android.content.res.Configuration
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -80,7 +79,7 @@ fun GlassCircleButton(
  */
 @Composable
 fun GlassIconButton(
-    @DrawableRes iconRes: Int,
+    icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -96,7 +95,7 @@ fun GlassIconButton(
         spec = spec,
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            imageVector = icon,
             contentDescription = contentDescription,
             tint = tint,
             modifier = iconModifier,
@@ -119,12 +118,12 @@ private fun GlassIconButtonPreview() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(
-                iconRes = R.drawable.ic_arrow_back,
+                icon = VenusIcons.ArrowBack,
                 contentDescription = "返回",
                 onClick = {},
             )
             GlassIconButton(
-                iconRes = R.drawable.ic_chevron,
+                icon = VenusIcons.ChevronDown,
                 contentDescription = "关闭",
                 onClick = {},
                 iconModifier = Modifier.rotate(90f),
@@ -135,7 +134,7 @@ private fun GlassIconButtonPreview() {
                 spec = GlassSpecs.Standard.copy(surfaceColor = Color.White, surfaceAlpha = 0.16f),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_download),
+                    imageVector = VenusIcons.Download,
                     contentDescription = null,
                     tint = Color.White,
                 )

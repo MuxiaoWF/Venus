@@ -47,7 +47,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -407,11 +406,11 @@ private fun AvatarImage(bitmap: Bitmap) {
     )
 }
 
-/** 默认态：ic_user 主色着色 + space_2 内边距。 */
+/** 默认态：User 主色着色 + space_2 内边距。 */
 @Composable
 private fun AvatarPlaceholderIcon() {
     Icon(
-        painter = painterResource(R.drawable.ic_user),
+        imageVector = VenusIcons.User,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier

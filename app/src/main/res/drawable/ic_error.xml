@@ -1,3 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知专用（Notification 错误通知 smallIcon）：通知上下文无活动主题，固化白色剪影；
+     smallIcon 由系统统一染色，此色仅为兜底。Compose 侧改用 VenusIcons.Error。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -7,21 +10,21 @@
         android:fillColor="#00000000"
         android:pathData="M12,12m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0"
         android:strokeWidth="2"
-        android:strokeColor="@color/selector"
+        android:strokeColor="@android:color/white"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:fillColor="#00000000"
         android:pathData="m15,9 l-6,6"
         android:strokeWidth="2"
-        android:strokeColor="@color/selector"
+        android:strokeColor="@android:color/white"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:fillColor="#00000000"
         android:pathData="m9,9 l6,6"
         android:strokeWidth="2"
-        android:strokeColor="@color/selector"
+        android:strokeColor="@android:color/white"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 </vector>

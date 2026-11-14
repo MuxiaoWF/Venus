@@ -69,7 +69,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -291,7 +290,7 @@ private fun GalleryTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     GlassIconButton(
-                        iconRes = R.drawable.ic_arrow_back,
+                        icon = VenusIcons.ArrowBack,
                         contentDescription = stringResource(R.string.content_description_back),
                         onClick = onBack,
                     )
@@ -406,7 +405,7 @@ private fun DropdownChip(
                 overflow = TextOverflow.Ellipsis,
             )
             Icon(
-                painter = painterResource(R.drawable.ic_chevrons_up_down),
+                imageVector = VenusIcons.ChevronsUpDown,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -543,7 +542,7 @@ private fun GallerySelectionBar(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_download),
+                            imageVector = VenusIcons.Download,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -677,7 +676,7 @@ private fun EmptyGallery(topInset: Dp, onRetry: () -> Unit) {
             modifier = Modifier.padding(dimensionResource(R.dimen.space_6)),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_image),
+                imageVector = VenusIcons.Image,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(dimensionResource(R.dimen.icon_badge_lg)),
@@ -705,7 +704,7 @@ private fun EmptyGallery(topInset: Dp, onRetry: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_refresh),
+                    imageVector = VenusIcons.Refresh,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),

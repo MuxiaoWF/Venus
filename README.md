@@ -14,7 +14,7 @@
 [gzu-liyujiang/Android_CN_OAID 设备信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)，
 [com.geetest.sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.4.4)，
  ~~[MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)，~~ 
-[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)，
+ ~~[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)，~~
 [Kyant0/AndroidLiquidGlass 液态玻璃](https://github.com/Kyant0/AndroidLiquidGlass)，
 以及AI的~~薛定谔的~~大力辅助。
 

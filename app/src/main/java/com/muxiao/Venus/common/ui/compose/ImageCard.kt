@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.bumptech.glide.Glide
@@ -109,7 +108,7 @@ fun ImageCard(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_check),
+                            imageVector = VenusIcons.Check,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -156,7 +155,7 @@ fun ImageCard(
 
 /**
  * 用 Glide 加载缩略图：项目只有 Glide（没有 Coil），故用 `CustomTarget<Bitmap>` 转成
- * [androidx.compose.ui.graphics.ImageBitmap]；加载中显示 `ic_loading`，失败显示 `ic_error`。
+ * [androidx.compose.ui.graphics.ImageBitmap]；加载中显示 VenusIcons.Loading，失败显示 VenusIcons.Error。
  *
  * 不用 `AndroidView(ImageView)`：图库是两列网格，每项一个 View 会让滚动成本回到 View 体系。
  */
@@ -198,9 +197,11 @@ private fun GlideThumbnail(imageUrl: String?, modifier: Modifier = Modifier) {
             modifier = modifier,
         )
 
-        else -> Image(
-            painter = painterResource(if (failed) R.drawable.ic_error else R.drawable.ic_loading),
+        else -> Icon(
+            // 加载/失败占位：原 selector 色即 onSurfaceVariant，改由主题显式给出
+            imageVector = if (failed) VenusIcons.Error else VenusIcons.Loading,
             contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier.padding(dimensionResource(R.dimen.space_6)),
         )
     }

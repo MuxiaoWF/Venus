@@ -38,9 +38,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -82,7 +82,7 @@ private fun SettingRowLayout(
     subtitle: String?,
     note: String?,
     noteColor: Color,
-    leadingIconRes: Int?,
+    leadingIcon: ImageVector?,
     iconTint: Color,
     leadingContent: (@Composable () -> Unit)?,
     trailing: (@Composable () -> Unit)?,
@@ -110,9 +110,9 @@ private fun SettingRowLayout(
                 Spacer(Modifier.width(dimensionResource(R.dimen.space_3)))
             }
 
-            leadingIconRes != null -> {
+            leadingIcon != null -> {
                 Icon(
-                    painter = painterResource(leadingIconRes),
+                    imageVector = leadingIcon,
                     contentDescription = null,
                     tint = if (iconTint.isSpecified) iconTint else secondary,
                     modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -163,7 +163,7 @@ internal fun SettingRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    leadingIconRes: Int? = null,
+    leadingIcon: ImageVector? = null,
     iconTint: Color = Color.Unspecified,
     trailing: (@Composable () -> Unit)? = null,
     enabled: Boolean = true,
@@ -175,7 +175,7 @@ internal fun SettingRow(
         subtitle = subtitle,
         note = null,
         noteColor = Color.Unspecified,
-        leadingIconRes = leadingIconRes,
+        leadingIcon = leadingIcon,
         iconTint = iconTint,
         leadingContent = null,
         trailing = trailing,
@@ -208,7 +208,7 @@ internal fun SettingSwitchRow(
         subtitle = subtitle,
         note = note,
         noteColor = noteColor,
-        leadingIconRes = null,
+        leadingIcon = null,
         iconTint = Color.Unspecified,
         leadingContent = null,
         trailing = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
@@ -234,7 +234,7 @@ internal fun SettingNavRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    leadingIconRes: Int? = null,
+    leadingIcon: ImageVector? = null,
     value: String? = null,
     valueColor: Color = Color.Unspecified,
     enabled: Boolean = true,
@@ -247,7 +247,7 @@ internal fun SettingNavRow(
         subtitle = subtitle,
         note = null,
         noteColor = Color.Unspecified,
-        leadingIconRes = leadingIconRes,
+        leadingIcon = leadingIcon,
         iconTint = Color.Unspecified,
         leadingContent = null,
         trailing = {
@@ -261,9 +261,9 @@ internal fun SettingNavRow(
                     )
                     Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
                 }
-                // ic_chevron 默认朝下，顺时针 270° 后朝右
+                // VenusIcons.ChevronDown 默认朝下，顺时针 270° 后朝右
                 Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
+                    imageVector = VenusIcons.ChevronDown,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.rotate(270f),
@@ -294,7 +294,7 @@ internal fun SettingCheckRow(
         subtitle = null,
         note = null,
         noteColor = Color.Unspecified,
-        leadingIconRes = null,
+        leadingIcon = null,
         iconTint = Color.Unspecified,
         leadingContent = { Checkbox(checked = checked, onCheckedChange = null, enabled = enabled) },
         trailing = null,
@@ -335,7 +335,7 @@ internal fun SettingLinkRow(
         )
         Spacer(Modifier.width(dimensionResource(R.dimen.space_1)))
         Icon(
-            painter = painterResource(R.drawable.ic_link_url),
+            imageVector = VenusIcons.LinkUrl,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -454,7 +454,7 @@ internal fun GlassActionRow(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    iconRes: Int? = null,
+    icon: ImageVector? = null,
     trailing: String? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -479,9 +479,9 @@ internal fun GlassActionRow(
             horizontalArrangement = if (centered) Arrangement.Center else Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (iconRes != null) {
+            if (icon != null) {
                 Icon(
-                    painter = painterResource(iconRes),
+                    imageVector = icon,
                     contentDescription = null,
                     tint = secondary,
                     modifier = Modifier.size(iconSize),
@@ -497,7 +497,7 @@ internal fun GlassActionRow(
                 modifier = if (centered) Modifier else Modifier.weight(1f),
             )
             // 居中的光学配平：右侧补一块与「图标 + 间距」等宽的空白
-            if (centered && iconRes != null) {
+            if (centered && icon != null) {
                 Spacer(Modifier.width(iconSize + iconGap))
             }
             if (trailing != null) {

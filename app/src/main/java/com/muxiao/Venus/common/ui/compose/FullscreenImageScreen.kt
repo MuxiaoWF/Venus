@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -82,7 +83,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -366,7 +366,7 @@ private fun FullscreenTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ChromeCircle(
-                iconRes = R.drawable.ic_arrow_back,
+                icon = VenusIcons.ArrowBack,
                 contentDescription = stringResource(R.string.content_description_back),
                 onClick = onBack,
             )
@@ -393,7 +393,7 @@ private fun FullscreenTopBar(
             }
             Spacer(Modifier.weight(1f))
             ChromeCircle(
-                iconRes = R.drawable.ic_download,
+                icon = VenusIcons.Download,
                 contentDescription = stringResource(R.string.download_image),
                 onClick = onDownload,
                 // 下载中：图标位置换成一圈进度，避免用户以为点了没反应
@@ -410,7 +410,7 @@ private fun FullscreenTopBar(
  */
 @Composable
 private fun ChromeCircle(
-    iconRes: Int,
+    icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     busy: Boolean = false,
@@ -428,7 +428,7 @@ private fun ChromeCircle(
             )
         } else {
             Icon(
-                painter = painterResource(iconRes),
+                imageVector = icon,
                 contentDescription = contentDescription,
                 tint = Color.White,
                 modifier = Modifier.size(dimensionResource(R.dimen.icon_badge_sm)),
@@ -502,7 +502,7 @@ private fun FullscreenInfoCard(
                     )
                 }
                 Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
+                    imageVector = VenusIcons.ChevronDown,
                     contentDescription = stringResource(
                         if (expanded) R.string.fullscreen_info_collapse else R.string.fullscreen_info_expand,
                     ),
@@ -614,7 +614,7 @@ private fun ZoomableImagePage(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_error),
+                    imageVector = VenusIcons.Error,
                     contentDescription = stringResource(R.string.fullscreen_image),
                     tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(dimensionResource(R.dimen.icon_badge_lg)),
@@ -640,7 +640,7 @@ private fun ZoomableImagePage(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_refresh),
+                        imageVector = VenusIcons.Refresh,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),

@@ -23,7 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -84,37 +85,37 @@ fun ThemeSettingPane(
                 iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ThemeDot(
-                color = colorResource(R.color.blue_theme_primary),
+                color = swatchPrimary(THEME_INDEX_BLUE),
                 selected = selectedTheme == THEME_INDEX_BLUE,
                 contentDescription = stringResource(R.string.theme_blue),
                 onClick = { onThemeSelect(THEME_INDEX_BLUE) },
             )
             ThemeDot(
-                color = colorResource(R.color.green_theme_primary),
+                color = swatchPrimary(THEME_INDEX_GREEN),
                 selected = selectedTheme == THEME_INDEX_GREEN,
                 contentDescription = stringResource(R.string.theme_green),
                 onClick = { onThemeSelect(THEME_INDEX_GREEN) },
             )
             ThemeDot(
-                color = colorResource(R.color.red_theme_primary),
+                color = swatchPrimary(THEME_INDEX_RED),
                 selected = selectedTheme == THEME_INDEX_RED,
                 contentDescription = stringResource(R.string.theme_red),
                 onClick = { onThemeSelect(THEME_INDEX_RED) },
             )
             ThemeDot(
-                color = colorResource(R.color.yellow_theme_primary),
+                color = swatchPrimary(THEME_INDEX_YELLOW),
                 selected = selectedTheme == THEME_INDEX_YELLOW,
                 contentDescription = stringResource(R.string.theme_yellow),
                 onClick = { onThemeSelect(THEME_INDEX_YELLOW) },
             )
             ThemeDot(
-                color = colorResource(R.color.cyan_theme_primary),
+                color = swatchPrimary(THEME_INDEX_CYAN),
                 selected = selectedTheme == THEME_INDEX_CYAN,
                 contentDescription = stringResource(R.string.theme_cyan),
                 onClick = { onThemeSelect(THEME_INDEX_CYAN) },
             )
             ThemeDot(
-                color = colorResource(R.color.purple_theme_primary),
+                color = swatchPrimary(THEME_INDEX_PURPLE),
                 selected = selectedTheme == THEME_INDEX_PURPLE,
                 contentDescription = stringResource(R.string.theme_purple),
                 onClick = { onThemeSelect(THEME_INDEX_PURPLE) },
@@ -238,6 +239,17 @@ class ThemeSettingPaneView {
     fun setOnVariantSelectListener(listener: IndexConsumer?) {
         onVariantSelectListener = listener
     }
+}
+
+/**
+ * 色板圆点主色：取固定主题 scheme 的 primary。
+ * 昼夜语义与原 colorResource(R.color.x_theme_primary) 一致（夜态取 values-night 值，即 dark scheme）。
+ */
+@Composable
+private fun swatchPrimary(themeIndex: Int): Color {
+    val dark = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
+    return VenusColorSchemes.forIndex(LocalContext.current, themeIndex, dark).primary
 }
 
 @Preview(

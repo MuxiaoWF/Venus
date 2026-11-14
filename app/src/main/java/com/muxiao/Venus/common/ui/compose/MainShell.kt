@@ -1,8 +1,8 @@
 package com.muxiao.Venus.common.ui.compose
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.view.View
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -45,21 +45,22 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.google.android.material.color.MaterialColors
 import com.muxiao.Venus.R
+import com.muxiao.Venus.Setting.SettingsFragment
 import com.muxiao.Venus.common.tools
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -71,13 +72,13 @@ private val WIDE_SCREEN_MIN_DP = 840.dp
 private const val PAGE_COUNT = 4
 
 /** 底栏 Tab 项（图标 + 标签资源），顺序即页面下标。 */
-private data class NavItem(val iconRes: Int, val labelRes: Int)
+private data class NavItem(val icon: ImageVector, val labelRes: Int)
 
 private val NAV_ITEMS = listOf(
-    NavItem(R.drawable.ic_home, R.string.nav_home),
-    NavItem(R.drawable.ic_user, R.string.nav_user_management),
-    NavItem(R.drawable.ic_link, R.string.nav_gacha_link),
-    NavItem(R.drawable.ic_settings, R.string.nav_settings),
+    NavItem(VenusIcons.Home, R.string.nav_home),
+    NavItem(VenusIcons.User, R.string.nav_user_management),
+    NavItem(VenusIcons.Link, R.string.nav_gacha_link),
+    NavItem(VenusIcons.Settings, R.string.nav_settings),
 )
 
 /**
@@ -108,7 +109,12 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
     init {
         // 显式着主题底色：闪屏库会在首帧前后重置主题，窗口背景回落系统动态色（偏蓝）
         setBackgroundColor(
-            MaterialColors.getColor(context, android.R.attr.colorBackground, Color.TRANSPARENT)
+            VenusColorSchemes.forIndex(
+                context,
+                SettingsFragment.getSelectedThemeIndex(context),
+                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+                        == Configuration.UI_MODE_NIGHT_YES,
+            ).background.toArgb()
         )
         pagerHost.shell = this
     }
@@ -146,13 +152,7 @@ class MainShellView(context: Context) : AbstractComposeView(context) {
                 LocalWindowInfo.current.containerSize.width.toDp() >= WIDE_SCREEN_MIN_DP
             }
             // 采样源子树的纯色基底：无背景图时玻璃折射的就是这个主题底色
-            val baseColor = remember {
-                androidx.compose.ui.graphics.Color(
-                    MaterialColors.getColor(
-                        context, android.R.attr.colorBackground, Color.WHITE
-                    )
-                )
-            }
+            val baseColor = MaterialTheme.colorScheme.background
             val bg = pagerHost.backgroundBitmap
             // 背景位图发布不经滚动信号（contentVersion 不 bump）：源节点随重组重录，但透镜链不会自动重画，
             // 故以 bg 为 key 显式失效两个源，保证换壁纸后折射与磨砂立即跟随
@@ -463,7 +463,7 @@ private fun SlidingTabButton(
     ) {
         // 图标：未选中在面板中心，选中上移 8dp（graphicsLayer 只做绘制平移，不触发重布局）
         Icon(
-            painter = painterResource(item.iconRes),
+            imageVector = item.icon,
             contentDescription = label,
             tint = contentColor,
             modifier = Modifier
@@ -497,7 +497,7 @@ private fun VenusNavRail(selected: Int, onSelect: (Int) -> Unit, modifier: Modif
                 onClick = { onSelect(index) },
                 icon = {
                     Icon(
-                        painter = painterResource(item.iconRes),
+                        imageVector = item.icon,
                         contentDescription = stringResource(item.labelRes),
                     )
                 },

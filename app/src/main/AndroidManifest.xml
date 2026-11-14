@@ -95,8 +95,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="com.yalantis.ucrop.UCropActivity"
-            android:theme="@style/Theme.Venus.UCrop" />
+            android:name=".Setting.CropActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Venus" />
         <service
             android:name=".Home.ForegroundTaskService"
             android:exported="false"

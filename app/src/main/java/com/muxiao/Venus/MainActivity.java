@@ -127,7 +127,7 @@ public class MainActivity extends BaseActivity {
         ActivityResultLauncher<PickVisualMediaRequest> userAvatarPicker = registerForActivityResult(
             new ActivityResultContracts.PickVisualMedia(),
             usersController::onAvatarPicked);
-        // 设置页：背景图选择（Photo Picker / 老设备回退）+ UCrop 裁剪 + 电池优化豁免
+        // 设置页：背景图选择（Photo Picker / 老设备回退）+ CropActivity 裁剪 + 电池优化豁免
         ActivityResultLauncher<PickVisualMediaRequest> settingsPickMedia = registerForActivityResult(
             new ActivityResultContracts.PickVisualMedia(),
             settingsController::onBackgroundImagePicked);
@@ -329,9 +329,12 @@ public class MainActivity extends BaseActivity {
             return;
         }
 
-        // 底色掺合色在主线程解析（后台线程访问主题属性不安全），只解析一次
-        final int surfaceColor = com.google.android.material.color.MaterialColors
-                .getColor(shell, com.google.android.material.R.attr.colorSurface);
+        // 底色掺合色统一走 VenusColorSchemes（非 Composable 纯函数，主线程解析一次）
+        boolean darkNight = (getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        final int surfaceColor = com.muxiao.Venus.common.ui.compose.VenusColorSchemes
+                .surfaceArgb(this, SettingsFragment.getSelectedThemeIndex(this), darkNight);
 
         com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
             String error = null;

@@ -43,10 +43,6 @@
 -keep class com.bun.miitmdid.** {*;}
 -keep class a.a.a.** {*;}
 
-# ---------- uCrop 图片裁剪 ----------
-# uCrop 的 UCropActivity / 自定义 View 已由 manifest/XML 引用自动 keep（AAPT 规则），
-# 库自带 consumer rules；无需 app 侧全量 keep（否则 85+ 类全部保留）。
-
 # ---------- Glide（自带 consumer-rules，补充公共 API） ----------
 -keep public class * implements com.bumptech.glide.module.GlideModule
 -keep class * extends com.bumptech.glide.module.AppGlideModule {

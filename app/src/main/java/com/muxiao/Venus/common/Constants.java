@@ -169,6 +169,9 @@ public class Constants {
         // 背景
         public static final String BACKGROUND_PREFS_NAME = "background_prefs";
         public static final String BACKGROUND_IMAGE_URI = "background_image_uri";
+        /** 背景文件刷新时间戳（epoch 毫秒）：URI 固定指向 background.jpg，重裁剪值不变，
+         *  靠此键变化强制 MainActivity 的 prefs 监听触发重合成。 */
+        public static final String BACKGROUND_REFRESH_AT = "background_refresh_at";
         public static final String BACKGROUND_ALPHA = "background_alpha";
         // 背景淡化风格预设档（0=轻盈 1=标准 2=浓郁），控制图像预处理的饱和度/亮度参数
         public static final String BACKGROUND_PRESET = "background_preset";

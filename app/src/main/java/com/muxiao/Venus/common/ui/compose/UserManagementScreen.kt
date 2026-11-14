@@ -39,12 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -194,7 +194,7 @@ fun UserManagementScreen(
             contentColor = MaterialTheme.colorScheme.onPrimary,
             icon = {
                 Icon(
-                    painter = painterResource(R.drawable.ic_user_plus),
+                    imageVector = VenusIcons.UserPlus,
                     contentDescription = null,
                 )
             },
@@ -224,7 +224,7 @@ private fun EmptyUserPrompt(text: String) {
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_user),
+            imageVector = VenusIcons.User,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(dimensionResource(R.dimen.space_6)),
@@ -315,7 +315,7 @@ private fun UserCard(
 
                 // chevron 默认向下，旋转 270° 指向右
                 Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
+                    imageVector = VenusIcons.ChevronDown,
                     contentDescription = stringResource(R.string.rename),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.rotate(270f),
@@ -330,7 +330,7 @@ private fun UserCard(
             ) {
                 CardAction(
                     text = stringResource(R.string.re_login),
-                    iconRes = R.drawable.ic_refresh,
+                    icon = VenusIcons.Refresh,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { onReloginClick(user.username) },
                     modifier = Modifier.weight(1f),
@@ -343,7 +343,7 @@ private fun UserCard(
                 )
                 CardAction(
                     text = stringResource(R.string.delete_user),
-                    iconRes = R.drawable.ic_trash,
+                    icon = VenusIcons.Trash,
                     contentColor = MaterialTheme.colorScheme.error,
                     onClick = { onDeleteClick(user.username) },
                     modifier = Modifier.weight(1f),
@@ -400,7 +400,7 @@ private fun LoggedInStatus() {    val success = colorResource(R.color.status_suc
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_check),
+            imageVector = VenusIcons.Check,
             contentDescription = null,
             tint = success,
             modifier = Modifier.size(dimensionResource(R.dimen.status_icon_size)),
@@ -414,7 +414,7 @@ private fun LoggedInStatus() {    val success = colorResource(R.color.status_suc
     }
 }
 
-/** 「默认」chip：主色 10% 底 + 主色 mono 文案。等价于 `bg_chip` + `backgroundTint=primary_alpha_10`。 */
+/** 「默认」chip：主色 10% 底 + 主色 mono 文案。等价于 `bg_chip` + 主色 10% 透明度底。 */
 @Composable
 private fun DefaultChip() {
     Text(
@@ -424,7 +424,7 @@ private fun DefaultChip() {
         modifier = Modifier
             .padding(start = dimensionResource(R.dimen.space_2))
             .clip(CircleShape)
-            .background(colorResource(R.color.primary_alpha_10))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
             .padding(
                 horizontal = dimensionResource(R.dimen.space_2),
                 vertical = dimensionResource(R.dimen.space_hairline),
@@ -436,7 +436,7 @@ private fun DefaultChip() {
 @Composable
 private fun CardAction(
     text: String,
-    iconRes: Int,
+    icon: ImageVector,
     contentColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -449,7 +449,7 @@ private fun CardAction(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            imageVector = icon,
             contentDescription = null,
             tint = contentColor,
             modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),

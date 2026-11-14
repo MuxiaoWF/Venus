@@ -6,7 +6,6 @@ import android.content.res.Configuration;
 
 import androidx.annotation.NonNull;
 
-import com.google.android.material.color.DynamicColors;
 import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Setting.SettingsFragment;
@@ -53,7 +52,8 @@ public class VenusApplication extends Application {
         sAppContext = this;
         // 应用选定的主题深浅色（使用 Hilt 注入的 ApplicationContext，确保该绑定被使用）
         SettingsFragment.applyThemeVariant(appContext);
-        DynamicColors.applyToActivitiesIfAvailable(this);
+        // 动态取色已随 View 版 material 库移除：Theme.Venus 直接映射 res/color-v31 系统动态色
+        // （Android 12+ 生效；以下版本回落 M3 基线），无需运行时包装 Activity 主题。
 
         // 预热 HeaderManager 的设备标识（OAID / device_fp）：构造会同步阻塞等设备标识就绪
         // （waitForDeviceId 最多 ~5s，getExtFields 内还会再等 ~5s）。若首次 new HeaderManager 发生在 UI 线程

@@ -61,7 +61,7 @@ fun NotificationSettingPane(
             Spacer(Modifier.height(dimensionResource(R.dimen.space_2)))
             SettingNavRow(
                 title = stringResource(R.string.scheduled_task_time_label),
-                leadingIconRes = R.drawable.ic_schedule,
+                leadingIcon = VenusIcons.Schedule,
                 value = scheduledTimeText,
                 valueColor = MaterialTheme.colorScheme.primary,
                 onClick = onScheduledTimeClick,
@@ -71,7 +71,7 @@ fun NotificationSettingPane(
         SettingNavRow(
             title = stringResource(R.string.battery_row_label),
             subtitle = stringResource(R.string.battery_row_desc),
-            leadingIconRes = R.drawable.ic_zap,
+            leadingIcon = VenusIcons.Zap,
             value = batteryValueText,
             // 0 = AndroidColor.TRANSPARENT，表示"未指定"，回退到次要文字色
             valueColor = if (batteryValueColor == 0) Color.Unspecified else Color(batteryValueColor),

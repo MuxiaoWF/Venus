@@ -44,13 +44,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -174,7 +174,7 @@ fun LinkScreen(
             )
             SourceRow(
                 titleRes = R.string.genshin_impact,
-                iconRes = R.drawable.ic_sparkles,
+                icon = VenusIcons.Sparkles,
                 source = state.sources[0],
                 onClick = { onSourceClick(0) },
                 onRefreshClick = { onRefreshClick(0) },
@@ -183,7 +183,7 @@ fun LinkScreen(
             VenusDivider()
             SourceRow(
                 titleRes = R.string.zenless_zone_zero,
-                iconRes = R.drawable.ic_zap,
+                icon = VenusIcons.Zap,
                 source = state.sources[1],
                 onClick = { onSourceClick(1) },
                 onRefreshClick = { onRefreshClick(1) },
@@ -192,13 +192,13 @@ fun LinkScreen(
             VenusDivider()
 
             NavRow(
-                iconRes = R.drawable.ic_cloud,
+                icon = VenusIcons.Cloud,
                 title = stringResource(R.string.cloud_gaming),
                 subtitle = stringResource(R.string.cloud_open_hint),
                 onClick = onCloudClick,
             )
             NavRow(
-                iconRes = R.drawable.ic_link,
+                icon = VenusIcons.Link,
                 title = stringResource(R.string.vpn_capture_title),
                 // 原 status_vpn 默认态即「操作提示」，Java 未设置时回落同一句文案
                 subtitle = state.vpnStatusText.ifEmpty { stringResource(R.string.vpn_capture_hint) },
@@ -268,7 +268,7 @@ private fun AccountRow(
                     .padding(start = dimensionResource(R.dimen.space_3)),
             )
             Icon(
-                painter = painterResource(R.drawable.ic_chevrons_up_down),
+                imageVector = VenusIcons.ChevronsUpDown,
                 contentDescription = stringResource(R.string.select_user),
                 tint = MaterialTheme.colorScheme.primary,
             )
@@ -296,7 +296,7 @@ private fun AccountRow(
 @Composable
 private fun SourceRow(
     titleRes: Int,
-    iconRes: Int,
+    icon: ImageVector,
     source: LinkSourceState,
     onClick: () -> Unit,
     onRefreshClick: () -> Unit,
@@ -343,7 +343,7 @@ private fun SourceRow(
                     circle = true,
                 )
                 Icon(
-                    painter = painterResource(iconRes),
+                    imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
                     modifier = Modifier
@@ -453,7 +453,7 @@ private fun RefreshBadge(spinning: Boolean, onClick: () -> Unit) {
     ) {
         LensGlass(modifier = Modifier.matchParentSize(), circle = true)
         Icon(
-            painter = painterResource(R.drawable.ic_refresh),
+            imageVector = VenusIcons.Refresh,
             contentDescription = stringResource(R.string.get_gacha_link),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -556,7 +556,7 @@ private fun LinkResultRow(row: LinkRow, onCopy: (String) -> Unit) {
                 cornerRadiusPx = cornerPx,
             )
             Icon(
-                painter = painterResource(R.drawable.ic_copy),
+                imageVector = VenusIcons.Copy,
                 contentDescription = stringResource(R.string.copy),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -568,7 +568,7 @@ private fun LinkResultRow(row: LinkRow, onCopy: (String) -> Unit) {
 /** 导航行（云游戏 / VPN）：玻璃图标圆 + 标题/副标题 + 右向 chevron。 */
 @Composable
 private fun NavRow(
-    iconRes: Int,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -585,7 +585,7 @@ private fun NavRow(
         Box(modifier = Modifier.size(dimensionResource(R.dimen.icon_badge_circle))) {
             LensGlass(modifier = Modifier.matchParentSize(), circle = true)
             Icon(
-                painter = painterResource(iconRes),
+                imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -608,7 +608,7 @@ private fun NavRow(
         }
         // chevron 默认向下，旋转 270° 指向右
         Icon(
-            painter = painterResource(R.drawable.ic_chevron),
+            imageVector = VenusIcons.ChevronDown,
             contentDescription = title,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.rotate(270f),

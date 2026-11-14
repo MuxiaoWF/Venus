@@ -3,6 +3,7 @@ package com.muxiao.Venus.Setting;
 import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_ALPHA;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
+import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_REFRESH_AT;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PRESET;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
@@ -54,10 +55,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
-import android.util.DisplayMetrics;
 import android.view.View;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -98,7 +97,10 @@ import com.muxiao.Venus.common.ui.compose.NotificationSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.ServerSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.ThemeSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.UpdateSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.VenusColorSchemes;
 import com.muxiao.Venus.common.Constants;
+
+import android.graphics.drawable.ColorDrawable;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.data.ConfigRepository;
@@ -108,7 +110,6 @@ import com.muxiao.Venus.common.ui.compose.SettingsScreenView;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.User.UserManager;
-import com.yalantis.ucrop.UCrop;
 
 import java.io.File;
 import java.util.Arrays;
@@ -176,7 +177,7 @@ public class SettingsFragment implements PageController {
     // ActivityResult 启动器（MainActivity 注册后注入）
     private ActivityResultLauncher<Intent> selectImageLauncher; // ACTION_OPEN_DOCUMENT (老设备)
     private ActivityResultLauncher<PickVisualMediaRequest> pickMedia; // Photo Picker (API33+)
-    private ActivityResultLauncher<Intent> cropImageLauncher; // UCrop 结果
+    private ActivityResultLauncher<Intent> cropImageLauncher; // CropActivity 裁剪结果
     private ActivityResultLauncher<Intent> batteryOptLauncher; // 电池优化豁免授权
     private ActivityResultLauncher<Intent> cloudTokenLauncher; // 云游戏 Token 抓取页
 
@@ -205,7 +206,7 @@ public class SettingsFragment implements PageController {
     /** Photo Picker 选择结果（MainActivity 的 launcher 转发）：进入裁剪。 */
     public void onBackgroundImagePicked(Uri uri) {
         // 用户在系统照片选择器中取消/未选择时返回 null：静默忽略，
-        // 不能把 null 传给裁剪页，否则 UCrop 会以「图片裁剪失败: null」报错收场
+        // 不能把 null 传给裁剪页，否则裁剪页会以「图片裁剪失败: null」报错收场
         if (uri != null) startCropActivity(uri);
     }
 
@@ -214,20 +215,16 @@ public class SettingsFragment implements PageController {
         if (uri != null) startCropActivity(uri);
     }
 
-    /** UCrop 裁剪结果（MainActivity 的 launcher 转发）。 */
+    /** 裁剪页结果（MainActivity 的 launcher 转发）：确认回传临时文件路径，取消静默忽略。 */
     public void onCropResult(int resultCode, Intent data) {
-        if (resultCode == Activity.RESULT_OK && data != null) {
-            Uri croppedImageUri = UCrop.getOutput(data);
-            if (croppedImageUri != null)
-                // 将裁剪后的图片复制到应用私有目录并保存
-                saveBackgroundImage(croppedImageUri);
-        } else if (resultCode == UCrop.RESULT_ERROR) {
-            if (data != null) {
-                final Throwable cropError = UCrop.getError(data);
-                show_error_dialog(activity, activity.getString(R.string.err_crop_failed,
-                        Objects.requireNonNull(cropError).getMessage()));
-            }
+        if (resultCode != Activity.RESULT_OK || data == null) return; // 用户取消
+        String path = data.getStringExtra(CropActivity.EXTRA_RESULT_PATH);
+        if (path == null) {
+            show_error_dialog(activity, activity.getString(R.string.err_crop_failed, "result path is null"));
+            return;
         }
+        // 将裁剪后的图片复制到应用私有目录并保存
+        saveBackgroundImage(Uri.fromFile(new File(path)));
     }
 
     /** 首次组合时调用一次：生成 13 个窗格内容 → 塞进抽屉 → 维护折叠摘要。 */
@@ -584,42 +581,14 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 启动裁剪Activity
+     * 启动裁剪页（Compose 实现的 CropActivity，比例锁定为屏幕宽高比，输出 JPEG 落临时文件）。
      */
     private void startCropActivity(@NonNull Uri uri) {
-        int screenWidth, screenHeight;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            android.graphics.Rect bounds = activity.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
-            screenWidth = bounds.width();
-            screenHeight = bounds.height();
-        } else {
-            // 使用Resources获取屏幕尺寸，避免使用过时的Display方法
-            DisplayMetrics displayMetrics = activity.getResources().getDisplayMetrics();
-            screenWidth = displayMetrics.widthPixels;
-            screenHeight = displayMetrics.heightPixels;
-        }
-        Uri destinationUri = Uri.fromFile(new File(activity.getCacheDir(), "temp_cropped_background.jpg"));
-        // 配置uCrop
-        UCrop.Options options = new UCrop.Options();
-        // 修改状态栏
-        options.setStatusBarLight(true);
-        options.setToolbarTitle(activity.getString(R.string.toolbar_crop_image));
-        // 隐藏底部工具
-        options.setHideBottomControls(true);
-        // 图片格式
-        options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
-        options.setCompressionQuality(100);
-        // 不显示网格线
-        options.setShowCropGrid(true);
-        UCrop uCrop = UCrop.of(uri, destinationUri)
-                .withAspectRatio(screenWidth, screenHeight) // 固定屏幕比例
-                .withMaxResultSize(screenWidth, screenHeight)
-                .withOptions(options);
-        // 启动裁剪Activity，使用cropImageLauncher处理结果
-        Intent uCropIntent = uCrop.getIntent(activity);
-        // 授予裁剪页临时读写权限，否则读不到 source、写不了 destination
-        uCropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        cropImageLauncher.launch(uCropIntent);
+        Intent intent = new Intent(activity, CropActivity.class);
+        intent.putExtra(CropActivity.EXTRA_SOURCE, uri.toString());
+        // 授予裁剪页临时读取权限，否则读不到 content:// 来源（file:// 同进程无碍，保持旧防御）
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        cropImageLauncher.launch(intent);
     }
 
     /**
@@ -636,9 +605,14 @@ public class SettingsFragment implements PageController {
 
             tools.copyFile(activity, croppedImageUri, backgroundFile);
 
-            // 保存背景图片文件Uri到SharedPreferences
+            // 保存背景图片文件Uri到SharedPreferences。URI 固定指向 background.jpg，
+            // 重裁剪时值不变、不触发 MainActivity 的 prefs 监听（表现为换图后仍显示旧背景），
+            // 故额外写一个时间戳刷新键强制重合成（background_prefs 内全部键均为背景相关，见外壳监听注释）。
             Uri backgroundUri = Uri.fromFile(backgroundFile);
-            backgroundPreferences.edit().putString(BACKGROUND_IMAGE_URI, backgroundUri.toString()).apply();
+            backgroundPreferences.edit()
+                    .putString(BACKGROUND_IMAGE_URI, backgroundUri.toString())
+                    .putLong(BACKGROUND_REFRESH_AT, System.currentTimeMillis())
+                    .apply();
 
             // 删除临时裁剪文件
             File temp = new File(activity.getCacheDir(), "temp_cropped_background.jpg");
@@ -855,32 +829,23 @@ public class SettingsFragment implements PageController {
     /**
      * 指定基础主题的重载：windowIsTranslucent 等窗口属性只能由主题提供，
      * 而 applyAppTheme(Activity) 固定 setTheme(Theme_Venus) 会抹掉 manifest 主题。
+     * 语义色已统一到 VenusColorSchemes（XML 主题不再声明 per-theme 颜色），
+     * 窗口背景跟随主题底色由代码注入（原 windowBackground=?attr/colorBackground 职责移交）。
      *
      * @param baseTheme 如 R.style.Theme_Venus_Fullscreen
      */
     public static void applyAppTheme(Activity activity, @StyleRes int baseTheme) {
         activity.setTheme(baseTheme);
-        int index = getSelectedThemeIndex(activity);
-        if (index >= 0 && index < COLOR_OVERLAYS.length) {
-            int overlay = COLOR_OVERLAYS[index];
-            if (overlay != 0) activity.getTheme().applyStyle(overlay, true);
-        }
+        boolean darkNight = (activity.getResources().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        int background = VenusColorSchemes
+                .backgroundArgb(activity, getSelectedThemeIndex(activity), darkNight);
+        activity.getWindow().setBackgroundDrawable(new ColorDrawable(background));
     }
 
-    private static final int[] COLOR_OVERLAYS = {
-            0,                                  // DEFAULT（动态取色）
-            R.style.ThemeOverlay_Venus_Blue,   // BLUE
-            R.style.ThemeOverlay_Venus_Green,  // GREEN
-            R.style.ThemeOverlay_Venus_Red,    // RED
-            R.style.ThemeOverlay_Venus_Yellow, // YELLOW
-            R.style.ThemeOverlay_Venus_Cyan,   // CYAN
-            R.style.ThemeOverlay_Venus_Purple, // PURPLE
-            0,                                  // LIGHT（浅/深由 AppCompatDelegate 变体控制）
-            0,                                  // DARK
-    };
-
-    /** 从主题偏好读取当前选中的主题资源下标（默认 THEME_DEFAULT）。 */
-    private static int getSelectedThemeIndex(Context context) {
+    /** 从主题偏好读取当前选中的主题资源下标（默认 THEME_DEFAULT）；供 VenusTheme/取色方共用。 */
+    public static int getSelectedThemeIndex(Context context) {
         SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         return themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
     }

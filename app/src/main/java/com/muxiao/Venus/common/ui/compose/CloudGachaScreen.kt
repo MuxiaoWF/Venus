@@ -33,9 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -95,7 +93,7 @@ fun CloudGachaScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(
-                iconRes = R.drawable.ic_chevron,
+                icon = VenusIcons.ChevronDown,
                 contentDescription = stringResource(R.string.close_webpage),
                 onClick = onCloseClick,
                 iconModifier = Modifier.rotate(90f),
@@ -120,7 +118,7 @@ fun CloudGachaScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_copy),
+                imageVector = VenusIcons.Copy,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -166,11 +164,11 @@ private fun CloudErrorContent(onRetryClick: () -> Unit) {
             modifier = Modifier
                 .size(dimensionResource(R.dimen.icon_badge_circle))
                 .clip(CircleShape)
-                .background(colorResource(R.color.primary_alpha_10))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
                 .padding(dimensionResource(R.dimen.space_2)),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_task_error),
+                imageVector = VenusIcons.TaskError,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxSize(),

@@ -1,19 +1,13 @@
 package com.muxiao.Venus.common.ui.compose
 
 import android.content.res.Configuration
-import androidx.annotation.AttrRes
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -21,20 +15,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.appcompat.R as AppCompatR
-import com.google.android.material.R as MaterialR
-import com.google.android.material.color.MaterialColors
+import com.muxiao.Venus.Setting.SettingsFragment
 
 /**
- * Venus 的 Compose 主题：运行时通过 `applyStyle(ThemeOverlay.Venus.Xxx)` 切换 6 套调色板，
- * 不能写死色值，故逐项读取 theme 已解析属性，与 XML 视图共用同一套颜色。
- * 只映射当前布局用到的角色；字号按角色在此定义（对应 XML 的 TextAppearance 体系已随 styles.xml 删除）。
+ * Venus 的 Compose 主题：语义色单一事实源在 [VenusColorSchemes]（Kotlin 常量 + material3
+ * 动态取色），按用户选择的主题下标与深浅色直接取 ColorScheme，不再读 XML 主题属性。
+ * 字号按角色在此定义（对应 XML 的 TextAppearance 体系已随 styles.xml 删除）。
  */
 @Composable
 fun VenusTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dark = LocalConfiguration.current.isNightMode()
-    val colorScheme = remember(context, dark) { context.venusColorScheme(dark) }
+    // 主题偏好切换经 Activity recreate 生效（SettingsFragment.recreate()），remember 即可
+    val themeIndex = remember(context) { SettingsFragment.getSelectedThemeIndex(context) }
+    val colorScheme = remember(context, dark, themeIndex) {
+        VenusColorSchemes.forIndex(context, themeIndex, dark)
+    }
 
     MaterialTheme(colorScheme = colorScheme) {
         val typography = MaterialTheme.typography
@@ -132,96 +128,3 @@ val LocalVenusTextStyles = staticCompositionLocalOf<VenusTextStyles> {
 
 private fun Configuration.isNightMode(): Boolean =
     (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-
-/**
- * 把当前 theme 的 M3 角色映射为 [ColorScheme]：必须用 [MaterialColors.getColor] 读已解析值，
- * 才能跟上 DynamicColors 取色与 ThemeOverlay 运行时切换。
- */
-private fun android.content.Context.venusColorScheme(dark: Boolean): ColorScheme {
-    // colorPrimary / colorError 由 appcompat 声明，其余 M3 角色由 material 声明
-    val primary = themeColor(AppCompatR.attr.colorPrimary)
-    val onPrimary = themeColor(MaterialR.attr.colorOnPrimary)
-    val primaryContainer = themeColor(MaterialR.attr.colorPrimaryContainer)
-    val onPrimaryContainer = themeColor(MaterialR.attr.colorOnPrimaryContainer)
-    val secondary = themeColor(MaterialR.attr.colorSecondary)
-    val secondaryContainer = themeColor(MaterialR.attr.colorSecondaryContainer)
-    val onSecondaryContainer = themeColor(MaterialR.attr.colorOnSecondaryContainer)
-    val tertiary = themeColor(MaterialR.attr.colorTertiary)
-    val tertiaryContainer = themeColor(MaterialR.attr.colorTertiaryContainer)
-    val surface = themeColor(MaterialR.attr.colorSurface)
-    val onSurface = themeColor(MaterialR.attr.colorOnSurface)
-    val onSurfaceVariant = themeColor(MaterialR.attr.colorOnSurfaceVariant)
-    val outline = themeColor(MaterialR.attr.colorOutline)
-    val outlineVariant = themeColor(MaterialR.attr.colorOutlineVariant)
-    val surfaceContainer = themeColor(MaterialR.attr.colorSurfaceContainer, surface)
-    val surfaceContainerLow = themeColor(MaterialR.attr.colorSurfaceContainerLow, surfaceContainer)
-    val surfaceContainerLowest = themeColor(MaterialR.attr.colorSurfaceContainerLowest, surface)
-    val surfaceContainerHigh = themeColor(MaterialR.attr.colorSurfaceContainerHigh, surfaceContainer)
-    val surfaceContainerHighest = themeColor(MaterialR.attr.colorSurfaceContainerHighest, surfaceContainerHigh)
-    val error = themeColor(AppCompatR.attr.colorError)
-    val onError = themeColor(MaterialR.attr.colorOnError)
-
-    // 日夜构造器只为让 Compose 判定亮暗（影响默认内容色/涟漪等），色值都来自当前 theme，故两套传同一批角色。
-    return if (dark) {
-        darkColorScheme(
-            primary = primary,
-            onPrimary = onPrimary,
-            primaryContainer = primaryContainer,
-            onPrimaryContainer = onPrimaryContainer,
-            secondary = secondary,
-            secondaryContainer = secondaryContainer,
-            onSecondaryContainer = onSecondaryContainer,
-            tertiary = tertiary,
-            tertiaryContainer = tertiaryContainer,
-            surface = surface,
-            onSurface = onSurface,
-            onSurfaceVariant = onSurfaceVariant,
-            outline = outline,
-            outlineVariant = outlineVariant,
-            surfaceContainer = surfaceContainer,
-            surfaceContainerLow = surfaceContainerLow,
-            surfaceContainerLowest = surfaceContainerLowest,
-            surfaceContainerHigh = surfaceContainerHigh,
-            surfaceContainerHighest = surfaceContainerHighest,
-            error = error,
-            onError = onError,
-        )
-    } else {
-        lightColorScheme(
-            primary = primary,
-            onPrimary = onPrimary,
-            primaryContainer = primaryContainer,
-            onPrimaryContainer = onPrimaryContainer,
-            secondary = secondary,
-            secondaryContainer = secondaryContainer,
-            onSecondaryContainer = onSecondaryContainer,
-            tertiary = tertiary,
-            tertiaryContainer = tertiaryContainer,
-            surface = surface,
-            onSurface = onSurface,
-            onSurfaceVariant = onSurfaceVariant,
-            outline = outline,
-            outlineVariant = outlineVariant,
-            surfaceContainer = surfaceContainer,
-            surfaceContainerLow = surfaceContainerLow,
-            surfaceContainerLowest = surfaceContainerLowest,
-            surfaceContainerHigh = surfaceContainerHigh,
-            surfaceContainerHighest = surfaceContainerHighest,
-            error = error,
-            onError = onError,
-        )
-    }
-}
-
-/** 读取 theme 属性色；属性缺失时回落到 [fallback]（默认取当前 theme 的 colorSurface）。 */
-internal fun android.content.Context.themeColor(
-    @AttrRes attr: Int,
-    fallback: Color = Color.Unspecified,
-): Color {
-    val resolvedFallback = if (fallback == Color.Unspecified) {
-        Color(MaterialColors.getColor(this, MaterialR.attr.colorSurface, android.graphics.Color.TRANSPARENT))
-    } else {
-        fallback
-    }
-    return Color(MaterialColors.getColor(this, attr, resolvedFallback.toArgb()))
-}

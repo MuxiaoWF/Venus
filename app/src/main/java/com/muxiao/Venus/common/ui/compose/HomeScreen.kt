@@ -59,9 +59,9 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -251,7 +251,7 @@ fun HomeScreen(
             item(key = "retry-failed") {
                 AnimatedVisibility(visible = state.retryVisible, enter = enter, exit = exit) {
                     SurfaceRow(
-                        iconRes = R.drawable.ic_task_error,
+                        icon = VenusIcons.TaskError,
                         iconTint = colorResource(R.color.status_warning),
                         text = stringResource(R.string.retry_failed_tasks),
                         trailing = state.retryCount,
@@ -263,7 +263,7 @@ fun HomeScreen(
             item(key = "bg-run") {
                 AnimatedVisibility(visible = state.bgVisible, enter = enter, exit = exit) {
                     SurfaceRow(
-                        iconRes = R.drawable.ic_notification,
+                        icon = VenusIcons.NotificationBell,
                         iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = state.bgButtonText,
                         trailing = stringResource(R.string.bg_hint_notify),
@@ -377,7 +377,7 @@ private fun UserRow(
                     .padding(start = dimensionResource(R.dimen.space_3)),
             )
             Icon(
-                painter = painterResource(R.drawable.ic_chevrons_up_down),
+                imageVector = VenusIcons.ChevronsUpDown,
                 contentDescription = stringResource(R.string.select_user),
                 tint = MaterialTheme.colorScheme.primary,
             )
@@ -417,7 +417,7 @@ private fun PrimaryRunRow(hint: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_play),
+            imageVector = VenusIcons.Play,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -471,7 +471,7 @@ private fun CancelRunButton(onClick: () -> Unit) {
 /** 次操作行（重试失败 / 后台运行）：液态玻璃 8dp 圆角 + 行内图标 + 标题 + 右侧 mono 提示。 */
 @Composable
 private fun SurfaceRow(
-    iconRes: Int,
+    icon: ImageVector,
     iconTint: Color,
     text: String,
     trailing: String,
@@ -499,7 +499,7 @@ private fun SurfaceRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(iconRes),
+                imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
@@ -565,7 +565,7 @@ private fun TaskListEmpty() {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_pending),
+                imageVector = VenusIcons.Pending,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
             )
@@ -599,7 +599,7 @@ private fun TaskRow(
     val outlineVariant = MaterialTheme.colorScheme.outlineVariant
 
     val stroke: Color
-    val iconRes: Int
+    val icon: ImageVector
     val iconTint: Color
     val strike: Boolean
     val progressText: String?
@@ -611,43 +611,43 @@ private fun TaskRow(
     val disabled = task.disabled
     if (disabled) {
         // 功能已开启但凭证未配置：统一走中性灰 + 右侧说明性文案，不占用任何「结果」语义色
-        stroke = outlineVariant; iconRes = R.drawable.ic_dot; iconTint = neutral; strike = false
+        stroke = outlineVariant; icon = VenusIcons.Dot; iconTint = neutral; strike = false
         progressText = stringResource(R.string.task_status_not_configured); progressColor = neutral
         chipText = null; chipColor = null; chipTextColor = null
     } else when (task.status) {
         TASK_IN_PROGRESS, TASK_WARNING -> {
-            stroke = primary; iconRes = R.drawable.ic_dot; iconTint = primary; strike = false
+            stroke = primary; icon = VenusIcons.Dot; iconTint = primary; strike = false
             progressText = stringResource(R.string.task_status_running); progressColor = primary
             chipText = null; chipColor = null; chipTextColor = null
         }
         TASK_RETAINED -> {
-            stroke = outlineVariant; iconRes = R.drawable.ic_check; iconTint = success; strike = false
+            stroke = outlineVariant; icon = VenusIcons.Check; iconTint = success; strike = false
             progressText = null; progressColor = neutral
             chipText = stringResource(R.string.task_chip_retained)
             chipColor = colorResource(R.color.status_success_container)
             chipTextColor = colorResource(R.color.status_on_success_container)
         }
         TASK_COMPLETED -> {
-            stroke = success; iconRes = R.drawable.ic_check; iconTint = success; strike = false
+            stroke = success; icon = VenusIcons.Check; iconTint = success; strike = false
             progressText = null; progressColor = neutral
             chipText = stringResource(R.string.task_chip_done)
             chipColor = colorResource(R.color.status_success_container)
             chipTextColor = colorResource(R.color.status_on_success_container)
         }
         TASK_ERROR -> {
-            stroke = error; iconRes = R.drawable.ic_task_error; iconTint = error; strike = false
+            stroke = error; icon = VenusIcons.TaskError; iconTint = error; strike = false
             progressText = null; progressColor = neutral
             chipText = stringResource(R.string.task_chip_failed)
             chipColor = MaterialTheme.colorScheme.errorContainer
             chipTextColor = MaterialTheme.colorScheme.onErrorContainer
         }
         TASK_CANCELLED -> {
-            stroke = outlineVariant; iconRes = R.drawable.ic_dot; iconTint = neutral; strike = true
+            stroke = outlineVariant; icon = VenusIcons.Dot; iconTint = neutral; strike = true
             progressText = stringResource(R.string.task_status_cancelled); progressColor = neutral
             chipText = null; chipColor = null; chipTextColor = null
         }
         else -> {
-            stroke = outlineVariant; iconRes = R.drawable.ic_dot; iconTint = neutral; strike = false
+            stroke = outlineVariant; icon = VenusIcons.Dot; iconTint = neutral; strike = false
             progressText = stringResource(R.string.task_status_pending); progressColor = neutral
             chipText = null; chipColor = null; chipTextColor = null
         }
@@ -676,7 +676,7 @@ private fun TaskRow(
                     circle = true,
                     semanticStrokeColor = stroke.toArgb(),
                 )
-                StatusGlyph(iconRes = iconRes, tint = iconTint, strike = strike, status = task.status)
+                StatusGlyph(icon = icon, tint = iconTint, strike = strike, status = task.status)
             }
             Spacer(modifier = Modifier.width(dimensionResource(R.dimen.space_4)))
             Text(
@@ -721,7 +721,7 @@ private fun TaskRow(
  */
 @Composable
 private fun StatusGlyph(
-    iconRes: Int,
+    icon: ImageVector,
     tint: Color,
     strike: Boolean,
     status: Int,
@@ -753,14 +753,14 @@ private fun StatusGlyph(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            painter = painterResource(iconRes),
+            imageVector = icon,
             contentDescription = stringResource(R.string.task_status),
             tint = tint,
             modifier = Modifier.fillMaxSize(),
         )
         if (strike) {
             Icon(
-                painter = painterResource(R.drawable.ic_strike_cross),
+                imageVector = VenusIcons.StrikeCross,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.fillMaxSize(),

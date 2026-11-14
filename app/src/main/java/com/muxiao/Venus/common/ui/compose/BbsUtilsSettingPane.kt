@@ -55,7 +55,7 @@ fun BbsUtilsSettingPane(
         // 用 GlassActionRow（LensGlass + GlassSpecs.Inset），与页内其它玻璃同一套材质
         GlassActionRow(
             text = stringResource(R.string.update_config),
-            iconRes = R.drawable.ic_refresh,
+            icon = VenusIcons.Refresh,
             onClick = onUpdateClick,
         )
     }

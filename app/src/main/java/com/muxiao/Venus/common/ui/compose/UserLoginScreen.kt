@@ -130,7 +130,7 @@ fun UserLoginScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(
-                iconRes = R.drawable.ic_chevron,
+                icon = VenusIcons.ChevronDown,
                 contentDescription = stringResource(R.string.close_webpage),
                 onClick = onBackClick,
                 // chevron 默认朝下，顺时针 90° 后朝左（与全项目返回箭头同一处理）

@@ -48,7 +48,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -233,7 +232,7 @@ fun SettingsScreen(
 
             // 查看榜单图：独立表面行按钮，与四个分组平级；复用 GlassActionRow，不要再写九宫格 drawable 的私有版本
             GlassActionRow(
-                iconRes = R.drawable.ic_image,
+                icon = VenusIcons.Image,
                 text = stringResource(R.string.view_miyoushe_ranking),
                 onClick = onImageClick,
                 modifier = Modifier.padding(top = dimensionResource(R.dimen.space_4)),
@@ -341,7 +340,7 @@ private fun SettingsCardItem(card: SettingsCard) {
                     )
                 }
                 Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
+                    imageVector = VenusIcons.ChevronDown,
                     contentDescription = stringResource(R.string.expand_collapse),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier

@@ -30,9 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
@@ -81,7 +79,7 @@ fun OauthLoginScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(
-                iconRes = R.drawable.ic_chevron,
+                icon = VenusIcons.ChevronDown,
                 contentDescription = stringResource(R.string.close_webpage),
                 onClick = onBackClick,
                 iconModifier = Modifier.rotate(90f),
@@ -115,11 +113,11 @@ fun OauthLoginScreen(
                             modifier = Modifier
                                 .size(dimensionResource(R.dimen.icon_badge_circle))
                                 .clip(CircleShape)
-                                .background(colorResource(R.color.primary_alpha_10))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
                                 .padding(dimensionResource(R.dimen.space_2)),
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_link),
+                                imageVector = VenusIcons.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.fillMaxSize(),
