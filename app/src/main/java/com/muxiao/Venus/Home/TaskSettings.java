@@ -159,26 +159,50 @@ public class TaskSettings {
                 && !sklandArknightsEnabled && !sklandEndfieldEnabled;
     }
 
-    /** 已启用任务的本地化名称列表，用于通知与日志展示。 */
-    public List<String> getTaskNames(Context context) {
-        List<String> names = new ArrayList<>();
-        if (dailyEnabled) names.add(context.getString(R.string.task_name_bbs_daily));
+    /**
+     * 已启用任务列表（稳定 id + 当前语言显示名），顺序即列表显示顺序。
+     *
+     * <p>id 才是持久化/匹配键（见 {@link TaskIds}）；名称只用于展示，随语言变化不影响状态归属。
+     */
+    public List<TaskDescriptor> getTasks(Context context) {
+        List<TaskDescriptor> tasks = new ArrayList<>();
+        if (dailyEnabled)
+            tasks.add(new TaskDescriptor(TaskIds.BBS_DAILY, context.getString(R.string.task_name_bbs_daily)));
         if (gameDailyEnabled && gameDailyGames != null)
             for (String g : gameDailyGames)
-                names.add(context.getString(R.string.task_name_game_sign_in, MiHoYoBBSConstants.game_to_display_name(context, g)));
+                tasks.add(new TaskDescriptor(TaskIds.gameSignIn(g),
+                        context.getString(R.string.task_name_game_sign_in, MiHoYoBBSConstants.game_to_display_name(context, g))));
         if (cloudGames != null)
             for (String g : cloudGames)
-                names.add(CloudGameDaily.taskName(context, g));
-        if (sklandArknightsEnabled) names.add(context.getString(R.string.task_name_skland_arknights));
-        if (sklandEndfieldEnabled) names.add(context.getString(R.string.task_name_skland_endfield));
-        return names;
+                tasks.add(new TaskDescriptor(TaskIds.cloudGame(g), CloudGameDaily.taskName(context, g)));
+        if (sklandArknightsEnabled)
+            tasks.add(new TaskDescriptor(TaskIds.SKLAND_ARKNIGHTS, context.getString(R.string.task_name_skland_arknights)));
+        if (sklandEndfieldEnabled)
+            tasks.add(new TaskDescriptor(TaskIds.SKLAND_ENDFIELD, context.getString(R.string.task_name_skland_endfield)));
+        return tasks;
     }
 
     /**
-     * 「任务名 → 是否具备执行条件」，供列表划线提示与执行期跳过。
+     * 已启用任务的 id 列表（顺序同 {@link #getTasks(Context)}）。
+     * 复位、计数、完成判定都用它——这些动作只关心「哪些任务」，与语言无关，故无需 Context。
+     */
+    public List<String> getTaskIds() {
+        List<String> ids = new ArrayList<>();
+        if (dailyEnabled) ids.add(TaskIds.BBS_DAILY);
+        if (gameDailyEnabled && gameDailyGames != null)
+            for (String g : gameDailyGames) ids.add(TaskIds.gameSignIn(g));
+        if (cloudGames != null)
+            for (String g : cloudGames) ids.add(TaskIds.cloudGame(g));
+        if (sklandArknightsEnabled) ids.add(TaskIds.SKLAND_ARKNIGHTS);
+        if (sklandEndfieldEnabled) ids.add(TaskIds.SKLAND_ENDFIELD);
+        return ids;
+    }
+
+    /**
+     * 「任务 id → 是否具备执行条件」，供列表划线提示与执行期跳过。
      * 只覆盖需额外凭证的云游戏 token 与森空岛 token：米游币/游戏签到依赖登录态本身，
      * 未登录时用户列表里没有该账号、也就不会有它的任务，故恒为可执行。
-     * 键为本地化任务名，与 {@link #getTaskNames(Context)} 严格同源（同一批 getString 口径），未出现在映射里即视为可执行。
+     * 键与 {@link #getTasks(Context)} 的 id 严格同源，未出现在映射里即视为可执行。
      *
      * @param userId 当前选中用户；为空时云游戏与森空岛一律视为未配置
      */
@@ -189,7 +213,7 @@ public class TaskSettings {
             for (String g : cloudGames) {
                 String token = hasUser
                         ? tools.read(context, userId, CloudGameDaily.tokenKey(g, isOversea)) : null;
-                readiness.put(CloudGameDaily.taskName(context, g), CloudGameDaily.isValidToken(token));
+                readiness.put(TaskIds.cloudGame(g), CloudGameDaily.isValidToken(token));
             }
         }
         if (sklandArknightsEnabled || sklandEndfieldEnabled) {
@@ -197,9 +221,9 @@ public class TaskSettings {
             boolean ready = SklandDaily.isValidToken(token);
             // 两款游戏共用同一个森空岛 token，配置状态必然一致
             if (sklandArknightsEnabled)
-                readiness.put(context.getString(R.string.task_name_skland_arknights), ready);
+                readiness.put(TaskIds.SKLAND_ARKNIGHTS, ready);
             if (sklandEndfieldEnabled)
-                readiness.put(context.getString(R.string.task_name_skland_endfield), ready);
+                readiness.put(TaskIds.SKLAND_ENDFIELD, ready);
         }
         return readiness;
     }

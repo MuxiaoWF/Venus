@@ -37,7 +37,8 @@ public class ForegroundTaskService extends Service {
 
     /** 逐条任务状态变更广播（供 HomeFragment 实时/恢复刷新列表图标）。 */
     public static final String ACTION_TASK_STATUS_UPDATED = "com.muxiao.Venus.TASK_STATUS_UPDATED";
-    public static final String EXTRA_TASK_NAME = "task_name";
+    /** 任务稳定 id（{@link TaskIds}）：跨组件传递一律用 id，显示名由接收方按当前语言换算。 */
+    public static final String EXTRA_TASK_ID = "task_id";
     public static final String EXTRA_TASK_STATUS = "task_status";
     /** 状态归属的运行用户：后台运行期间切换用户时，HomeFragment 凭此过滤非当前展示用户的状态。 */
     public static final String EXTRA_TASK_USER_ID = "task_user_id";
@@ -73,12 +74,12 @@ public class ForegroundTaskService extends Service {
         sendBroadcast(intent);
     }
 
-    /** 向应用内广播单条任务状态变更（运行用户 + task_name + status 枚举名），供 HomeFragment 实时更新列表图标。 */
-    private void broadcastTaskStatus(String taskName, TaskItem.TaskStatus status) {
+    /** 向应用内广播单条任务状态变更（运行用户 + task id + status 枚举名），供 HomeFragment 实时更新列表图标。 */
+    private void broadcastTaskStatus(String taskId, TaskItem.TaskStatus status) {
         Intent intent = new Intent(ACTION_TASK_STATUS_UPDATED);
         intent.setPackage(getPackageName());
         intent.putExtra(EXTRA_TASK_USER_ID, runningUserId);
-        intent.putExtra(EXTRA_TASK_NAME, taskName);
+        intent.putExtra(EXTRA_TASK_ID, taskId);
         intent.putExtra(EXTRA_TASK_STATUS, status.name());
         sendBroadcast(intent);
     }
@@ -151,15 +152,14 @@ public class ForegroundTaskService extends Service {
                     // 新一轮运行：仅复位该用户桶内的瞬态，保留当日终态——重跑中途终止不会抹掉已完成记录。
                     // App 内「开始任务」已由 resetForNewRun 复位过（重复复位无副作用），但小组件入口
                     // TaskWidgetReceiver 没有对应调用，统一由服务侧复位以保证三条入口一致。
-                    statusManager.resetTransientStatuses(runningUserId,
-                            TaskSettings.fromPreferences(this).getTaskNames(this));
+                    statusManager.resetTransientStatuses(runningUserId, TaskSettings.fromPreferences(this).getTaskIds());
                     // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
                     TaskWidgetProvider.refreshAllWidgets(this);
                     // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
                     statusManager.setCurrentUser(runningUserId);
 
                     TaskSettings settings = TaskSettings.fromPreferences(this);
-                    int totalTasks = settings.getTaskNames(ForegroundTaskService.this).size();
+                    int totalTasks = settings.getTaskIds().size();
                     AtomicInteger completedTasks = new AtomicInteger(0);
 
                     GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
@@ -168,12 +168,12 @@ public class ForegroundTaskService extends Service {
                             this, userId, notifier, geetestController,
                             new TaskExecutor.Callback() {
                                 @Override
-                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
-                                    saveTaskStatus(taskName, status);
+                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                                    saveTaskStatus(taskId, status);
                                     if (status == TaskItem.TaskStatus.COMPLETED) {
                                         completedTasks.incrementAndGet();
                                     }
-                                    updateServiceNotification(taskName, status,
+                                    updateServiceNotification(taskId, status,
                                             completedTasks.get(), totalTasks);
                                 }
 
@@ -219,16 +219,17 @@ public class ForegroundTaskService extends Service {
     }
 
     /** 将任务状态持久化到运行用户的桶并刷新小组件。 */
-    private void saveTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        statusManager.applyStatus(runningUserId, taskName, status);
+    private void saveTaskStatus(String taskId, TaskItem.TaskStatus status) {
+        statusManager.applyStatus(runningUserId, taskId, status);
         TaskWidgetProvider.refreshAllWidgets(this);
         // 广播单条状态：HomeFragment 实时刷新与恢复时都靠它同步列表图标
-        broadcastTaskStatus(taskName, status);
+        broadcastTaskStatus(taskId, status);
     }
 
-    /** 根据任务状态拼出通知文案，并更新前台进度通知的进度与文本。 */
-    private void updateServiceNotification(String taskName, TaskItem.TaskStatus status,
+    /** 根据任务状态拼出通知文案，并更新前台进度通知的进度与文本（文案用当前语言的显示名）。 */
+    private void updateServiceNotification(String taskId, TaskItem.TaskStatus status,
                                             int progress, int max) {
+        String taskName = TaskIds.displayName(this, taskId);
         String statusText;
         switch (status) {
             case IN_PROGRESS:

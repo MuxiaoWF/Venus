@@ -11,9 +11,10 @@ import android.widget.RemoteViews;
 
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Home.TaskDescriptor;
+import com.muxiao.Venus.Home.TaskSettings;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
-import com.muxiao.Venus.Home.TaskSettings;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.LocaleHelper;
 
@@ -23,6 +24,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 任务状态桌面小组件。
@@ -45,6 +48,17 @@ public class TaskWidgetProvider extends AppWidgetProvider {
      * StaticFieldLeak；实际存的是进程级 Application Context（随进程存活，弱引用不会提前回收）。
      */
     private static volatile java.lang.ref.WeakReference<Context> refreshContextRef;
+
+    /**
+     * 刷新执行的单线程池。刷新要读 DataStore（首次构造还会同步阻塞读首帧）、算签名、发两次系统 IPC，
+     * 旧版直接把这段跑在 Handler（主线程）上：任务执行期间每条状态变化都触发一次，主线程被磁盘 IO 反复占用，
+     * 冷启动被 launcher 拉起时尤其容易卡顿甚至 ANR。单线程保证刷新串行、签名比对不会被并发打乱。
+     */
+    private static final ExecutorService REFRESH_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "Venus-WidgetRefresh");
+        t.setDaemon(true);
+        return t;
+    });
 
     /**
      * 最近一次真正渲染到桌面的画面签名（full=含统计/按钮/日期，list=仅列表条目数据）。
@@ -112,12 +126,13 @@ public class TaskWidgetProvider extends AppWidgetProvider {
 
         // 底部统计信息（状态按用户分桶：展示目标用户——当前选中，兜底最后运行——的完成情况）
         int completed = snapshot.completedCount();
-        int taskCount = snapshot.taskNames.size();
+        int taskCount = snapshot.tasks.size();
         views.setTextViewText(R.id.widget_summary,
                 context.getResources().getQuantityString(
                         R.plurals.widget_task_summary, completed, completed, taskCount));
         // 日期 chip 显示状态归属日（status_date）而非渲染时刻：任务状态按日重置，
-        // 归属日才是这组 ✓/✗ 的语义日期。status_date 格式固定 yyyy-MM-dd，直接截取 MM/dd 段
+        // 归属日才是这组 ✓/✗ 的语义日期（首页页眉同源，已统一）。status_date 格式固定 yyyy-MM-dd，
+        // 直接截取 MM/dd 段
         String statusDate = snapshot.statusDate;
         views.setTextViewText(R.id.widget_date, statusDate.length() >= 10
                 ? statusDate.substring(5).replace('-', '/')
@@ -130,6 +145,9 @@ public class TaskWidgetProvider extends AppWidgetProvider {
      * 请求刷新全部小组件实例。刻意去抖合并：任务执行期间每条任务状态变化都会请求刷新，若逐次真正刷新，
      * 每次都要重建 RemoteViews + 两次系统 IPC（updateAppWidget / notifyAppWidgetViewDataChanged），
      * 还会让 launcher 反复拉全量列表数据。合并后窗口内只刷新一次且读到的必然是最新状态；可从任意线程调用。
+     *
+     * <p>去抖窗口结束后投递到 {@link #REFRESH_EXECUTOR} 执行：刷新链路要读 DataStore、可能触发跨天整仓
+     * 重写与历史日志落盘，放主线程等于让每次任务状态变化都在 UI 线程做磁盘 IO。
      */
     public static void refreshAllWidgets(Context context) {
         if (context == null) return;
@@ -139,11 +157,16 @@ public class TaskWidgetProvider extends AppWidgetProvider {
             REFRESH_SCHEDULED.set(false);
             WeakReference<Context> ref = refreshContextRef;
             Context latest = ref != null ? ref.get() : null;
-            if (latest != null) refreshAllWidgetsNow(latest);
+            if (latest == null) return;
+            try {
+                REFRESH_EXECUTOR.execute(() -> refreshAllWidgetsNow(latest));
+            } catch (java.util.concurrent.RejectedExecutionException ignored) {
+                // 进程正在退出：无需再渲染
+            }
         }, REFRESH_DEBOUNCE_MS);
     }
 
-    /** 立即（同步）刷新全部小组件实例，供 {@link #refreshAllWidgets} 的去抖回调调用。 */
+    /** 立即（同步）刷新全部小组件实例，供 {@link #refreshAllWidgets} 的去抖回调在工作线程调用。 */
     @SuppressWarnings("deprecation")
     private static void refreshAllWidgetsNow(Context context) {
         Context localized = LocaleHelper.wrap(context);
@@ -175,21 +198,27 @@ public class TaskWidgetProvider extends AppWidgetProvider {
 
     /**
      * 渲染所需的全部可变数据快照：一次读取、渲染与签名同源，避免「签名与实际渲染内容不一致」导致漏刷或重复刷。
+     *
+     * <p>任务一律以 {@link TaskDescriptor}（稳定 id + 当前语言显示名）表示：状态按 id 查，
+     * 名称只用于展示与签名——切语言后名称变了会重渲染，但状态归属不会错位。
      */
     private static final class WidgetSnapshot {
         final String targetUser;
-        final List<String> taskNames;
+        final List<TaskDescriptor> tasks;
         final Map<String, String> statuses;
+        final Map<String, Boolean> readiness;
         final boolean isRunning;
         final String statusDate;
         /** 语言标识（设置项 + 跟随系统时的系统语言）：切换语言后即使数据未变也须重渲染文案。 */
         final String languageTag;
 
-        private WidgetSnapshot(String targetUser, List<String> taskNames, Map<String, String> statuses,
+        private WidgetSnapshot(String targetUser, List<TaskDescriptor> tasks,
+                               Map<String, String> statuses, Map<String, Boolean> readiness,
                                boolean isRunning, String statusDate, String languageTag) {
             this.targetUser = targetUser;
-            this.taskNames = taskNames;
+            this.tasks = tasks;
             this.statuses = statuses;
+            this.readiness = readiness;
             this.isRunning = isRunning;
             this.statusDate = statusDate;
             this.languageTag = languageTag;
@@ -198,33 +227,37 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         /** 从各数据源读取当前时刻的完整快照（触发 {@code TaskStatusManager.ensureToday()} 跨天校验）。 */
         static WidgetSnapshot load(Context context) {
             String targetUser = TaskWidgetReceiver.resolveTargetUser(context);
-            List<String> taskNames = TaskSettings.fromPreferences(context).getTaskNames(context);
+            TaskSettings settings = TaskSettings.fromPreferences(context);
+            List<TaskDescriptor> tasks = settings.getTasks(context);
             TaskStatusManager statusManager = new TaskStatusManager(context);
             Map<String, String> statuses = statusManager.getAllStatuses(targetUser);
+            // 就绪表参与签名：补填/失效 token 会改变条目样式（划线灰显），必须触发重渲染
+            Map<String, Boolean> readiness = settings.getTaskReadiness(context, targetUser);
             String statusDate = statusManager.getStatusDate(targetUser);
             SharedPreferences languagePrefs = context.getSharedPreferences(
                     Constants.Prefs.LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE);
             int selectedLanguage = languagePrefs.getInt(Constants.Prefs.SELECTED_LANGUAGE, 0);
             String languageTag = selectedLanguage + ":"
                     + (selectedLanguage == 0 ? Locale.getDefault().toLanguageTag() : "");
-            return new WidgetSnapshot(targetUser, taskNames, statuses,
+            return new WidgetSnapshot(targetUser, tasks, statuses, readiness,
                     ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning(),
                     statusDate, languageTag);
         }
 
-        /** 统计快照内「已完成」的任务数（键序按任务名集合）。 */
+        /** 统计快照内「已完成」的任务数（按任务 id 查状态）。 */
         int completedCount() {
             int count = 0;
-            for (String name : taskNames)
-                if (TaskStatusManager.STATUS_COMPLETED.equals(statuses.get(name))) count++;
+            for (TaskDescriptor task : tasks)
+                if (TaskStatusManager.STATUS_COMPLETED.equals(statuses.get(task.id))) count++;
             return count;
         }
 
-        /** 列表条目数据签名：语言 + 目标用户 + 任务集合 + 逐条状态。 */
+        /** 列表条目数据签名：语言 + 目标用户 + 逐条（id=状态/就绪）。 */
         String listSignature() {
             StringBuilder sb = new StringBuilder(languageTag).append('|').append(targetUser);
-            for (String name : taskNames)
-                sb.append('|').append(name).append('=').append(statuses.get(name));
+            for (TaskDescriptor task : tasks)
+                sb.append('|').append(task.id).append('=').append(statuses.get(task.id))
+                        .append('/').append(readiness.get(task.id));
             return sb.toString();
         }
 

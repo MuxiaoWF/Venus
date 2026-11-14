@@ -14,6 +14,7 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.muxiao.Venus.common.LocaleHelper;
 import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 
@@ -145,11 +146,13 @@ public class HomeViewModel extends AndroidViewModel {
     /**
      * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本轮未触达的任务以 RETAINED 展示。
      * RETAINED 仅为展示态——持久化与回调链路始终用原始状态，回到 IDLE 后自然还原为绿色。
+     *
+     * @param taskId 稳定任务 id（触达集合按 id 记录，与语言无关）
      */
-    private TaskItem.TaskStatus deriveDisplayStatus(String taskName, TaskItem.TaskStatus status) {
+    private TaskItem.TaskStatus deriveDisplayStatus(String taskId, TaskItem.TaskStatus status) {
         if (status == TaskItem.TaskStatus.COMPLETED
                 && current().runMode != RunMode.IDLE
-                && !touchedTasks.contains(taskName))
+                && !touchedTasks.contains(taskId))
             return TaskItem.TaskStatus.RETAINED;
         return status;
     }
@@ -226,7 +229,9 @@ public class HomeViewModel extends AndroidViewModel {
     private static boolean itemsEqual(List<TaskItem> a, List<TaskItem> b) {
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
-            if (!a.get(i).getName().equals(b.get(i).getName())
+            if (!a.get(i).getId().equals(b.get(i).getId())
+                    // 名称参与比较：切换语言后同一 id 的显示名会变，须触发列表重建
+                    || !a.get(i).getName().equals(b.get(i).getName())
                     || a.get(i).getStatus() != b.get(i).getStatus()
                     // 配置变动（补填 token）要能触发列表重建，否则划线不会消失
                     || a.get(i).isRunnable() != b.get(i).isRunnable())
@@ -244,24 +249,27 @@ public class HomeViewModel extends AndroidViewModel {
     public void resetForNewRun() {
         TaskSettings settings = TaskSettings.fromPreferences(getApplication());
         new TaskStatusManager(getApplication())
-                .resetTransientStatuses(currentUser, settings.getTaskNames(getApplication()));
+                .resetTransientStatuses(currentUser, settings.getTaskIds());
         refreshTaskItems(settings);
     }
 
     private List<TaskItem> buildTaskItems(TaskSettings settings) {
-        Context context = getApplication();
+        // 取名必须用「当前设置语言」的 Context：Application 的语言只在进程启动时 attachBaseContext 锁定一次，
+        // 运行期切换语言只会 recreate Activity；直接用 getApplication() 会拿到旧语言的名称，
+        // 与小组件（每次现算 LocaleHelper.wrap）不一致——旧版正是因此在切语言后两侧列表对不上。
+        Context context = LocaleHelper.wrap(getApplication());
         TaskStatusManager statusManager = new TaskStatusManager(context);
         List<TaskItem> items = new ArrayList<>();
         // 凭证未配齐的任务仍留在列表里（用户看得见自己开了什么），只是标记为不可执行：
         // 列表划线灰显、运行入口直接跳过，不发请求也不报错。
         java.util.Map<String, Boolean> readiness = settings.getTaskReadiness(context, currentUser);
-        // 状态按用户分桶：列表始终反映当前选中用户自己的完成情况
-        for (String taskName : settings.getTaskNames(context)) {
-            TaskItem item = new TaskItem(taskName);
-            Boolean ready = readiness.get(taskName);
+        // 状态按用户分桶、按稳定 id 归属：列表始终反映当前选中用户自己的完成情况，且与语言无关
+        for (TaskDescriptor task : settings.getTasks(context)) {
+            TaskItem item = new TaskItem(task.id, task.name);
+            Boolean ready = readiness.get(task.id);
             item.setRunnable(ready == null || ready);
-            item.setStatus(deriveDisplayStatus(taskName,
-                    TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, taskName))));
+            item.setStatus(deriveDisplayStatus(task.id,
+                    TaskStatusManager.toTaskStatus(statusManager.getStatus(currentUser, task.id))));
             items.add(item);
         }
         return items;
@@ -270,12 +278,14 @@ public class HomeViewModel extends AndroidViewModel {
     /**
      * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。用于「本页线程执行任务」的场景（本页是唯一写入方）。
      * 可从任意线程调用。
+     *
+     * @param taskId 稳定任务 id
      */
-    public void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
+    public void updateTaskStatus(String taskId, TaskItem.TaskStatus status) {
         // 收到回调即视为本轮已触达：该任务此后恢复原始状态展示（不再 RETAINED）
-        touchedTasks.add(taskName);
-        persistTaskStatus(taskName, status);
-        applyExternalTaskStatus(currentUser, taskName, status);
+        touchedTasks.add(taskId);
+        persistTaskStatus(taskId, status);
+        applyExternalTaskStatus(currentUser, taskId, status);
         TaskWidgetProvider.refreshAllWidgets(getApplication());
     }
 
@@ -287,21 +297,23 @@ public class HomeViewModel extends AndroidViewModel {
      *
      * @param userId 状态归属的运行用户：后台运行 A 期间切到 B 时不改写 B 的列表，切回 A 时
      *               {@link #refreshTaskItems()} 会从 A 的桶重新渲染实时进度
+     * @param taskId 稳定任务 id（广播载荷，不是显示名）
      */
-    public void applyExternalTaskStatus(String userId, String taskName, TaskItem.TaskStatus status) {
+    public void applyExternalTaskStatus(String userId, String taskId, TaskItem.TaskStatus status) {
         // 任何状态回调都意味着本轮已执行到该任务：先于展示用户判断打点，
         // 保证后台运行 A 期间切到 B 再切回时，A 已重跑过的任务不会被误标 RETAINED
-        touchedTasks.add(taskName);
-        // 展示用户 ≠ 运行用户时跳过：避免后台运行中切换用户后，A 的进度按任务名混入 B 的列表
+        touchedTasks.add(taskId);
+        // 展示用户 ≠ 运行用户时跳过：避免后台运行中切换用户后，A 的进度按 id 混入 B 的列表
         String owner = userId == null ? "" : userId;
         if (!owner.equals(currentUser)) return;
         // 基于旧快照复制出新列表，保持 UiState 不可变语义
         TaskUiState snapshot = current();
         List<TaskItem> updated = new ArrayList<>(snapshot.items.size());
         for (TaskItem old : snapshot.items) {
-            TaskItem copy = new TaskItem(old.getName());
-            copy.setStatus(old.getName().equals(taskName)
-                    ? deriveDisplayStatus(taskName, status) : old.getStatus());
+            TaskItem copy = new TaskItem(old.getId(), old.getName());
+            copy.setStatus(old.getId().equals(taskId)
+                    ? deriveDisplayStatus(taskId, status) : old.getStatus());
+            copy.setRunnable(old.isRunnable());
             updated.add(copy);
         }
         publishAsync(snapshot.withItems(updated));
@@ -316,7 +328,7 @@ public class HomeViewModel extends AndroidViewModel {
      * 持久化任务状态。不逐条调 {@code setCurrentUser}：当前用户已在 {@link #persistCurrentUserForWidget()}
      * 于运行开始时写一次、运行期间恒定，逐条重写只会让 DataStore 多背无意义的事务。
      */
-    private void persistTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        new TaskStatusManager(getApplication()).applyStatus(currentUser, taskName, status);
+    private void persistTaskStatus(String taskId, TaskItem.TaskStatus status) {
+        new TaskStatusManager(getApplication()).applyStatus(currentUser, taskId, status);
     }
 }

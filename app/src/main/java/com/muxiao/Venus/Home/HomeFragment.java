@@ -112,9 +112,8 @@ public class HomeFragment implements PageController {
         // ViewModel 作为 UI 状态单一可信数据源（Activity 作用域，与原 Fragment 作用域等效）
         viewModel = new ViewModelProvider(activity).get(HomeViewModel.class);
 
-        // 页眉日期 chip：MM/dd 周几
-        root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
-                .format(new java.util.Date()));
+        // 页眉日期 chip 在用户上下文就绪后按「状态归属日」渲染（见 updateDateChip），此处不预置今天的日期：
+        // 预置会在跨天/看昨日状态时先闪一个错误日期
 
         // 内容不做容器级避让：列表底部留出底栏覆盖高度，末项可完整滚出玻璃区（把高度喂成组合状态）
         BottomBarOverlay.addListener(bottomBarListener);
@@ -143,6 +142,7 @@ public class HomeFragment implements PageController {
         // 否则读到空桶导致任务全部显示 pending（原实现刷新先于用户初始化，分桶后不成立）
         applyUserList(usernames, isOversea);
         viewModel.refreshTaskItems();
+        updateDateChip();
         root.setOnUserSelectedListener(index -> {
             if (index < 0 || index >= currentUsernames.size()) return;
             String picked = currentUsernames.get(index);
@@ -191,8 +191,8 @@ public class HomeFragment implements PageController {
                             activity, viewModel.getCurrentUser(), notifier, controller,
                             new TaskExecutor.Callback() {
                                 @Override
-                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
-                                    updateTaskStatus(taskName, status);
+                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                                    updateTaskStatus(taskId, status);
                                 }
                                 @Override
                                 public void onAllTasksCompleted() {
@@ -230,9 +230,9 @@ public class HomeFragment implements PageController {
                 tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_scheduled_task_running));
                 return;
             }
-            Set<String> failedNames = collectFailedTaskNames();
+            Set<String> failedIds = collectFailedTaskIds();
             // 按钮可见性由 ERROR 状态派生，正常不会为空；切用户/改配置等竞态下兜底
-            if (failedNames.isEmpty()) return;
+            if (failedIds.isEmpty()) return;
             tools.writeLogSeparator(context);
 
             // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖；未触达的已完成项
@@ -252,8 +252,8 @@ public class HomeFragment implements PageController {
                             activity, viewModel.getCurrentUser(), notifier, controller,
                             new TaskExecutor.Callback() {
                                 @Override
-                                public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
-                                    updateTaskStatus(taskName, status);
+                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                                    updateTaskStatus(taskId, status);
                                 }
                                 @Override
                                 public void onAllTasksCompleted() {
@@ -268,8 +268,8 @@ public class HomeFragment implements PageController {
                                     return isTaskCancelled();
                                 }
                             });
-                    // 部分执行：TaskExecutor 只提交名称命中的任务（含单游戏粒度）
-                    taskExecutor.executeAll(settings, failedNames);
+                    // 部分执行：TaskExecutor 只提交 id 命中的任务（含单游戏粒度）
+                    taskExecutor.executeAll(settings, failedIds);
                 }                 finally {
                     // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除 RETAINED
                     runOnUi(() -> {
@@ -514,7 +514,7 @@ public class HomeFragment implements PageController {
         int done = 0;
         int failed = 0;
         for (TaskItem item : state.items) {
-            rows.add(new HomeTaskRow(item.getName(), toUiStatus(item.getStatus()), !item.isRunnable()));
+            rows.add(new HomeTaskRow(item.getId(), item.getName(), toUiStatus(item.getStatus()), !item.isRunnable()));
             // DONE 计数与小组件 done_ 口径一致，只统计 COMPLETED + RETAINED：「已签过」由服务端返回后走
             // COMPLETED；等待人机验证期间保持 IN_PROGRESS 不计入；RETAINED（沿用上次结果）本质是当日已完成，
             // 计入以免运行期间计数回落。
@@ -565,25 +565,42 @@ public class HomeFragment implements PageController {
     /**
      * 点了任务列表里的「未配置」项：跳到设置页对应凭证抽屉。
      * <p>
-     * 任务名是本地化字符串，只能按「同一 getString 口径」反查：云游戏逐个游戏名比对；森空岛两款任务共用同一个
-     * token、指向同一个抽屉。
+     * 入参是稳定任务 id（不是显示名）：旧版按本地化名称逐个 getString 比对，切语言后必然对不上；
+     * 云游戏 id 自带游戏标识，森空岛两款任务共用同一个 token、指向同一个抽屉。
      */
-    private void onDisabledTaskClick(String taskName) {
-        TaskSettings settings = TaskSettings.fromPreferences(activity);
-        for (String game : settings.getCloudGames()) {
-            if (taskName.equals(CloudGameDaily.taskName(activity, game))) {
-                activity.openSettingsPane(SettingsFragment.PANE_CLOUD_GAME);
-                return;
-            }
+    private void onDisabledTaskClick(String taskId) {
+        if (taskId == null) return;
+        if (taskId.startsWith(TaskIds.CLOUD_GAME_PREFIX)) {
+            activity.openSettingsPane(SettingsFragment.PANE_CLOUD_GAME);
+            return;
         }
-        if (taskName.equals(activity.getString(R.string.task_name_skland_arknights))
-                || taskName.equals(activity.getString(R.string.task_name_skland_endfield))) {
+        if (TaskIds.SKLAND_ARKNIGHTS.equals(taskId) || TaskIds.SKLAND_ENDFIELD.equals(taskId)) {
             activity.openSettingsPane(SettingsFragment.PANE_SKLAND);
         }
     }
 
-    private void updateTaskStatus(String taskName, TaskItem.TaskStatus status) {
-        viewModel.updateTaskStatus(taskName, status);
+    private void updateTaskStatus(String taskId, TaskItem.TaskStatus status) {
+        viewModel.updateTaskStatus(taskId, status);
+    }
+
+    /**
+     * 页眉日期 chip：取「状态归属日（status_date）」而非渲染时刻。
+     * <p>
+     * 任务状态按日重置，归属日才是这组 ✓/✗ 的语义日期；小组件的日期 chip 同样读 status_date，
+     * 两侧因此不会再出现「应用内显示今天、小组件显示昨天」的错位。
+     */
+    private void updateDateChip() {
+        if (screenView == null || viewModel == null) return;
+        String statusDate = new TaskStatusManager(activity).getStatusDate(viewModel.getCurrentUser());
+        java.util.Date date;
+        try {
+            date = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(statusDate);
+        } catch (java.text.ParseException | NullPointerException e) {
+            date = null;
+        }
+        if (date == null) date = new java.util.Date();
+        screenView.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
+                .format(date));
     }
 
     /** 同步当前选中用户的头像（空用户名 = 默认人像图标，由 Compose 侧统一处理）。 */
@@ -643,6 +660,8 @@ public class HomeFragment implements PageController {
         }
         viewModel.setCurrentUser(current);
         renderUserContext();
+        // 账号切换即换了状态桶：日期 chip 的归属日随之变化
+        updateDateChip();
     }
 
     /**
@@ -759,15 +778,15 @@ public class HomeFragment implements PageController {
         taskStatusReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                String name = intent.getStringExtra(ForegroundTaskService.EXTRA_TASK_NAME);
+                String taskId = intent.getStringExtra(ForegroundTaskService.EXTRA_TASK_ID);
                 String statusName = intent.getStringExtra(ForegroundTaskService.EXTRA_TASK_STATUS);
-                if (name == null || statusName == null) return;
+                if (taskId == null || statusName == null) return;
                 try {
                     TaskItem.TaskStatus status = TaskItem.TaskStatus.valueOf(statusName);
                     // 后台服务是这条状态的写入方：已按运行用户持久化并刷新过小组件，本页只同步 UI 快照
                     // （广播携带运行用户，展示用户不一致时 ViewModel 内部会跳过，防串显）
                     String user = intent.getStringExtra(ForegroundTaskService.EXTRA_TASK_USER_ID);
-                    viewModel.applyExternalTaskStatus(user, name, status);
+                    viewModel.applyExternalTaskStatus(user, taskId, status);
                 } catch (IllegalArgumentException ignored) {
                 }
             }
@@ -826,9 +845,10 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 收集当前用户当日 ERROR 状态的任务名（与 TaskStatusManager 持久化键同源），供「重试失败任务」按名过滤。
+     * 收集当前用户当日 ERROR 状态的任务 id（与 {@code TaskStatusManager} 持久化键同源），
+     * 供「重试失败任务」按 id 过滤——不再用显示名，避免切语言后整轮重试落空。
      */
-    private Set<String> collectFailedTaskNames() {
+    private Set<String> collectFailedTaskIds() {
         String user = viewModel.getCurrentUser();
         if (user == null || user.isEmpty()) return java.util.Collections.emptySet();
         Map<String, String> statuses = new TaskStatusManager(activity).getAllStatuses(user);

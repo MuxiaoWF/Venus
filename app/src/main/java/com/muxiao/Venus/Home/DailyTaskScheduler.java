@@ -47,10 +47,12 @@ public final class DailyTaskScheduler {
     public static final String KEY_ATTEMPT = "scheduled_attempt";
 
     /**
-     * WorkData 键：同日重试的部分执行名单（本地化任务名数组；缺省 = 全量执行）。
+     * WorkData 键：同日重试的部分执行名单（稳定任务 id 数组，见 {@link TaskIds}；缺省 = 全量执行）。
      * 验证码失败项不在名单内——它们不参与自动重试，改为通知用户手动处理。
+     * <p>旧版本这里存的是本地化任务名（键名 {@code scheduled_only_names}）：跨版本读到旧值一律按全量执行，
+     * 见 {@code DailyTaskWorker#resolveOnlyIds}。
      */
-    public static final String KEY_ONLY_NAMES = "scheduled_only_names";
+    public static final String KEY_ONLY_IDS = "scheduled_only_ids";
 
     /** 当日错过后补跑的延迟（分钟）。 */
     private static final long CATCH_UP_DELAY_MINUTES = 15;
@@ -142,12 +144,12 @@ public final class DailyTaskScheduler {
         enqueueNext(context, policy, delay, 1, null);
     }
 
-    /** 排下一次工作；onlyNames 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。 */
+    /** 排下一次工作；onlyIds 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。 */
     static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay,
-                            int attempt, Set<String> onlyNames) {
+                            int attempt, Set<String> onlyIds) {
         Data.Builder data = new Data.Builder().putInt(KEY_ATTEMPT, attempt);
-        if (onlyNames != null && !onlyNames.isEmpty())
-            data.putStringArray(KEY_ONLY_NAMES, onlyNames.toArray(new String[0]));
+        if (onlyIds != null && !onlyIds.isEmpty())
+            data.putStringArray(KEY_ONLY_IDS, onlyIds.toArray(new String[0]));
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(DailyTaskWorker.class)
                 .setInitialDelay(Math.max(0, delay), TimeUnit.MILLISECONDS)
                 .setInputData(data.build())
@@ -172,7 +174,7 @@ public final class DailyTaskScheduler {
 
     /** @param allowCatchUp true 时对「今日时刻已过 + 当日未全部完成 + 有可跑任务」返回补跑延迟 */
     private static long delayToTarget(Context context, boolean allowCatchUp) {
-        // 统一使用应用语言环境：任务名等持久化键与语言相关
+        // 仍按应用语言环境取设置与用户（用户可见文案、状态判定链路统一走同一 Context）
         Context localized = LocaleHelper.wrap(context.getApplicationContext());
         int[] time = getConfiguredTime(localized);
         Calendar now = Calendar.getInstance();
@@ -200,17 +202,17 @@ public final class DailyTaskScheduler {
 
     /**
      * 当日启用的任务是否全部完成（幂等去重依据：手动跑过/上一轮已跑完则不再重复执行）。
-     * 仅 {@code status == completed} 算完成，失败/进行中都不算。
+     * 仅 {@code status == completed} 算完成，失败/进行中都不算。判定按稳定任务 id 进行，与语言无关。
      */
     public static boolean allEnabledTasksCompletedToday(Context context, String userId) {
         Context localized = LocaleHelper.wrap(context.getApplicationContext());
         TaskSettings settings = TaskSettings.fromPreferences(localized);
         if (settings.hasAnyTaskDisabled()) return true;
-        List<String> names = settings.getTaskNames(localized);
-        if (names.isEmpty()) return true;
+        List<String> taskIds = settings.getTaskIds();
+        if (taskIds.isEmpty()) return true;
         TaskStatusManager statusManager = new TaskStatusManager(localized);
-        for (String name : names) {
-            if (!TaskStatusManager.STATUS_COMPLETED.equals(statusManager.getStatus(userId, name)))
+        for (String taskId : taskIds) {
+            if (!TaskStatusManager.STATUS_COMPLETED.equals(statusManager.getStatus(userId, taskId)))
                 return false;
         }
         return true;

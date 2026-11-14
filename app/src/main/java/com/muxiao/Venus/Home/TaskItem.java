@@ -16,6 +16,8 @@ public class TaskItem {
         RETAINED
     }
 
+    /** 稳定任务 id（持久化/匹配键，与语言无关，见 {@link TaskIds}）。 */
+    private final String id;
     private final String name;
     private TaskStatus status;
     /**
@@ -24,9 +26,14 @@ public class TaskItem {
      */
     private boolean runnable = true;
 
-    public TaskItem(String name) {
+    public TaskItem(String id, String name) {
+        this.id = id;
         this.name = name;
         this.status = TaskStatus.PENDING;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public String getName() {

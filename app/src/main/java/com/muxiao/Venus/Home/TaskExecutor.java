@@ -24,7 +24,13 @@ public class TaskExecutor {
     }
 
     public interface Callback {
-        void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status);
+        /**
+         * 单任务状态变更。
+         *
+         * @param taskId 稳定任务 id（{@link TaskIds}），持久化与跨组件匹配一律用它；需要展示时用
+         *               {@link TaskIds#displayName(Context, String)} 换算
+         */
+        void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status);
         void onAllTasksCompleted();
         void onError(String message);
         boolean isCancelled();
@@ -33,7 +39,7 @@ public class TaskExecutor {
          * 单任务失败回调（带原始异常）：默认退化为 {@link #onError(String)}。
          * 需要按失败类别定制重试策略的调用方（定时链路）覆写本方法。
          */
-        default void onTaskError(String taskName, String message, Throwable cause) {
+        default void onTaskError(String taskId, String message, Throwable cause) {
             onError(message);
         }
     }
@@ -77,14 +83,14 @@ public class TaskExecutor {
     }
 
     /**
-     * 同 {@link #executeAll(TaskSettings)}，但 onlyNames 非空时只执行名称命中的任务（「重试失败任务」的部分执行入口）。
+     * 同 {@link #executeAll(TaskSettings)}，但 onlyIds 非空时只执行 id 命中的任务（「重试失败任务」的部分执行入口）。
      * <p>
-     * onlyNames 为本地化任务名，与 {@link TaskSettings#getTaskNames(Context)} / {@code TaskStatusManager} 持久化键
-     * 同源（同一 getString 口径），按名称匹配即可精确定位失败项；游戏签到按「单游戏名」粒度过滤。
+     * onlyIds 为稳定任务 id（{@link TaskIds}），与 {@code TaskStatusManager} 持久化键严格同源——不再用本地化
+     * 任务名匹配：名称随语言变化，跨语言重试会全部落空。游戏签到/云游戏按「单游戏」粒度落 id。
      * 候选任务全被过滤时视为无事可做，直接回调完成而非空跑一轮。
      */
-    public void executeAll(TaskSettings settings, java.util.Set<String> onlyNames) {
-        boolean runAll = onlyNames == null || onlyNames.isEmpty();
+    public void executeAll(TaskSettings settings, java.util.Set<String> onlyIds) {
+        boolean runAll = onlyIds == null || onlyIds.isEmpty();
         notifier.notifyListeners(context.getString(R.string.task_mgr_start, userId));
         List<Future<?>> futures = new ArrayList<>();
         // 凭证就绪表：云游戏/森空岛未配置 token 的任务在列表里已划线，这里同样跳过，
@@ -92,38 +98,34 @@ public class TaskExecutor {
         java.util.Map<String, Boolean> readiness = settings.getTaskReadiness(context, userId);
         // 统一线程池（AppExecutors）：三类签到可并行；共享池不可 shutdown，取消时改为 future.cancel(true)。
         // 经 AppExecutors.submit() 门面提交（不暴露 AutoCloseable 的 ExecutorService），避免 Lint 误报。
-        if (settings.isDailyEnabled()
-                && (runAll || onlyNames.contains(context.getString(R.string.task_name_bbs_daily))))
+        if (settings.isDailyEnabled() && (runAll || onlyIds.contains(TaskIds.BBS_DAILY)))
             futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums())));
         if (settings.isGameDailyEnabled()) {
-            List<String> games = filterGames(settings.getGameDailyGames(), onlyNames, runAll);
+            List<String> games = filterGames(settings.getGameDailyGames(), onlyIds, runAll);
             if (!games.isEmpty())
                 futures.add(AppExecutors.get().submit(() -> executeGameDaily(games)));
         }
         // 云游戏：每个游戏独立提交（无「父任务阻塞等待子任务」结构），
         // 因此与游戏签到共用共享池也不会造成线程饥饿；单次仅 1~2 个轻量 GET 请求。
         if (settings.isCloudGameEnabled()) {
-            List<String> cloudGames = filterCloudGames(settings.getCloudGames(), onlyNames, runAll);
+            List<String> cloudGames = filterCloudGames(settings.getCloudGames(), onlyIds, runAll);
             if (cloudGames.isEmpty()) {
                 // 总开关开着但一款都没勾：与「游戏签到」同口径给出可读提示，而不是静默无任务
                 if (runAll) notifier.notifyListeners(context.getString(R.string.task_cloud_game_no_game));
             } else {
                 for (String gameName : cloudGames) {
-                    if (!isReady(readiness, CloudGameDaily.taskName(context, gameName), gameName)) continue;
+                    String taskId = TaskIds.cloudGame(gameName);
+                    if (!isReady(readiness, taskId, CloudGameDaily.displayName(context, gameName))) continue;
                     futures.add(AppExecutors.get().submit(() -> executeCloudGame(gameName)));
                 }
             }
         }
-        if (settings.isSklandArknightsEnabled() && (runAll
-                || onlyNames.contains(context.getString(R.string.task_name_skland_arknights)))) {
-            String taskName = context.getString(R.string.task_name_skland_arknights);
-            if (isReady(readiness, taskName, taskName))
+        if (settings.isSklandArknightsEnabled() && (runAll || onlyIds.contains(TaskIds.SKLAND_ARKNIGHTS))) {
+            if (isReady(readiness, TaskIds.SKLAND_ARKNIGHTS, TaskIds.displayName(context, TaskIds.SKLAND_ARKNIGHTS)))
                 futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ARKNIGHTS)));
         }
-        if (settings.isSklandEndfieldEnabled() && (runAll
-                || onlyNames.contains(context.getString(R.string.task_name_skland_endfield)))) {
-            String taskName = context.getString(R.string.task_name_skland_endfield);
-            if (isReady(readiness, taskName, taskName))
+        if (settings.isSklandEndfieldEnabled() && (runAll || onlyIds.contains(TaskIds.SKLAND_ENDFIELD))) {
+            if (isReady(readiness, TaskIds.SKLAND_ENDFIELD, TaskIds.displayName(context, TaskIds.SKLAND_ENDFIELD)))
                 futures.add(AppExecutors.get().submit(() -> executeSklandDaily(SklandDaily.GAME_ENDFIELD)));
         }
 
@@ -142,29 +144,25 @@ public class TaskExecutor {
      * 凭证未配置的任务直接跳过。任务列表里已用删除线标出，这里再补一条进度提示：否则用户看到项还在、
      * 结束后状态仍是「待执行」，会以为漏跑。
      *
-     * @param label 提示里展示的名字（云游戏用游戏名，森空岛用任务名本身）
+     * @param taskId 任务的稳定 id（readiness 键）
+     * @param label  提示里展示的名字（云游戏用游戏名，森空岛用任务名本身）
      */
-    private boolean isReady(java.util.Map<String, Boolean> readiness, String taskName, String label) {
-        Boolean ready = readiness.get(taskName);
+    private boolean isReady(java.util.Map<String, Boolean> readiness, String taskId, String label) {
+        Boolean ready = readiness.get(taskId);
         if (ready == null || ready) return true;
         notifier.notifyListeners(context.getString(R.string.task_skipped_unconfigured, label));
         return false;
     }
 
     /**
-     * 游戏签到按名称过滤：runAll 原样返回全部；否则只保留任务名命中 onlyNames 的游戏（可能为空，由调用方跳过提交）。
+     * 游戏签到按 id 过滤：runAll 原样返回全部；否则只保留 {@code game_signin:<game>} 命中 onlyIds 的游戏
+     * （可能为空，由调用方跳过提交）。
      */
-    private List<String> filterGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
+    private List<String> filterGames(String[] games, java.util.Set<String> onlyIds, boolean runAll) {
         List<String> result = new ArrayList<>();
         if (games == null) return result;
         for (String game : games) {
-            if (runAll) {
-                result.add(game);
-                continue;
-            }
-            String displayName = MiHoYoBBSConstants.game_to_display_name(context, game);
-            if (onlyNames.contains(context.getString(R.string.task_name_game_sign_in, displayName)))
-                result.add(game);
+            if (runAll || onlyIds.contains(TaskIds.gameSignIn(game))) result.add(game);
         }
         return result;
     }
@@ -212,44 +210,47 @@ public class TaskExecutor {
     /**
      * 包裹单个任务的执行与状态上报：先置 IN_PROGRESS，完成置 COMPLETED、取消置 CANCELLED、异常置 ERROR 并
      * 回调 onTaskError；中断时还原中断标志。
+     *
+     * @param taskId 稳定任务 id：回调与持久化都走它，展示名只在错误文案里现算
      */
-    private void executeTask(String name, RunnableWithException task) {
-        callback.onTaskStatusChanged(name, TaskItem.TaskStatus.IN_PROGRESS);
+    private void executeTask(String taskId, RunnableWithException task) {
+        callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.IN_PROGRESS);
         try {
             task.run();
             if (callback.isCancelled()) {
-                callback.onTaskStatusChanged(name, TaskItem.TaskStatus.CANCELLED);
+                callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.CANCELLED);
             } else {
-                callback.onTaskStatusChanged(name, TaskItem.TaskStatus.COMPLETED);
+                callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.COMPLETED);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            callback.onTaskStatusChanged(name, TaskItem.TaskStatus.CANCELLED);
+            callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.CANCELLED);
         } catch (Exception e) {
             if (callback.isCancelled()) {
-                callback.onTaskStatusChanged(name, TaskItem.TaskStatus.CANCELLED);
+                callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.CANCELLED);
                 return;
             }
-            callback.onTaskStatusChanged(name, TaskItem.TaskStatus.ERROR);
-            callback.onTaskError(name,
-                    context.getString(R.string.task_failed_format, name, e.getMessage() != null ? e.getMessage() : e.toString()),
+            callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.ERROR);
+            callback.onTaskError(taskId,
+                    context.getString(R.string.task_failed_format, TaskIds.displayName(context, taskId),
+                            e.getMessage() != null ? e.getMessage() : e.toString()),
                     e);
         }
     }
 
     /** 待执行目标为空（未勾选任何板块/游戏）的统一处理：任务置错误态 + 回调错误提示，调用方据此直接 return。 */
-    private void reportEmptyTargets(int taskNameRes, int emptyMessageRes) {
-        callback.onTaskStatusChanged(context.getString(taskNameRes), TaskItem.TaskStatus.ERROR);
+    private void reportEmptyTargets(String taskId, int emptyMessageRes) {
+        callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.ERROR);
         callback.onError(context.getString(emptyMessageRes));
     }
 
     /** 执行米游币社区签到：未配置板块时报错，否则提交 BBSDaily.runTask。 */
     private void executeBbsDaily(String[] forums) {
         if (forums == null || forums.length == 0) {
-            reportEmptyTargets(R.string.task_name_bbs_daily, R.string.task_bbs_daily_no_forum);
+            reportEmptyTargets(TaskIds.BBS_DAILY, R.string.task_bbs_daily_no_forum);
             return;
         }
-        executeTask(context.getString(R.string.task_name_bbs_daily), () -> {
+        executeTask(TaskIds.BBS_DAILY, () -> {
             BBSDaily bbsDaily = new BBSDaily(context, userId, notifier, controller);
             bbsDaily.runTask(forums);
         });
@@ -261,7 +262,9 @@ public class TaskExecutor {
      */
     private void executeGameDaily(List<String> games) {
         if (games == null || games.isEmpty()) {
-            reportEmptyTargets(R.string.task_game_sign_in, R.string.task_game_sign_in_no_game);
+            // 「游戏签到总开关开着但一款没勾」时列表里没有任何游戏行，写状态只会留下一个野键
+            // （旧版即写入了未格式化的 R.string.task_name_game_sign_in），故只提示不落状态。
+            callback.onError(context.getString(R.string.task_game_sign_in_no_game));
             return;
         }
         List<Future<?>> futures = new ArrayList<>(games.size());
@@ -269,7 +272,7 @@ public class TaskExecutor {
             if (callback.isCancelled()) break;
             futures.add(GAME_SIGN_POOL.submit(() -> {
                 String displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
-                executeTask(context.getString(R.string.task_name_game_sign_in, displayName), () -> {
+                executeTask(TaskIds.gameSignIn(gameName), () -> {
                     BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, controller);
                     notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
                     gameModule.run();
@@ -280,13 +283,12 @@ public class TaskExecutor {
         notifier.notifyListeners(context.getString(R.string.task_game_sign_in_done));
     }
 
-    /** 云游戏按名称过滤：口径同 {@link #filterGames}，任务名为 {@code R.string.task_name_cloud_game_sign_in + 云游戏名}。 */
-    private List<String> filterCloudGames(String[] games, java.util.Set<String> onlyNames, boolean runAll) {
+    /** 云游戏按 id 过滤：口径同 {@link #filterGames}，id 为 {@code cloud_game:<game>}。 */
+    private List<String> filterCloudGames(String[] games, java.util.Set<String> onlyIds, boolean runAll) {
         List<String> result = new ArrayList<>();
         if (games == null) return result;
         for (String game : games) {
-            if (runAll || onlyNames.contains(CloudGameDaily.taskName(context, game)))
-                result.add(game);
+            if (runAll || onlyIds.contains(TaskIds.cloudGame(game))) result.add(game);
         }
         return result;
     }
@@ -296,7 +298,7 @@ public class TaskExecutor {
      */
     private void executeCloudGame(String gameName) {
         String displayName = CloudGameDaily.displayName(context, gameName);
-        executeTask(CloudGameDaily.taskName(context, gameName), () -> {
+        executeTask(TaskIds.cloudGame(gameName), () -> {
             CloudGameDaily cloudGame = new CloudGameDaily(context, userId, gameName, notifier);
             notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
             cloudGame.run();
@@ -305,10 +307,9 @@ public class TaskExecutor {
 
     /** 执行森空岛签到（指定游戏：明日方舟或终末地）。 */
     private void executeSklandDaily(int gameId) {
-        String taskName = gameId == SklandDaily.GAME_ARKNIGHTS
-                ? context.getString(R.string.task_name_skland_arknights)
-                : context.getString(R.string.task_name_skland_endfield);
-        executeTask(taskName, () -> {
+        String taskId = gameId == SklandDaily.GAME_ARKNIGHTS
+                ? TaskIds.SKLAND_ARKNIGHTS : TaskIds.SKLAND_ENDFIELD;
+        executeTask(taskId, () -> {
             SklandDaily skland = new SklandDaily(context, userId, notifier, gameId);
             skland.run();
         });

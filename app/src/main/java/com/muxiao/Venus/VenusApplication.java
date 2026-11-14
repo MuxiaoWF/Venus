@@ -2,6 +2,7 @@ package com.muxiao.Venus;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 
 import androidx.annotation.NonNull;
@@ -10,8 +11,10 @@ import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
+import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.LocaleHelper;
+import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import dagger.hilt.android.HiltAndroidApp;
 import dagger.hilt.android.qualifiers.ApplicationContext;
@@ -27,6 +30,19 @@ public class VenusApplication extends Application {
     public static Context getAppContext() {
         return sAppContext;
     }
+
+    /**
+     * 设置项 / 语言变更即刷新小组件。
+     *
+     * <p>为什么挂在 Application 而不是各个开关的回调里：任务开关、定时配置、语言、缩放等由多个页面
+     * 分头写 settings_prefs，逐处补刷新必然漏；小组件又关闭了系统周期刷新（updatePeriodMillis=0），
+     * 旧版「设置页改了任务开关、回桌面仍列旧任务集」只能等用户回一次首页才同步。
+     *
+     * <p>必须静态强引用：SharedPreferences 内部用 WeakHashMap 持有监听器，局部变量会被回收。
+     * 刷新本身有签名比对兜底——与可见画面无关的键（如主题）不会产生任何 IPC。
+     */
+    private static final SharedPreferences.OnSharedPreferenceChangeListener WIDGET_REFRESH_LISTENER =
+            (prefs, key) -> TaskWidgetProvider.refreshAllWidgets(VenusApplication.getAppContext());
 
     // 触发 Hilt 内置 @ApplicationContext 绑定被依赖图实际使用，消除 Dagger 生成的
     // applicationContextModule(ApplicationContextModule) 弃用告警（dagger issue #3601，Hilt 2.56 仍存在；
@@ -50,6 +66,11 @@ public class VenusApplication extends Application {
     public void onCreate() {
         super.onCreate();
         sAppContext = this;
+        // 设置项/语言变更 → 小组件重渲染（见 WIDGET_REFRESH_LISTENER 注释）
+        getSharedPreferences(Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(WIDGET_REFRESH_LISTENER);
+        getSharedPreferences(Constants.Prefs.LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(WIDGET_REFRESH_LISTENER);
         // 应用选定的主题深浅色（使用 Hilt 注入的 ApplicationContext，确保该绑定被使用）
         SettingsFragment.applyThemeVariant(appContext);
         // 动态取色已随 View 版 material 库移除：Theme.Venus 直接映射 res/color-v31 系统动态色

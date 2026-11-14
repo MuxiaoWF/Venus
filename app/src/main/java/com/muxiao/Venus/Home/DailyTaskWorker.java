@@ -101,8 +101,8 @@ public class DailyTaskWorker extends Worker {
         }
 
         // 同日重试的部分执行名单：只重跑仍处于 ERROR 状态的项（用户手动修复过的自动剔除）
-        Set<String> onlyNames = resolveOnlyNames(context, userId);
-        if (onlyNames != null && onlyNames.isEmpty()) {
+        Set<String> onlyIds = resolveOnlyIds(context, userId);
+        if (onlyIds != null && onlyIds.isEmpty()) {
             // 名单内失败项已全部被手动修复：无需重跑，直接排明天
             tools.writeLog(context, TAG + ": retry list all resolved, skip this round");
             DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
@@ -125,7 +125,7 @@ public class DailyTaskWorker extends Worker {
         // 新一轮运行口径与手动运行一致：复位瞬态、保留当日终态、记录运行用户
         TaskStatusManager statusManager = new TaskStatusManager(context);
         statusManager.setCurrentUser(userId);
-        statusManager.resetTransientStatuses(userId, settings.getTaskNames(context));
+        statusManager.resetTransientStatuses(userId, settings.getTaskIds());
         TaskWidgetProvider.refreshAllWidgets(appContext);
         tools.writeLogSeparator(context);
 
@@ -135,10 +135,10 @@ public class DailyTaskWorker extends Worker {
         NotificationCompat.Builder progressBuilder = notificationHelper
                 .createProgressNotification("Venus", context.getString(R.string.notif_executing_task));
 
-        int totalTasks = settings.getTaskNames(context).size();
+        int totalTasks = settings.getTaskIds().size();
         AtomicInteger completedTasks = new AtomicInteger(0);
-        // 本轮以 ERROR 告终的任务名（多任务并行回调，用并发安全集合）
-        Set<String> errorNames = new CopyOnWriteArraySet<>();
+        // 本轮以 ERROR 告终的任务 id（多任务并行回调，用并发安全集合）
+        Set<String> errorIds = new CopyOnWriteArraySet<>();
         // 各失败任务按异常类别判定的重试等待分钟数（多任务并行回调，用并发安全 Map）
         Map<String, Long> retryDelayHints = new ConcurrentHashMap<>();
         // 控制器实例需在执行后读取「验证码失败任务」，提取为局部变量
@@ -149,15 +149,15 @@ public class DailyTaskWorker extends Worker {
                 bgController,
                 new TaskExecutor.Callback() {
                     @Override
-                    public void onTaskStatusChanged(String taskName, TaskItem.TaskStatus status) {
+                    public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
                         // 定时链路是写入方：持久化 + 刷小组件 + 广播（首页只同步 UI 快照）
-                        statusManager.applyStatus(userId, taskName, status);
+                        statusManager.applyStatus(userId, taskId, status);
                         TaskWidgetProvider.refreshAllWidgets(appContext);
-                        broadcastTaskStatus(appContext, userId, taskName, status);
+                        broadcastTaskStatus(appContext, userId, taskId, status);
                         if (status == TaskItem.TaskStatus.COMPLETED) completedTasks.incrementAndGet();
-                        if (status == TaskItem.TaskStatus.ERROR) errorNames.add(taskName);
+                        if (status == TaskItem.TaskStatus.ERROR) errorIds.add(taskId);
                         updateProgressNotification(context, notificationHelper, progressBuilder,
-                                taskName, status, completedTasks.get(), totalTasks);
+                                taskId, status, completedTasks.get(), totalTasks);
                     }
 
                     @Override
@@ -174,10 +174,10 @@ public class DailyTaskWorker extends Worker {
                     }
 
                     @Override
-                    public void onTaskError(String taskName, String message, Throwable cause) {
+                    public void onTaskError(String taskId, String message, Throwable cause) {
                         onError(message);
                         // 按失败类别（HTTP 429 / 网络类 / 其他）记录重试等待，供续链决策取最保守值
-                        retryDelayHints.put(taskName, DailyTaskScheduler.retryDelayMinutes(cause));
+                        retryDelayHints.put(taskId, DailyTaskScheduler.retryDelayMinutes(cause));
                     }
 
                     @Override
@@ -189,7 +189,7 @@ public class DailyTaskWorker extends Worker {
 
         boolean executed = false;
         try {
-            taskExecutor.executeAll(settings, onlyNames);
+            taskExecutor.executeAll(settings, onlyIds);
             executed = true;
         } catch (RuntimeException e) {
             // 仅提交阶段可能同步抛错（如线程池拒绝）；任务体内异常已由 Callback 上报
@@ -215,8 +215,12 @@ public class DailyTaskWorker extends Worker {
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence());
             } else {
-                Set<String> retryable = new HashSet<>(errorNames);
-                retryable.removeAll(bgController.getCaptchaFailedTasks());
+                Set<String> retryable = new HashSet<>(errorIds);
+                // 验证码失败项不参与自动重试：控制器记录的是运行时**显示名**（BBSDaily/BBSGameDaily 用自己的
+                // getString 上报），而本集合是 id，故两边口径都试一次再剔除。
+                Set<String> captchaNames = bgController.getCaptchaFailedTasks();
+                retryable.removeIf(id -> captchaNames.contains(id)
+                        || captchaNames.contains(TaskIds.displayName(context, id)));
                 if (!retryable.isEmpty() && attempt < DailyTaskScheduler.MAX_ATTEMPTS) {
                     long retryDelayMinutes = retryDelayMinutesFor(retryable, retryDelayHints);
                     tools.writeLog(context, TAG + ": " + retryable.size() + " task(s) failed, retry in "
@@ -255,17 +259,24 @@ public class DailyTaskWorker extends Worker {
     }
 
     /**
-     * 解析同日重试名单：上一轮经 WorkData 传入，只保留当前仍处于 ERROR 的项。
+     * 解析同日重试名单：上一轮经 WorkData 传入（稳定任务 id），只保留当前仍处于 ERROR 的项。
      * 无名单（首跑/全量重试）返回 {@code null} 表示全量执行。
+     *
+     * <p>旧版本写入的是本地化任务名：认不出的条目直接丢弃，全部丢弃时按全量执行——
+     * 宁可多跑一轮，也不要因为跨版本键格式不同而静默跳过。
      */
-    private Set<String> resolveOnlyNames(Context context, String userId) {
-        String[] raw = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_ONLY_NAMES);
+    private Set<String> resolveOnlyIds(Context context, String userId) {
+        String[] raw = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_ONLY_IDS);
         if (raw == null || raw.length == 0) return null;
         Map<String, String> statuses = new TaskStatusManager(context).getAllStatuses(userId);
         Set<String> only = new HashSet<>();
-        for (String name : raw)
-            if (TaskStatusManager.STATUS_ERROR.equals(statuses.get(name))) only.add(name);
-        return only;
+        boolean anyKnown = false;
+        for (String id : raw) {
+            if (!TaskIds.isKnown(id)) continue;
+            anyKnown = true;
+            if (TaskStatusManager.STATUS_ERROR.equals(statuses.get(id))) only.add(id);
+        }
+        return anyKnown ? only : null;
     }
 
     /** 距下一个设定时刻的毫秒数（明天到点或同日时刻未到则今天到点）。 */
@@ -273,13 +284,13 @@ public class DailyTaskWorker extends Worker {
         return DailyTaskScheduler.delayToNextOccurrence(getApplicationContext());
     }
 
-    /** 将单条任务状态广播给首页（与 ForegroundTaskService 同一 Action/Extras 契约）。 */
+    /** 将单条任务状态广播给首页（与 ForegroundTaskService 同一 Action/Extras 契约，载荷为任务 id）。 */
     private static void broadcastTaskStatus(Context context, String userId,
-                                            String taskName, TaskItem.TaskStatus status) {
+                                            String taskId, TaskItem.TaskStatus status) {
         Intent intent = new Intent(ForegroundTaskService.ACTION_TASK_STATUS_UPDATED);
         intent.setPackage(context.getPackageName());
         intent.putExtra(ForegroundTaskService.EXTRA_TASK_USER_ID, userId);
-        intent.putExtra(ForegroundTaskService.EXTRA_TASK_NAME, taskName);
+        intent.putExtra(ForegroundTaskService.EXTRA_TASK_ID, taskId);
         intent.putExtra(ForegroundTaskService.EXTRA_TASK_STATUS, status.name());
         context.sendBroadcast(intent);
     }
@@ -287,8 +298,9 @@ public class DailyTaskWorker extends Worker {
     /** 依据任务状态更新进度通知文案（与 ForegroundTaskService 的文案映射保持一致）。 */
     private static void updateProgressNotification(Context context, Notification helper,
                                                    NotificationCompat.Builder builder,
-                                                   String taskName, TaskItem.TaskStatus status,
+                                                   String taskId, TaskItem.TaskStatus status,
                                                    int progress, int max) {
+        String taskName = TaskIds.displayName(context, taskId);
         String statusText;
         switch (status) {
             case IN_PROGRESS:

@@ -96,9 +96,16 @@ fun interface TaskNameConsumer {
     fun accept(taskName: String)
 }
 
-/** 一条任务行。[disabled] = 「开关开着但凭证没配」：删除线 + 灰色，运行入口跳过；与 [status] 正交，配置补上后重新渲染即恢复。 */
+/**
+ * 一条任务行。
+ *
+ * [id] 是稳定任务 id（与语言无关，见 `TaskIds`）：作为列表 key 与「未配置项点击」的载荷，
+ * 不用名称——名称随语言变化，当 key 会让切语言后整列重建、点击回跳也随之失配。
+ * [disabled] = 「开关开着但凭证没配」：删除线 + 灰色，运行入口跳过；与 [status] 正交，配置补上后重新渲染即恢复。
+ */
 @Immutable
 class HomeTaskRow(
+    val id: String,
     val name: String,
     val status: Int,
     val disabled: Boolean = false,
@@ -301,14 +308,14 @@ fun HomeScreen(
             }
             itemsIndexed(
                 items = state.tasks,
-                key = { _, task -> task.name },
+                key = { _, task -> task.id },
             ) { index, task ->
                 // 逐项 diff 动画负责增删与让位；状态变更不走 animateItem，改由 [TaskRow] 对状态图标做 scale-in
                 TaskRow(
                     task = task,
                     showDivider = index > 0,
                     // 只有「未配置」的项可点：点它直达对应配置抽屉，把「看到问题」接到「去解决」
-                    onClick = { onDisabledTaskClick(task.name) },
+                    onClick = { onDisabledTaskClick(task.id) },
                     modifier = if (reducedMotion) Modifier else Modifier.animateItem(),
                 )
             }
@@ -951,12 +958,12 @@ private fun HomeScreenPreview() {
                 bgButtonText = "后台运行"
                 bgFeatureEnabled = true
                 tasks = listOf(
-                    HomeTaskRow("米游社签到", TASK_COMPLETED),
-                    HomeTaskRow("原神", TASK_RETAINED),
-                    HomeTaskRow("崩坏：星穹铁道", TASK_IN_PROGRESS),
-                    HomeTaskRow("绝区零", TASK_ERROR),
-                    HomeTaskRow("崩坏3", TASK_PENDING),
-                    HomeTaskRow("云原神云游戏签到", TASK_PENDING, disabled = true),
+                    HomeTaskRow("bbs_daily", "米游社签到", TASK_COMPLETED),
+                    HomeTaskRow("game_signin:原神", "原神", TASK_RETAINED),
+                    HomeTaskRow("game_signin:星铁", "崩坏：星穹铁道", TASK_IN_PROGRESS),
+                    HomeTaskRow("game_signin:绝区零", "绝区零", TASK_ERROR),
+                    HomeTaskRow("game_signin:崩坏3", "崩坏3", TASK_PENDING),
+                    HomeTaskRow("cloud_game:云原神", "云原神云游戏签到", TASK_PENDING, disabled = true),
                 )
             },
             geetestContainer = geetest,

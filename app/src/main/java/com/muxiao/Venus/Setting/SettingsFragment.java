@@ -99,6 +99,7 @@ import com.muxiao.Venus.common.ui.compose.ThemeSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.UpdateSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.VenusColorSchemes;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.widget.TaskWidgetProvider;
 
 import android.graphics.drawable.ColorDrawable;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
@@ -527,6 +528,9 @@ public class SettingsFragment implements PageController {
                     null,
                     newToken -> {
                         tools.write(activity, userId, SKLAND_COOKIE, newToken.trim());
+                        // 凭证补上/改掉会改变任务的「就绪」样式（列表划线），小组件须同步重渲染：
+                        // token 存在 user_{id} 里，不受设置项监听覆盖，故此处显式刷新
+                        TaskWidgetProvider.refreshAllWidgets(activity);
                         showCustomSnackbar(screenView, context, activity.getString(R.string.snack_skland_content_saved));
                     });
         });
@@ -1322,6 +1326,8 @@ public class SettingsFragment implements PageController {
                 text -> {
                     tools.write(activity, userId, key, text.trim());
                     refreshCloudGameTokens();
+                    // 就绪状态变化会改变小组件的划线样式（token 不在 settings_prefs，监听覆盖不到）
+                    TaskWidgetProvider.refreshAllWidgets(activity);
                     showCustomSnackbar(screenView, activity,
                             activity.getString(R.string.cloud_game_token_saved, displayName));
                 });

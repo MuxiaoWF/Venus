@@ -3,6 +3,7 @@ package com.muxiao.Venus.widget;
 import android.content.Context;
 
 import com.google.gson.Gson;
+import com.muxiao.Venus.Home.TaskIds;
 import com.muxiao.Venus.Home.TaskItem;
 import com.muxiao.Venus.common.data.TaskStatusRepository;
 
@@ -20,10 +21,15 @@ import java.util.TreeMap;
 
 /**
  * 每日任务完成状态的持久化：经 {@link TaskStatusRepository} 按用户分桶存储
- * （{@code task_status_bucket_<userId>} = JSON 化的 {@link Bucket}：归属日期 + 任务名→状态），
+ * （{@code task_status_bucket_<userId>} = JSON 化的 {@link Bucket}：归属日期 + 任务 id→状态），
  * {@code current_user} 仅作小组件目标用户兜底；Widget 读、App 前台/后台写。
- * 无 done_ 镜像键：done 恒等推导自 {@code status == completed}，聚合计数与逐条展示同源；
- * 旧版全局键（status_/done_/status_date）由 {@link #ensureToday()} 一次性迁移到最后运行用户的桶。
+ *
+ * <p><b>键是稳定 id（{@link TaskIds}），不是任务名</b>：任务名随语言变化，曾经当键导致切换语言后
+ * 今日状态整表失配（小组件全回落待执行、日志与重试名单跨语言对不上）。旧版写入的本地化名称键由
+ * {@link #ensureToday()} 一次性迁移为 id。
+ *
+ * <p>无 done_ 镜像键：done 恒等推导自 {@code status == completed}，聚合计数与逐条展示同源；
+ * 旧版全局键（status_/done_/status_date）同样在 {@link #ensureToday()} 中迁移到最后运行用户的桶。
  */
 public class TaskStatusManager {
 
@@ -109,6 +115,8 @@ public class TaskStatusManager {
         Map<String, Bucket> buckets = new LinkedHashMap<>();
         // 历史日志按归属日期归并（设备停用多日时可能出现多个日期）
         TreeMap<String, StringBuilder> logs = new TreeMap<>();
+        // 旧版本地化名 → id：本次重写时把桶内键一次性换成稳定 id（进程内只枚举一次语言）
+        Map<String, String> legacyNames = TaskIds.legacyNameIndex(context);
 
         // —— 旧版全局键迁移：status_<name>（done_ 是镜像无需迁移）→ 最后一次运行用户的桶 ——
         String legacyDate = str(all.get(LEGACY_KEY_DATE));
@@ -119,6 +127,8 @@ public class TaskStatusManager {
                 if (e.getKey().startsWith(LEGACY_PREFIX_STATUS) && !e.getKey().equals(LEGACY_KEY_DATE))
                     legacy.statuses.put(e.getKey().substring(LEGACY_PREFIX_STATUS.length()), str(e.getValue()));
             }
+            // 先换 id：后续并入/落日志都按当前语言呈现，且不会再写回旧名称键
+            normalizeLegacyKeys(legacy, legacyNames);
             String owner = str(all.get(KEY_CURRENT_USER));
             if (legacy.date.equals(today) && !owner.isEmpty()) {
                 // 当日数据并入用户桶：升级不丢「今天已运行」的完成记录
@@ -139,6 +149,7 @@ public class TaskStatusManager {
             String userId = key.substring(KEY_PREFIX_BUCKET.length());
             Bucket b = parseBucket(str(e.getValue()));
             if (b == null) continue;
+            normalizeLegacyKeys(b, legacyNames);
             if (!b.date.equals(today)) {
                 appendLogSection(logs, userId, b);
                 b.statuses.clear();
@@ -179,6 +190,25 @@ public class TaskStatusManager {
         }
     }
 
+    /**
+     * 把桶内的旧版本地化名称键换成稳定 id（键序保持原样）。
+     *
+     * <p>容错口径：认不出的键原样保留（不吞用户数据，{@link TaskIds#displayName} 也能原样展示）；
+     * 同一任务在多语言下各写过一份时，保留「非 pending」的那条——pending 是默认值，真状态信息量更大。
+     */
+    private void normalizeLegacyKeys(Bucket bucket, Map<String, String> legacyNames) {
+        if (bucket.statuses == null || bucket.statuses.isEmpty()) return;
+        LinkedHashMap<String, String> next = new LinkedHashMap<>(bucket.statuses.size());
+        for (Map.Entry<String, String> e : bucket.statuses.entrySet()) {
+            String key = e.getKey();
+            String id = TaskIds.isKnown(key) ? key : legacyNames.get(key);
+            if (id == null) id = key;
+            String existing = next.get(id);
+            if (existing == null || STATUS_PENDING.equals(existing)) next.put(id, e.getValue());
+        }
+        bucket.statuses = next;
+    }
+
     /** 读取单用户桶；无桶/损坏 JSON 一律按新建桶处理（空状态 + 今日归属）。 */
     private Bucket loadBucket(String userId) {
         Bucket b = parseBucket(repo.getString(KEY_PREFIX_BUCKET + userId, ""));
@@ -192,22 +222,22 @@ public class TaskStatusManager {
         repo.putString(KEY_PREFIX_BUCKET + userId, gson.toJson(b));
     }
     /** 写入指定用户桶；PENDING 无对应写入（保持原 default 分支语义：不改变已存状态）。 */
-    public void applyStatus(String userId, String taskName, TaskItem.TaskStatus status) {
+    public void applyStatus(String userId, String taskId, TaskItem.TaskStatus status) {
         switch (status) {
             case COMPLETED:
-                markStatus(userId, taskName, STATUS_COMPLETED);
+                markStatus(userId, taskId, STATUS_COMPLETED);
                 break;
             case ERROR:
-                markStatus(userId, taskName, STATUS_ERROR);
+                markStatus(userId, taskId, STATUS_ERROR);
                 break;
             case IN_PROGRESS:
-                markStatus(userId, taskName, STATUS_IN_PROGRESS);
+                markStatus(userId, taskId, STATUS_IN_PROGRESS);
                 break;
             case WARNING:
-                markStatus(userId, taskName, STATUS_WARNING);
+                markStatus(userId, taskId, STATUS_WARNING);
                 break;
             case CANCELLED:
-                markStatus(userId, taskName, STATUS_CANCELLED);
+                markStatus(userId, taskId, STATUS_CANCELLED);
                 break;
             case RETAINED:
                 // 仅 UI 展示态（本轮未触达的已完成任务），不持久化、不改变已存状态
@@ -220,12 +250,14 @@ public class TaskStatusManager {
     /**
      * 设置任务状态（通用入口）。done 恒等推导自 {@code status == STATUS_COMPLETED}，
      * 无独立镜像键，也就没有 status_/done_ 双键分歧导致聚合计数虚高的可能。
+     *
+     * @param taskId 稳定任务 id（见 {@link TaskIds}），不是显示名
      */
-    public void markStatus(String userId, String taskName, String status) {
+    public void markStatus(String userId, String taskId, String status) {
         ensureToday();
         synchronized (BUCKET_WRITE_LOCK) {
             Bucket b = loadBucket(userId);
-            b.statuses.put(taskName, status);
+            b.statuses.put(taskId, status);
             storeBucket(userId, b);
         }
     }
@@ -233,31 +265,32 @@ public class TaskStatusManager {
     /**
      * 新一轮任务前复位指定用户桶：瞬态（进行中残留、已取消、旧版 warning）归 {@link #STATUS_PENDING}，
      * 当日终态（已完成/失败）保留到该任务被真正重跑，故中途终止不会抹掉已有完成记录。
-     * 逐名重建映射，配置中已移除的任务名随之清除；跨天由 {@link #ensureToday()} 处理。
+     * 逐 id 重建映射，配置中已移除的任务随之清除；跨天由 {@link #ensureToday()} 处理。
      */
-    public void resetTransientStatuses(String userId, java.util.Collection<String> taskNames) {
+    public void resetTransientStatuses(String userId, java.util.Collection<String> taskIds) {
         ensureToday();
         synchronized (BUCKET_WRITE_LOCK) {
             Bucket b = loadBucket(userId);
-            LinkedHashMap<String, String> next = new LinkedHashMap<>(taskNames.size());
-            for (String name : taskNames) {
-                String prev = b.statuses.get(name);
+            LinkedHashMap<String, String> next = new LinkedHashMap<>(taskIds.size());
+            for (String taskId : taskIds) {
+                String prev = b.statuses.get(taskId);
                 boolean terminal = STATUS_COMPLETED.equals(prev) || STATUS_ERROR.equals(prev);
-                next.put(name, terminal ? prev : STATUS_PENDING);
+                next.put(taskId, terminal ? prev : STATUS_PENDING);
             }
             b.statuses = next;
             b.date = todayString();
             storeBucket(userId, b);
         }
     }
+
     /** 读取指定用户任务的当前状态；未知/缺失默认 {@link #STATUS_PENDING}。 */
-    public String getStatus(String userId, String taskName) {
+    public String getStatus(String userId, String taskId) {
         ensureToday();
-        String s = loadBucket(userId).statuses.get(taskName);
+        String s = loadBucket(userId).statuses.get(taskId);
         return s != null ? s : STATUS_PENDING;
     }
 
-    /** 指定用户全部任务状态快照（键=任务名），供列表/Widget 批量渲染，避免逐条重复解析。 */
+    /** 指定用户全部任务状态快照（键=任务 id），供列表/Widget 批量渲染，避免逐条重复解析。 */
     public Map<String, String> getAllStatuses(String userId) {
         ensureToday();
         return new LinkedHashMap<>(loadBucket(userId).statuses);
@@ -298,7 +331,7 @@ public class TaskStatusManager {
     private static final String LOG_DIR = "task_history";
 
     /** 归并一段用户的历史日志：同一天的所有用户写进同一个文件，按 "## user=" 分节区分。 */
-    private static void appendLogSection(TreeMap<String, StringBuilder> logs, String userId, Bucket b) {
+    private void appendLogSection(TreeMap<String, StringBuilder> logs, String userId, Bucket b) {
         if (b.statuses.isEmpty() || b.date.isEmpty()) return;
         StringBuilder sb = logs.get(b.date);
         if (sb == null) {
@@ -306,8 +339,9 @@ public class TaskStatusManager {
             logs.put(b.date, sb);
         }
         sb.append("## user=").append(userId.isEmpty() ? "(unknown)" : userId).append('\n');
+        // 日志面向用户阅读：键是 id，写出前换成当前语言的显示名
         for (Map.Entry<String, String> e : b.statuses.entrySet())
-            sb.append(e.getValue()).append('\t').append(e.getKey()).append('\n');
+            sb.append(e.getValue()).append('\t').append(TaskIds.displayName(context, e.getKey())).append('\n');
     }
 
     /**
