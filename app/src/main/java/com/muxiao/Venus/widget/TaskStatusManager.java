@@ -46,6 +46,8 @@ public class TaskStatusManager {
     public static final String STATUS_ERROR = "error";
     public static final String STATUS_WARNING = "warning";
     public static final String STATUS_CANCELLED = "cancelled";
+    /** 挂起等待人工完成人机验证：不是失败，续跑轮会带着验证结果重跑。 */
+    public static final String STATUS_WAITING_CAPTCHA = "waiting_captcha";
 
     private final Context context;
     private final TaskStatusRepository repo;
@@ -239,6 +241,9 @@ public class TaskStatusManager {
             case CANCELLED:
                 markStatus(userId, taskId, STATUS_CANCELLED);
                 break;
+            case WAITING_CAPTCHA:
+                markStatus(userId, taskId, STATUS_WAITING_CAPTCHA);
+                break;
             case RETAINED:
                 // 仅 UI 展示态（本轮未触达的已完成任务），不持久化、不改变已存状态
                 break;
@@ -324,6 +329,8 @@ public class TaskStatusManager {
                 return TaskItem.TaskStatus.IN_PROGRESS;
             case STATUS_CANCELLED:
                 return TaskItem.TaskStatus.CANCELLED;
+            case STATUS_WAITING_CAPTCHA:
+                return TaskItem.TaskStatus.WAITING_CAPTCHA;
             default:
                 return TaskItem.TaskStatus.PENDING;
         }

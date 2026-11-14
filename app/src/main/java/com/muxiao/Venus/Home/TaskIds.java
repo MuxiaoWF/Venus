@@ -78,9 +78,14 @@ public final class TaskIds {
      */
     public static String displayName(Context context, String taskId) {
         if (taskId == null || taskId.isEmpty()) return "";
-        if (BBS_DAILY.equals(taskId)) return context.getString(R.string.task_name_bbs_daily);
-        if (SKLAND_ARKNIGHTS.equals(taskId)) return context.getString(R.string.task_name_skland_arknights);
-        if (SKLAND_ENDFIELD.equals(taskId)) return context.getString(R.string.task_name_skland_endfield);
+        switch (taskId) {
+            case BBS_DAILY:
+                return context.getString(R.string.task_name_bbs_daily);
+            case SKLAND_ARKNIGHTS:
+                return context.getString(R.string.task_name_skland_arknights);
+            case SKLAND_ENDFIELD:
+                return context.getString(R.string.task_name_skland_endfield);
+        }
         if (taskId.startsWith(GAME_SIGNIN_PREFIX)) {
             String game = taskId.substring(GAME_SIGNIN_PREFIX.length());
             return context.getString(R.string.task_name_game_sign_in,

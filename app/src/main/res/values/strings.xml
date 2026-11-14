@@ -161,6 +161,7 @@
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">已取消</string>
+    <string name="task_status_waiting_captcha">待验证</string>
     <string name="task_status_not_configured">未配置</string>
     <string name="task_skipped_unconfigured">%1$s 未配置凭证，已跳过</string>
     <string name="common_need_login">请先登录账号</string>
@@ -406,6 +407,11 @@
     <string name="notif_task_failed">任务失败</string>
     <string name="notif_captcha_failed">人机验证失败</string>
     <string name="notif_captcha_tap_hint">点击此通知完成人机验证</string>
+    <string name="captcha_suspend_title">需要人机验证</string>
+    <string name="captcha_suspend_content">以下任务等待验证，点击完成：%s</string>
+    <string name="captcha_challenge_failed">无法获取人机验证挑战，请稍后重试</string>
+    <string name="geetest_no_ui_context">当前环境无法弹出人机验证，请在应用内重试</string>
+    <string name="geetest_ui_init_failed">验证码控件加载失败，请重试；若持续失败请更新应用</string>
     <string name="notif_captcha_no_retry_title">验证码未通过，已停止自动重试</string>
     <string name="notif_captcha_no_retry_fmt">以下任务需人工验证后手动重试：%s</string>
 
@@ -548,12 +554,6 @@
     <string name="skland_all_done">森空岛签到 全部角色签到完成</string>
     <string name="skland_grant_failed">grant 失败：%s</string>
 
-    <!-- Geetest -->
-    <string name="geetest_need_verification">需要人机验证，正在打开应用…</string>
-    <string name="geetest_waiting">：等待人机验证</string>
-    <string name="geetest_done">：验证完成，继续执行</string>
-    <string name="geetest_failed">人机验证失败: %s</string>
-
     <!-- tools.java -->
     <string name="error_cannot_open_source">无法打开源文件</string>
     <string name="error_label">错误信息</string>
@@ -570,7 +570,6 @@
     <string name="geetest_second_verify_failed">二次验证失败: %s</string>
     <string name="geetest_captcha_closed">验证码已关闭</string>
     <string name="geetest_captcha_error">验证码错误：%s</string>
-    <string name="geetest_wait_timeout">等待人机验证超时，已放弃本次验证</string>
 
     <!-- BBSGameDaily 补充 -->
     <string name="game_cookie_token_refreshed">签到 CookieToken刷新成功</string>

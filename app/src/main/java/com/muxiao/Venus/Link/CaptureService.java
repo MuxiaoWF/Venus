@@ -49,6 +49,8 @@ public class CaptureService extends VpnService {
     /** 密钥表更新中广播（PacketAnalyzer 缺键时发出，抓包继续，重放机制衔接；拿到键后由成功广播覆盖） */
     public static final String ACTION_CAPTURE_UPDATING = "com.muxiao.Venus.Link.CAPTURE_UPDATING";
     private static final String CHANNEL_ID = "CaptureService";
+    /** 前台通知 id（固定值）：曾用 this.hashCode()，服务重建后 id 变化会残留「僵尸通知」；与任务体系 50629+ 段隔离 */
+    private static final int NOTIFICATION_ID = 50640;
     private static final int MAX_PACKET_SIZE = 8192;
     /**
      * VPN 接口 MTU：与普通 VPN 的常规值（1500）对齐。C 层 get_mtu()（app/src/main/cpp/netguard/ip.c，决定 TUN 读缓冲
@@ -97,7 +99,7 @@ public class CaptureService extends VpnService {
         if (pfd != null && tunnelThread != null) {
             // 重复 startForegroundService：不能重绑 socketpair，否则 native 隧道仍持旧 fd，永远收不到包
             Log.i(TAG, "already running, ignore duplicate start");
-            return super.onStartCommand(intent, flags, startId);
+            return START_STICKY;
         }
         startVpn();
         startCapture();
@@ -106,7 +108,10 @@ public class CaptureService extends VpnService {
         // 每次启动抓包时检查星铁初始密钥表更新（HsrKeyStore 内部节流：距上次成功拉取
         // 不足 24h 直接跳过，正常情况零请求；拉取/合并均在后台线程池）
         HsrKeyStore.checkForUpdateAsync(getApplicationContext(), false);
-        return super.onStartCommand(intent, flags, startId);
+        // START_STICKY：进程被系统回收后系统会以 null intent 重新拉起（startVpn 会用已授权的
+        // VpnService 重新 establish）。显式声明意图，行为与父类默认一致但更明确——
+        // 注意这里只覆盖「被系统杀掉」的情况，用户主动停止走 stopCapture
+        return START_STICKY;
     }
 
     @Override
@@ -453,11 +458,20 @@ public class CaptureService extends VpnService {
                 .setSmallIcon(R.drawable.ic_link)
                 .setContentTitle(getString(R.string.vpn_capture_notification_title))
                 .setContentText(getString(R.string.vpn_capture_notification_text))
+                // 常驻 + 不重复提醒：抓包进度对用户无意义，但通知必须存在——它是「本服务在前台运行」的
+                // 唯一可视凭据，也是各 ROM 后台清理器判断能否回收的依据（撤掉通知等于自降优先级）
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                // Android 12+ 默认会延迟 ~10s 展示 FGS 通知；抓包是秒级交互，延迟展示期间
+                // 用户切回应用看不到任何运行状态，且部分 ROM 会在通知缺失窗口内回收服务
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .build();
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
                 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0;
         try {
-            ServiceCompat.startForeground(this, this.hashCode(), notification, type);
+            // 固定通知 id：曾用 this.hashCode()，服务被杀后重建会换 id，旧通知残留成"僵尸通知"
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type);
         } catch (Exception e) {
             Log.e(TAG, "fail to start foreground service", e);
             stopCapture();

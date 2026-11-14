@@ -24,12 +24,45 @@ public class Notification {
     private final Context context;
     private static volatile boolean channelsCreated = false;
 
+    /** 上一次进度通知的内容签名（见 {@link #updateProgressNotification}）。 */
+    private volatile String lastProgressSignature;
+
     private static final String CHANNEL_WORK = "venus_work_channel";
     private static final String CHANNEL_ERROR = "venus_error_channel";
     private static final String CHANNEL_PROGRESS = "venus_progress_channel";
 
     public Notification(Context context) {
         this.context = context;
+    }
+
+    // ==================== 运行形态 ====================
+
+    /**
+     * 应用内（前台）运行的层数：>0 表示当前这一轮任务由首页按钮驱动、用户正对着界面。
+     *
+     * <p>这是「要不要发系统通知」的唯一判据。任务模块（BBSDaily/BBSGameDaily/…）在失败时一律
+     * 调 {@code sendErrorNotification}，它们无从知道自己是前台跑的还是后台跑的；用户明确要求
+     * 「非后台运行不该有通知」，于是把判断收口到这里：首页运行期间置位，期间所有系统通知直接丢弃，
+     * 状态与错误交给列表和对话框。后台服务 / 定时 Worker 从不置位，行为不变。
+     *
+     * <p>用计数而非布尔：异常路径可能重复收尾，减成负数会让后续运行永久静音。
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger foregroundRuns =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /** 首页开始一轮任务：此后的系统通知一律抑制，直到 {@link #endForegroundRun()}。 */
+    public static void beginForegroundRun() {
+        foregroundRuns.incrementAndGet();
+    }
+
+    /** 首页这一轮结束（成功/失败/取消都要调，放 finally）。 */
+    public static void endForegroundRun() {
+        if (foregroundRuns.get() > 0) foregroundRuns.decrementAndGet();
+    }
+
+    /** 当前是否处于应用内运行。 */
+    public static boolean inForegroundRun() {
+        return foregroundRuns.get() > 0;
     }
 
     /**
@@ -79,6 +112,9 @@ public class Notification {
 
     /** 发错误通知；force=false 时受设置中的通知开关控制，未开启直接返回。 */
     private void sendErrorSystemNotification(String title, String content, boolean force) {
+        // 应用内运行期间不发系统通知：用户就在界面上，进度看列表、错误走对话框，
+        // 再往通知栏丢一条只是噪声（「只有后台运行才该有通知」）。
+        if (inForegroundRun()) return;
         if (!force) {
             SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
             if (!prefs.getBoolean(NOTIFICATION, false)) return;
@@ -91,6 +127,9 @@ public class Notification {
                 .setContentTitle(title)
                 .setContentText(content)
                 .setAutoCancel(true)
+                // 同一条通知会被反复重发（每个任务失败一次就 notify 一次，多个游戏/账号连发），
+                // 不加这个每次都会重新响铃 + 振动，一轮跑下来能响七八次。
+                .setOnlyAlertOnce(true)
                 .setContentIntent(createHomePendingIntent())
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setSmallIcon(R.drawable.ic_error)
@@ -109,14 +148,19 @@ public class Notification {
     }
 
     /**
-     * 人机验证提示通知（受通知开关控制），点击直达验证流程：内容 Intent 带 {@link Constants#ACTION_HANDLE_CAPTCHA}
-     * 打开 MainActivity，由其置位 captcha_pending 并自动弹框。后台任务不再主动拉起 Activity，本通知是用户
-     * 进入验证的唯一入口，故附「点击」提示行；复用错误通知 ID，避免多任务触发时在通知栏堆积。
+     * 人机验证提示通知，点击直达验证流程：内容 Intent 带 {@link Constants#ACTION_HANDLE_CAPTCHA}
+     * 打开 MainActivity，由其置位 captcha_pending 并自动弹框。
+     *
+     * <p>两点刻意设计：
+     * <ul>
+     *   <li><b>不受通知开关约束</b>：本通知是任务从「挂起」恢复执行的唯一入口，随开关一起关掉等于让后台
+     *       静默卡在待验证、什么也不做。它是功能件，不是提醒件。</li>
+     *   <li><b>独立通知 ID</b>：与错误通知分开，等待验证期间其它任务报错不会把它顶掉。</li>
+     * </ul>
      */
     public void sendCaptchaNotification(String title, String content) {
-        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        if (!prefs.getBoolean(NOTIFICATION, false)) return;
-
+        // 应用内运行：验证 UI 由 HomeFragment 直接挂在首页，不需要「点通知去验证」这条路
+        if (inForegroundRun()) return;
         ensureChannels();
         NotificationManager nm = notificationManager();
         if (nm == null) return;
@@ -134,11 +178,18 @@ public class Notification {
                 .setStyle(new NotificationCompat.BigTextStyle()
                         .bigText(content + "\n" + context.getString(R.string.notif_captcha_tap_hint)))
                 .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
                 .setContentIntent(contentIntent)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setSmallIcon(R.drawable.ic_error)
                 .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
-        nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
+        nm.notify(Constants.NOTIFICATION_ID_CAPTCHA, builder.build());
+    }
+
+    /** 撤销人机验证通知：验证结束（成功/失败/被放弃）后调用，避免残留一条点了没反应的通知。 */
+    public void dismissCaptchaNotification() {
+        NotificationManager nm = notificationManager();
+        if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_CAPTCHA);
     }
 
     /** 取消并移除错误通知（NOTIFICATION_ID_ERROR）。 */
@@ -164,6 +215,11 @@ public class Notification {
     public void updateProgressNotification(NotificationCompat.Builder builder,
                                             String title, String content,
                                             int progress, int max) {
+        // 一律按「内容签名」去重：多账号/多游戏并发回调时，同一个进度会被连着上报好几次
+        // （例如两条任务同时报 COMPLETED），每次都 notify 会让通知栏文字反复闪、也白跑一次 IPC。
+        String signature = title + '|' + content + '|' + progress + '/' + max;
+        if (signature.equals(lastProgressSignature)) return;
+        lastProgressSignature = signature;
         builder.setContentTitle(title)
                 .setContentText(content)
                 .setProgress(max, progress, false);
@@ -171,7 +227,13 @@ public class Notification {
         if (nm != null) nm.notify(Constants.NOTIFICATION_ID_PROGRESS, builder.build());
     }
 
-    /** 进度通知转为完成通知（改用 WORK 渠道，确保用户能看到）。 */
+    /**
+     * 本轮结束的「结果」通知：先撤销进度通知，再以独立 ID 发一条可点可划的普通通知。
+     *
+     * <p>早期实现复用 {@link Constants#NOTIFICATION_ID_PROGRESS}——进度通知是前台 Service 的 ongoing 通知，
+     * 用 `cancel + notify` 覆盖成非 ongoing 后，`stopForeground(STOP_FOREGROUND_REMOVE)` 在某些机型只清掉
+     * 它记录的那条，覆盖后的通知会一直留在通知栏里关不掉。独立 ID 后两者互不干扰。
+     */
     public void completeProgressNotification(String title, String content) {
         ensureChannels();
         NotificationCompat.Builder completed = new NotificationCompat.Builder(context, CHANNEL_WORK)
@@ -182,12 +244,16 @@ public class Notification {
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT);
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
         nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
-        nm.notify(Constants.NOTIFICATION_ID_PROGRESS, completed.build());
+        nm.notify(Constants.NOTIFICATION_ID_RESULT, completed.build());
+        // 本轮结束，清掉进度签名：下一轮的第一次更新必须能真正发出去
+        lastProgressSignature = null;
     }
 
-    /** 撤销进度通知（NOTIFICATION_ID_PROGRESS）：定时任务被取消/异常收尾时兜底，避免常驻。 */
+    /** 撤销进度通知（NOTIFICATION_ID_PROGRESS）：每一轮结束都必须调用——它是 ongoing，用户自己划不掉。 */
     public void cancelProgressNotification() {
+        lastProgressSignature = null;
         NotificationManager nm = notificationManager();
         if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_PROGRESS);
     }

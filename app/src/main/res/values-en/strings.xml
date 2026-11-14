@@ -168,6 +168,7 @@
     <string name="task_status_running">RUNNING</string>
     <string name="task_status_pending">PENDING</string>
     <string name="task_status_cancelled">CANCELLED</string>
+    <string name="task_status_waiting_captcha">Verify required</string>
     <string name="task_status_not_configured">NOT CONFIGURED</string>
     <string name="task_skipped_unconfigured">%1$s skipped, credentials not configured</string>
     <string name="common_need_login">Please sign in first</string>
@@ -403,14 +404,16 @@
     <string name="notif_task_failed">Task Failed</string>
     <string name="notif_captcha_failed">Captcha verification failed</string>
     <string name="notif_captcha_tap_hint">Tap this notification to complete the captcha verification</string>
-    <string name="notif_captcha_no_retry_title">Captcha not passed, auto-retry stopped</string>
-    <string name="notif_captcha_no_retry_fmt">Tasks requiring manual retry: %s</string>
+    <string name="captcha_suspend_title">Captcha verification required</string>
+    <string name="captcha_suspend_content">Waiting for verification, tap to continue: %s</string>
+    <string name="captcha_challenge_failed">Could not obtain a captcha challenge, please try again later</string>
+    <string name="geetest_no_ui_context">Captcha cannot be shown here, please retry inside the app</string>
+    <string name="geetest_ui_init_failed">Failed to load the captcha widget. Please retry, and update the app if it keeps failing</string>
 
     <!-- Task executor -->
     <string name="task_mgr_start">Task manager started, user: %s</string>
     <string name="task_mgr_error">Task manager error: %s</string>
     <string name="task_bbs_daily_no_forum">Miyoushe Coin Sign-In failed, please select at least one forum in Settings</string>
-    <string name="task_game_sign_in">Game Sign-In</string>
     <string name="task_game_sign_in_no_game">Game Sign-In failed, please select at least one game in Settings</string>
     <string name="task_sign_preparing">%s sign-in preparing…</string>
     <string name="task_cloud_game_no_game">Cloud Game Sign-In: no game selected, please pick at least one in Settings</string>
@@ -497,9 +500,6 @@
 
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">Miyoushe Coin Sign-In requires captcha verification…</string>
-    <string name="bbs_captcha_notification">Miyoushe Coin Sign-In waiting for captcha</string>
-    <string name="bbs_captcha_needed">Captcha verification required</string>
-    <string name="bbs_captcha_failed">Captcha verification failed, no result obtained</string>
     <string name="bbs_cookie_expired">Miyoushe Coin Sign-In failed, cookie may have expired, please reset cookie</string>
     <string name="bbs_cookie_refreshed">Miyoushe Coin Sign-In session refreshed automatically</string>
     <string name="bbs_signin_failed">Miyoushe Coin Sign-In failed</string>
@@ -546,12 +546,6 @@
     <string name="skland_all_done">Skland Sign-In all characters completed</string>
     <string name="skland_grant_failed">Grant failed: %s</string>
 
-    <!-- Geetest -->
-    <string name="geetest_need_verification">Captcha required, opening app…</string>
-    <string name="geetest_waiting">: waiting for captcha</string>
-    <string name="geetest_done">: verification complete, continuing</string>
-    <string name="geetest_failed">Captcha verification failed: %s</string>
-
     <!-- tools.java -->
     <string name="error_cannot_open_source">Cannot open source file</string>
     <string name="error_label">Error Info</string>
@@ -568,7 +562,6 @@
     <string name="geetest_second_verify_failed">Second verification failed: %s</string>
     <string name="geetest_captcha_closed">Captcha closed</string>
     <string name="geetest_captcha_error">Captcha error: %s</string>
-    <string name="geetest_wait_timeout">Timed out waiting for captcha verification; skipped this attempt</string>
 
     <!-- BBSGameDaily additional -->
     <string name="game_cookie_token_refreshed">Sign-in CookieToken refreshed successfully</string>

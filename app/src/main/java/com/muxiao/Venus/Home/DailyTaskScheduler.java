@@ -54,6 +54,13 @@ public final class DailyTaskScheduler {
      */
     public static final String KEY_ONLY_IDS = "scheduled_only_ids";
 
+    /**
+     * WorkData 键：本轮是否为「验证完成后的续跑」。
+     * <p>续跑不看定时开关——它是用户刚刚手动完成验证后的收尾，与「定时任务是否开启」无关；
+     * 缺省（false）仍受开关约束，保持定时链路原语义。
+     */
+    public static final String KEY_RESUME = "scheduled_resume";
+
     /** 当日错过后补跑的延迟（分钟）。 */
     private static final long CATCH_UP_DELAY_MINUTES = 15;
 
@@ -71,6 +78,12 @@ public final class DailyTaskScheduler {
 
     /** 手动运行占用时的复查等待（分钟）：手动轮结束后短延时复查，保住当日兜底。 */
     public static final long MANUAL_BUSY_RECHECK_DELAY_MINUTES = 5;
+
+    /**
+     * 挂起等待人机验证时的兜底续跑间隔（分钟）：用户一直不点验证通知时也留一次机会，
+     * 避免当轮停在「待验证」直到次日。用户完成验证后由 {@link #enqueueCaptchaResume} 立即触发，不必等它。
+     */
+    public static final long CAPTCHA_RETRY_DELAY_MINUTES = 20;
 
     /**
      * 续链策略用 {@code APPEND_OR_REPLACE} 而非 {@code APPEND}：APPEND 把新工作挂到同名链尾的全部叶子并继承其终态，
@@ -147,7 +160,14 @@ public final class DailyTaskScheduler {
     /** 排下一次工作；onlyIds 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。 */
     static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay,
                             int attempt, Set<String> onlyIds) {
+        enqueue(context, policy, delay, attempt, onlyIds, false);
+    }
+
+    /** 实际入队：resume 标记「验证完成后的续跑」，Worker 据此跳过定时开关的判断。 */
+    private static void enqueue(Context context, ExistingWorkPolicy policy, long delay,
+                                int attempt, Set<String> onlyIds, boolean resume) {
         Data.Builder data = new Data.Builder().putInt(KEY_ATTEMPT, attempt);
+        if (resume) data.putBoolean(KEY_RESUME, true);
         if (onlyIds != null && !onlyIds.isEmpty())
             data.putStringArray(KEY_ONLY_IDS, onlyIds.toArray(new String[0]));
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(DailyTaskWorker.class)
@@ -160,6 +180,39 @@ public final class DailyTaskScheduler {
                 .build();
         WorkManager.getInstance(context)
                 .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, request);
+    }
+
+    /**
+     * 用户完成人机验证后触发一次立即续跑：只重跑挂起过的任务，凭证由 {@code CaptchaStore} 注入请求头。
+     *
+     * <p>用 {@code REPLACE} 而非 {@link #CHAIN_POLICY}：当前链尾是「明天到点」那一个节点，APPEND 会留下
+     * 两个待执行节点（立即续跑 + 明天），而续跑轮结束后又会自己挂一个明天，导致次日双跑。REPLACE 把它
+     * 替换成立即执行，链恢复单节点，Worker 结束后照常挂下次。
+     *
+     * <p>已有任务在跑时直接返回：那一轮的轮末收口会为挂起项排兜底续跑，此刻打断它只会白费已发出的请求。
+     */
+    public static void enqueueCaptchaResume(Context context, java.util.Collection<String> taskIds) {
+        Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
+                ? null : new java.util.LinkedHashSet<>(taskIds);
+        // 有轮次在跑时不丢弃，改为短延迟重排（旧实现直接 return）：验证刚完成时那一轮通常正处在收尾，
+        // 丢掉续跑会让用户看着「待验证」白等兜底的 20 分钟。REPLACE 保证链恢复单节点。
+        long delay = (DailyTaskWorker.isRunning() || ForegroundTaskService.isRunning())
+                ? TimeUnit.SECONDS.toMillis(10) : 0L;
+        if (delay > 0)
+            tools.writeLog(context, "captcha resume delayed " + delay + "ms: another round still running");
+        // resume 标记让 Worker 跳过定时开关判断：用户刚完成验证，与此开关无关
+        enqueue(context, ExistingWorkPolicy.REPLACE, delay, 1, onlyIds, true);
+    }
+
+    /**
+     * 续跑轮自身被占用时的短延迟重排：保留 resume 标记与部分执行名单。
+     * <p>不能用 {@link #enqueueNext(Context, ExistingWorkPolicy, long)}——它会丢掉这两个 WorkData，
+     * 把「只重跑挂起项」退化成「全量执行且受定时开关约束」。
+     */
+    static void enqueueResumeLater(Context context, java.util.Collection<String> taskIds, long delayMs) {
+        Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
+                ? null : new java.util.LinkedHashSet<>(taskIds);
+        enqueue(context, ExistingWorkPolicy.REPLACE, Math.max(0, delayMs), 1, onlyIds, true);
     }
 
     /** 距「下一个设定时刻」的毫秒数（严格未来，不做当日补跑判断）。 */

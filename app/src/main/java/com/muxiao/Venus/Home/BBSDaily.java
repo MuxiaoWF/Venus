@@ -60,9 +60,8 @@ public class BBSDaily {
             if (retcode == 0 && !JsonAccess.message(data, "").contains("err")) return data;
 
             if (retcode == RETCODE_NEED_CAPTCHA) {
-                // 完成人机验证后进入下一轮重试，重试请求会带上 geetCode
-                handleCaptchaRequired();
-                continue;
+                // 挂起本轮：执行器收集后统一发起一次验证，验证结果由下一轮续跑带上（见 CaptchaStore）
+                throw captchaRequired();
             }
 
             String message = JsonAccess.message(data, context.getString(R.string.bbs_unknown_error));
@@ -85,22 +84,20 @@ public class BBSDaily {
     }
 
     /**
-     * 处理 retcode=1034（需人机验证）：提示用户完成极验并阻塞等待；成功后 geetCode 由下一轮重试自动带上，失败则终止任务。
+     * 处理 retcode=1034（需人机验证）：抛出挂起信号交给执行器收尾，**不在任务线程上等人**。
+     *
+     * <p>旧实现在这里阻塞等待最长 5 分钟：定时链路的 WorkManager 窗口（约 10 分钟）被吃掉一半，
+     * 并发任务还会互相踩踏共用的 latch。改为挂起后，本轮立即结束，执行器把任务置「待验证」，
+     * 用户完成验证的结果落库，下一轮续跑时 {@link CaptchaStore#getSolution} 自动带进请求头。
      */
-    private void handleCaptchaRequired() {
-        Logger.debug("VenusCaptcha", "BBSDaily: retcode 1034, starting verification");
+    private CaptchaRequiredException captchaRequired() {
+        Logger.debug("VenusCaptcha", "BBSDaily: retcode 1034, suspend task for captcha");
         notifier.notifyListeners(context.getString(R.string.bbs_captcha_waiting));
-        // 点击直达验证流程（后台不再主动拉起 Activity，见 Notification.sendCaptchaNotification）
-        notification.sendCaptchaNotification(context.getString(R.string.bbs_captcha_notification), context.getString(R.string.bbs_captcha_needed));
-
+        // 请求头带上本轮已取得的验证结果（若有）：续跑时可直接复用，避免重复验证
         Map<String, String> headers = getBbsHeaders();
         Map<String, String> geetCode = captchaHelper.getGeetCode();
         if (geetCode != null) headers.putAll(geetCode);
-        captchaHelper.performVerificationWithCallback(headers, context.getString(R.string.task_name_bbs_daily));
-        captchaHelper.waitForCompletion();
-        Logger.debug("VenusCaptcha", "BBSDaily: verification complete, geetCode=" + captchaHelper.getGeetCode());
-        if (captchaHelper.getGeetCode() == null)
-            throw new RuntimeException(context.getString(R.string.bbs_captcha_failed));
+        return new CaptchaRequiredException(TaskIds.BBS_DAILY, headers);
     }
 
     private boolean signCompleted = false;
@@ -119,7 +116,8 @@ public class BBSDaily {
         this.context = context;
         this.userId = userId;
         this.notification = new Notification(context);
-        this.captchaHelper = new CaptchaVerificationHelper(context, gt3Controller, notifier, this.notification);
+        // 凭证改从跨轮存储读（挂起-续跑模型），不再持有控制器与等待状态
+        this.captchaHelper = new CaptchaVerificationHelper(context, userId);
         this.headerManager = new HeaderManager(context);
         this.notifier = notifier;
         this.isOversea = MiHoYoBBSConstants.is_oversea(context);
@@ -231,6 +229,9 @@ public class BBSDaily {
     private JsonObject checkTasksList(boolean retried) {
         notifier.notifyListeners(context.getString(R.string.bbs_getting_task_list));
         Map<String, String> bbsHeaders = getBbsHeaders();
+        // 续跑轮已持有验证凭证：任务列表接口同样可能要求验证，不带就是再吃一次 1034
+        Map<String, String> geetCode = captchaHelper.getGeetCode();
+        if (geetCode != null) bbsHeaders.putAll(geetCode);
         String taskUrl = isOversea ? Constants.Urls.OS_BBS_TASK_URL : Constants.Urls.BBS_TASK_URL;
         String response = tools.sendGetRequest(taskUrl, bbsHeaders, null);
         JsonObject data = JsonParser.parseString(response).getAsJsonObject();
@@ -241,6 +242,9 @@ public class BBSDaily {
                 notifier.notifyListeners(context.getString(R.string.bbs_cookie_refreshed));
                 return checkTasksList(true);
             }
+            // 需要人机验证：与签到接口同口径挂起（旧实现直接抛普通异常记 ERROR，
+            // 用户看到的是「任务列表获取失败」而不是「待验证」，也就没有验证入口）
+            if (retcode == RETCODE_NEED_CAPTCHA) throw captchaRequired();
             // 仅登录态失效（-100）才提示重设 cookie；其余（1034 人机验证 / 429 限流 / 风控等）原样透传
             // retcode 与 message——瞬时失败重跑即可恢复，报成「cookie 过期」会误导用户重新登录
             String errorMsg = retcode == RETCODE_LOGIN_EXPIRED

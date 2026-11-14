@@ -66,7 +66,8 @@ public class BBSGameDaily {
         this.userId = userId;
         this.statusNotifier = statusNotifier;
         this.notification = new Notification(context);
-        this.captchaHelper = new CaptchaVerificationHelper(context, gt3Controller, statusNotifier, this.notification);
+        // 凭证改从跨轮存储读（挂起-续跑模型），不再持有控制器与等待状态
+        this.captchaHelper = new CaptchaVerificationHelper(context, userId);
         this.headerManager = new HeaderManager(context);
         this.isOversea = MiHoYoBBSConstants.is_oversea(context);
         this.actId = MiHoYoBBSConstants.name_to_act_id(gameName, isOversea);
@@ -445,14 +446,11 @@ public class BBSGameDaily {
                         + ";account_id_v2=" + stuid
                         + ";account_mid_v2=" + mid + ";cookie_token=" + cookieToken
                         + ";cookie_token_v2=" + cookieToken + ";mi18nLang=zh-cn;login_ticket=" + loginTicket);
-                // 触发验证码验证：通知点击直达验证流程（后台不再主动拉起 Activity）
-                notification.sendCaptchaNotification(notifTitle(), context.getString(R.string.game_captcha_needed));
+                // 挂起本轮：不在任务线程上等人。执行器统一收集后发起一次验证，结果由续跑轮带上
                 report("", context.getString(R.string.game_captcha_needed));
-                captchaHelper.performVerificationWithCallback(recordHeaders, taskName());
-                captchaHelper.waitForCompletion();
-                if (captchaHelper.getGeetCode() == null) {
-                    throw new RuntimeException(context.getString(R.string.geetest_captcha_failed_network));
-                }
+                Map<String, String> solved = captchaHelper.getGeetCode();
+                if (solved != null) recordHeaders.putAll(solved);
+                throw new CaptchaRequiredException(TaskIds.gameSignIn(gameName), recordHeaders);
             } else
                 break;
         }

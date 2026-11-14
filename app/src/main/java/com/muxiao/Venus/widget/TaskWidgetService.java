@@ -165,6 +165,12 @@ public class TaskWidgetService extends RemoteViewsService {
                     views.setTextColor(R.id.widget_task_status_icon,
                             ContextCompat.getColor(context, R.color.widget_text_secondary));
                     break;
+                case TaskStatusManager.STATUS_WAITING_CAPTCHA:
+                    // 挂起等人机验证：与应用内同用警告色，「!」区别于进行中的圆点、失败的叉
+                    views.setTextViewText(R.id.widget_task_status_icon, "!");
+                    views.setTextColor(R.id.widget_task_status_icon,
+                            ContextCompat.getColor(context, R.color.status_warning));
+                    break;
                 default: // PENDING
                     views.setTextViewText(R.id.widget_task_status_icon, "○");
                     views.setTextColor(R.id.widget_task_status_icon,

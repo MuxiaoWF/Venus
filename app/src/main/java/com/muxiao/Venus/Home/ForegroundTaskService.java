@@ -21,7 +21,11 @@ import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 import com.muxiao.Venus.common.AppExecutors;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.Future;
 
 /**
@@ -161,8 +165,11 @@ public class ForegroundTaskService extends Service {
                     TaskSettings settings = TaskSettings.fromPreferences(this);
                     int totalTasks = settings.getTaskIds().size();
                     AtomicInteger completedTasks = new AtomicInteger(0);
+                    // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）
+                    Set<String> captchaTaskIds = ConcurrentHashMap.newKeySet();
+                    AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
 
-                    GeetestController geetestController = new BackgroundGeetestController(ForegroundTaskService.this, notifier);
+                    GeetestController geetestController = new BackgroundGeetestController();
 
                     TaskExecutor taskExecutor = new TaskExecutor(
                             this, userId, notifier, geetestController,
@@ -179,8 +186,17 @@ public class ForegroundTaskService extends Service {
 
                                 @Override
                                 public void onAllTasksCompleted() {
+                                    // 有挂起待验证的任务时本轮并未真正跑完：等续跑轮收尾再报完成
+                                    if (!captchaTaskIds.isEmpty()) return;
                                     notificationHelper.completeProgressNotification(
                                             "Venus", getString(R.string.notif_all_tasks_done));
+                                }
+
+                                @Override
+                                public void onCaptchaRequired(CaptchaRequiredException error) {
+                                    // 本轮不等人：只记下挂起项，轮末统一取一次挑战并落库
+                                    captchaTaskIds.add(error.getTaskId());
+                                    captchaHeaders.compareAndSet(null, error.getHeaders());
                                 }
 
                                 @Override
@@ -196,6 +212,23 @@ public class ForegroundTaskService extends Service {
                             });
 
                     taskExecutor.executeAll(settings);
+
+                    // 轮末收口：把本轮挂起的人机验证需求合并成一次，落库并发通知；随后结束本轮。
+                    // 用户完成验证后，凭证由 CaptchaStore 落库，下一轮续跑自动带上——服务不再等人。
+                    if (!captchaTaskIds.isEmpty()) {
+                        // 用应用语言包裹的 Context：通知里的任务名须与界面一致
+                        boolean suspended = CaptchaSuspension.suspend(
+                                LocaleHelper.wrap(this), userId, captchaTaskIds,
+                                captchaHeaders.get(), notificationHelper,
+                                // 后台运行：用户可能不在界面，通知是唯一的验证入口
+                                true);
+                        if (!suspended) {
+                            // 连挑战都取不到：挂起不成立，按失败处理，避免任务永远停在「待验证」
+                            for (String id : captchaTaskIds)
+                                statusManager.applyStatus(userId, id, TaskItem.TaskStatus.ERROR);
+                            TaskWidgetProvider.refreshAllWidgets(this);
+                        }
+                    }
                 } finally {
                     finishTask();
                 }
@@ -214,6 +247,8 @@ public class ForegroundTaskService extends Service {
         broadcastState(false);
         releaseWakeLock();
         dismissForegroundNotification();
+        // 再按 ID 显式撤一次
+        if (notificationHelper != null) notificationHelper.cancelProgressNotification();
         instance = null;
         stopSelf();
     }
@@ -242,6 +277,8 @@ public class ForegroundTaskService extends Service {
                 statusText = getString(R.string.notif_error, taskName);
                 break;
             case WARNING:
+            case WAITING_CAPTCHA:
+                // WARNING 是旧版「等待验证」的持久化值（会迁移到 WAITING_CAPTCHA），两者文案一致
                 statusText = getString(R.string.notif_waiting_verification, taskName);
                 break;
             case CANCELLED:
@@ -301,6 +338,8 @@ public class ForegroundTaskService extends Service {
         releaseWakeLock();
         broadcastState(false);
         dismissForegroundNotification();
+        // 同 finishTask：兜住 stopForeground 没清干净的情况（进程被杀/系统回收后重建等路径）
+        if (notificationHelper != null) notificationHelper.cancelProgressNotification();
         instance = null;
         TaskWidgetProvider.refreshAllWidgets(this);
     }

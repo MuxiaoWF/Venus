@@ -42,6 +42,13 @@ public class TaskExecutor {
         default void onTaskError(String taskId, String message, Throwable cause) {
             onError(message);
         }
+
+        /**
+         * 任务因需人机验证而挂起。调用方收集这些信号，轮末统一取一次挑战并落库，等用户完成验证后
+         * 由续跑轮带上凭证重跑（见 {@link CaptchaStore}）。默认忽略——前台单任务链路自己就能处理。
+         */
+        default void onCaptchaRequired(CaptchaRequiredException error) {
+        }
     }
 
     private final Context context;
@@ -208,8 +215,9 @@ public class TaskExecutor {
     }
 
     /**
-     * 包裹单个任务的执行与状态上报：先置 IN_PROGRESS，完成置 COMPLETED、取消置 CANCELLED、异常置 ERROR 并
-     * 回调 onTaskError；中断时还原中断标志。
+     * 包裹单个任务的执行与状态上报：先置 IN_PROGRESS，完成置 COMPLETED、取消置 CANCELLED、
+     * 需人机验证置 WAITING_CAPTCHA（挂起，不计失败）、其余异常置 ERROR 并回调 onTaskError；
+     * 中断时还原中断标志。
      *
      * @param taskId 稳定任务 id：回调与持久化都走它，展示名只在错误文案里现算
      */
@@ -225,6 +233,11 @@ public class TaskExecutor {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.CANCELLED);
+        } catch (CaptchaRequiredException e) {
+            // 挂起：本轮不再继续这个任务，也不按失败计——用户完成验证后由续跑轮带着凭证重跑。
+            // 必须在 catch (Exception) 之前：它是 RuntimeException，落到通用分支会被误报成失败。
+            callback.onCaptchaRequired(e);
+            callback.onTaskStatusChanged(e.getTaskId(), TaskItem.TaskStatus.WAITING_CAPTCHA);
         } catch (Exception e) {
             if (callback.isCancelled()) {
                 callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.CANCELLED);

@@ -12,8 +12,10 @@ import static com.muxiao.Venus.common.Constants.Prefs.PREF_CAPTCHA_PENDING;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -110,7 +112,31 @@ public class MainActivity extends BaseActivity {
 
         homeController.setHomeReadyCallback(this::tryTriggerCaptchaIfReady);
 
+        // 后台发起验证时（后台线程）会发这条应用内广播：应用已在前台就不用等下一次 onResume
+        registerCaptchaRequiredReceiver();
+
         handleCaptchaIntent(getIntent());
+    }
+
+    /**
+     * 监听「后台正在等待人机验证」的应用内广播。
+     *
+     * <p>覆盖的正是原先缺口的场景：用户从小组件图标（而不是通知）进入应用、或应用已在前台时后台才
+     * 撞上 1034——此前这两种情况前台不会收到任何信号，验证 UI 不出现，后台只能干等到超时。
+     */
+    private void registerCaptchaRequiredReceiver() {
+        captchaRequiredReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Logger.debug("VenusCaptcha", "ACTION_CAPTCHA_REQUIRED received");
+                captchaPending = true;
+                shell.setCurrentPage(0, false);
+                tryTriggerCaptchaIfReady();
+            }
+        };
+        androidx.core.content.ContextCompat.registerReceiver(this, captchaRequiredReceiver,
+                new IntentFilter(Constants.ACTION_CAPTCHA_REQUIRED),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     /** 注册全部 ActivityResult 启动器并分发到对应控制器（控制器惰性创建视图，注册先于视图）。 */
@@ -196,6 +222,10 @@ public class MainActivity extends BaseActivity {
         getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE)
                 .unregisterOnSharedPreferenceChangeListener(backgroundPrefListener);
         backgroundReloadHandler.removeCallbacksAndMessages(null);
+        if (captchaRequiredReceiver != null) {
+            unregisterReceiver(captchaRequiredReceiver);
+            captchaRequiredReceiver = null;
+        }
         // 控制器资源回收（广播接收器/极验按钮等；Activity 销毁即全量释放）
         homeController.release();
         usersController.release();
@@ -206,6 +236,9 @@ public class MainActivity extends BaseActivity {
 
     /** 待触发的后台人机验证标记（避免轮询）。 */
     private boolean captchaPending = false;
+
+    /** 「后台正在等待验证」广播接收器（onCreate 注册、onDestroy 注销）。 */
+    private BroadcastReceiver captchaRequiredReceiver;
 
     /** 检查是否有待处理的后台人机验证，有则触发（就绪回调见 {@link #tryTriggerCaptchaIfReady()}）。 */
     private void triggerCaptchaIfPending() {
@@ -417,11 +450,11 @@ public class MainActivity extends BaseActivity {
         int lastVersion = appPrefs.getInt(LAST_VERSION, 0);
         int currentVersion = BuildConfig.VERSION_CODE;
         if (currentVersion > lastVersion) {
-            // 应用已更新，清除旧配置（回退到内置默认值）
+            // 应用已更新，清除旧配置（回退到内置默认值）。
+            // 不再保留「待验证」标记：挂起请求本体（captcha_pending_request）随 clear() 一并失效，
+            // 只留标记会让升级后首次进应用弹一个没有挂起任务的空验证。
             ConfigRepository configRepo = new ConfigRepository(context);
-            boolean captchaPending = configRepo.getBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, false);
             configRepo.clear();
-            if (captchaPending) configRepo.putBoolean(Constants.Prefs.PREF_CAPTCHA_PENDING, true);
             appPrefs.edit().putInt(LAST_VERSION, currentVersion).apply();
             new Thread(() -> MiHoYoBBSConstants.update_config_from_web(context)).start();
         }

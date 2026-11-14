@@ -1,5 +1,7 @@
 package com.muxiao.Venus.Home;
 
+import androidx.annotation.NonNull;
+
 /**
  * 一条任务：稳定 id（持久化/匹配键，与语言无关，见 {@link TaskIds}）+ 当前语言显示名。
  *
@@ -15,6 +17,7 @@ public final class TaskDescriptor {
         this.name = name;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return id + '(' + name + ')';

@@ -21,7 +21,6 @@ import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
-import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
@@ -44,6 +43,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +85,56 @@ public class HomeFragment implements PageController {
 
     /** 主页就绪回调：MainActivity 据此触发后台人机验证（替代原 FragmentResult 广播）。 */
     private Runnable homeReadyCallback;
+
+    /**
+     * 前台验证流程是否在进行（单飞保护）：通知点击、`ACTION_CAPTCHA_REQUIRED` 广播、onResume 发现待验证标记
+     * 三个入口可能同时触发，重复走一遍会各发一次 API1、各消费一次 challenge，表现为验证始终不通过。
+     *
+     * <p>{@link #captchaStartedAt} 给它一个有效期（与后台协调者的 5 分钟等待同量级）：用户中途离开、
+     * 验证 UI 被销毁但没有回调收尾时，标记不会永久卡住后续任务的验证。
+     */
+    private volatile boolean captchaInProgress;
+    private volatile long captchaStartedAt;
+    /**
+     * 当前正在验证的 challenge。单飞只拦「同一份 challenge 的重复触发」（通知/广播/onResume 三入口），
+     * 换了 challenge 就属于新一轮验证，必须放行——否则上一轮没点开就被取消时，标记会卡住 5 分钟，
+     * 期间所有新挂起都弹不出验证框。
+     */
+    private volatile String captchaInFlightChallenge;
+
+    /**
+     * 前台挂起失败时的兜底名单：{@link CaptchaSuspension#suspend} 取不到挑战时 pending 不会落库，
+     * 但验证仍会弹出，成功后要靠这份内存名单触发续跑。
+     */
+    private volatile java.util.List<String> captchaFallbackIds;
+
+    /**
+     * 挂起流程（取 API1 挑战 + 落库）正在执行。
+     *
+     * <p>与 {@link #captchaInProgress} 是两件事：这个表示「挑战还没拿到」，那个表示「验证框已经在屏上」。
+     * 两者之间的空档里，用户会先看到列表变成「待验证」——如果这时他点任务行，旧实现会自己再发一次 API1，
+     * 于是同一轮出现两份互不匹配的 challenge：后落库的那份才是续跑要用的，用户在前一份上验完等于白做
+     * （现象就是「点了条目、验完了，任务还是不动」）。有这个标记，点击路径会等挂起流程自己回调。
+     */
+    private volatile boolean captchaSuspending;
+
+    /**
+     * 轮末收口标记：{@code executeAll} 已返回、任务全部结束，只剩 finally 里的收尾。
+     * {@link #isTaskRunning()} 据此提前返回 false——否则轮末排的「验证完成续跑」会被 Worker 的
+     * 「手动运行占用」判断挡回，白等 5 分钟复查。
+     */
+    private static volatile boolean sRoundClosing;
+
+    /**
+     * 单飞保护的有效期：超过这个时间视为上一轮已作废，允许重新触发。
+     * 极验 challenge 本身约 10 分钟失效，这里的 5 分钟只需要覆盖「用户打开验证框、中途离开、
+     * UI 被销毁但没回调收尾」这一种情形，取与 challenge 寿命同量级即可。
+     */
+    private static final long CAPTCHA_TRIGGER_TTL_MS = 5 * 60 * 1000L;
+
+    /** 回前台自愈的节流（见 {@link #maybeResumeCaptchaOnResume()}）：避免反复切页反复 REPLACE 续跑轮。 */
+    private static final long AUTO_RESUME_THROTTLE_MS = 60_000L;
+    private volatile long lastAutoResumeAt;
 
     public HomeFragment(MainActivity activity) {
         this.activity = activity;
@@ -180,6 +230,15 @@ public class HomeFragment implements PageController {
             viewModel.refreshTaskItems();
 
             currentTaskFuture = AppExecutors.get().submit(() -> {
+                // 应用内运行：整轮抑制系统通知——用户就在界面上，进度看列表、错误走对话框。
+                // 任务模块（BBSDaily/BBSGameDaily/…）的失败通知没有运行形态概念，判据统一收在 Notification。
+                Notification.beginForegroundRun();
+                // 挂起的验证需求：首个挂起即发起验证（不等轮末，见 onCaptchaRequired），后续挂起只并入名单
+                Set<String> captchaTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+                java.util.concurrent.atomic.AtomicBoolean captchaRequested =
+                        new java.util.concurrent.atomic.AtomicBoolean(false);
+                java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders =
+                        new java.util.concurrent.atomic.AtomicReference<>();
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(context);
                     if (settings.hasAnyTaskDisabled()) {
@@ -203,20 +262,50 @@ public class HomeFragment implements PageController {
                                     activity.runOnUiThread(() -> show_error_dialog(activity, message));
                                 }
                                 @Override
+                                public void onCaptchaRequired(CaptchaRequiredException error) {
+                                    captchaTaskIds.add(error.getTaskId());
+                                    captchaHeaders.compareAndSet(null, error.getHeaders());
+                                    // 首个挂起就地发起验证，不再等本轮剩余任务跑完：它们还各有 2~9s 风控延时，
+                                    // 用户会先看到列表变成「待验证」，验证框却要等几十秒才出来（旧行为），
+                                    // 且这段空档里点任务行会另起一份 challenge，把真正的验证挤掉。
+                                    if (captchaRequested.compareAndSet(false, true))
+                                        suspendAndShowCaptcha(captchaTaskIds, error.getHeaders());
+                                }
+                                @Override
                                 public boolean isCancelled() {
                                     return isTaskCancelled();
                                 }
                             });
                     taskExecutor.executeAll(settings);
-                }                 finally {
-                    // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状
-                    runOnUi(() -> {
-                        controller.destroyButton();
-                        controller.createUtils();
-                        viewModel.refreshBgFeatureEnabled();
-                        viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
-                        viewModel.refreshTaskItems();
-                    });
+                } finally {
+                    // 任务已全部结束（executeAll 已返回），只剩本段收尾：让 isTaskRunning() 立刻反映这一点，
+                    // 否则下面排的续跑轮会被 Worker 的「手动运行占用」判断挡回，白等 5 分钟复查
+                    sRoundClosing = true;
+                    try {
+                        boolean captchaPending = !captchaTaskIds.isEmpty();
+                        // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状。
+                        // 有挂起项时不销毁验证控件——那是用户此刻唯一能操作的东西，轮末清掉等于把他手上的
+                        // 验证作废（旧实现正是如此，表现为「点了条目、验到一半按钮消失」）。
+                        runOnUi(() -> {
+                            if (!captchaPending) {
+                                controller.destroyButton();
+                                controller.createUtils();
+                            }
+                            viewModel.refreshBgFeatureEnabled();
+                            viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                            viewModel.refreshTaskItems();
+                        });
+                        // 用户主动取消时不弹验证：挂起项留在「待验证」，下次运行会自然重试
+                        if (captchaPending && !isTaskCancelled())
+                            handleRoundEndCaptcha(captchaTaskIds, captchaHeaders.get());
+                        else if (captchaPending)
+                            Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
+                    } finally {
+                        // 这两步必须在 finally 里：上面任何一步抛异常都不能留下「永久收尾中」或「永久静音」
+                        sRoundClosing = false;
+                        // 收尾一定要清：否则后续所有运行（含后台）都会被永久静音
+                        Notification.endForegroundRun();
+                    }
                 }
             });
         });
@@ -242,6 +331,14 @@ public class HomeFragment implements PageController {
             viewModel.refreshTaskItems();
 
             currentTaskFuture = AppExecutors.get().submit(() -> {
+                // 应用内运行：整轮抑制系统通知（判据统一在 Notification.inForegroundRun）
+                Notification.beginForegroundRun();
+                // 挂起的验证需求：首个挂起即发起验证，后续挂起只并入名单
+                Set<String> captchaTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+                java.util.concurrent.atomic.AtomicBoolean captchaRequested =
+                        new java.util.concurrent.atomic.AtomicBoolean(false);
+                java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders =
+                        new java.util.concurrent.atomic.AtomicReference<>();
                 try {
                     TaskSettings settings = TaskSettings.fromPreferences(context);
                     if (settings.hasAnyTaskDisabled()) {
@@ -264,21 +361,47 @@ public class HomeFragment implements PageController {
                                     activity.runOnUiThread(() -> show_error_dialog(activity, message));
                                 }
                                 @Override
+                                public void onCaptchaRequired(CaptchaRequiredException error) {
+                                    captchaTaskIds.add(error.getTaskId());
+                                    captchaHeaders.compareAndSet(null, error.getHeaders());
+                                    // 首个挂起就地发起验证，不再等本轮剩余任务跑完：它们还各有 2~9s 风控延时，
+                                    // 用户会先看到列表变成「待验证」，验证框却要等几十秒才出来（旧行为），
+                                    // 且这段空档里点任务行会另起一份 challenge，把真正的验证挤掉。
+                                    if (captchaRequested.compareAndSet(false, true))
+                                        suspendAndShowCaptcha(captchaTaskIds, error.getHeaders());
+                                }
+                                @Override
                                 public boolean isCancelled() {
                                     return isTaskCancelled();
                                 }
                             });
                     // 部分执行：TaskExecutor 只提交 id 命中的任务（含单游戏粒度）
                     taskExecutor.executeAll(settings, failedIds);
-                }                 finally {
-                    // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除 RETAINED
-                    runOnUi(() -> {
-                        controller.destroyButton();
-                        controller.createUtils();
-                        viewModel.refreshBgFeatureEnabled();
-                        viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
-                        viewModel.refreshTaskItems();
-                    });
+                } finally {
+                    // 同「运行签到」：任务层面已结束，让 isTaskRunning() 同步反映（续跑轮据此判断占用）
+                    sRoundClosing = true;
+                    try {
+                        boolean captchaPending = !captchaTaskIds.isEmpty();
+                        // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除
+                        // RETAINED。有挂起项时保留验证控件，理由同上。
+                        runOnUi(() -> {
+                            if (!captchaPending) {
+                                controller.destroyButton();
+                                controller.createUtils();
+                            }
+                            viewModel.refreshBgFeatureEnabled();
+                            viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                            viewModel.refreshTaskItems();
+                        });
+                        // 用户主动取消时不弹验证：挂起项留在「待验证」，下次运行会自然重试
+                        if (captchaPending && !isTaskCancelled())
+                            handleRoundEndCaptcha(captchaTaskIds, captchaHeaders.get());
+                        else if (captchaPending)
+                            Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
+                    } finally {
+                        sRoundClosing = false;
+                        Notification.endForegroundRun();
+                    }
                 }
             });
         });
@@ -300,6 +423,8 @@ public class HomeFragment implements PageController {
 
         // 点「未配置」任务项：直达设置页对应凭证抽屉（划线只提示不解决，这里补上后半程）
         root.setOnDisabledTaskClickListener(this::onDisabledTaskClick);
+        // 点「待验证」任务项：重新拉起验证。通知是本页之外的唯一入口，被划掉后这条列表入口就是兜底
+        root.setOnCaptchaClickListener(this::performBackgroundCaptchaVerification);
 
         root.setOnBackgroundClickListener(() -> {
             if (ForegroundTaskService.isRunning()) {
@@ -324,12 +449,6 @@ public class HomeFragment implements PageController {
 
         // 根据设置显示/隐藏后台运行按钮（经 UiState 派生）
         viewModel.refreshBgFeatureEnabled();
-
-        android.content.Intent launchIntent = activity.getIntent();
-        if (launchIntent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(launchIntent.getAction())) {
-            launchIntent.setAction(null);
-            screenView.postDelayed(this::performBackgroundCaptchaVerification, 300);
-        }
 
         root.setOnViewLogListener(() -> {
             try {
@@ -364,6 +483,11 @@ public class HomeFragment implements PageController {
                 tools.show_error_dialog(context, activity.getString(R.string.err_read_log_failed, tools.describeError(e)));
             }
         });
+
+        // 视图已就绪：主动通知宿主一次。show() 依赖外壳的页选回调，理论上会在同一帧稍后执行并再通知一次
+        // （宿主侧按 captchaPending 去重，重复无副作用）；这里兜住「页选回调早于 createView 而 show() 被
+        // 守卫挡掉、之后再无第二次回调」的时序，否则后台正在等待的验证码永远不会被挂出来。
+        if (homeReadyCallback != null) homeReadyCallback.run();
         return root;
     }
 
@@ -386,7 +510,13 @@ public class HomeFragment implements PageController {
                 Logger.debug("VenusCaptcha", "Running on UI thread, creating button");
                 // 容器由 Compose 宿主急切创建（见 HomeScreenView.geetestContainer），
                 // SDK 只认真实 ViewGroup，故这层桥接保留
-                if (screenView == null) return;
+                if (screenView == null) {
+                    // 没有视图可挂载：放开单飞保护，否则 5 分钟内再也弹不出验证框，
+                    // 用户只会看到列表停在「待验证」
+                    Logger.debug("VenusCaptcha", "createButton aborted: screenView is null");
+                    finishCaptchaAttempt();
+                    return;
+                }
                 LinearLayout container = screenView.getGeetestContainer();
                 try {
                     // 动态创建 GT3GeetestButton；已存在则先销毁
@@ -409,10 +539,19 @@ public class HomeFragment implements PageController {
                     geetestButton.setLayoutParams(params);
                     container.addView(geetestButton);
                     screenView.setGeetestVisible(true);
+                    // 兜底重建：run 结束时的 destroyButton 会把 utils 置空，若两者交错到这之前，
+                    // 这里会是 null —— 直接 init 会 NPE，被下面的 catch 吞掉，表现为「按钮不出现」。
+                    if (gt3GeetestUtils == null) gt3GeetestUtils = new GT3GeetestUtils(activity);
                     gt3GeetestUtils.init(gt3ConfigBean);
                     geetestButton.setGeetestUtils(gt3GeetestUtils);
                 } catch (Exception e) {
+                    // 验证控件没建出来 = 本轮验证不可能完成，必须显式收尾并告知用户。
                     Logger.e("Error creating GT3GeetestButton", e);
+                    finishCaptchaAttempt();
+                    // 应用内弹窗提示：这条链路只可能发生在界面里，没必要再发系统通知
+                    show_error_dialog(activity,
+                            activity.getString(R.string.notif_captcha_failed),
+                            activity.getString(R.string.geetest_ui_init_failed));
                 }
             });
         }
@@ -444,61 +583,321 @@ public class HomeFragment implements PageController {
     };
 
     /**
-     * 由 MainActivity 调用，处理后台人机验证通知跳转：用本地控制器展示验证 UI，完成后经协调者回传结果给后台。
+     * 由 MainActivity 调用，展示人机验证 UI；验证结果落库后触发续跑，不再「回传」给等待中的线程。
+     *
+     * <p>数据全部来自 {@link CaptchaStore}：后台挂起时已把 gt/challenge/headers 与挂起任务 id 落库，
+     * 这里只读不消费——用户第一次关了验证框，再点通知仍能用同一份 challenge 重试。
+     *
+     * <p>入口不止一个（通知点击、`ACTION_CAPTCHA_REQUIRED` 广播、onResume 发现待验证标记），三处可能在同一
+     * 时刻各触发一次；重复进来会各自弹一个验证框、各消费一次 challenge。故用 {@link #captchaInProgress}
+     * 做单飞保护，由本轮的成功/失败/异常三条出口复位。
      */
+    private void finishCaptchaAttempt() {
+        captchaInProgress = false;
+        captchaInFlightChallenge = null;
+    }
+
     public void performBackgroundCaptchaVerification() {
-        Logger.debug("VenusCaptcha", "performBackgroundCaptchaVerification called, controller=" + controller);
+        // 主线程同步读缓存（ConfigRepository 是热读门面，不碰磁盘），用 challenge 判重：
+        // 同一份 challenge 的重复触发才拦，换了 challenge 一律放行
+        CaptchaStore.Pending current = CaptchaStore.getPending(activity);
+        // 挑战还在取（挂起流程在跑）：此刻绝不能自己再发一次 API1。用户在空档里点任务行时，旧实现会
+        // 另取一份 challenge 并先弹出验证框，随后挂起流程落库的却是另一份——两份互不匹配，用户在前一份
+        // 上验完，续跑带过去的凭证无效。挂起流程结束时会带着同一份 challenge 回调本方法。
+        if (current == null && captchaSuspending) {
+            Logger.debug("VenusCaptcha", "challenge request in flight, wait for it instead of starting another");
+            return;
+        }
+        // 已经验证过、只是还没续跑（轮末漏掉 / 进程被杀 / 续跑被丢弃）：再弹一次验证毫无意义——
+        // 新 challenge 与已有 solution 无关，用户做完还是同一个结果，表现为「点了条目又冒一个无效验证框」。
+        // 直接走续跑；没有可续跑的项就把残留的「待验证」复位，避免列表永久卡在这个状态。
+        if (current == null) {
+            String solvedUser = viewModel.getCurrentUser();
+            if (CaptchaStore.getSolution(activity, solvedUser) != null) {
+                Logger.debug("VenusCaptcha", "solution already present, resume instead of showing captcha again");
+                resumeAfterCaptcha(solvedUser, collectWaitingCaptchaIds(solvedUser));
+                return;
+            }
+        }
+        String challengeKey = current != null ? current.challenge : null;
+        boolean sameChallenge = challengeKey != null && challengeKey.equals(captchaInFlightChallenge);
+        if (captchaInProgress && sameChallenge
+                && System.currentTimeMillis() - captchaStartedAt < CAPTCHA_TRIGGER_TTL_MS) {
+            Logger.debug("VenusCaptcha", "verification already in progress for same challenge, skip");
+            return;
+        }
+        Logger.debug("VenusCaptcha", "performBackgroundCaptchaVerification, pending="
+                + (current != null) + ", challenge=" + challengeKey);
+        captchaInProgress = true;
+        captchaInFlightChallenge = challengeKey;
+        captchaStartedAt = System.currentTimeMillis();
         // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
         AppExecutors.get().execute(() -> {
             try {
-                // 优先使用后台任务保存的 headers（含 Cookie），确保 API2 二次验证能正确绑定会话
-                Map<String, String> headers = BackgroundGeetestController.consumePendingHeaders();
-                if (headers == null) {
-                    Logger.debug("VenusCaptcha", "No pending headers, using fresh BBS headers");
-                    headers = new HeaderManager(activity).get_bbs_headers();
-                } else {
-                    Logger.debug("VenusCaptcha", "Using pending headers from background task");
-                }
+                CaptchaStore.Pending pending = current;
+                final String solveUserId = pending != null && pending.userId != null
+                        ? pending.userId : viewModel.getCurrentUser();
+                // 优先用挂起时保存的 headers（含 Cookie），确保 API2 二次验证绑定同一会话；
+                // 拿不到就按当前用户现构一份完整的——裸 get_bbs_headers() 里没有 Cookie，
+                // API2 二次验证会绑定不到账号会话，用户验完拿到的是无效凭证。
+                Map<String, String> headers = pending != null && pending.headers != null
+                        && !pending.headers.isEmpty()
+                        ? new HashMap<>(pending.headers) : buildCaptchaHeaders(solveUserId);
+                final java.util.List<String> suspendedIds =
+                        mergeSuspendedIds(pending, captchaFallbackIds, solveUserId);
 
-                // 检查是否有后台任务保存的 challenge（避免重复 API1 导致 challenge 不匹配）
-                String[] savedChallenge = BackgroundGeetestController.consumePendingChallenge();
                 Notification notification = new Notification(activity);
                 Geetest.GeetestVerificationCallback callback = new Geetest.GeetestVerificationCallback() {
                     @Override
                     public void onVerificationSuccess(Map<String, String> geetestCode) {
-                        Logger.debug("VenusCaptcha", "Verification SUCCESS, sending broadcast...");
+                        Logger.debug("VenusCaptcha", "Verification SUCCESS, persisting solution");
                         controller.destroyButton();
-                        String resultJson = new com.google.gson.Gson().toJson(geetestCode);
-                        Logger.debug("VenusCaptcha", "Broadcast resultJson=" + resultJson);
-                        BackgroundGeetestController.notifyVerificationSuccess(geetestCode);
-                        Logger.debug("VenusCaptcha", "Broadcast sent OK");
-                        notification.dismissErrorNotification();
+                        // 结果落库：续跑轮的任务从这里取到凭证、注入请求头，无需再次验证
+                        CaptchaStore.saveSolution(activity, solveUserId, geetestCode);
+                        CaptchaStore.clearPending(activity);
+                        notification.dismissCaptchaNotification();
+                        finishCaptchaAttempt();
+                        captchaFallbackIds = null;
+                        // 名单重算：验证期间可能又有任务撞 1034，开头那份快照里没有它们
+                        java.util.List<String> resumeIds =
+                                mergeSuspendedIds(null, suspendedIds, solveUserId);
+                        if (isTaskRunning()) {
+                            // 本轮其他任务还在跑：此时起续跑轮会被 Worker 的「手动运行占用」判断挡回，
+                            // 白等 5 分钟复查。交给轮末收口——那时 solution 已落库，它会直接续跑。
+                            Logger.debug("VenusCaptcha", "round still running, resume deferred to round end: "
+                                    + resumeIds);
+                        } else {
+                            resumeAfterCaptcha(solveUserId, resumeIds);
+                        }
                     }
 
                     @Override
                     public void onVerificationFailed(String error) {
                         Logger.debug("VenusCaptcha", "Verification FAILED: " + error);
                         controller.destroyButton();
-                        BackgroundGeetestController.notifyVerificationFailure();
-                        notification.sendErrorNotification(activity.getString(R.string.notif_captcha_failed), error, true);
+                        // 只清「待验证」标记，保留 challenge：用户可再点一次通知重试同一份验证
+                        CaptchaStore.dismissPendingFlag(activity);
+                        notification.dismissCaptchaNotification();
+                        // 验证发生在前台，失败也用对话框告知，不发系统通知
+                        runOnUi(() -> show_error_dialog(activity,
+                                activity.getString(R.string.notif_captcha_failed), error));
+                        finishCaptchaAttempt();
                     }
                 };
 
-                // 使用后台任务的 challenge 进行验证（同一 challenge，避免 1034 循环）
-                if (savedChallenge != null) {
-                    Logger.debug("VenusCaptcha", "Using saved challenge: gt=" + savedChallenge[0]);
-                    Geetest.geetestWithChallenge(activity, savedChallenge[0], savedChallenge[1], headers, callback, controller);
+                // 用后台挂起时的同一 challenge 验证：重复取 API1 会拿到不匹配的 challenge（表现为反复 1034）
+                if (pending != null && pending.challenge != null && !pending.challenge.isEmpty()) {
+                    Logger.debug("VenusCaptcha", "Using pending challenge: gt=" + pending.gt);
+                    Geetest.geetestWithChallenge(activity, pending.gt, pending.challenge,
+                            headers, callback, controller);
                 } else {
-                    Logger.debug("VenusCaptcha", "No saved challenge, calling API1");
+                    Logger.debug("VenusCaptcha", "No pending challenge, calling API1");
                     Geetest.geetest(activity, headers, callback, controller);
                 }
             } catch (Exception e) {
                 Logger.e("Exception in performBackgroundCaptchaVerification", e);
-                try {
-                    BackgroundGeetestController.notifyVerificationFailure();
-                } catch (Exception ignored) {}
+                finishCaptchaAttempt();
+                // 保留 pending：异常多为瞬时故障（网络/渲染），用户可再点通知用同一 challenge 重试。
+                // 同时强制提示一次——否则界面上什么都没有，用户只会看到任务停在「待验证」。
+                CaptchaStore.dismissPendingFlag(activity);
+                runOnUi(() -> show_error_dialog(activity,
+                        activity.getString(R.string.notif_captcha_failed),
+                        activity.getString(R.string.geetest_captcha_failed_network)));
             }
         });
+    }
+
+    /**
+     * 从持久层反查「当前处于待验证」的任务 id。
+     *
+     * <p>续跑名单的三个来源按可信度排序：pending 落库的名单 > 本轮内存兜底名单 > 这条持久层反查。
+     * 最后一条覆盖的场景是：用户从列表点「待验证」重新唤起验证（此时 pending 可能已过期被清），
+     * 或者应用被杀后重进——没有它，验证做完了却不知道该续跑谁，任务永远停在「待验证」。
+     */
+    private java.util.List<String> collectWaitingCaptchaIds(String userId) {
+        java.util.List<String> ids = new ArrayList<>();
+        if (userId == null || userId.isEmpty()) return ids;
+        Map<String, String> statuses = new TaskStatusManager(activity).getAllStatuses(userId);
+        for (Map.Entry<String, String> e : statuses.entrySet()) {
+            if (TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(e.getValue())) ids.add(e.getKey());
+        }
+        Logger.debug("VenusCaptcha", "waiting captcha ids from store: " + ids);
+        return ids;
+    }
+
+    /**
+     * 前台运行结束时有任务挂在人机验证上：落库待验证请求并直接弹验证 UI。
+     *
+     * <p>应用此刻就在前台，不必等用户点通知——否则用户点了「开始任务」，只看到列表变成「待验证」，
+     * 却没有任何可操作的入口。落库含一次 API1，放后台线程；弹 UI 回主线程。
+     *
+     * <p>**无论挂起是否成功都要弹**：`suspend` 失败通常是一次 API1 失败，此时 pending 没有落库，
+     * 但验证仍然可以走 {@link Geetest#geetest}（它自己再取一次挑战）。早期实现只在成功时弹，
+     * 结果就是「任务停在待验证、界面上什么都没有」——比验证失败更让人无从下手。
+     */
+    private void suspendAndShowCaptcha(Set<String> taskIds, Map<String, String> headers) {
+        if (taskIds == null || taskIds.isEmpty()) return;
+        // 已有一次挂起在途：两次并发的 API1 只会让后落库的那份 challenge 生效，先弹的验证框随之作废。
+        // 直接返回，让在途那次去弹框；这里新增的任务 id 由轮末/验证成功时的名单合并带上。
+        if (captchaSuspending) {
+            Logger.debug("VenusCaptcha", "suspend already in flight, merged into its challenge");
+            return;
+        }
+        captchaSuspending = true;
+        Logger.debug("VenusCaptcha", "suspendAndShowCaptcha: " + taskIds.size() + " task(s)");
+        AppExecutors.get().execute(() -> {
+            boolean suspended = false;
+            try {
+                suspended = CaptchaSuspension.suspend(
+                        activity, viewModel.getCurrentUser(), taskIds, headers, new Notification(activity),
+                        // 应用内运行：不发通知，本方法随后直接把验证 UI 挂到首页
+                        false);
+            } catch (Exception e) {
+                Logger.e("VenusCaptcha: suspend failed", e);
+            } finally {
+                // 先放开再回调：performBackgroundCaptchaVerification 靠这个标记区分
+                // 「挑战还在取」与「挑战已拿到」，晚放会让自己的回调被挡掉
+                captchaSuspending = false;
+            }
+            if (!suspended) {
+                // 名单留在字段里：pending 没落库，但验证成功后仍要知道该续跑哪几个任务
+                captchaFallbackIds = new ArrayList<>(taskIds);
+                Logger.debug("VenusCaptcha", "suspend failed, fall back to inline verification");
+            }
+            runOnUi(this::performBackgroundCaptchaVerification);
+        });
+    }
+
+    /**
+     * 轮末收口：本轮有任务挂在人机验证上时的统一处理。
+     *
+     * <p>三种情形必须分开。旧实现只有「一律重新挂起并弹框」一条，于是：用户已经验完的那次被再弹一遍、
+     * 正在输的那次被轮末的收尾直接销毁（按钮消失、challenge 作废）——这正是「验证了却没继续」的来源。
+     */
+    private void handleRoundEndCaptcha(Set<String> taskIds, Map<String, String> headers) {
+        String userId = viewModel.getCurrentUser();
+        java.util.List<String> ids = mergeSuspendedIds(null, taskIds, userId);
+        if (ids.isEmpty()) return;
+        // ① 本轮真的验证完成了（挂起时会清掉旧 solution，此刻能读到就是这次的）：直接续跑
+        if (CaptchaStore.getSolution(activity, userId) != null) {
+            Logger.debug("VenusCaptcha", "round end: solution ready, resume " + ids);
+            resumeAfterCaptcha(userId, ids);
+            return;
+        }
+        // ② 验证框还在屏上：用户在操作，轮末既不能销毁它，也不能重发挑战（换 challenge 会让手上这份作废）
+        if (captchaInProgress) {
+            Logger.debug("VenusCaptcha", "round end: captcha in progress, leave it to the user");
+            return;
+        }
+        // ③ pending 还在 = 验证框弹过、是用户自己关掉的：不再重弹（骚扰），保留它供列表/通知入口自行唤起
+        if (CaptchaStore.getPending(activity) != null) {
+            Logger.debug("VenusCaptcha", "round end: pending kept, user dismissed the captcha");
+            return;
+        }
+        // ④ 从未挂起成功（取挑战失败）：补一次，否则用户只能干等次日
+        Logger.debug("VenusCaptcha", "round end: no captcha shown yet, opening it");
+        suspendAndShowCaptcha(new java.util.LinkedHashSet<>(ids), headers);
+    }
+
+    /**
+     * 合并本轮需要续跑的任务 id。三个来源取并集，而不是三选一：
+     * <ul>
+     *   <li>{@code pending.taskIds}：挂起落库那一刻已知的挂起项——立即挂起时只有第一个任务；</li>
+     *   <li>本轮内存名单：挂起之后才撞 1034 的任务，落库时还没它们；</li>
+     *   <li>持久层反查 {@code waiting_captcha}：应用被杀、或从通知/列表重入后唯一还活着的来源。</li>
+     * </ul>
+     */
+    private java.util.List<String> mergeSuspendedIds(CaptchaStore.Pending pending,
+                                                     java.util.Collection<String> roundIds,
+                                                     String userId) {
+        java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>();
+        if (pending != null) merged.addAll(pending.taskIds());
+        if (roundIds != null) merged.addAll(roundIds);
+        merged.addAll(collectWaitingCaptchaIds(userId));
+        return new ArrayList<>(merged);
+    }
+
+    /**
+     * 按当前用户现构一份可用于 API2 的请求头：基础 BBS 头 + Cookie。
+     *
+     * <p>只取 {@code get_bbs_headers()} 是不够的——里面没有 Cookie，API2 二次验证绑定不到账号会话，
+     * 用户验完拿回的是无效凭证（续跑仍 1034，表现为「验证没用」）。
+     */
+    private Map<String, String> buildCaptchaHeaders(String userId) {
+        Map<String, String> headers = new HashMap<>(new HeaderManager(activity).get_bbs_headers());
+        String cookie = userId == null || userId.isEmpty()
+                ? null : tools.buildUserCookie(activity, userId);
+        if (cookie != null && !cookie.isEmpty()) headers.put("Cookie", cookie);
+        else Logger.debug("VenusCaptcha", "buildCaptchaHeaders: no cookie for user=" + userId);
+        return headers;
+    }
+
+    /**
+     * 验证完成后触发续跑：只重跑本轮挂起过的任务，凭证已落库。
+     *
+     * <p>统一走定时链路的 Worker（而不是在本页起前台任务）：两条链路都能覆盖，且续跑本身可能耗时
+     * 数分钟，不该绑在 Activity 生命周期上。Worker 的进度经广播回传，本页列表照常跟随。
+     * 无挂起名单（例如用户从通知进来但 pending 已过期）时不触发，避免空跑一轮全量。
+     */
+    private void resumeAfterCaptcha(String userId, java.util.List<String> taskIds) {
+        java.util.List<String> ids = taskIds;
+        if (ids == null || ids.isEmpty()) {
+            // 名单为空但验证确实完成了：多半是状态已被复位（跨天）或本轮没有把挂起项记下来。
+            // 反查一次持久层，能捞到就照常续跑
+            ids = collectWaitingCaptchaIds(userId);
+        }
+        if (ids.isEmpty()) {
+            // 彻底没有可续跑的项：状态却还停在「待验证」，它已经是个卡死的展示态（不会再有人来推进）。
+            // 复位成「待执行」，让用户回到正常流程，而不是对着一个永远不变的提示反复点。
+            Logger.debug("VenusCaptcha", "no suspended tasks, reset stale waiting state");
+            resetStaleWaitingState(userId);
+            return;
+        }
+        Logger.debug("VenusCaptcha", "resume suspended tasks: " + ids);
+        DailyTaskScheduler.enqueueCaptchaResume(activity, ids);
+        runOnUi(() -> viewModel.refreshTaskItems());
+    }
+
+    /**
+     * 把持久层残留的「待验证」复位为「待执行」。
+     *
+     * <p>只在「验证已完成、却找不到任何可续跑项」时调用：此时它不再表示「有人在等验证」，
+     * 而是一个没有人会推进的陈旧状态。留着它，用户会反复点条目、反复弹出与目标无关的验证框。
+     */
+    private void resetStaleWaitingState(String userId) {
+        if (userId == null || userId.isEmpty()) return;
+        TaskStatusManager statusManager = new TaskStatusManager(activity);
+        Map<String, String> statuses = statusManager.getAllStatuses(userId);
+        boolean changed = false;
+        for (Map.Entry<String, String> entry : statuses.entrySet()) {
+            if (TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(entry.getValue())) {
+                statusManager.markStatus(userId, entry.getKey(), TaskStatusManager.STATUS_PENDING);
+                changed = true;
+            }
+        }
+        if (changed) runOnUi(() -> viewModel.refreshTaskItems());
+    }
+
+    /**
+     * 回到前台时的自愈：验证已完成（solution 有效）却仍有任务停在「待验证」，补排一次续跑。
+     *
+     * <p>触发条件刻意收得很紧——没有验证在途、没有轮次在跑、也没有待验证请求（pending 存在说明用户
+     * 还没处理，不该替他做决定）——避免与正常链路抢同一份状态。
+     */
+    private void maybeResumeCaptchaOnResume() {
+        if (captchaInProgress || captchaSuspending) return;
+        if (ForegroundTaskService.isRunning() || DailyTaskWorker.isRunning()) return;
+        if (CaptchaStore.getPending(activity) != null) return;
+        String userId = viewModel.getCurrentUser();
+        if (userId == null || userId.isEmpty()) return;
+        if (CaptchaStore.getSolution(activity, userId) == null) return;
+        java.util.List<String> ids = collectWaitingCaptchaIds(userId);
+        if (ids.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        if (now - lastAutoResumeAt < AUTO_RESUME_THROTTLE_MS) return;
+        lastAutoResumeAt = now;
+        Logger.debug("VenusCaptcha", "onResume self-heal: resume " + ids);
+        DailyTaskScheduler.enqueueCaptchaResume(activity, ids);
     }
 
     /**
@@ -548,6 +947,7 @@ public class HomeFragment implements PageController {
             case ERROR:       return HomeScreenKt.TASK_ERROR;
             case WARNING:     return HomeScreenKt.TASK_WARNING;
             case CANCELLED:   return HomeScreenKt.TASK_CANCELLED;
+            case WAITING_CAPTCHA: return HomeScreenKt.TASK_WAITING_CAPTCHA;
             case RETAINED:    return HomeScreenKt.TASK_RETAINED;
             default:          return HomeScreenKt.TASK_PENDING;
         }
@@ -801,14 +1201,26 @@ public class HomeFragment implements PageController {
 
         TaskWidgetProvider.refreshAllWidgets(context);
 
+        // 清理可能残留的进度通知：正常路径都在轮末无条件撤销，这里兜住「进程被杀 / 系统回收 /
+        // 旧版本遗留」——它是 ongoing，用户自己划不掉，不清理就只能干看着。
+        if (!isTaskRunning() && !ForegroundTaskService.isRunning() && !DailyTaskWorker.isRunning()) {
+            new Notification(activity).cancelProgressNotification();
+        }
+
         if (!isTaskRunning()) {
             // 始终触发 TaskStatusManager.ensureToday()：跨天回到前台时即使任务集合与脏标记都无变化，
             // 也必须重建列表并清除昨日状态（否则日期变更后「已完成」会被当成当日状态沿用）。
             TaskSettings settings = TaskSettings.fromPreferences(context);
             viewModel.refreshTaskItems(settings);
+            // 自愈：验证做完了、续跑却没发生（轮末漏掉 / 进程被杀 / 续跑被丢弃）时补一次，
+            // 否则用户只能看着「待验证」反复点条目，每点一次还多弹一个与目标无关的验证框
+            maybeResumeCaptchaOnResume();
         }
 
-        // 通知宿主本控制器已就绪（用于触发后台人机验证，替代 postDelayed 轮询）
+        // 通知宿主本控制器已就绪（用于触发后台人机验证，替代 postDelayed 轮询）。
+        // show() 一般在同一帧稍后执行并已通知过（宿主侧按 captchaPending 去重，重复调用无副作用）；
+        // 这里在「视图已创建」时就补一次，兜住「外壳首帧未走页选回调」等时序变化——否则后台正在等的
+        // 验证码会因为宿主永远收不到就绪信号而一直不显示。
         if (homeReadyCallback != null) homeReadyCallback.run();
 
         // 补发就绪前到达的 show（外壳初始页回调早于 createView 的竞态，见 show() 守卫）
@@ -836,12 +1248,17 @@ public class HomeFragment implements PageController {
         BottomBarOverlay.removeListener(bottomBarListener);
         if (viewModel != null) viewModel.getUiState().removeObserver(uiObserver);
         controller.destroyButton();
+        // Activity 销毁：本轮前台验证作废。若这里不复位，验证 UI 被拆掉而没有回调收尾时，
+        // 单飞标记会一直为真，后续任务的验证码就永远弹不出来。
+        finishCaptchaAttempt();
         screenView = null;
     }
 
     /** 是否正在运行任务（前台线程存活）。 */
     public static boolean isTaskRunning() {
-        return currentTaskFuture != null && !currentTaskFuture.isDone();
+        // sRoundClosing：executeAll 已返回、只剩收尾，任务层面已经结束。语义是「有没有任务在执行」，
+        // 不是「future 对象释放了没有」——轮末排的续跑轮会读这个值做并发防护，差这一步就会白等一次复查。
+        return currentTaskFuture != null && !currentTaskFuture.isDone() && !sRoundClosing;
     }
 
     /**

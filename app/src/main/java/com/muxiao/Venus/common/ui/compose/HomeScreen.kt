@@ -2,6 +2,7 @@ package com.muxiao.Venus.common.ui.compose
 
 import android.content.Context
 import android.view.Gravity
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -50,6 +51,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +92,9 @@ const val TASK_CANCELLED = 5
 
 /** 仅展示态：当日已完成但本轮未执行到（绿色沿用上次结果）。 */
 const val TASK_RETAINED = 6
+
+/** 挂起等待用户完成人机验证：不是失败，凭证就绪后由续跑轮自动重跑。 */
+const val TASK_WAITING_CAPTCHA = 7
 
 /** Java 友好的「传任务名」回调（minSdk 23 下不用 java.util.function）。 */
 fun interface TaskNameConsumer {
@@ -164,6 +169,7 @@ fun HomeScreen(
     onBackgroundClick: () -> Unit,
     onViewLog: () -> Unit,
     onDisabledTaskClick: (String) -> Unit,
+    onCaptchaClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -211,6 +217,26 @@ fun HomeScreen(
             subtitle = state.subtitle,
             collapse = headerCollapse,
         )
+
+        // 极验容器出现时确保它「立刻完整可见」：它是 LazyColumn 的 item（操作区之下、按钮正下方），
+        // 懒加载只组合视口内的项，列表滚在别处时该项根本不存在，用户就看不到验证按钮。
+        // 这里只用 scrollToItem（瞬时跳转，无动画）——旧版是布局里已 inflate 好的 View，
+        // setVisibility 下一帧就出现；用 animateScrollToItem 会多出 300ms 动画，手感上就是「没立刻出现」。
+        // geetestIndex 前面的固定项：账号区 3 项（前台运行期间隐藏）+ 操作区 5 项
+        // （标签 / 开始 / 取消 / 重试 / 后台）。在此之上加 item 时必须同步这里。
+        val geetestIndex = (if (state.userVisible) 3 else 0) + 5
+        LaunchedEffect(state.geetestVisible) {
+            if (!state.geetestVisible) return@LaunchedEffect
+            // 等一帧让 item 组合并参与布局，再判断是否真的完整可见
+            withFrameNanos { }
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.key == "geetest" }
+            // 存在但只露出一角也算不可见：用视口边界判「完整可见」，而不是「存在」
+            val fullyVisible = item != null &&
+                item.offset >= info.viewportStartOffset &&
+                item.offset + item.size <= info.viewportEndOffset
+            if (!fullyVisible) listState.scrollToItem((geetestIndex - 1).coerceAtLeast(0))
+        }
 
         LazyColumn(
             state = listState,
@@ -279,14 +305,25 @@ fun HomeScreen(
                     )
                 }
             }
-            // 极验按钮容器：SDK 命令式管理的真实 View，仅在其可见时挂到组合里
+            // 极验按钮容器：放在操作区之下（「运行签到」等按钮的正下方），与原布局位置一致。
+            //
+            // 它是 SDK 命令式管理的真实 View（addView/removeView），经 AndroidView 桥接。
+            // 这里必须显式 onRelease 把容器从宿主里摘下：容器是 HomeScreenView 持有的同一实例，
+            // LazyColumn 划出视口回收本项后若仍挂在已废弃的宿主上，下次重新挂载会撞
+            // 「The specified child already has a parent」。
             if (state.geetestVisible) {
                 item(key = "geetest") {
                     AndroidView(
                         factory = { geetestContainer },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = dimensionResource(R.dimen.space_4)),
+                            .padding(
+                                horizontal = gutter,
+                                vertical = dimensionResource(R.dimen.space_4),
+                            ),
+                        onRelease = { view ->
+                            (view.parent as? ViewGroup)?.removeView(view)
+                        },
                     )
                 }
             }
@@ -314,8 +351,13 @@ fun HomeScreen(
                 TaskRow(
                     task = task,
                     showDivider = index > 0,
-                    // 只有「未配置」的项可点：点它直达对应配置抽屉，把「看到问题」接到「去解决」
-                    onClick = { onDisabledTaskClick(task.id) },
+                    // 两种可点项，都把「看到问题」接到「去解决」：
+                    // 未配置 → 对应凭证抽屉；待验证 → 重新拉起人机验证（否则验证码入口只有一条通知，
+                    // 通知被划掉后用户就再没有地方能唤起验证，只能干等次日）
+                    onClick = {
+                        if (task.status == TASK_WAITING_CAPTCHA) onCaptchaClick()
+                        else onDisabledTaskClick(task.id)
+                    },
                     modifier = if (reducedMotion) Modifier else Modifier.animateItem(),
                 )
             }
@@ -653,6 +695,14 @@ private fun TaskRow(
             progressText = stringResource(R.string.task_status_cancelled); progressColor = neutral
             chipText = null; chipColor = null; chipTextColor = null
         }
+        TASK_WAITING_CAPTCHA -> {
+            // 挂起等人：用警告色而非错误色——它不是失败，是「需要你做一步」。
+            // 同色系下与「进行中」靠文案区分，因此文案必须写明「待验证」而不是「运行中」。
+            val warning = colorResource(R.color.status_warning)
+            stroke = warning; icon = VenusIcons.Dot; iconTint = warning; strike = false
+            progressText = stringResource(R.string.task_status_waiting_captcha); progressColor = warning
+            chipText = null; chipColor = null; chipTextColor = null
+        }
         else -> {
             stroke = outlineVariant; icon = VenusIcons.Dot; iconTint = neutral; strike = false
             progressText = stringResource(R.string.task_status_pending); progressColor = neutral
@@ -669,7 +719,10 @@ private fun TaskRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = dimensionResource(R.dimen.row_min_height))
-                .clickable(enabled = task.disabled, onClick = onClick)
+                .clickable(
+                    enabled = task.disabled || task.status == TASK_WAITING_CAPTCHA,
+                    onClick = onClick,
+                )
                 .padding(vertical = dimensionResource(R.dimen.gutter_card)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -807,6 +860,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     private var onBackgroundClickListener: Runnable? = null
     private var onViewLogListener: Runnable? = null
     private var onDisabledTaskClickListener: TaskNameConsumer? = null
+    private var onCaptchaClickListener: Runnable? = null
 
     @Composable
     override fun Content() {
@@ -822,6 +876,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
                 onBackgroundClick = { onBackgroundClickListener?.run() },
                 onViewLog = { onViewLogListener?.run() },
                 onDisabledTaskClick = { onDisabledTaskClickListener?.accept(it) },
+                onCaptchaClick = { onCaptchaClickListener?.run() },
             )
         }
     }
@@ -829,6 +884,11 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     /** 点击「未配置」任务项：跳到设置页对应凭证抽屉。 */
     fun setOnDisabledTaskClickListener(listener: TaskNameConsumer?) {
         onDisabledTaskClickListener = listener
+    }
+
+    /** 点击「待验证」任务项：重新拉起人机验证（通知之外的第二入口）。 */
+    fun setOnCaptchaClickListener(listener: Runnable?) {
+        onCaptchaClickListener = listener
     }
 
     /** 填充账号下拉：原始用户名列表 + 当前选中下标（-1 = 无选中）。 */
@@ -975,6 +1035,7 @@ private fun HomeScreenPreview() {
             onBackgroundClick = {},
             onViewLog = {},
             onDisabledTaskClick = {},
+            onCaptchaClick = {},
         )
     }
 }

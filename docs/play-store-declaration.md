@@ -537,20 +537,22 @@ WorkManager 执行长任务必须调用 `setForegroundAsync(ForegroundInfo)`，�
 **结论二：本应用的交互语义无法用 Worker 承载。**
 任务执行途中可能被 GeeTest 人机验证打断，需要用户**在场解题**后继续，等待上限 5 分钟。非前台 Worker 受运行时长上限约束且进程可被随时回收，无法保证这段时间内存状态存活。
 
-**结论三：若要彻底移除前台服务，唯一可行路径是重构交互（当前版本未采用）。**
-把一次执行拆成「跑到需要验证即停 → 高优先级通知 → 用户点击回到界面解题 → 结果持久化 → 继续执行」。可行依据：Android 的 BAL 豁免清单明确包含「活动由系统发送的 PendingIntent 启动（例如轻触通知）」。代价：验证状态需从内存改为持久化、需处理 `challenge` 时效过期重取、UX 降级为「必须点通知」。
+**结论三：验证码交互已按此路径重构（前台服务保留，但不再承担「等人」职责）。**
+当前实现把一次执行拆成「跑到需要验证即停 → 通知 → 用户点击回到界面解题 → 结果持久化 → 续跑重放」：任务命中 1034 抛 `CaptchaRequiredException` 结束本轮（不阻塞执行线程），轮末统一取一次 challenge 并落库，用户验证结果同样落库，随后 `enqueueCaptchaResume` 只重跑挂起项并带上凭证。前台服务的存在仅用于整轮执行期间持有 WakeLock。
 
 **代码依据（可复核）**
 
 | 事实 | 位置 |
 |---|---|
-| 遇到验证时拉起前台 Activity 并阻塞等待（最长 5 分钟） | `Home/GeetestController.java:100-113`（`BackgroundGeetestController`，与接口同文件） |
-| 等待逻辑与 5 分钟上限 | `Home/CaptchaCoordinator.java:66-70`（`DefaultCaptchaCoordinator`，与接口同文件） |
-| `gt` / `challenge` / `headers` 保存在**内存静态字段** | `Home/GeetestController.java:73`（静态协调者）+ `Home/CaptchaCoordinator.java:55-57, 88-105` |
+| 命中 1034 抛挂起异常，不在执行线程上等待 | `Home/CaptchaRequiredException.java`、`Home/TaskExecutor.java`（`executeTask` 的 `catch (CaptchaRequiredException)`） |
+| 轮末取一次 challenge 并发通知，全程无阻塞 | `Home/CaptchaSuspension.java`（`suspend`） |
+| `gt`/`challenge`/`headers` 与验证结果**落盘持久化**（带 TTL，非内存静态字段） | `Home/CaptchaStore.java`（`captcha_pending_request` / `captcha_solution`） |
+| 验证完成后立即触发续跑 | `Home/DailyTaskScheduler.java`（`enqueueCaptchaResume`） |
 | API 34+ 显式传入 `FOREGROUND_SERVICE_TYPE_DATA_SYNC` | `Home/ForegroundTaskService.java:123-128` |
-| 进度通知的 PendingIntent（通知回拉改造的半成品） | `common/Notification.java:64-71` |
 
-### 10.8 待真机验证的风险点：后台拉起 Activity（BAL）
+### 10.8 后台拉起 Activity（BAL）的历史风险（当前版本已不再依赖）
+
+> **当前状态**：验证码改为「挂起-续跑」后，后台链路不再主动拉起 Activity——前台运行时就地弹验证，后台运行只发通知、由用户点击进入。本节记录重构前的工作方式与当时无法真机验证的风险点，保留作为背景。
 
 BAL（后台活动启动）的官方豁免清单中**不包含**「持有前台服务」，但包含「启动作业由启动器应用发起，例如用户轻触应用图标或与小组件互动时」。本应用两条触发路径的表现因此不同：
 

@@ -14,6 +14,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.Logger;
 
 import org.json.JSONObject;
@@ -43,6 +44,13 @@ public class Geetest {
      */
     public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback, GeetestController gt3Controller) {
         Logger.debug("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
+        // 后台没有 UI 承载：任务应在命中 1034 时抛 CaptchaRequiredException 挂起，不该走到这里。
+        // 明确失败而不是静默等待，避免又回到「后台空转 5 分钟」的老路。
+        if (!gt3Controller.hasUi()) {
+            Logger.debug("VenusCaptcha", "geetest() rejected: controller has no UI");
+            callback.onVerificationFailed(context.getString(R.string.geetest_no_ui_context));
+            return;
+        }
         gt3Controller.createUtils(); // 防止未创建
         Logger.debug("VenusCaptcha", "Calling API1...");
         String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
@@ -66,19 +74,47 @@ public class Geetest {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_api) + response);
             return;
         }
-        // 保存后台任务的 challenge 和 headers，供前台使用同一 challenge 验证
-        if (gt3Controller instanceof BackgroundGeetestController) {
-            BackgroundGeetestController.savePendingChallenge(gt, challenge);
-            BackgroundGeetestController.savePendingHeaders(headers);
-            Logger.debug("VenusCaptcha", "Saved pending challenge and headers for background task");
-        }
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
+    }
+
+    /**
+     * 只走 API1 取 gt/challenge，不创建验证按钮——供「挂起-续跑」模型在轮末统一取一次挑战
+     * （多个任务并发撞 1034 时共用同一 challenge，避免各取一份互不匹配、表现为反复 1034）。
+     *
+     * @param headers 含 Cookie 的请求头，API1 用它绑定会话
+     * @return {gt, challenge}；网络失败或响应异常返回 null
+     */
+    public static String[] requestChallenge(Map<String, String> headers) {
+        String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
+        if (response == null) {
+            Logger.debug("VenusCaptcha", "requestChallenge: API1 network failure");
+            return null;
+        }
+        try {
+            JsonObject data = JsonParser.parseString(response).getAsJsonObject();
+            JsonObject payload = JsonAccess.data(data);
+            String gt = JsonAccess.optString(payload, "gt", null);
+            String challenge = JsonAccess.optString(payload, "challenge", null);
+            if (JsonAccess.retcode(data) != 0 || gt == null || challenge == null) {
+                Logger.debug("VenusCaptcha", "requestChallenge: API1 rejected, response=" + response);
+                return null;
+            }
+            return new String[]{gt, challenge};
+        } catch (RuntimeException e) {
+            Logger.debug("VenusCaptcha", "requestChallenge: API1 parse failure " + e);
+            return null;
+        }
     }
 
     /** 用已有 gt/challenge 验证（跳过 API1）：前台复用后台任务的 challenge，避免重复 API1 后 challenge 不匹配。 */
     public static void geetestWithChallenge(Context context, String gt, String challenge, Map<String, String> headers,
                                             GeetestVerificationCallback callback, GeetestController gt3Controller) {
         Logger.debug("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
+        if (!gt3Controller.hasUi()) {
+            Logger.debug("VenusCaptcha", "geetestWithChallenge() rejected: controller has no UI");
+            callback.onVerificationFailed(context.getString(R.string.geetest_no_ui_context));
+            return;
+        }
         gt3Controller.createUtils();
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
     }
@@ -133,7 +169,17 @@ public class Geetest {
                 body.put("geetest_validate", geetestValidate);
                 AppExecutors.get().execute(() -> {
                     try {
-                        String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, headers, body);
+                        // API2 是 POST + 自有 body：DS 必须按**这个** body 重算。直接沿用任务请求的 headers，
+                        // 发过去的是「签到 body 的签名」，服务端判签名错误 → 用户滑块明明做完了却收到验证失败，
+                        // 任务停在「待验证」，表象就是「验证没生效」。
+                        // 同时清掉上一轮的 x-rpc-* 三件套：那是失效凭证，带上会让服务端按旧 challenge 校验。
+                        Map<String, String> verifyHeaders = new HashMap<>(headers);
+                        verifyHeaders.remove("x-rpc-challenge");
+                        verifyHeaders.remove("x-rpc-validate");
+                        verifyHeaders.remove("x-rpc-seccode");
+                        verifyHeaders.put("DS",
+                                new HeaderManager(context).getDS_signIn(GSON.toJson(body)));
+                        String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, verifyHeaders, body);
                         if (checkResponse == null) {
                             callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed_network));
                             return;
@@ -181,16 +227,5 @@ public class Geetest {
         });
         Logger.debug("VenusCaptcha", "Calling gt3Controller.createButton()");
         gt3Controller.createButton(gt3ConfigBean);
-
-        // 后台控制器：前台验证完成后，回调链被 HomeFragment 的回调覆盖，
-        // CaptchaVerificationHelper 的回调不会触发。直接从静态字段读取结果。
-        if (gt3Controller instanceof BackgroundGeetestController) {
-            Map<String, String> result = BackgroundGeetestController.getGeetestResult();
-            if (result != null) {
-                callback.onVerificationSuccess(result);
-            } else {
-                callback.onVerificationFailed(context.getString(R.string.geetest_wait_timeout));
-            }
-        }
     }
 }

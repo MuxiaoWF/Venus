@@ -2,7 +2,6 @@ package com.muxiao.Venus.Home;
 
 import android.content.Context;
 import android.content.Intent;
-import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
@@ -24,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 每日定时签到执行器：WorkManager 到点拉起，在 Worker 线程内直接驱动 {@link TaskExecutor}
@@ -73,20 +73,33 @@ public class DailyTaskWorker extends Worker {
         Context context = LocaleHelper.wrap(appContext);
         int attempt = getInputData().getInt(DailyTaskScheduler.KEY_ATTEMPT, 1);
 
-        // 开关已关闭（设置变更会取消工作，此处兜底）：不再续链
-        if (!DailyTaskScheduler.isEnabled(appContext)) {
+        // 开关已关闭（设置变更会取消工作，此处兜底）：不再续链。
+        // 续跑轮例外：它是用户刚完成人机验证后的收尾，与「定时任务是否开启」无关。
+        boolean resume = getInputData().getBoolean(DailyTaskScheduler.KEY_RESUME, false);
+        if (!resume && !DailyTaskScheduler.isEnabled(appContext)) {
             tools.writeLog(context, TAG + ": scheduled run skipped (disabled)");
             return Result.success();
         }
 
         // 与手动入口互斥：前台/后台任务在跑则短延时后复查而非直接排明天，手动轮结束（含失败收场）后
-        // 仍能当日兜底；若手动轮已跑完全部任务，下方幂等检查会直接排明天，复查不产生多余执行
+        // 仍能当日兜底；若手动轮已跑完全部任务，下方幂等检查会直接排明天，复查不产生多余执行。
+        // 续跑轮改用秒级复查：它是用户刚完成验证后的收尾，那个「在跑」的轮次往往只剩收尾动作，
+        // 按 5 分钟复查等于让用户盯着「待验证」干等（旧行为就是这样丢的）。
         if (ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning()) {
-            tools.writeLog(context, TAG + ": manual run active, recheck in "
-                    + DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES + " min");
-            DailyTaskScheduler.enqueueNext(context,
-                    DailyTaskScheduler.CHAIN_POLICY,
-                    TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES));
+            long delayMs = resume
+                    ? TimeUnit.SECONDS.toMillis(15)
+                    : TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES);
+            tools.writeLog(context, TAG + ": another round active, recheck in " + delayMs + "ms");
+            if (resume) {
+                // 必须保留 resume 标记与名单，否则重排后退化成「全量执行 + 受定时开关约束」
+                String[] rawIds = getInputData()
+                        .getNullableStringArray(DailyTaskScheduler.KEY_ONLY_IDS);
+                DailyTaskScheduler.enqueueResumeLater(context,
+                        rawIds == null ? null : java.util.Arrays.asList(rawIds), delayMs);
+            } else {
+                DailyTaskScheduler.enqueueNext(context,
+                        DailyTaskScheduler.CHAIN_POLICY, delayMs);
+            }
             return Result.success();
         }
 
@@ -141,8 +154,11 @@ public class DailyTaskWorker extends Worker {
         Set<String> errorIds = new CopyOnWriteArraySet<>();
         // 各失败任务按异常类别判定的重试等待分钟数（多任务并行回调，用并发安全 Map）
         Map<String, Long> retryDelayHints = new ConcurrentHashMap<>();
+        // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）
+        Set<String> captchaTaskIds = new CopyOnWriteArraySet<>();
+        AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
         // 控制器实例需在执行后读取「验证码失败任务」，提取为局部变量
-        BackgroundGeetestController bgController = new BackgroundGeetestController(context, notifier);
+        GeetestController bgController = new BackgroundGeetestController();
 
         TaskExecutor taskExecutor = new TaskExecutor(
                 context, userId, notifier,
@@ -162,8 +178,17 @@ public class DailyTaskWorker extends Worker {
 
                     @Override
                     public void onAllTasksCompleted() {
+                        // 有挂起待验证的任务时本轮并未真正跑完：等续跑轮收尾再报完成
+                        if (!captchaTaskIds.isEmpty()) return;
                         notificationHelper.completeProgressNotification("Venus",
                                 context.getString(R.string.notif_all_tasks_done));
+                    }
+
+                    @Override
+                    public void onCaptchaRequired(CaptchaRequiredException error) {
+                        // 本轮不等人：只记下挂起项，轮末统一取一次挑战并落库
+                        captchaTaskIds.add(error.getTaskId());
+                        captchaHeaders.compareAndSet(null, error.getHeaders());
                     }
 
                     @Override
@@ -188,9 +213,27 @@ public class DailyTaskWorker extends Worker {
                 });
 
         boolean executed = false;
+        // 本轮是否成功挂起到「等待用户验证」
+        boolean suspended = false;
         try {
             taskExecutor.executeAll(settings, onlyIds);
             executed = true;
+            // 轮末收口：把本轮挂起的人机验证需求合并成一次，落库并发通知，随后结束本轮。
+            // 用户完成验证后凭证由 CaptchaStore 落库，下一轮续跑自动带上——Worker 不再等人。
+            if (!captchaTaskIds.isEmpty()) {
+                suspended = CaptchaSuspension.suspend(context, userId, captchaTaskIds,
+                        captchaHeaders.get(), notificationHelper,
+                        // 定时运行：用户不在场，通知是唯一的验证入口
+                        true);
+                if (!suspended) {
+                    // 连挑战都取不到：挂起不成立，按失败处理并进入常规重试，避免停在「待验证」
+                    for (String id : captchaTaskIds) {
+                        statusManager.applyStatus(userId, id, TaskItem.TaskStatus.ERROR);
+                        errorIds.add(id);
+                    }
+                    TaskWidgetProvider.refreshAllWidgets(appContext);
+                }
+            }
         } catch (RuntimeException e) {
             // 仅提交阶段可能同步抛错（如线程池拒绝）；任务体内异常已由 Callback 上报
             tools.writeLog(context, TAG + ": executeAll failed: " + e.getMessage());
@@ -198,15 +241,24 @@ public class DailyTaskWorker extends Worker {
                     context.getString(R.string.notif_task_failed),
                     e.getMessage() != null ? e.getMessage() : e.toString(), true);
         } finally {
-            // 被取消/异常收尾时进度通知不会经完成回调置换，这里兜底撤销，避免常驻
-            if (!executed || isStopped())
-                notificationHelper.cancelProgressNotification();
+            // 无条件撤销进度通知
+            notificationHelper.cancelProgressNotification();
         }
 
         // 续链决策：验证码失败不自动重试（用户不在场时大概率再次超时），改为发通知让用户手动处理
         // （首页「重试失败任务」；次日到点的定时执行仍会再试）。其余失败在重试额度内只重跑这些项（名单随 WorkData 传递）。
         if (DailyTaskScheduler.isEnabled(appContext)) {
-            if (!executed) {
+            if (suspended) {
+                // 已挂起等人：排一次兜底续跑（用户可能一直不点通知），额度内 20 分钟后再试。
+                // 用户完成验证时前台会主动排一次立即续跑，与之互不冲突——都是同一条链上的新节点。
+                if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
+                            DailyTaskScheduler.CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
+                            attempt + 1, captchaTaskIds);
+                else
+                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
+                            delayToNextOccurrence());
+            } else if (!executed) {
                 // 任务体整体未执行（提交阶段异常）：按全量重试处理
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
@@ -215,12 +267,8 @@ public class DailyTaskWorker extends Worker {
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence());
             } else {
+                // 挂起项已在上面按 suspended 分支处理，这里只剩真正的失败项
                 Set<String> retryable = new HashSet<>(errorIds);
-                // 验证码失败项不参与自动重试：控制器记录的是运行时**显示名**（BBSDaily/BBSGameDaily 用自己的
-                // getString 上报），而本集合是 id，故两边口径都试一次再剔除。
-                Set<String> captchaNames = bgController.getCaptchaFailedTasks();
-                retryable.removeIf(id -> captchaNames.contains(id)
-                        || captchaNames.contains(TaskIds.displayName(context, id)));
                 if (!retryable.isEmpty() && attempt < DailyTaskScheduler.MAX_ATTEMPTS) {
                     long retryDelayMinutes = retryDelayMinutesFor(retryable, retryDelayHints);
                     tools.writeLog(context, TAG + ": " + retryable.size() + " task(s) failed, retry in "
@@ -228,13 +276,6 @@ public class DailyTaskWorker extends Worker {
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             retryDelayMinutes * 60_000L, attempt + 1, retryable);
                 } else {
-                    if (!bgController.getCaptchaFailedTasks().isEmpty()) {
-                        notificationHelper.sendErrorNotification(
-                                context.getString(R.string.notif_captcha_no_retry_title),
-                                context.getString(R.string.notif_captcha_no_retry_fmt,
-                                        TextUtils.join(", ", bgController.getCaptchaFailedTasks())),
-                                true);
-                    }
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence());
                 }
@@ -268,13 +309,24 @@ public class DailyTaskWorker extends Worker {
     private Set<String> resolveOnlyIds(Context context, String userId) {
         String[] raw = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_ONLY_IDS);
         if (raw == null || raw.length == 0) return null;
+        boolean resume = getInputData().getBoolean(DailyTaskScheduler.KEY_RESUME, false);
         Map<String, String> statuses = new TaskStatusManager(context).getAllStatuses(userId);
         Set<String> only = new HashSet<>();
         boolean anyKnown = false;
         for (String id : raw) {
             if (!TaskIds.isKnown(id)) continue;
             anyKnown = true;
-            if (TaskStatusManager.STATUS_ERROR.equals(statuses.get(id))) only.add(id);
+            String status = statuses.get(id);
+            // 待验证项必须保留：它正是续跑轮要重跑的目标（验证已通过时直接成功，未通过会再次挂起）。
+            // 只认 ERROR 会把它们全部过滤掉，续跑轮变成空跑。
+            if (TaskStatusManager.STATUS_ERROR.equals(status)
+                    || TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(status)) {
+                only.add(id);
+            } else if (resume) {
+                // 续跑轮的 WorkData 名单本身就是权威（「验证已通过、待重跑」），不再按当前状态二次过滤：
+                // 状态可能已被上一轮 reset 成 pending，按状态筛会把目标项全丢掉，续跑轮静默空跑
+                only.add(id);
+            }
         }
         return anyKnown ? only : null;
     }
@@ -313,6 +365,8 @@ public class DailyTaskWorker extends Worker {
                 statusText = context.getString(R.string.notif_error, taskName);
                 break;
             case WARNING:
+            case WAITING_CAPTCHA:
+                // WARNING 是旧版「等待验证」的持久化值，两者文案一致
                 statusText = context.getString(R.string.notif_waiting_verification, taskName);
                 break;
             case CANCELLED:

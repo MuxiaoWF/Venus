@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  极验 SDK（com.geetest.sensebot）的资源是「按名字动态查表」用的，不是编译期 R 引用：
+  SDK 的 com.geetest.sdk.utils.o 把五类资源都收敛到一个 getIdentifier 门面 ——
+  o.c()=layout / o.a()=drawable / o.f()=string / o.b()=id / o.d()=mipmap，
+  调用方传的是字符串字面量（如 "gt3_ll_geetest_view"）。GT3GeetestButton 构造时据此取
+  layout/gt3_ll_geetest_view 与 string/gt3_geetest_*，拿不到就 inflate(0)
+  → Resources$NotFoundException。
+
+  release 开了 shrinkResources，资源压缩只认代码里的 R 常量引用，看不到这层按名字的依赖，
+  于是把 SDK 的 layout/drawable/raw/string/style/mipmap 全部剥掉（release APK 里只剩极验的 id/*）。
+  结果：验证码按钮永远建不出来，界面停在「待验证」而没有任何验证区域，日志里是
+  「Invalid resource ID 0x00000000」+「Error creating GT3GeetestButton」。
+
+  这里显式保留极验全套资源。删掉任何一条都会让 release 包的验证码再次静默失效，
+  且 debug 包不复现（debug 不压缩资源），排查成本极高 —— 勿删。
+
+  mipmap/gt3logo* 是 GT3GeetestButton 内部类（$b$a 等）按名字取的校验状态图标
+  （灰/绿/红三态）。AAR 的 layout 不 @引用 它们，所以不会被 layout 连带保留，必须单列；
+  漏掉不会崩，但状态图标 setImageResource(0) 变空白，属同一类静默缺陷。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@layout/gt3_*,
+                @drawable/gt3_*,
+                @drawable/gt3logo,
+                @mipmap/gt3logo*,
+                @raw/gt3_*,
+                @string/gt3_*,
+                @style/gt3*,
+                @id/gt3_*,
+                @id/geetest_view" />

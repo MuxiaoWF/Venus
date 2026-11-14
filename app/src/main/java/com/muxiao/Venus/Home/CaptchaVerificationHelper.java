@@ -2,97 +2,29 @@ package com.muxiao.Venus.Home;
 
 import android.content.Context;
 
-import com.muxiao.Venus.R;
-import com.muxiao.Venus.common.Notification;
-import com.muxiao.Venus.common.tools;
-
 import java.util.Map;
 
-/** 验证码验证的公共逻辑，供 BBSDaily 与 BBSGameDaily 共用。 */
+/**
+ * 任务侧的验证凭证读取器。
+ *
+ * <p>「挂起-续跑」模型下，任务不再在自身线程上等待验证：命中 1034 时抛
+ * {@link CaptchaRequiredException} 结束本轮，用户在应用前台完成极验后结果由 {@link CaptchaStore}
+ * 落库，续跑轮的任务从这里取到凭证、直接注入请求头。
+ *
+ * <p>凭证在构造时读一次即可：续跑轮总是新实例，同一次运行内不会中途产生新凭证（真产生了说明上一轮
+ * 已判失败，任务会重新挂起）。这样也避免了在每个请求的重试循环里反复反序列化。
+ */
 public class CaptchaVerificationHelper {
 
-    /** 等待人机验证结果的最长时间：与前台服务 WakeLock 的 10 分钟上限对齐。 */
-    private static final long WAIT_TIMEOUT_MS = 10 * 60 * 1000L;
+    /** 本次运行可用的验证凭证；未验证过或已过期时为 null。 */
+    private final Map<String, String> geetCode;
 
-    private Map<String, String> geetCode = null;
-    private volatile boolean verificationComplete = false;
-
-    private final Context context;
-    private final GeetestController gt3Controller;
-    private final tools.StatusNotifier notifier;
-    private final Notification notification;
-
-    public CaptchaVerificationHelper(Context context, GeetestController gt3Controller, tools.StatusNotifier notifier, Notification notification) {
-        this.context = context;
-        this.gt3Controller = gt3Controller;
-        this.notifier = notifier;
-        this.notification = notification;
+    public CaptchaVerificationHelper(Context context, String userId) {
+        this.geetCode = CaptchaStore.getSolution(context, userId);
     }
 
-    /** 返回验证得到的 geetest 结果；未完成或失败时可能为 null。 */
+    /** 返回本次运行可用的 geetest 结果；调用方据此决定是否注入请求头。 */
     public Map<String, String> getGeetCode() {
         return geetCode;
-    }
-
-    /**
-     * 发起极验验证并注册回调：先重置 verificationComplete，成功写入 geetCode、失败置 null，两者都唤醒等待线程。
-     *
-     * <p>等待验证码期间不切换任务状态：任务自 TaskExecutor 起即 IN_PROGRESS，「等待人机验证」属于运行中；
-     * 切 WARNING 会被列表渲染成绿色「已签」，造成「遇到验证码即显示完成」的观感错误。这里只发日志通知。
-     *
-     * @param headers 含 Cookie 的请求头，供 API2 二次验证绑定会话
-     */
-    public void performVerificationWithCallback(Map<String, String> headers, String taskName) {
-        verificationComplete = false;
-        notifier.notifyListeners(taskName + context.getString(R.string.geetest_waiting));
-        Geetest.geetest(context, headers, new Geetest.GeetestVerificationCallback() {
-            @Override
-            public void onVerificationSuccess(Map<String, String> code) {
-                notification.dismissErrorNotification();
-                gt3Controller.destroyButton();
-                notifier.notifyListeners(taskName + context.getString(R.string.geetest_done));
-                setGeetCodeAndComplete(code);
-            }
-
-            @Override
-            public void onVerificationFailed(String error) {
-                notifier.notifyListeners(context.getString(R.string.geetest_failed, error));
-                // 上报验证码失败任务名（后台定时链路据此排除出同日重试，见 BackgroundGeetestController）
-                gt3Controller.onCaptchaFailed(taskName);
-                gt3Controller.destroyButton();
-                setGeetCodeAndComplete(null);
-            }
-        }, gt3Controller);
-    }
-
-    /**
-     * 阻塞等待验证完成，最多 {@link #WAIT_TIMEOUT_MS}。三条退出路径：回调完成即被唤醒；超时提示后返回
-     * （调用方据 {@link #getGeetCode()} 为 null 走既有失败分支，避免线程永久挂起）；线程被中断（任务取消）
-     * 时立即还原中断标志返回——中断标志已置位会让 {@code wait()} 立刻抛异常，留在循环里会忙等自旋。
-     */
-    public synchronized void waitForCompletion() {
-        long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MS;
-        while (!verificationComplete) {
-            long remaining = deadline - System.currentTimeMillis();
-            if (remaining <= 0) {
-                notifier.notifyListeners(context.getString(R.string.geetest_wait_timeout));
-                return;
-            }
-            try {
-                this.wait(remaining);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
-    }
-
-    /** 写入验证结果（成功后非 null；失败传 null）并置 verificationComplete，唤醒 waitForCompletion。 */
-    private synchronized void setGeetCodeAndComplete(Map<String, String> code) {
-        if (code != null || geetCode == null) {
-            geetCode = code;
-        }
-        verificationComplete = true;
-        notifyAll();
     }
 }

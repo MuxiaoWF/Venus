@@ -1,18 +1,15 @@
 package com.muxiao.Venus.Home;
 
-import android.content.Context;
-
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3GeetestUtils;
-import com.muxiao.Venus.R;
-import com.muxiao.Venus.common.Logger;
-import com.muxiao.Venus.common.tools;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-
-/** 极验控件的生命周期契约：createUtils → createButton → destroyButton。 */
+/**
+ * 极验控件的生命周期契约：createUtils → createButton → destroyButton。
+ *
+ * <p>只有「应用前台」的实现能真正承载验证 UI；后台链路不再驱动极验 SDK（见
+ * {@link BackgroundGeetestController}），任务命中 1034 时改为挂起，由 {@link CaptchaSuspension}
+ * 在轮末统一发起一次验证请求。
+ */
 public interface GeetestController {
     /** 创建验证码 Utils，越早越好（Activity onCreate）。 */
     void createUtils();
@@ -26,120 +23,47 @@ public interface GeetestController {
     /** 销毁验证码按钮。 */
     void destroyButton();
 
-    /**
-     * 一次人机验证以失败告终（用户未在窗口内完成/超时/管线异常），taskName 为触发验证的任务名
-     * （与任务状态持久化键同源）。仅供后台链路统计「验证码失败任务」（同日重试据此排除），前台实现无需关心。
-     */
-    default void onCaptchaFailed(String taskName) {
+    /** 是否具备 UI 承载能力。后台实现返回 false，Geetest 据此拒绝弹窗（避免在无界面上下文里构造 SDK）。 */
+    default boolean hasUi() {
+        return true;
     }
 }
 
 /**
- * 后台人机验证控制器（GeetestController 的后台实现，同文件包私有）。
- * 不主动拉起 MainActivity：后台/定时运行时屏幕多半是熄的，既受 Android 10+ 后台启动 Activity 限制、
- * 用户也感知不到。改为发送可点击的验证码通知（{@link com.muxiao.Venus.common.Notification#sendCaptchaNotification}），
- * 后台线程阻塞等待验证结果后继续执行任务；验证状态经 {@link CaptchaCoordinator} 收敛到单一协调者。
+ * 后台占位实现：**不承载验证 UI，也不阻塞任何线程**。
+ *
+ * <p>历史实现让后台线程在 {@code createButton} 里等一个全局 latch（最长 5 分钟）。这有三个硬伤：
+ * 定时链路的 WorkManager 窗口被吃掉一半；多个任务并发撞 1034 时会覆盖同一把 latch、必然丢任务；
+ * 等待结果只活在内存里，跨轮或进程死亡即丢。现在的模型是「挂起-续跑」：任务抛出
+ * {@link CaptchaRequiredException} 结束本轮，前台完成验证后凭证落库，下一轮续跑带上。
+ *
+ * <p>因此本类只作为 {@link GeetestController} 的类型占位存在——{@code createButton} 若被调用，
+ * 说明有代码在后台错误地驱动了极验 SDK，直接抛错暴露，而不是静默等待。
  */
 class BackgroundGeetestController implements GeetestController {
 
-    private final Context context;
-    private final tools.StatusNotifier notifier;
-    private GT3GeetestUtils gt3Utils;
-
-    /**
-     * 本次运行中因验证码未通过而失败的任务名（与任务状态持久化键同源），
-     * 定时链路据此把验证码失败项排除出同日重试名单（改为通知用户手动处理）。
-     */
-    private final Set<String> captchaFailedTasks = new CopyOnWriteArraySet<>();
-
-    // 全局验证状态收敛到单一协调者实例（取代原静态 CountDownLatch / pending 状态）
-    private static final CaptchaCoordinator coordinator = new DefaultCaptchaCoordinator();
-
-    BackgroundGeetestController(Context context, tools.StatusNotifier notifier) {
-        this.context = context;
-        this.notifier = notifier;
-    }
-
     @Override
-    public void onCaptchaFailed(String taskName) {
-        if (taskName != null) captchaFailedTasks.add(taskName);
-    }
-
-    /** 本次运行中因验证码失败的任务名集合（只读视图语义，调用方勿修改）。 */
-    public Set<String> getCaptchaFailedTasks() {
-        return captchaFailedTasks;
+    public boolean hasUi() {
+        return false;
     }
 
     @Override
     public void createUtils() {
-        gt3Utils = new GT3GeetestUtils(context);
+        // 后台不需要 SDK 实例：构造 GT3GeetestUtils 需要 Activity 上下文，在 Service/Worker 里建出来也用不上
     }
 
-    /**
-     * 等待用户经通知进入前台完成验证，后台线程阻塞等待结果：Geetest.geetest() 同步调用本方法，
-     * 阻塞只影响当前任务线程。
-     */
     @Override
     public void createButton(GT3ConfigBean gt3ConfigBean) {
-        Logger.debug("VenusCaptcha", "BackgroundGeetestController.createButton called");
-        notifier.notifyListeners(context.getString(R.string.geetest_need_verification));
-        coordinator.reset();
-
-        // 阻塞后台线程，等待用户完成前台验证（最多 5 分钟）
-        try {
-            Logger.debug("VenusCaptcha", "Background: waiting on latch...");
-            coordinator.await();
-            Logger.debug("VenusCaptcha", "Background: latch released, continuing task");
-        } catch (InterruptedException e) {
-            Logger.debug("VenusCaptcha", "Background: latch interrupted");
-            Thread.currentThread().interrupt();
-        }
+        throw new IllegalStateException(
+                "BackgroundGeetestController cannot host captcha UI; throw CaptchaRequiredException instead");
     }
 
     @Override
     public GT3GeetestUtils getGeetestUtils() {
-        return gt3Utils;
+        return null;
     }
 
     @Override
     public void destroyButton() {
-        coordinator.countDown();
-    }
-
-    // 静态门面：供 Geetest / HomeFragment 沿用原静态调用方式（委托给协调者）
-
-    /** 前台 Activity 调用：通知验证成功。 */
-    public static void notifyVerificationSuccess(Map<String, String> geetCode) {
-        coordinator.notifyVerificationSuccess(geetCode);
-    }
-
-    /** 取前台验证完成后的 geetest 结果（消费并清除）。 */
-    public static synchronized Map<String, String> getGeetestResult() {
-        return coordinator.consumeResult();
-    }
-
-    /** 存后台 API1 的 gt/challenge，供前台用同一 challenge 验证。 */
-    public static void savePendingChallenge(String gt, String challenge) {
-        coordinator.savePendingChallenge(gt, challenge);
-    }
-
-    /** 消费并清除 gt/challenge（[0]=gt, [1]=challenge）。 */
-    public static String[] consumePendingChallenge() {
-        return coordinator.consumePendingChallenge();
-    }
-
-    /** 存后台请求 headers（含 Cookie），供前台 API2 二次验证使用。 */
-    public static void savePendingHeaders(Map<String, String> headers) {
-        coordinator.savePendingHeaders(headers);
-    }
-
-    /** 消费并清除后台保存的 headers。 */
-    public static Map<String, String> consumePendingHeaders() {
-        return coordinator.consumePendingHeaders();
-    }
-
-    /** 前台 Activity 调用：通知验证失败。 */
-    public static void notifyVerificationFailure() {
-        coordinator.notifyVerificationFailure();
     }
 }

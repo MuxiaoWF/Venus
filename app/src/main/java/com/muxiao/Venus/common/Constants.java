@@ -8,9 +8,31 @@ public class Constants {
     public static final int WRITE_PERMISSION_REQUEST_CODE = 10001;
     public static final int NOTIFICATION_ID_ERROR = 50629;
     public static final int NOTIFICATION_ID_PROGRESS = 50630;
+    /**
+     * 人机验证通知独立 ID：旧版与错误通知共用 {@link #NOTIFICATION_ID_ERROR}，等待验证期间任一任务报错
+     * 都会把它顶掉，用户看到的是失败而不是「去验证」。
+     */
+    public static final int NOTIFICATION_ID_CAPTCHA = 50631;
+    /**
+     * 「本轮已结束」通知的独立 ID（全部完成 / 中止）。
+     *
+     * <p>不能复用 {@link #NOTIFICATION_ID_PROGRESS}：进度通知是前台 Service 的持续通知（ongoing、
+     * 不可划走），收尾时用同一 ID 覆盖成结果通知，会让 {@code stopForeground(STOP_FOREGROUND_REMOVE)}
+     * 只清掉「系统认为的那条前台通知」，覆盖后的新通知留在通知栏里再也关不掉。两者分离后，
+     * 进度通知在任何一轮结束时被无条件撤销，结果通知自己可点可划。
+     */
+    public static final int NOTIFICATION_ID_RESULT = 50632;
 
     // 后台人机验证广播 Action
     public static final String ACTION_HANDLE_CAPTCHA = "ACTION_HANDLE_CAPTCHA";
+    /**
+     * 后台发起人机验证时的应用内广播：由后台任务在 API1 之前发出，MainActivity 收到后立即把验证 UI 挂出来。
+     *
+     * <p>为什么需要它：{@link #ACTION_HANDLE_CAPTCHA} 只有「点通知」这一条路径，从小组件图标进入应用、
+     * 或应用已在前台时后台才触发验证码，都拿不到任何信号，只能干等到超时。配合
+     * {@code ConfigRepository} 的 {@code captcha_pending} 标记，验证请求对前台变成「随时可发现」的状态。
+     */
+    public static final String ACTION_CAPTCHA_REQUIRED = "ACTION_CAPTCHA_REQUIRED";
 
     public static class Urls {
         // 国服 URL
