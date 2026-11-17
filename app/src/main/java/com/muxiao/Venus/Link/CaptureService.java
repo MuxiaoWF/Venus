@@ -83,6 +83,8 @@ public class CaptureService extends VpnService {
     private ParcelFileDescriptor pfd;
     private ParcelFileDescriptor remotePfd;
     private ParcelFileDescriptor localPfd;
+    /** 收尾中（stopCapture 幂等闸）：转发线程据此区分「正常关闭」与「隧道意外死亡」 */
+    private volatile boolean stopping = false;
     /** 本轮抓包的旁路分析器（含独立分析线程，stopCapture 时停止） */
     private PacketAnalyzer analyzer;
     private final BroadcastReceiver stopReceiver = new BroadcastReceiver() {
@@ -96,12 +98,15 @@ public class CaptureService extends VpnService {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground();
-        if (pfd != null && tunnelThread != null) {
-            // 重复 startForegroundService：不能重绑 socketpair，否则 native 隧道仍持旧 fd，永远收不到包
+        // 判据只看 pfd：VPN 一旦建立就不能重入。此前还要求 tunnelThread!=null，可一旦 native 隧道线程
+        // 先退出（该字段被置空）就会放行重入——重绑 socketpair 后 native 仍持旧 fd，隧道立刻变黑洞
+        // （游戏断网、登录报网络错误），且只能杀进程恢复。
+        if (pfd != null) {
             Log.i(TAG, "already running, ignore duplicate start");
             return START_STICKY;
         }
         startVpn();
+        stopping = false; // 新一轮抓包：清掉可能残留的收尾标志（上次启动失败可能置过位）
         startCapture();
         initNative();
         startNative();
@@ -118,6 +123,7 @@ public class CaptureService extends VpnService {
     public void onCreate() {
         super.onCreate();
         running = true;
+        stopping = false;
         IntentFilter filter = new IntentFilter(STOP_SERVICE_ACTION);
         ContextCompat.registerReceiver(this, stopReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
@@ -132,7 +138,13 @@ public class CaptureService extends VpnService {
         super.onDestroy();
     }
 
-    private void stopCapture() {
+    /**
+     * 收尾：停分析线程 → 停 native 隧道 → 关 socketpair → 关 VPN → 撤前台通知。
+     * 幂等（转发线程死亡时也会调到这里），重复调用只生效一次。
+     */
+    private synchronized void stopCapture() {
+        if (stopping) return;
+        stopping = true;
         capturedChannel = null;
         if (analyzer != null) {
             analyzer.stop();
@@ -254,28 +266,54 @@ public class CaptureService extends VpnService {
                          PacketAnalyzer analyzer) {
         Thread t = new Thread(() -> {
             byte[] buffer = new byte[MAX_PACKET_SIZE];
+            boolean abnormal = false;
             try (ParcelFileDescriptor.AutoCloseInputStream in =
                          new ParcelFileDescriptor.AutoCloseInputStream(src);
                  ParcelFileDescriptor.AutoCloseOutputStream out =
                          new ParcelFileDescriptor.AutoCloseOutputStream(dst)) {
-                while (true) {
+                while (!stopping) {
                     int length = in.read(buffer, 0, MAX_PACKET_SIZE);
-                    if (length <= 0) continue;
+                    // -1 = 对端已关闭（socketpair/tunnel 死了）。旧实现写成 `length <= 0 → continue`，
+                    // 会在 EOF 上空转成 100% CPU 死循环：转发已停、VPN 接口还挂着，游戏侧就是彻底的黑洞。
+                    if (length < 0) {
+                        Log.w(TAG, "forward stream EOF, tunnel is gone");
+                        abnormal = true;
+                        break;
+                    }
+                    if (length == 0) continue;
                     out.write(buffer, 0, length);
-                    // 旁路镜像：转发线程只做快速过滤与有界入队（内部按需拷贝），
-                    // 重负载解析在独立分析线程执行，不阻塞转发（防 KCP 时延抖动）
-                    analyzer.offerIpPacket(buffer, length);
+                    try {
+                        // 旁路镜像绝不允许影响转发：分析侧任何异常（含 OOM）只丢这一包
+                        analyzer.offerIpPacket(buffer, length);
+                    } catch (Throwable mirrorFailure) {
+                        Log.w(TAG, "mirror packet failed", mirrorFailure);
+                    }
                 }
             } catch (Exception e) {
                 // 正常停止时流关闭会抛 IOException；其余异常意味着转发线程提前死亡
                 // （隧道黑洞、游戏侧表现为断网重连并反复触发系统网络状态事件），必须留痕排查
                 if (e instanceof java.io.IOException)
                     Log.i(TAG, "forward thread exit (stream closed)", e);
-                else
+                else {
                     Log.w(TAG, "forward thread died unexpectedly", e);
+                    abnormal = true;
+                }
             }
+            if (abnormal && !stopping)
+                onTunnelBroken();
         }, "CaptureForward");
         t.start();
+    }
+
+    /**
+     * 转发线程非正常退出：立即收尾释放 VPN。否则 VPN 接口还在、流量全进黑洞，
+     * 游戏侧表现为「开着 VPN 但一直网络错误」，且怎么重试都不恢复（服务状态仍显示抓包中）。
+     */
+    private void onTunnelBroken() {
+        if (stopping) return;
+        Log.e(TAG, "tunnel broken, stopping capture to release vpn");
+        // 不在转发线程里同步收尾：stopCapture 会 join 隧道线程，分开线程避免互等
+        new Thread(this::stopCapture, "CaptureTeardown").start();
     }
 
     private void stopForward() {
@@ -321,19 +359,26 @@ public class CaptureService extends VpnService {
     }
 
     private void stopNative() {
-        if (tunnelThread != null) {
-            jni_stop(jni_context);
-            while (tunnelThread != null && tunnelThread.isAlive()) {
-                try {
-                    tunnelThread.join();
-                } catch (InterruptedException e) {
-                    Log.i(TAG, "tunnel thread is interrupted");
-                }
+        Thread t = tunnelThread;
+        if (t == null) return;
+        jni_stop(jni_context);
+        // 有界等待：隧道线程可能卡在 socketpair 写入（对端转发线程已死），无限 join 会让收尾永远做不完，
+        // VPN 接口也就永远不释放——那正是「游戏一直网络错误」的成因之一
+        long deadline = System.currentTimeMillis() + 1500;
+        while (t.isAlive() && System.currentTimeMillis() < deadline) {
+            try {
+                t.join(200);
+            } catch (InterruptedException e) {
+                Log.i(TAG, "tunnel thread is interrupted");
+                break;
             }
-            tunnelThread = null;
-            jni_clear(jni_context);
-            Log.i(TAG, "stop native");
         }
+        tunnelThread = null;
+        if (t.isAlive())
+            Log.w(TAG, "tunnel thread still alive after stop, skip jni_clear");
+        else
+            jni_clear(jni_context);
+        Log.i(TAG, "stop native");
     }
 
     // JNI 导出函数（C 侧符号：Java_com_muxiao_Venus_Link_CaptureService_jni_*）：仅保留本服务实际使用的入口，
@@ -376,27 +421,67 @@ public class CaptureService extends VpnService {
         return false;
     }
 
+    /** getConnectionOwnerUid 的反射 Method（只查一次，结果含 null 进程内缓存） */
+    private static java.lang.reflect.Method connectionOwnerUidMethod;
+    private static boolean connectionOwnerUidResolved;
+    /** 连续失败计数与暂停截止时刻：部分 ROM 上该方法恒抛异常，见 getUidQ 注释 */
+    private static int connectionOwnerUidFailures;
+    private static long connectionOwnerUidSkipUntil;
+    private static long connectionOwnerUidWarnAt;
+    private static final int CONNECTION_OWNER_MAX_FAILURES = 64;
+
     @SuppressWarnings("unused") // Called from native code
     private int getUidQ(int version, int protocol, String saddr, int sport, String daddr, int dport) {
-        // Android 10+ 起 C 层读不到 /proc/net，由 Java 侧反射系统 API 反查连接归属（NetGuard 同款方案）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && version == 4) {
-            try {
-                java.lang.reflect.Method method = ConnectivityManager.class.getMethod(
-                        "getConnectionOwnerUid",
-                        int.class, java.net.InetSocketAddress.class, java.net.InetSocketAddress.class);
-                ConnectivityManager cm =
-                        (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                Object result = method.invoke(cm, protocol,
-                        new java.net.InetSocketAddress(saddr, sport),
-                        new java.net.InetSocketAddress(daddr, dport));
-                if (result instanceof Integer) {
-                    return (int) result;
-                }
-            } catch (Throwable t) {
+        // Android 10+ 起 C 层读不到 /proc/net，由 Java 侧反射系统 API 反查连接归属（NetGuard 同款方案）。
+        // 这是「每个新会话」都会走的热路径：Method 只反射查一次；失败按 60s 节流留痕。
+        // 原实现每次调用都做一次 getMethod + 打一条 W：ColorOS 上该方法恒抛 InvocationTargetException，
+        // 实测 2 分钟刷出 140+ 行日志并持续制造异常对象（GC 频率也随之上升）。
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || version != 4)
+            return -1;
+        long now = System.currentTimeMillis();
+        if (now < connectionOwnerUidSkipUntil)
+            return -1;
+        java.lang.reflect.Method method = resolveConnectionOwnerUid();
+        if (method == null)
+            return -1;
+        try {
+            ConnectivityManager cm =
+                    (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            Object result = method.invoke(cm, protocol,
+                    new java.net.InetSocketAddress(saddr, sport),
+                    new java.net.InetSocketAddress(daddr, dport));
+            if (result instanceof Integer) {
+                connectionOwnerUidFailures = 0;
+                return (int) result;
+            }
+        } catch (Throwable t) {
+            connectionOwnerUidFailures++;
+            if (connectionOwnerUidFailures >= CONNECTION_OWNER_MAX_FAILURES) {
+                // 连续失败到这个量级说明该 ROM 上永远拿不到：暂停 5 分钟再试，期间不再产生异常对象
+                connectionOwnerUidFailures = 0;
+                connectionOwnerUidSkipUntil = now + 5 * 60_000L;
+                Log.w(TAG, "getConnectionOwnerUid disabled for 5min: " + t);
+            } else if (now - connectionOwnerUidWarnAt > 60_000L) {
+                connectionOwnerUidWarnAt = now;
                 Log.w(TAG, "getConnectionOwnerUid unavailable: " + t);
             }
         }
         return -1;
+    }
+
+    /** 反射查找 getConnectionOwnerUid（Android 10+ 才有）：只查一次，找不到就缓存 null 不再重试 */
+    private static java.lang.reflect.Method resolveConnectionOwnerUid() {
+        if (!connectionOwnerUidResolved) {
+            connectionOwnerUidResolved = true;
+            try {
+                connectionOwnerUidMethod = ConnectivityManager.class.getMethod(
+                        "getConnectionOwnerUid",
+                        int.class, java.net.InetSocketAddress.class, java.net.InetSocketAddress.class);
+            } catch (Throwable ignored) {
+                connectionOwnerUidMethod = null;
+            }
+        }
+        return connectionOwnerUidMethod;
     }
 
     @SuppressWarnings("unused") // Called from native code

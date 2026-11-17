@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
  * 密钥两阶段：1) 初始密钥——包首 4 字节 XOR magic head 得 key ID，查 HsrKeyStore（assets/hsr.json 内置表，
  * 云端更新见 HsrKeyStore 注释），缺键时缓存待解包并触发即时补拉，拿到密钥后按到达顺序重放；
  * 2) 会话密钥——解出 PlayerGetTokenScRsp 后取 seed，MT19937-64 生成 4096 字节新 XOR pad。
+ * 3) 会话切换——现 key 解不开、而该包的初始密钥能解通时，回到 1) 重新等 seed（新会话会重下 seed，旧 pad 必然失效）。
+ * 判定只在「解不开」时做，不按 conv/端口变化主动清空：游戏可能同时有多条 23301 连接，主动清空会反复丢状态。
  * <p>
  * 异步架构：转发线程只调 {@link #offerIpPacket}（无锁快速过滤 + 有界入队），解密/字符串构造等重负载全在独立分析线程，
  * 解析耗时不再阻塞转发路径，也不形成上下行争抢锁的网络抖动（此类抖动可被游戏内网络质量检测感知）；
@@ -30,8 +32,12 @@ public class PacketAnalyzer {
     private static final String TAG = "PacketAnalyzer";
     /** 星铁游戏服务器 KCP 端口 */
     private static final int GAME_PORT = 23301;
-    /** 抽卡 URL 中 authkey 固定长度 */
-    private static final int AUTHKEY_LEN = 684;
+    /** authkey 的定位标记与长度下限——**不能按固定长度切**。服务端只会回 retcode -100 authkey error。 */
+    private static final byte[] AUTHKEY_TAG = "authkey=".getBytes(StandardCharsets.US_ASCII);
+    /** 抽卡报文特征（auth_appid 字段值）：字节级常量，避免热路径上反复 getBytes 分配 */
+    private static final byte[] GACHA_APPID_TAG = "webview_gacha".getBytes(StandardCharsets.US_ASCII);
+    /** key 长度下限（正常是 500+ 的 base64）：仅用于排除明文里偶然出现的同名短参数，不参与切分 */
+    private static final int AUTHKEY_MIN_LEN = 512;
 
     private final Context context;
     // 100KB 载荷缓冲：不做跨 KCP 分片重组，authkey 消息实测不分片
@@ -71,10 +77,16 @@ public class PacketAnalyzer {
     private volatile boolean keyFetchSettled = false;
     /** 缺键失败是否已上报（分析线程私有）：空闲轮询/每包重试都会走到判定点，只广播一次 */
     private boolean failureNotified = false;
+    /** 明文含 webview_gacha 却找不到 authkey= 标记（消息结构变化）：只留痕一次，避免每包刷日志 */
+    private boolean authkeyTagMissingNotified = false;
 
     private volatile boolean running = false;
     private Thread worker;
     private long droppedCount = 0;
+    /** 计数（仅分析线程读写）：每 1024 个 KCP 包打一条，用于区分「没包进来 / 解不开 / 取不到 key」 */
+    private long statPackets, statDecrypted, statGacha, statCaptured;
+    /** 最近一次取 key 命中的层级（tag=URL 形态、run=裸字段兜底）：仅分析线程读写，用于日志定位 */
+    private String lastExtractTier = "?";
 
     public PacketAnalyzer(Context context) {
         this.context = context.getApplicationContext();
@@ -86,6 +98,8 @@ public class PacketAnalyzer {
         running = true;
         keyFetchSettled = false;
         failureNotified = false;
+        authkeyTagMissingNotified = false;
+        statPackets = statDecrypted = statGacha = statCaptured = 0;
         worker = new Thread(this::analyzeLoop, "CaptureAnalyzer");
         worker.start();
     }
@@ -185,6 +199,10 @@ public class PacketAnalyzer {
     private void handleKcpPacket(KcpPacket packet, int clientPort) {
         if (packet.frg != 0) // 分片包无法独立解密，丢弃（见 buffer 注释）
             return;
+        if ((++statPackets & 1023) == 0)
+            Log.i(TAG, "stats: packets=" + statPackets + " decrypted=" + statDecrypted
+                    + " gacha=" + statGacha + " captured=" + statCaptured
+                    + " key=" + (key == null ? "none" : (isInitKey ? "init" : "session")));
         // 首包：从加密 magic head 反解 key ID，查初始密钥表
         if (key == null) {
             if (packet.payload.length < 4)
@@ -208,7 +226,38 @@ public class PacketAnalyzer {
             Log.i(TAG, "get init key: " + version);
             drainPending();
         }
-        processKcpPayload(packet.payload, clientPort);
+        if (processKcpPayload(packet.payload, clientPort))
+            return;
+        // 解不开才考虑「换会话了」：新会话（重连/切网/进程被杀重进）的握手包是用初始密钥加密的，
+        // 旧 pad 必然解不开。不能反过来——一看到 conv/端口变化就清空 key 会把可用状态反复丢掉：
+        // 游戏可能同时存在多条 UDP 23301 连接（登录阶段尤其多），逐包重置会让分析线程在登录突发时空转、
+        // 刷日志，间接拖慢同进程的转发线程。
+        switchToInitKeyIfDecrypts(packet.payload, clientPort);
+    }
+
+    /**
+     * 会话密钥解不开时的一次性回退：按本包的 key ID 取初始密钥，若能解通（magic head/tail 双校验），
+     * 说明这是新会话的握手包——切回初始态继续等 secret_seed；否则什么都不做（宁可少抓一次，也不误判重置）。
+     */
+    private void switchToInitKeyIfDecrypts(byte[] payload, int clientPort) {
+        if (isInitKey || payload.length < 16)
+            return;
+        long version = extractVersion(payload);
+        String keyB64 = HsrKeyStore.getKey(context, version + "");
+        if (keyB64 == null || keyB64.isEmpty())
+            return;
+        byte[] initKey = Base64.decode(keyB64, Base64.DEFAULT);
+        if (initKey.length == 0)
+            return;
+        byte[] plain = xor(slice(payload, 0, payload.length), initKey);
+        ProtoPacket probe = new ProtoPacket(plain);
+        if (probe.mh != ProtoPacket.MAGIC_HEAD || probe.mt != ProtoPacket.MAGIC_TAIL)
+            return;
+        Log.i(TAG, "session switched: handshake for " + version + " decoded by init key, back to init state");
+        key = initKey;
+        isInitKey = true;
+        pending.clear(); // 旧会话缓存的待解包对新会话毫无意义
+        processKcpPayload(payload, clientPort);
     }
 
     /**
@@ -217,9 +266,14 @@ public class PacketAnalyzer {
      */
     private boolean trySetInitKey(long version) {
         String keyB64 = HsrKeyStore.getKey(context, version + "");
-        if (Objects.requireNonNull(keyB64).isEmpty())
+        // getKey 对表里没有的版本返回 null（不是空串）：写成 requireNonNull 会抛 NPE，
+        // 被 analyzeLoop 吞掉后「缓存待解包 + 触发补拉」这条路径永远不会执行，只剩每包一条堆栈日志。
+        if (keyB64 == null || keyB64.isEmpty())
             return false;
-        key = Base64.decode(keyB64, Base64.DEFAULT);
+        byte[] decoded = Base64.decode(keyB64, Base64.DEFAULT);
+        if (decoded.length == 0) // 损坏条目（空或非法 base64）：长度为 0 的 key 会在 xor 里除零
+            return false;
+        key = decoded;
         return true;
     }
 
@@ -237,13 +291,18 @@ public class PacketAnalyzer {
             processKcpPayload(p.payload, p.clientPort);
     }
 
-    private void processKcpPayload(byte[] payload, int clientPort) {
+    /**
+     * 用当前 key 解一个 KCP 载荷，返回 false 表示魔数校验不过（key 不匹配或不是 proto 帧）。
+     * 解出 header 为空的首个应答（PlayerGetTokenScRsp）时切到会话密钥。
+     */
+    private boolean processKcpPayload(byte[] payload, int clientPort) {
         System.arraycopy(payload, 0, buffer, 0, payload.length);
         // XOR 解密并校验魔数
         byte[] plain = xor(slice(buffer, 0, payload.length), key);
         ProtoPacket protoPacket = new ProtoPacket(plain);
         if (protoPacket.mh != ProtoPacket.MAGIC_HEAD || protoPacket.mt != ProtoPacket.MAGIC_TAIL)
-            return;
+            return false;
+        statDecrypted++;
         handleProtoPacket(protoPacket, clientPort);
         // 会话密钥更新：header 为空的首个 token 应答携带 seed
         if (isInitKey && protoPacket.header.length == 0) {
@@ -251,20 +310,36 @@ public class PacketAnalyzer {
             long seed = decodeVarint(pair[1]);
             key = createXorPad(seed);
             isInitKey = false;
+            // 留痕：seed 由启发式 varint 解析得来，若与后面的「session switched」成对出现，
+            // 说明这次 seed 猜错了（旧 pad 解不开，又被初始密钥接回）
+            Log.i(TAG, "session key derived, seed=" + seed);
         }
+        return true;
     }
 
     private void handleProtoPacket(ProtoPacket packet, int clientPort) {
         byte[] proto = packet.proto;
-        // 抽卡 URL 明文特征：含 webview_gacha、非 https、长度足以容纳 684 字符 authkey。
-        // 直接在字节层做 ASCII 特征匹配，仅命中候选时才整包解码为 String，
-        // 避免对每个 proto 包都做 UTF-8→UTF-16 转换造成 GC 压力
-        if (proto.length <= AUTHKEY_LEN
-                || indexOfAscii(proto, "webview_gacha") < 0
-                || indexOfAscii(proto, "https") >= 0)
+        // 抽卡报文特征：含 auth_appid 的 "webview_gacha"，或（auth_appid 变名时）直接含 authkey=。
+        // 全程在字节层匹配与取值，不做整包 UTF-8 解码后按字符索引——protobuf 里的非 ASCII 字节解码后
+        // 会变成替换字符，字符偏移与字节偏移不再等价，取值必然错位。
+        if (indexOfAscii(proto, GACHA_APPID_TAG, 0) < 0 && indexOfAscii(proto, AUTHKEY_TAG, 0) < 0)
             return;
-        String s = new String(proto, StandardCharsets.UTF_8);
-        String authkey = s.substring(s.length() - AUTHKEY_LEN);
+        statGacha++;
+        String authkey = extractAuthkey(proto);
+        if (authkey == null) {
+            // 只有「够长却取不到 key」才值得留痕：长度不足 512 的报文（例如只带 auth_appid 字段的
+            // 配置包，实测 protoLen=19）本来就装不下 key，不算异常，避免刷假告警
+            if (proto.length >= AUTHKEY_MIN_LEN && !authkeyTagMissingNotified) {
+                authkeyTagMissingNotified = true;
+                Log.w(TAG, "gacha packet without authkey: protoLen=" + proto.length
+                        + ", longestB64=" + longestAuthkeyRun(proto)[1]
+                        + ", tail=" + describeTail(proto, 160));
+            }
+            return;
+        }
+        statCaptured++;
+        // 渠道判定只查 ASCII 子串：ISO_8859_1 保证 1 字节 = 1 字符，避免多字节解码带来的偏移问题
+        String s = new String(proto, StandardCharsets.ISO_8859_1);
         String channel = detectChannel(s, clientPort);
         // 写入静态状态：触发时用户多半在游戏里，Snackbar 早已消失，切回应用靠行内回显确认
         CaptureService.capturedChannel = channel;
@@ -273,18 +348,122 @@ public class PacketAnalyzer {
         intent.putExtra("authkey", authkey);
         intent.putExtra("channel", channel);
         context.sendBroadcast(intent);
-        Log.i(TAG, "get authkey, channel=" + channel);
+        Log.i(TAG, "get authkey via " + lastExtractTier + ", channel=" + channel + ", len=" + authkey.length());
     }
 
-    /** ASCII 子串查找（字节层 contains，无需 UTF-8 解码） */
-    private static int indexOfAscii(byte[] data, String needle) {
-        byte first = (byte) needle.charAt(0);
+    /**
+     * 从 proto 明文里取 authkey，两级策略：
+     * <ol>
+     * <li>先找 {@code authkey=} 标记（URL 形态下最精确：标记之后到分隔符为止）；</li>
+     * <li>找不到标记时退化为「最长的连续 base64 段」——这条报文里的 key 是**独立字符串字段**，
+     * 前后都是 protobuf 的 tag/长度前缀（如长度 683 的 varint {@code 0xAB 0x05}，非 base64 字符），
+     * 512 字节随机二进制恰好全落在 base64 字符集内的概率可忽略，因此不会误命中。</li>
+     * </ol>
+     * 都不能按固定长度切：旧实现取「最后 684 字符」，尾部把 auth_appid 字段（{@code 0x0D + "webview_gacha"}）
+     * 一起卷进 key，且顶掉 key 头部若干字符，服务端一律回 authkey error。
+     */
+    private String extractAuthkey(byte[] proto) {
+        String byTag = extractByTag(proto);
+        if (byTag != null) {
+            lastExtractTier = "tag";
+            return byTag;
+        }
+        lastExtractTier = "run";
+        int[] run = longestAuthkeyRun(proto);
+        int len = run[1];
+        if (len < AUTHKEY_MIN_LEN)
+            return null;
+        // base64 的 '=' 只出现在结尾：段内出现 '=' 时，其后的字节不属于 key
+        // （下一字段的长度前缀若恰好落在 base64 字符集内，最长段会多吞一个字节，导致 key 变长而报 authkey error）
+        for (int i = run[0] + len - 1; i >= run[0]; i--) {
+            if (proto[i] == '=') {
+                len = i - run[0] + 1;
+                break;
+            }
+        }
+        return new String(proto, run[0], len, StandardCharsets.US_ASCII);
+    }
+
+    /** 按 {@code authkey=} 标记取值，遇非 key 字符即止；取最长的一段命中（同时出现多次时以最长为准） */
+    private static String extractByTag(byte[] proto) {
+        int bestStart = -1;
+        int bestLen = 0;
+        int from = 0;
+        int at;
+        while ((at = indexOfAscii(proto, AUTHKEY_TAG, from)) >= 0) {
+            int start = at + AUTHKEY_TAG.length;
+            int end = start;
+            while (end < proto.length && isAuthkeyByte(proto[end]))
+                end++;
+            if (end - start > bestLen) {
+                bestLen = end - start;
+                bestStart = start;
+            }
+            from = start; // 允许重叠扫描：下一处标记的查找从值起点继续
+        }
+        return bestLen >= AUTHKEY_MIN_LEN
+                ? new String(proto, bestStart, bestLen, StandardCharsets.US_ASCII) : null;
+    }
+
+    /** 明文里最长的连续 base64 段：返回 {起点, 长度}，无命中返回 {-1, 0} */
+    private static int[] longestAuthkeyRun(byte[] proto) {
+        int bestStart = -1;
+        int bestLen = 0;
+        int start = -1;
+        for (int i = 0; i <= proto.length; i++) {
+            if (i < proto.length && isAuthkeyByte(proto[i])) {
+                if (start < 0) start = i;
+            } else if (start >= 0) {
+                if (i - start > bestLen) {
+                    bestLen = i - start;
+                    bestStart = start;
+                }
+                start = -1;
+            }
+        }
+        return new int[]{bestStart, bestLen};
+    }
+
+    /**
+     * 明文尾部可读化，供「抓不到」时定位报文结构：长 base64 段折叠为 {@code <b64:n>}（不泄露 key 本体），
+     * 非可打印字节转义为 {@code \xNN}（这样 protobuf 的长度前缀/字段 tag 一眼可辨）。
+     */
+    private static String describeTail(byte[] proto, int max) {
+        StringBuilder sb = new StringBuilder();
+        int b64 = 0;
+        for (int i = Math.max(0, proto.length - max); i < proto.length; i++) {
+            byte b = proto[i];
+            if (isAuthkeyByte(b)) {
+                b64++;
+                continue;
+            }
+            if (b64 > 0) {
+                sb.append("<b64:").append(b64).append('>');
+                b64 = 0;
+            }
+            if (b >= 0x20 && b < 0x7F) sb.append((char) b);
+            else sb.append("\\x").append(Character.forDigit((b >> 4) & 0xF, 16))
+                        .append(Character.forDigit(b & 0xF, 16));
+        }
+        if (b64 > 0) sb.append("<b64:").append(b64).append('>');
+        return sb.toString();
+    }
+
+    /** authkey 合法字符集（标准 base64 与 base64url 的并集）；遇到 {@code &}、{@code %}、空白或二进制字节即视为 key 结束 */
+    private static boolean isAuthkeyByte(byte b) {
+        return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')
+                || b == '+' || b == '/' || b == '=' || b == '-' || b == '_';
+    }
+
+    /** ASCII 子串查找（字节层 contains，无需 UTF-8 解码）；带起始偏移，供 authkey 多次出现时逐个扫描 */
+    private static int indexOfAscii(byte[] data, byte[] needle, int from) {
+        byte first = needle[0];
         outer:
-        for (int i = 0; i <= data.length - needle.length(); i++) {
+        for (int i = Math.max(0, from); i <= data.length - needle.length; i++) {
             if (data[i] != first)
                 continue;
-            for (int j = 1; j < needle.length(); j++)
-                if (data[i + j] != (byte) needle.charAt(j))
+            for (int j = 1; j < needle.length; j++)
+                if (data[i + j] != needle[j])
                     continue outer;
             return i;
         }

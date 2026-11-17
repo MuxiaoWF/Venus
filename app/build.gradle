@@ -85,6 +85,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
+    androidResources {
+        // OkHttp 的 PublicSuffixDatabase.list 只在 Cookie.domainMatches() 时按需读取。本项目 Cookie
+        // 一律由 HeaderManager 自己拼请求头、全程没有 CookieJar，该表是纯死重（assets 里占 41.5KB）。
+        // 注意：该属性是整体覆盖而非追加，必须把 AGP 默认忽略模式一起写上。
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!PublicSuffixDatabase.list"
+    }
     packagingOptions {
         resources {
             excludes += [
@@ -123,8 +129,9 @@ dependencies {
     androidTestImplementation platform(libs.compose.bom)
     implementation libs.compose.ui
     implementation libs.compose.material3
-    implementation libs.compose.tooling.preview
+    compileOnly libs.compose.tooling.preview
     debugImplementation libs.compose.tooling
+    debugImplementation libs.compose.tooling.preview
     androidTestImplementation libs.compose.test.junit4
     debugImplementation libs.compose.test.manifest
 
