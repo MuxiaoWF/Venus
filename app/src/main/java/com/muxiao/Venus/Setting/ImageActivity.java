@@ -3,7 +3,6 @@ package com.muxiao.Venus.Setting;
 import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
-import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -20,8 +19,9 @@ import android.os.Looper;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
 import androidx.core.app.ActivityOptionsCompat;
 import androidx.core.content.ContextCompat;
 
@@ -71,6 +71,16 @@ public class ImageActivity extends BaseActivity {
     private CustomTarget<Bitmap> downloadTarget; // 当前下载用的 Glide 目标，便于 onDestroy 清理
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean mDestroyed = false; // onDestroy 后置位，阻止向已关闭的线程池提交任务
+
+    /**
+     * 存储权限申请走 Activity Result API：{@code ComponentActivity.onRequestPermissionsResult} 已弃用，
+     * 且按请求码手工分派易漏分支。仅 Android 9 及以下批量下载前会用到（10+ 走 MediaStore 免权限）。
+     */
+    private final ActivityResultLauncher<String> storagePermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) startSelectedDownload();
+                else showCustomSnackbar(this, getString(R.string.snack_grant_storage_permission));
+            });
 
     /**
      * 安全提交：Activity 已销毁或线程池已 shutdown 时直接丢弃，避免排队的 mainHandler 回调提交任务时
@@ -486,35 +496,32 @@ public class ImageActivity extends BaseActivity {
         if (selectedItems.isEmpty()) return;
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    WRITE_PERMISSION_REQUEST_CODE);
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         } else {
-            itemsToDownload = new ArrayList<>(selectedItems);
-            totalDownloads = 0;
-            for (int pos : itemsToDownload) {
-                @SuppressWarnings("unchecked")
-                List<String> imgs = (List<String>) imageDataList.get(pos).get("images");
-                if (imgs != null) totalDownloads += imgs.size();
-            }
-            downloadProgress = 0;
-            currentPostIndex = 0;
-            currentImageIndexInPost = 0;
-            if (pane != null) pane.setDownloadProgress(0, totalDownloads);
-            downloadImage();
+            startSelectedDownload();
         }
     }
 
-    /** 存储权限授予后继续下载已选图片，拒绝则提示需要存储权限。 */
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == WRITE_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                onDownloadClick();
-            else
-                showCustomSnackbar(this, getString(R.string.snack_grant_storage_permission));
+    /**
+     * 权限就绪后真正开始批量下载：按选中集统计总张数、复位进度，再交给 {@link #downloadImage()} 串行拉取。
+     *
+     * <p>与 {@link #onDownloadClick()} 分开的原因：权限回调里不能再走一次「检查权限→申请」这条路——权限被永久拒绝时
+     * 系统会立即回调 denied 而不弹框，回调再进申请分支就变成无限递归。
+     */
+    private void startSelectedDownload() {
+        if (selectedItems.isEmpty() || imageDataList == null) return;
+        itemsToDownload = new ArrayList<>(selectedItems);
+        totalDownloads = 0;
+        for (int pos : itemsToDownload) {
+            @SuppressWarnings("unchecked")
+            List<String> imgs = (List<String>) imageDataList.get(pos).get("images");
+            if (imgs != null) totalDownloads += imgs.size();
         }
+        downloadProgress = 0;
+        currentPostIndex = 0;
+        currentImageIndexInPost = 0;
+        if (pane != null) pane.setDownloadProgress(0, totalDownloads);
+        downloadImage();
     }
 
     /**
@@ -578,7 +585,9 @@ public class ImageActivity extends BaseActivity {
                 downloadImage();
             }
         };
-        Glide.with(this).asBitmap().load(imageUrl).into(downloadTarget);
+        // application context：Glide 5 弃用 with(Activity)，其实现等价于 with(getApplicationContext())
+        // （本页非 FragmentActivity，从来没有生命周期绑定），取消仍由 onDestroy 里的 clear 兜底。
+        Glide.with(getApplicationContext()).asBitmap().load(imageUrl).into(downloadTarget);
     }
 
     // 本方法在工作线程执行（onResourceReady 的 safeSubmit），而错误对话框是 UI 操作，
@@ -729,7 +738,8 @@ public class ImageActivity extends BaseActivity {
         mDestroyed = true; // 先于清理置位，确保所有排队的回调/任务不再向线程池提交
         mainHandler.removeCallbacksAndMessages(null);
         if (downloadTarget != null) {
-            Glide.with(this).clear(downloadTarget);
+            // 与发起端同一个 application 级 RequestManager，clear 只做 target 清理，不会触发 Activity 断言
+            Glide.with(getApplicationContext()).clear(downloadTarget);
             downloadTarget = null;
         }
         if (executorService != null) {

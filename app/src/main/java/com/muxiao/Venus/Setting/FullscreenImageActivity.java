@@ -6,7 +6,6 @@ import dagger.hilt.android.AndroidEntryPoint;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
-import static com.muxiao.Venus.common.Constants.WRITE_PERMISSION_REQUEST_CODE;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -16,8 +15,9 @@ import android.os.Build;
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
@@ -47,6 +47,16 @@ public class FullscreenImageActivity extends BaseActivity {
     private FullscreenImageScreenView pane;
     /** 拍平后的页列表（帖子 × 图片），下载与计数都按此列表取。 */
     private List<FullscreenPage> pages;
+
+    /**
+     * 存储权限申请走 Activity Result API：{@code ComponentActivity.onRequestPermissionsResult} 已弃用，
+     * 且按请求码手工分派易漏分支。仅 Android 10 以下保存图片前会用到（10+ 走 MediaStore 免权限）。
+     */
+    private final ActivityResultLauncher<String> storagePermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) downloadCurrentImage();
+                else showCustomSnackbar(this, getString(R.string.snack_grant_storage_permission));
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -144,16 +154,20 @@ public class FullscreenImageActivity extends BaseActivity {
         } else {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                        WRITE_PERMISSION_REQUEST_CODE);
+                storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             } else {
                 downloadCurrentImage();
             }
         }
     }
 
-    /** 取当前页图片 URL，用 Glide 下载为 Bitmap 后保存到相册；下载失败弹错误框。 */
+    /**
+     * 取当前页图片 URL，用 Glide 下载为 Bitmap 后保存到相册；下载失败弹错误框。
+     *
+     * <p>用 application context 取 RequestManager：Glide 5 已弃用 {@code Glide.with(Activity)}，
+     * 且弃用实现本身也只是 {@code with(activity.getApplicationContext())}（本页是 ComponentActivity，
+     * 非 FragmentActivity，从来拿不到生命周期绑定）。等价改写，无行为变化。
+     */
     private void downloadCurrentImage() {
         if (pane == null || pages == null) return;
 
@@ -164,7 +178,7 @@ public class FullscreenImageActivity extends BaseActivity {
         if (imageUrl != null && !imageUrl.isEmpty()) {
             // 顶栏下载按钮换成进度环并禁用重复点击，所有收尾分支都要复位
             pane.setDownloading(true);
-            Glide.with(this)
+            Glide.with(getApplicationContext())
                     .asBitmap()
                     .load(imageUrl)
                     .into(new CustomTarget<Bitmap>() {
@@ -206,17 +220,5 @@ public class FullscreenImageActivity extends BaseActivity {
                 });
             }
         });
-    }
-
-    /** 存储权限授予后继续下载当前图片，拒绝则提示需要存储权限。 */
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == WRITE_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                downloadCurrentImage();
-            else
-                showCustomSnackbar(this, getString(R.string.snack_grant_storage_permission));
-        }
     }
 }

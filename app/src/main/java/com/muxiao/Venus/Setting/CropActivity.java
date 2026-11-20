@@ -59,8 +59,12 @@ public class CropActivity extends BaseActivity {
     /** 屏幕像素尺寸：裁剪框比例与输出尺寸的统一基准（onCreate 一次解析）。 */
     private int screenWidth, screenHeight;
     /**
-     * Glide 请求管理器：必须在 onCreate 时取得引用并复用——onDestroy 里再调 {@code Glide.with(activity)}
-     * 会触发 assertNotDestroyed 抛「You cannot start a load for a destroyed activity」。
+     * Glide 请求管理器：onCreate 时取得一次并复用。
+     *
+     * <p>用 application context 取（{@code Glide.with(Activity)} 在 Glide 5 已弃用，其弃用实现本身也只是
+     * {@code with(activity.getApplicationContext())}——本页非 FragmentActivity，从来拿不到生命周期绑定）。
+     * 好处是 onDestroy 里清理不再依赖「Activity 还在生命周期内」：请求不会自动取消，{@link #decodeTarget}
+     * 必须在 onDestroy 手动 clear。
      */
     private RequestManager glideRequests;
     /** Glide 异步解码句柄：onDestroy 时取消，防Activity销毁后回调持有过期 pane。 */
@@ -146,7 +150,7 @@ public class CropActivity extends BaseActivity {
      * 发起 Glide 请求（EXIF 自动旋转），IO 线程取结果后回主线程下发。
      */
     private void decodeImage(Uri uri, float aspect) {
-        if (glideRequests == null) glideRequests = Glide.with(this);
+        if (glideRequests == null) glideRequests = Glide.with(getApplicationContext());
         AppExecutors.get().execute(() -> {
             int[] target;
             try {
@@ -234,8 +238,8 @@ public class CropActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         if (decodeTarget != null) {
-            // 用 onCreate 时持有的 RequestManager 清理：此时 Activity 已在销毁流程，
-            // Glide.with(this) 会断言失败；RequestManager.clear 不走 retriever，安全
+            // application 级 manager 不会随 Activity 销毁自动取消请求，这里显式 clear；
+            // 清理放在 try 里是为了任何异常都不影响 super.onDestroy() 的收尾
             try {
                 glideRequests.clear(decodeTarget);
             } catch (Exception e) {

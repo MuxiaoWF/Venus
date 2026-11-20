@@ -5,7 +5,6 @@ package com.muxiao.Venus.common;
  * Urls 内部类按国服/国际服分区，Prefs 内部类按功能模块分区。
  */
 public class Constants {
-    public static final int WRITE_PERMISSION_REQUEST_CODE = 10001;
     public static final int NOTIFICATION_ID_ERROR = 50629;
     public static final int NOTIFICATION_ID_PROGRESS = 50630;
     /**
