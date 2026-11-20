@@ -185,18 +185,26 @@ public final class DailyTaskScheduler {
     /**
      * 用户完成人机验证后触发一次立即续跑：只重跑挂起过的任务，凭证由 {@code CaptchaStore} 注入请求头。
      *
-     * <p>用 {@code REPLACE} 而非 {@link #CHAIN_POLICY}：当前链尾是「明天到点」那一个节点，APPEND 会留下
-     * 两个待执行节点（立即续跑 + 明天），而续跑轮结束后又会自己挂一个明天，导致次日双跑。REPLACE 把它
-     * 替换成立即执行，链恢复单节点，Worker 结束后照常挂下次。
+     * <p>正常情况下用 {@code REPLACE} 而非 {@link #CHAIN_POLICY}：当前链尾是「明天到点」那一个节点，
+     * APPEND 会留下两个待执行节点（立即续跑 + 明天），而续跑轮结束后又会自己挂一个明天，导致次日双跑。
+     * REPLACE 把它替换成立即执行，链恢复单节点，Worker 结束后照常挂下次。
      *
-     * <p>已有任务在跑时直接返回：那一轮的轮末收口会为挂起项排兜底续跑，此刻打断它只会白费已发出的请求。
+     * <p><b>例外</b>：定时 Worker 正在跑时不能 REPLACE——它就在这条唯一链上，REPLACE 会取消它自己，
+     * 正在执行的签到被 {@code isStopped()} 短路成「已取消」。这种情形改为追加到链尾，它那轮结束后立刻接着跑。
      */
     public static void enqueueCaptchaResume(Context context, java.util.Collection<String> taskIds) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
-        // 有轮次在跑时不丢弃，改为短延迟重排（旧实现直接 return）：验证刚完成时那一轮通常正处在收尾，
-        // 丢掉续跑会让用户看着「待验证」白等兜底的 20 分钟。REPLACE 保证链恢复单节点。
-        long delay = (DailyTaskWorker.isRunning() || ForegroundTaskService.isRunning())
+        if (DailyTaskWorker.isRunning()) {
+            tools.writeLog(context, "captcha resume appended: scheduled worker still running");
+            enqueue(context, CHAIN_POLICY, TimeUnit.SECONDS.toMillis(10), 1, onlyIds, true);
+            return;
+        }
+        // 前台轮/后台服务在跑时不丢弃，改为短延迟入队（旧实现直接 return）：验证刚完成时那一轮通常正处在
+        // 收尾，丢掉续跑会让用户看着「待验证」白等兜底的 20 分钟。
+        // 同时把前台轮计入判断：它虽然不在 WorkManager 里（REPLACE 不会取消它），但 Worker 起来后会因
+        // 「手动运行占用」被挡回并 15 秒重排，0 延迟入队只是白启一次 Worker。
+        long delay = (ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning())
                 ? TimeUnit.SECONDS.toMillis(10) : 0L;
         if (delay > 0)
             tools.writeLog(context, "captcha resume delayed " + delay + "ms: another round still running");
@@ -213,6 +221,23 @@ public final class DailyTaskScheduler {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
         enqueue(context, ExistingWorkPolicy.REPLACE, Math.max(0, delayMs), 1, onlyIds, true);
+    }
+
+    /**
+     * 挂起兜底续跑（Worker 自链专用）：与 {@link #enqueueResumeLater} 的唯一区别是用
+     * {@link #CHAIN_POLICY} 追加到链尾而非 REPLACE——调用方正是链上正在运行的 Worker，
+     * REPLACE 会把它自己取消掉。
+     *
+     * <p>同样必须带 resume 标记：Worker 侧据此跳过「当日全完成」幂等检查，且
+     * {@code resolveOnlyIds} 直接采信名单而不是按当前状态二次过滤（挂起项可能已被复位成待执行）。
+     *
+     * @param attempt 让 Worker 的重试额度继续累加，达到 {@link #MAX_ATTEMPTS} 后由它改排明天
+     */
+    static void enqueueCaptchaRetry(Context context, java.util.Collection<String> taskIds,
+                                    long delayMs, int attempt) {
+        Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
+                ? null : new java.util.LinkedHashSet<>(taskIds);
+        enqueue(context, CHAIN_POLICY, Math.max(0, delayMs), attempt, onlyIds, true);
     }
 
     /** 距「下一个设定时刻」的毫秒数（严格未来，不做当日补跑判断）。 */

@@ -16,6 +16,7 @@ import com.muxiao.Venus.widget.TaskStatusManager;
 import com.muxiao.Venus.widget.TaskWidgetProvider;
 import com.muxiao.Venus.widget.TaskWidgetReceiver;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -115,6 +116,9 @@ public class DailyTaskWorker extends Worker {
 
         // 同日重试的部分执行名单：只重跑仍处于 ERROR 状态的项（用户手动修复过的自动剔除）
         Set<String> onlyIds = resolveOnlyIds(context, userId);
+        // 续跑轮清理：名单里已从设置中移除的任务永远不会被执行，残留的「待验证」没人推进，
+        // 只有把它复位成「待执行」才不会让列表永久卡在一个点不动的状态
+        if (resume && onlyIds != null) dropDisabledTargets(context, userId, onlyIds, settings);
         if (onlyIds != null && onlyIds.isEmpty()) {
             // 名单内失败项已全部被手动修复：无需重跑，直接排明天
             tools.writeLog(context, TAG + ": retry list all resolved, skip this round");
@@ -123,8 +127,10 @@ public class DailyTaskWorker extends Worker {
             return Result.success();
         }
 
-        // 幂等去重：当日启用任务已全部完成（手动已跑/上轮已跑完）则不重复执行
-        if (DailyTaskScheduler.allEnabledTasksCompletedToday(context, userId)) {
+        // 幂等去重：当日启用任务已全部完成（手动已跑/上轮已跑完）则不重复执行。
+        // 续跑轮例外：它的名单本身就是「验证已通过、待重跑」的权威依据，与「当日是否全完成」无关——
+        // 挂起项若已被用户从设置里关掉，这个检查会把它永久留在「待验证」（没人再推进它）。
+        if (!resume && DailyTaskScheduler.allEnabledTasksCompletedToday(context, userId)) {
             tools.writeLog(context, TAG + ": all tasks completed today, skip this round");
             DailyTaskScheduler.enqueueNext(context,
                     DailyTaskScheduler.CHAIN_POLICY,
@@ -251,10 +257,12 @@ public class DailyTaskWorker extends Worker {
             if (suspended) {
                 // 已挂起等人：排一次兜底续跑（用户可能一直不点通知），额度内 20 分钟后再试。
                 // 用户完成验证时前台会主动排一次立即续跑，与之互不冲突——都是同一条链上的新节点。
+                // 必须带 resume 标记：丢掉它会让下一轮按「当前状态」二次过滤名单，而被上一轮
+                // resetTransientStatuses 复位成 pending 的挂起项会被全部筛掉，续跑轮静默空跑。
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
-                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
+                    DailyTaskScheduler.enqueueCaptchaRetry(context, captchaTaskIds,
                             DailyTaskScheduler.CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
-                            attempt + 1, captchaTaskIds);
+                            attempt + 1);
                 else
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             delayToNextOccurrence());
@@ -329,6 +337,25 @@ public class DailyTaskWorker extends Worker {
             }
         }
         return anyKnown ? only : null;
+    }
+
+    /**
+     * 续跑轮清理：把名单里已不在当前设置中的任务移除，并把它们残留的「待验证」复位为「待执行」。
+     *
+     * <p>{@code TaskExecutor.executeAll} 只提交设置里启用的任务，名单里被关掉的项永远不会被执行，
+     * 状态就永久停在「待验证」——点它还会反复弹出与目标无关的验证框。复位是唯一能让用户回到
+     * 正常流程的收口。
+     */
+    private static void dropDisabledTargets(Context context, String userId,
+                                            Set<String> onlyIds, TaskSettings settings) {
+        Set<String> enabled = new HashSet<>(settings.getTaskIds());
+        TaskStatusManager statusManager = new TaskStatusManager(context);
+        for (String id : new ArrayList<>(onlyIds)) {
+            if (enabled.contains(id)) continue;
+            onlyIds.remove(id);
+            statusManager.markStatus(userId, id, TaskStatusManager.STATUS_PENDING);
+            tools.writeLog(context, TAG + ": captcha target dropped (no longer enabled): " + id);
+        }
     }
 
     /** 距下一个设定时刻的毫秒数（明天到点或同日时刻未到则今天到点）。 */

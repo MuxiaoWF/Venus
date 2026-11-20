@@ -109,6 +109,25 @@ public class HomeFragment implements PageController {
     private volatile java.util.List<String> captchaFallbackIds;
 
     /**
+     * 最近一次验证结果（solution）的归属用户。
+     *
+     * <p>与「当前展示用户」是两件事：挂起可能发生在 A，用户验证时前台已切到 B，或验证框是在
+     * pending 过期后由通知重入的。轮末收口若拿 {@code viewModel.getCurrentUser()} 去读 solution，
+     * 会因 {@link CaptchaStore#getSolution} 的按用户校验而读到 null，于是三个分支全部落空、
+     * 最后落到「重新挂起」——用户看到的是「明明验过了，框又弹出来，状态还是待验证」。
+     */
+    private volatile String captchaSolutionUserId;
+
+    /**
+     * 本轮运行期间完成了人机验证。
+     *
+     * <p>置真后由前台轮在 {@code executeAll} 返回处立即**同线程补跑**挂起项（见
+     * {@link #rerunSolvedCaptchaInRound}），而不是排一个 Worker：Worker 起来会撞「手动运行占用」
+     * 判断，只能 15 秒一次重排到本轮结束——用户盯着的其实不是验证，而是剩余任务的 2~9 秒风控延时。
+     */
+    private volatile boolean captchaSolvedInRound;
+
+    /**
      * 挂起流程（取 API1 挑战 + 落库）正在执行。
      *
      * <p>与 {@link #captchaInProgress} 是两件事：这个表示「挑战还没拿到」，那个表示「验证框已经在屏上」。
@@ -277,10 +296,15 @@ public class HomeFragment implements PageController {
                                 }
                             });
                     taskExecutor.executeAll(settings);
+                    // 轮内补跑：验证在本轮进行中完成时立刻重跑挂起项，不必等整轮结束走 Worker
+                    rerunSolvedCaptchaInRound(taskExecutor, settings);
                 } finally {
                     // 任务已全部结束（executeAll 已返回），只剩本段收尾：让 isTaskRunning() 立刻反映这一点，
                     // 否则下面排的续跑轮会被 Worker 的「手动运行占用」判断挡回，白等 5 分钟复查
                     sRoundClosing = true;
+                    // 本轮结束：残留的「轮内补跑」标记作废（竞态下 executeAll 已返回、补跑没赶上），
+                    // 轮末收口会照常兜底排续跑，不会漏
+                    captchaSolvedInRound = false;
                     try {
                         boolean captchaPending = !captchaTaskIds.isEmpty();
                         // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状。
@@ -377,9 +401,13 @@ public class HomeFragment implements PageController {
                             });
                     // 部分执行：TaskExecutor 只提交 id 命中的任务（含单游戏粒度）
                     taskExecutor.executeAll(settings, failedIds);
+                    // 同上：本轮内完成验证时立刻补跑挂起项
+                    rerunSolvedCaptchaInRound(taskExecutor, settings);
                 } finally {
                     // 同「运行签到」：任务层面已结束，让 isTaskRunning() 同步反映（续跑轮据此判断占用）
                     sRoundClosing = true;
+                    // 同上：残留的轮内补跑标记作废，交给轮末收口兜底
+                    captchaSolvedInRound = false;
                     try {
                         boolean captchaPending = !captchaTaskIds.isEmpty();
                         // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除
@@ -636,6 +664,8 @@ public class HomeFragment implements PageController {
             try {
                 final String solveUserId = current != null && current.userId != null
                         ? current.userId : viewModel.getCurrentUser();
+                // 记下 solution 的归属者：验证可能在前台切了账号之后完成，轮末收口要用它读 solution
+                captchaSolutionUserId = solveUserId;
                 // 优先用挂起时保存的 headers（含 Cookie），确保 API2 二次验证绑定同一会话；
                 // 拿不到就按当前用户现构一份完整的——裸 get_bbs_headers() 里没有 Cookie，
                 // API2 二次验证会绑定不到账号会话，用户验完拿到的是无效凭证。
@@ -661,10 +691,12 @@ public class HomeFragment implements PageController {
                         java.util.List<String> resumeIds =
                                 mergeSuspendedIds(null, suspendedIds, solveUserId);
                         if (isTaskRunning()) {
-                            // 本轮其他任务还在跑：此时起续跑轮会被 Worker 的「手动运行占用」判断挡回，
-                            // 白等 5 分钟复查。交给轮末收口——那时 solution 已落库，它会直接续跑。
-                            Logger.debug("VenusCaptcha", "round still running, resume deferred to round end: "
-                                    + resumeIds);
+                            // 本轮还在跑：交给轮内补跑（executeAll 返回处立刻同线程重跑），不排 Worker。
+                            // 排 Worker 没有意义：它会被「手动运行占用」挡回并 15 秒一次重排到本轮结束，
+                            // 用户要盯着「待验证」等完剩余任务（每款游戏 2~9 秒风控延时），而挂起的
+                            // 这个任务自己早已抛异常结束。旧实现的 defer 走的正是这条慢路径。
+                            captchaSolvedInRound = true;
+                            Logger.debug("VenusCaptcha", "round active, rerun in-round: " + resumeIds);
                         } else {
                             resumeAfterCaptcha(solveUserId, resumeIds);
                         }
@@ -774,11 +806,29 @@ public class HomeFragment implements PageController {
      * 正在输的那次被轮末的收尾直接销毁（按钮消失、challenge 作废）——这正是「验证了却没继续」的来源。
      */
     private void handleRoundEndCaptcha(Set<String> taskIds, Map<String, String> headers) {
+        // 先按展示用户读验证结果，读不到再按 solution 的归属者读：验证期间切过账号时两者不同，
+        // 拿展示用户去读会得到 null，于是 ① 落空 → 落到 ④ 重新挂起，又弹一次验证框
         String userId = viewModel.getCurrentUser();
+        boolean solved = CaptchaStore.getSolution(activity, userId) != null;
+        String solutionOwner = captchaSolutionUserId;
+        if (!solved && solutionOwner != null && !solutionOwner.isEmpty()
+                && !solutionOwner.equals(userId)
+                && CaptchaStore.getSolution(activity, solutionOwner) != null) {
+            userId = solutionOwner;
+            solved = true;
+        }
         java.util.List<String> ids = mergeSuspendedIds(null, taskIds, userId);
         if (ids.isEmpty()) return;
         // ① 本轮真的验证完成了（挂起时会清掉旧 solution，此刻能读到就是这次的）：直接续跑
-        if (CaptchaStore.getSolution(activity, userId) != null) {
+        if (solved) {
+            // 验证成功时已经排过一次续跑：若那一轮已在执行（in_progress）或已经把目标项跑完
+            // （completed），这里再 REPLACE 一次会取消正在跑的续跑轮、甚至让它重签到一遍。
+            // 只有目标项仍停在「待验证 / 待执行」时才补排。
+            if (!needsCaptchaResume(userId, ids)) {
+                Logger.debug("VenusCaptcha", "round end: resume already handled " + ids);
+                runOnUi(() -> viewModel.refreshTaskItems());
+                return;
+            }
             Logger.debug("VenusCaptcha", "round end: solution ready, resume " + ids);
             resumeAfterCaptcha(userId, ids);
             return;
@@ -796,6 +846,27 @@ public class HomeFragment implements PageController {
         // ④ 从未挂起成功（取挑战失败）：补一次，否则用户只能干等次日
         Logger.debug("VenusCaptcha", "round end: no captcha shown yet, opening it");
         suspendAndShowCaptcha(new java.util.LinkedHashSet<>(ids), headers);
+    }
+
+    /**
+     * 续跑名单里是否还有「还没开始跑」的项。
+     *
+     * <p>只有 {@code waiting_captcha}（仍在等）与 {@code pending}（被复位过）、以及尚未落库的项需要
+     * 重新排续跑；{@code in_progress} 说明续跑轮已经在跑它，{@code completed}/{@code error} 是终态，
+     * 再排一次只会让 REPLACE 取消正在执行的续跑轮、把已经签到的任务重跑一遍。
+     *
+     * <p>存在意义：验证成功时已立即排过续跑，轮末收口必须能识别「已经有人接手了」。
+     */
+    private boolean needsCaptchaResume(String userId, java.util.List<String> ids) {
+        if (ids == null || ids.isEmpty()) return false;
+        Map<String, String> statuses = new TaskStatusManager(activity).getAllStatuses(userId);
+        for (String id : ids) {
+            String status = statuses.get(id);
+            if (status == null
+                    || TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(status)
+                    || TaskStatusManager.STATUS_PENDING.equals(status)) return true;
+        }
+        return false;
     }
 
     /**
@@ -855,6 +926,35 @@ public class HomeFragment implements PageController {
         Logger.debug("VenusCaptcha", "resume suspended tasks: " + ids);
         DailyTaskScheduler.enqueueCaptchaResume(activity, ids);
         runOnUi(() -> viewModel.refreshTaskItems());
+    }
+
+    /**
+     * 轮内补跑：验证在本轮运行期间完成时，直接在当前线程把挂起项重跑一遍。
+     *
+     * <p>之所以不走 Worker：Worker 一启动就会撞 {@code DailyTaskWorker} 开头的「手动运行占用」判断，
+     * 只能 15 秒一次重排到本轮结束——而本轮剩余的是其他任务（每款游戏 2~9 秒风控延时，六款分批
+     * 就是一两分钟）。用户等的是这些延时，验证本身并不慢。同线程串行补跑既没有这个等待，也不会
+     * 出现两路 {@code TaskExecutor} 并发写同一个状态桶（项目明确约束）。
+     *
+     * <p>补跑若再次挂起（凭证仍不被接受），{@code captchaTaskIds} 已被 {@code onCaptchaRequired} 重新
+     * 收集，轮末收口会照常处理；异常路径跳过本方法时，轮末也会兜底排续跑。
+     */
+    private void rerunSolvedCaptchaInRound(TaskExecutor taskExecutor, TaskSettings settings) {
+        if (!captchaSolvedInRound) return;
+        captchaSolvedInRound = false;
+        String userId = captchaSolutionUserId != null && !captchaSolutionUserId.isEmpty()
+                ? captchaSolutionUserId : viewModel.getCurrentUser();
+        if (CaptchaStore.getSolution(activity, userId) == null) return;
+        java.util.List<String> ids = collectWaitingCaptchaIds(userId);
+        if (ids.isEmpty()) return;
+        Logger.debug("VenusCaptcha", "in-round rerun after captcha: " + ids);
+        taskExecutor.executeAll(settings, new java.util.LinkedHashSet<>(ids));
+        // 补跑后仍停在「待验证」= 这份凭证没被服务端接受：清掉它。否则轮末 ① 会认定「已验证」，
+        // 拿着同一份无效 solution 反复排续跑，用户看到的是「一直待验证、验证框却不出现」
+        if (!collectWaitingCaptchaIds(userId).isEmpty()) {
+            Logger.debug("VenusCaptcha", "in-round rerun still suspended, drop stale solution");
+            CaptchaStore.clearSolution(activity);
+        }
     }
 
     /**
