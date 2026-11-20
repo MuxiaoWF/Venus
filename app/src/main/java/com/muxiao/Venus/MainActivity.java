@@ -62,6 +62,12 @@ public class MainActivity extends BaseActivity {
     /** 当前处于「已恢复」态的页面下标（-1 = 尚无）。 */
     private int shownPage = -1;
 
+    /** splash 等待背景就绪的上限：正常路径几十毫秒，异常时也要放行、不能卡住启动。 */
+    private static final long BACKGROUND_READY_TIMEOUT_MS = 400;
+
+    /** 背景层是否就绪（解码+合成完成，或已判定无需背景）。 */
+    private boolean backgroundReady;
+
     public MainActivity() {
         homeController = new HomeFragment(this);
         usersController = new UserManagementFragment(this);
@@ -71,7 +77,13 @@ public class MainActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        SplashScreen.installSplashScreen(this);
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+        // 仅冷启动：有壁纸时等解码+合成完成再放 splash 走，否则主界面首帧只有纯色底、几十毫秒后才补上图片。
+        // recreate（切深浅色/语言）时不挂条件，避免重复等待。
+        if (savedInstanceState == null) {
+            splashScreen.setKeepOnScreenCondition(() -> !backgroundReady);
+            getWindow().getDecorView().postDelayed(() -> backgroundReady = true, BACKGROUND_READY_TIMEOUT_MS);
+        }
         // 必须放在 installSplashScreen 之后：闪屏库内部 setTheme(postSplashScreenTheme) 会重置
         // 主题、冲掉此前 applyStyle 的换肤 overlay，导致窗口背景回落到系统动态色。
         SettingsFragment.applyAppTheme(this);
@@ -359,6 +371,7 @@ public class MainActivity extends BaseActivity {
         // 底栏透镜继续磨砂折射滚到玻璃下的真实内容
         if (backgroundImageUri == null) {
             shell.publishBackground(null);
+            backgroundReady = true;
             return;
         }
 
@@ -370,6 +383,7 @@ public class MainActivity extends BaseActivity {
                 .surfaceArgb(this, SettingsFragment.getSelectedThemeIndex(this), darkNight);
 
         com.muxiao.Venus.common.AppExecutors.get().execute(() -> {
+            long startedAt = System.nanoTime();
             String error = null;
             Bitmap composited = null;
             try {
@@ -388,18 +402,26 @@ public class MainActivity extends BaseActivity {
                 error = getString(R.string.err_background_setup_error,
                         e.getMessage() != null ? e.getMessage() : e.toString());
             }
+            Logger.debug("VenusBackground",
+                    "背景预合成 " + (System.nanoTime() - startedAt) / 1_000_000 + "ms");
             final Bitmap result = composited;
             final String errorMsg = error;
             runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed()) {
+                    backgroundReady = true;
+                    return;
+                }
                 if (errorMsg != null) {
                     shell.publishBackground(null);
+                    backgroundReady = true;
                     show_error_dialog(MainActivity.this, errorMsg);
                     return;
                 }
                 // 发布背景位图：玻璃采样源子树的背景 Image 同帧入画（GraphicsLayer 录制）
                 // 淡化已全部烘进位图：背景层恒为全不透明，绝不再叠加 alpha
                 shell.publishBackground(result);
+                // 发布之后再放行 splash：保证退出的第一帧就带壁纸
+                backgroundReady = true;
             });
         });
     }

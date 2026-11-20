@@ -1,11 +1,11 @@
 <resources>
-    <!-- Base application theme：仅保留窗口级职责（appcompat DayNight 宿主 / 闪屏跳转 / 看图透明窗）。
+    <!-- Base application theme：仅保留窗口级职责（系统 Material 宿主 / 闪屏跳转 / 看图透明窗）。
          语义色已统一到 VenusColorSchemes（common/ui/compose/VenusColorSchemes.kt）：
          - 6 套固定配色 = 原 ThemeOverlay.Venus.* 的 Kotlin 常量（Overlay 已删除）；
          - 动态取色 = material3 dynamicLight/DarkColorScheme（原 res/color-v31 桥接已删除）；
          - 窗口背景由 applyAppTheme 代码注入（原 windowBackground=?attr/colorBackground 职责移交）。
-         注意：本 style 只在 values/ 声明一次（资源按限定符整体替换，night 重复声明会覆盖基类）。 -->
-    <style name="Theme.Venus" parent="Theme.AppCompat.DayNight.NoActionBar" />
+         注意：values-night 重声明同名 style 是整体替换，那边只给 parent、不加 item。 -->
+    <style name="Theme.Venus" parent="android:Theme.Material.Light.NoActionBar" />
 
     <!-- Splash 启动页：起始窗口由系统读 manifest 主题绘制（不经 applyAppTheme，无法跟随所选配色），
          背景固定取 blue 基础色的 surfaceContainerLowest——与原行为一致（原 ?attr 也只解析到基类 blue 兜底值）。 -->

@@ -9,7 +9,6 @@ import androidx.annotation.NonNull;
 
 import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.SklandDaily;
-import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
@@ -71,8 +70,7 @@ public class VenusApplication extends Application {
                 .registerOnSharedPreferenceChangeListener(WIDGET_REFRESH_LISTENER);
         getSharedPreferences(Constants.Prefs.LANGUAGE_PREFS_NAME, Context.MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(WIDGET_REFRESH_LISTENER);
-        // 应用选定的主题深浅色（使用 Hilt 注入的 ApplicationContext，确保该绑定被使用）
-        SettingsFragment.applyThemeVariant(appContext);
+        // 深浅色由 BaseActivity.attachBaseContext（LocaleHelper.wrap）按偏好覆写 uiMode，启动时无需处理
         // 动态取色已随 View 版 material 库移除：Theme.Venus 直接映射 res/color-v31 系统动态色
         // （Android 12+ 生效；以下版本回落 M3 基线），无需运行时包装 Activity 主题。
 

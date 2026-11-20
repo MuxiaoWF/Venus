@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜间窗口底座：values/ 的 Theme.Venus 是 Material.Light，夜间换深色避免冷启动闪白。
+         同名 style 跨限定符是整体替换，故此处只声明 parent。 -->
+    <style name="Theme.Venus" parent="android:Theme.Material.NoActionBar" />
+</resources>

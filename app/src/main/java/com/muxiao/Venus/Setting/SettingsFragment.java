@@ -64,7 +64,6 @@ import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.StyleRes;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.content.ContextCompat;
 
 import com.muxiao.Venus.BuildConfig;
@@ -799,30 +798,25 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 保存并应用主题深浅色变体
+     * 保存并应用主题深浅色变体。
      *
      * @param themeVariantId 主题深浅色变体ID
      */
     private void saveAndApplyThemeVariant(int themeVariantId) {
+        if (themeVariantId < THEME_VARIANT_DEFAULT || themeVariantId > THEME_VARIANT_DARK) return;
         SharedPreferences themePreferences = activity.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         themePreferences.edit().putInt(SELECTED_THEME_VARIANT, themeVariantId).apply();
 
         // 立即应用深浅色模式
-        int[] nightModes = {
-                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
-                AppCompatDelegate.MODE_NIGHT_NO,
-                AppCompatDelegate.MODE_NIGHT_YES
-        };
         String[] variantMessages = {
                 activity.getString(R.string.snack_set_follow_system),
                 activity.getString(R.string.snack_set_light_mode),
                 activity.getString(R.string.snack_set_dark_mode)
         };
-        if (themeVariantId >= 0 && themeVariantId < nightModes.length) {
-            AppCompatDelegate.setDefaultNightMode(nightModes[themeVariantId]);
-            if (screenView != null)
-                showCustomSnackbar(screenView, activity, variantMessages[themeVariantId]);
-        }
+        if (screenView != null)
+            showCustomSnackbar(screenView, activity, variantMessages[themeVariantId]);
+        // 下一帧重建：让提示条先上屏，并重走 attachBaseContext 应用新的 uiMode
+        activity.getWindow().getDecorView().post(activity::recreate);
     }
 
     /** 应用主题（须在 setContentView 前）：基础主题 + 运行时 ThemeOverlay。 */
@@ -863,22 +857,6 @@ public class SettingsFragment implements PageController {
     public static int getSelectedThemeVariant(Context context) {
         SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
         return themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
-    }
-
-    /**
-     * 应用主题深浅色变体
-     *
-     * @param context 上下文
-     */
-    public static void applyThemeVariant(Context context) {
-        int themeVariant = getSelectedThemeVariant(context);
-        int[] nightModes = {
-                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
-                AppCompatDelegate.MODE_NIGHT_NO,
-                AppCompatDelegate.MODE_NIGHT_YES
-        };
-        if (themeVariant >= 0 && themeVariant < nightModes.length)
-            AppCompatDelegate.setDefaultNightMode(nightModes[themeVariant]);
     }
 
     /** 背景图 URI；未设置返回 null。 */

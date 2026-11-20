@@ -9,7 +9,6 @@ glide = "5.0.9"
 core = "3.5.4"
 junit = "4.13.2"
 junitVersion = "1.3.0"
-appcompat = "1.8.0"
 lifecycleViewmodel = "2.11.1"
 lifecycleLivedata = "2.11.1"
 activity = "1.13.0"
@@ -40,7 +39,6 @@ gzu-liyujiang-android_cn_oaid = { module = "com.github.gzu-liyujiang:Android_CN_
 com-google-zxing-core = { module = "com.google.zxing:core", version.ref = "core" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
 lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata", version.ref = "lifecycleLivedata" }
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }

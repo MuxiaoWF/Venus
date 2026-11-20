@@ -146,7 +146,6 @@ dependencies {
     implementation libs.sensebot
     implementation libs.okhttp
     implementation libs.com.google.zxing.core
-    implementation libs.appcompat
     implementation libs.activity
     implementation libs.lifecycle.viewmodel
     implementation libs.lifecycle.livedata
