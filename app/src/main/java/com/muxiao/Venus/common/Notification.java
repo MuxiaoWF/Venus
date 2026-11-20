@@ -28,8 +28,35 @@ public class Notification {
     private volatile String lastProgressSignature;
 
     private static final String CHANNEL_WORK = "venus_work_channel";
-    private static final String CHANNEL_ERROR = "venus_error_channel";
+
+    /**
+     * 错误通知渠道，{@code IMPORTANCE_LOW}：只落通知栏，不响铃、不振动。
+     *
+     * <p>ID 带 {@code _low} 后缀是刻意的：渠道的重要性一经创建就**不能**由程序修改
+     * （{@code createNotificationChannel} 对已存在渠道只更新名称与描述，importance 被忽略）。
+     * 沿用旧 ID 等于让这次降级对存量用户完全无效——他们升级后仍会被每一条失败通知响铃振动，
+     * 所以必须换新 ID，旧渠道在 {@link #ensureChannels()} 里删除。
+     */
+    private static final String CHANNEL_ERROR = "venus_error_channel_low";
+
+    /**
+     * 人机验证通知渠道，保持 {@code IMPORTANCE_DEFAULT}。
+     *
+     * <p>与错误通知分开：它是功能件而非提醒件——验证没做，后台那一轮就停在「待验证」，
+     * 用户必须点进来才能续跑（见 {@link #sendCaptchaNotification}）。命中 1034 本身是低频事件，
+     * 一次提示音不算打扰；降到 LOW 反而会让后台任务静默卡住。
+     */
+    private static final String CHANNEL_CAPTCHA = "venus_captcha_channel";
+
     private static final String CHANNEL_PROGRESS = "venus_progress_channel";
+
+    /**
+     * 旧版错误通知渠道（{@code IMPORTANCE_DEFAULT} + 响铃振动），仅用于升级后删除。
+     *
+     * <p>不删会怎样：系统设置页里并排出现「Venus 错误」与「Venus 错误」两个条目，
+     * 用户无法分辨该关哪一个，而应用实际只用新的那个。
+     */
+    private static final String CHANNEL_ERROR_LEGACY = "venus_error_channel";
 
     public Notification(Context context) {
         this.context = context;
@@ -66,7 +93,8 @@ public class Notification {
     }
 
     /**
-     * 按需创建三个通知渠道（任务/错误/进度），仅 Android O+ 生效、进程内只建一次。
+     * 按需创建四个通知渠道（任务/错误/人机验证/进度），仅 Android O+ 生效、进程内只建一次；
+     * 顺带删除已弃用的旧错误渠道（见 {@link #CHANNEL_ERROR_LEGACY}）。
      * 用双重检查 + 类锁：创建可能来自后台任务线程与主线程；只在成功后置位，失败时保留重试机会。
      */
     private void ensureChannels() {
@@ -81,8 +109,14 @@ public class Notification {
             workChannel.setDescription(context.getString(R.string.notification_channel_task_desc));
             workChannel.setSound(null, null);
 
-            NotificationChannel errorChannel = new NotificationChannel(CHANNEL_ERROR, context.getString(R.string.notification_channel_error), NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel errorChannel = new NotificationChannel(CHANNEL_ERROR, context.getString(R.string.notification_channel_error), NotificationManager.IMPORTANCE_LOW);
             errorChannel.setDescription(context.getString(R.string.notification_channel_error_desc));
+            // LOW 本身就不响不震，这两行是把意图钉死在代码里：将来谁改 importance 也看得见约束
+            errorChannel.setSound(null, null);
+            errorChannel.enableVibration(false);
+
+            NotificationChannel captchaChannel = new NotificationChannel(CHANNEL_CAPTCHA, context.getString(R.string.notification_channel_captcha), NotificationManager.IMPORTANCE_DEFAULT);
+            captchaChannel.setDescription(context.getString(R.string.notification_channel_captcha_desc));
 
             NotificationChannel progressChannel = new NotificationChannel(CHANNEL_PROGRESS, context.getString(R.string.notification_channel_progress), NotificationManager.IMPORTANCE_LOW);
             progressChannel.setDescription(context.getString(R.string.notification_channel_progress_desc));
@@ -90,7 +124,11 @@ public class Notification {
 
             nm.createNotificationChannel(workChannel);
             nm.createNotificationChannel(errorChannel);
+            nm.createNotificationChannel(captchaChannel);
             nm.createNotificationChannel(progressChannel);
+            // 清掉旧版本留下的响铃振动错误渠道：已存在的渠道无法降级，只能弃用后删除，
+            // 否则设置页会同时列出新旧两个「Venus 错误」，用户不知道该关哪个
+            nm.deleteNotificationChannel(CHANNEL_ERROR_LEGACY);
             channelsCreated = true;
         }
     }
@@ -131,9 +169,11 @@ public class Notification {
                 // 不加这个每次都会重新响铃 + 振动，一轮跑下来能响七八次。
                 .setOnlyAlertOnce(true)
                 .setContentIntent(createHomePendingIntent())
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setSmallIcon(R.drawable.ic_error)
-                .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE);
+                // 失败通知一律静默落通知栏：去掉原来的 DEFAULT_SOUND | DEFAULT_VIBRATE。
+                // 渠道已是 IMPORTANCE_LOW，这里再显式 setSilent 一次，防止将来渠道被改动时静默失效。
+                .setSilent(true);
         nm.notify(Constants.NOTIFICATION_ID_ERROR, builder.build());
     }
 
@@ -172,7 +212,7 @@ public class Notification {
         PendingIntent contentIntent = PendingIntent.getActivity(context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ERROR)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_CAPTCHA)
                 .setContentTitle(title)
                 .setContentText(content + "\n" + context.getString(R.string.notif_captcha_tap_hint))
                 .setStyle(new NotificationCompat.BigTextStyle()

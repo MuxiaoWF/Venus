@@ -416,6 +416,9 @@ public class BBSGameDaily {
             signApi = Constants.Urls.BBS_GAME_REWARDS_SIGN_URL;
         }
         String response = "";
+        // 限流通知收敛到「本轮重试用尽仍被限流」时发一次：原实现在重试循环内每条 429 都 notify 一次，
+        // 多账号 × 多游戏叠加后一轮能连发几十条系统通知——这是「频繁推送/骚扰」类检测的直接来源。
+        boolean rateLimited = false;
         for (int i = 1; i <= MAX_RETRIES; i++) {
             Map<String, String> gameLoginHeader = getGameLoginHeaders();
             // 上一轮已验证过则带上 geetCode
@@ -427,11 +430,14 @@ public class BBSGameDaily {
             JsonObject data = JsonParser.parseString(response).getAsJsonObject();
             int retcode = JsonAccess.retcode(data);
             if (retcode == RETCODE_RATE_LIMITED) {
-                Thread.sleep(RATE_LIMIT_COOLDOWN_MS);
-                notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_rate_limited));
+                rateLimited = true;
+                // 最后一次重试之后不会再有请求，冷却纯属白占线程 10 秒
+                if (i < MAX_RETRIES) Thread.sleep(RATE_LIMIT_COOLDOWN_MS);
                 report("", context.getString(R.string.game_rate_limited));
                 continue;
             }
+            // 拿到非 429 响应即视为限流已解除，后续即使走 break/抛验证码也不该再报限流
+            rateLimited = false;
             // 触发验证码：retcode=0 但 data.success=1
             if (retcode == RETCODE_OK && JsonAccess.optInt(JsonAccess.data(data), "success", 0) == 1) {
                 Map<String, String> recordHeaders = headerManager.get_record_headers();
@@ -454,6 +460,8 @@ public class BBSGameDaily {
             } else
                 break;
         }
+        if (rateLimited)
+            notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_rate_limited));
         return response;
     }
 

@@ -67,8 +67,8 @@ public class HeaderManager {
     }
 
     /**
-     * 预热设备缓存。DeviceUtils 的等待最多阻塞约 10s，主线程调用必 ANR，故主线程只起后台线程填充后立即返回；
-     * 非主线程（Application 预热、后台任务）同步填充。
+     * 预热设备缓存。DeviceUtils 首次等待 OAID 最多阻塞约 5s（含库的一次性注册），主线程调用必 ANR，
+     * 故主线程只起后台线程填充后立即返回；非主线程（Application 预热、后台任务）同步填充。
      */
     private static void initSharedDeviceUtils(Context context) {
         if (cachedDeviceId != null && cachedExtFields != null) return;

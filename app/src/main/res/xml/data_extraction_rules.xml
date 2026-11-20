@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ 的备份 / 迁移规则。
+
+  本应用的 shared_prefs 与 files/datastore 里存的是米游社账号凭证（stoken / ltoken / cookie_token），
+  一旦随迁移落到新设备，等于凭证脱离了本机。
+
+  因此两个通道一律全量排除，本应用不参与任何备份或迁移；换机后需重新扫码登录，属有意为之。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

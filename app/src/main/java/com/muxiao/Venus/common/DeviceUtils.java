@@ -1,22 +1,45 @@
 package com.muxiao.Venus.common;
 
 import android.annotation.SuppressLint;
+import android.app.Application;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;
 
 import com.github.gzuliyujiang.oaid.DeviceID;
-import com.github.gzuliyujiang.oaid.IGetter;
+import com.github.gzuliyujiang.oaid.IRegisterCallback;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DeviceUtils {
     private final Context context;
-    public volatile String oaid;
+
+    /**
+     * 库的注册闸：全进程只触发一次 OAID 申请。
+     *
+     * <p>官方推荐用法是 {@code DeviceIdentifier.register(application)} 预取一次、之后统一读库内静态缓存。
+     * 这里按同一思路实现，但把闸放在本类而不是 {@code VenusApplication}：保证「无论哪个使用点先碰到设备标识，
+     * 都只注册一次」。分散到多处调用会重复发起申请——原实现正是如此，构造一次就 {@code getOAID} 一次。
+     */
+    private static final AtomicBoolean REGISTER_STARTED = new AtomicBoolean(false);
+
+    /**
+     * 当前是否已明确知道 OAID 取不到。
+     *
+     * <p>改读缓存后，{@code IGetter.onOAIDGetError} 那条「失败即刻回退」的路径没了，失败信号只能从注册回调拿。
+     * 没有这个标记，OAID 不可用的机型要白等满 5 秒才落到 UUID 回退。
+     */
+    private static volatile boolean oaidUnavailable = false;
+
+    /** 等待 OAID 就绪的上限与轮询间隔。 */
+    private static final long POLL_TIMEOUT_MS = 5000;
+    private static final long POLL_INTERVAL_MS = 100;
+
     /**
      * 设备标识最终解析结果（OAID 或回退 UUID）。缓存有两个作用：① 避免同一实例内多次调用各自阻塞最多 5 秒；
      * ② 保证 device_id 与 ext_fields 中 aaid/oaid/vaid 完全一致（原实现两次独立解析，OAID 迟到时会给出不同值）。
@@ -25,22 +48,39 @@ public class DeviceUtils {
 
     public DeviceUtils(Context context) {
         this.context = context;
-        DeviceID.getOAID(context, new IGetter() {
-            @Override
-            public void onOAIDGetComplete(String result) {
-                oaid = result;
-            }
-
-            @Override
-            public void onOAIDGetError(Exception error) {
-                oaid = generateDeviceId();
-            }
-        });
+        ensureRegistered(context);
     }
 
+    /**
+     * 触发库的注册（全进程一次）：它会异步申请一次 OAID 并写入库内静态缓存，
+     * 之后任意实例都靠 {@link DeviceID#getOAID()} 读同一份缓存，不再各自发起申请。
+     */
+    private static void ensureRegistered(Context context) {
+        if (!REGISTER_STARTED.compareAndSet(false, true)) return;
+        Context appContext = context == null ? null : context.getApplicationContext();
+        if (!(appContext instanceof Application)) {
+            REGISTER_STARTED.set(false);
+            return;
+        }
+        try {
+            // tryWidevine 传 false：Widevine ID 本项目用不到，官方也注明它在部分机型上会卡死或闪退
+            DeviceID.register((Application) appContext, false, new IRegisterCallback() {
+                @Override
+                public void onComplete(String clientId, Exception error) {
+                    oaidUnavailable = error != null;
+                }
+            });
+        } catch (Throwable t) {
+            // 各厂商实现是运行期动态解析的（华为/荣耀的 Ads 标识类、各家 MSA/AIDL 远程服务），
+            // 类或服务不可用时抛的是 NoClassDefFoundError 一类 Error，用 Exception 兜不住，会直接崩进程。
+            oaidUnavailable = true;
+            REGISTER_STARTED.set(false); // 放行后续实例重试
+        }
+    }
 
     /**
-     * 阻塞等待 OAID 就绪（最长 5 秒，每 100ms 轮询）；超时、中断或失败时回退到基于 Android ID 生成的 UUID。
+     * 阻塞等待 OAID 就绪（最长 5 秒，每 100ms 轮询一次库内静态缓存）；超时、中断或已知不可用时
+     * 回退到基于 Android ID 生成的稳定 UUID。
      */
     public String waitForDeviceId() {
         String cached = resolvedDeviceId;
@@ -51,25 +91,32 @@ public class DeviceUtils {
         return resolved;
     }
 
-    /** 轮询 OAID 最多 5 秒（每 100ms 一次），超时或被中断时回退到本地生成的稳定设备 ID。 */
+    /**
+     * 轮询库内缓存的 OAID：纯内存读，不产生任何 IPC。
+     *
+     * <p>因此多个 {@code DeviceUtils} 实例同时等待也只会对应上游那一次真实申请，
+     * 这与原实现「每个实例各自 {@code getOAID}、各自 bindService」有本质区别。
+     */
     private String pollOaidOrFallback() {
-        int maxWaitTime = 5000;
-        int waitInterval = 100;
-        int waitedTime = 0;
+        if (oaidUnavailable) return generateDeviceId();
 
-        while (waitedTime < maxWaitTime) {
-            if (oaid != null)
-                return oaid;
+        long waitedTime = 0;
+        while (waitedTime < POLL_TIMEOUT_MS) {
+            String cached = DeviceID.getOAID();
+            if (cached != null && !cached.isEmpty()) return cached;
+            // 等待期间也要能感知注册失败：回调可能在另一条线程刚把它置位
+            if (oaidUnavailable) return generateDeviceId();
             try {
-                Thread.sleep(waitInterval);
+                Thread.sleep(POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return generateDeviceId();
             }
-            waitedTime += waitInterval;
+            waitedTime += POLL_INTERVAL_MS;
         }
         return generateDeviceId();
     }
+
     /**
      * OAID 获取失败时生成稳定设备指纹：以 Android ID + 厂商/型号为命名空间，按 NameUUID（MD5，v3 UUID）算法生成。
      */

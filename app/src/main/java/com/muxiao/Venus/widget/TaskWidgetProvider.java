@@ -33,7 +33,13 @@ import java.util.concurrent.Executors;
  */
 public class TaskWidgetProvider extends AppWidgetProvider {
 
-    public static final String ACTION_REFRESH = "com.muxiao.Venus.widget.REFRESH";
+    /**
+     * 刷新用的 action / 承载它的 receiver 都迁到了 {@link TaskWidgetRefreshReceiver}：
+     * 本类必须 exported=true 才能收到系统 APPWIDGET_UPDATE，挂在同一 filter 上的自定义 action
+     * 会连带对外暴露。此处只保留常量别名，避免调用方（含旧代码）引用断裂。
+     */
+    @Deprecated
+    public static final String ACTION_REFRESH = TaskWidgetRefreshReceiver.ACTION_REFRESH;
 
     /** 去抖窗口：任务执行期间状态变化密集（每条任务至少 2 次），窗口内的多次请求合并为一次刷新。 */
     private static final long REFRESH_DEBOUNCE_MS = 250;
@@ -85,15 +91,6 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         rememberRendered(snapshot);
     }
 
-    @Override
-    // 拦截 Refresh 广播并刷新全部小组件（其余动作交给父类）
-    public void onReceive(Context context, Intent intent) {
-        super.onReceive(context, intent);
-        if (ACTION_REFRESH.equals(intent.getAction())) {
-            refreshAllWidgets(context);
-        }
-    }
-
     @SuppressWarnings("deprecation")
     // 构建 RemoteViews：绑定标题/运行/刷新点击、任务列表适配器与完成统计
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId, WidgetSnapshot snapshot) {
@@ -117,7 +114,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
                 isRunning ? R.string.widget_running : R.string.widget_run));
         views.setBoolean(R.id.btn_run, "setEnabled", !isRunning);
 
-        Intent refreshIntent = new Intent(context, TaskWidgetProvider.class).setAction(ACTION_REFRESH);
+        Intent refreshIntent = new Intent(context, TaskWidgetRefreshReceiver.class)
+                .setAction(TaskWidgetRefreshReceiver.ACTION_REFRESH);
         views.setOnClickPendingIntent(R.id.btn_refresh, PendingIntent.getBroadcast(context, 1, refreshIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
 

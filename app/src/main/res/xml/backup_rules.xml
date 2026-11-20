@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 及以下的 Auto Backup 规则（minSdk 24 – API 30 生效）。
+
+  与 @xml/data_extraction_rules 是同一套意图的两代载体：12+ 用后者，11 及以下只有这张表可用。
+
+  注意它当前的实际效力：allowBackup="false" 时系统整体跳过备份，根本不会来读本文件。保留它有三层作用——
+    1. 显式声明「一个字节都不备份」，避免静态检测只看 allowBackup 单一属性就按默认放行处理；
+    2. 若将来把 allowBackup 改回 true，规则已经就位，不会出现「改一个属性就把凭证全放出去」的空窗；
+    3. 覆盖不严格遵守 allowBackup=false 的 OEM 迁移/备份实现。
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

@@ -74,10 +74,11 @@ public class VenusApplication extends Application {
         // 动态取色已随 View 版 material 库移除：Theme.Venus 直接映射 res/color-v31 系统动态色
         // （Android 12+ 生效；以下版本回落 M3 基线），无需运行时包装 Activity 主题。
 
-        // 预热 HeaderManager 的设备标识（OAID / device_fp）：构造会同步阻塞等设备标识就绪
-        // （waitForDeviceId 最多 ~5s，getExtFields 内还会再等 ~5s）。若首次 new HeaderManager 发生在 UI 线程
-        // （如直接打开图片浏览页而此前未经过登录/签到），主线程被阻塞约 10s 触发 ANR，表现为「一进页面就闪退」。
-        // 这里在后台预热一次填满静态缓存，后续任意线程 new HeaderManager 都直接命中缓存、不再阻塞。
+        // 预热 HeaderManager 的设备标识（OAID / device_fp）：构造会阻塞等设备标识就绪
+        // （waitForDeviceId 首次最多 ~5s，等待期间同时完成 OAID 库的一次性注册；getExtFields 命中同实例缓存不再等待）。
+        // 若首次 new HeaderManager 发生在 UI 线程（如直接打开图片浏览页而此前未经过登录/签到），主线程会被阻塞
+        // 触发 ANR，表现为「一进页面就闪退」。这里在后台预热一次填满静态缓存，后续任意线程 new HeaderManager
+        // 都直接命中缓存、不再阻塞。
         new Thread(() -> {
             try {
                 new HeaderManager(appContext, false);

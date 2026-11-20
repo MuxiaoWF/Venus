@@ -391,6 +391,8 @@
     <string name="notification_channel_task_desc">Venus 应用通知任务</string>
     <string name="notification_channel_error">Venus 错误</string>
     <string name="notification_channel_error_desc">Venus 应用通知错误</string>
+    <string name="notification_channel_captcha">Venus 人机验证</string>
+    <string name="notification_channel_captcha_desc">Venus 需要你手动完成的人机验证</string>
     <string name="notification_channel_progress">Venus 任务进度</string>
     <string name="notification_channel_progress_desc">Venus 后台任务进度</string>
 

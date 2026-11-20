@@ -388,6 +388,8 @@
     <string name="notification_channel_task_desc">Venus app notification tasks</string>
     <string name="notification_channel_error">Venus Errors</string>
     <string name="notification_channel_error_desc">Venus app notification errors</string>
+    <string name="notification_channel_captcha">Venus Verification</string>
+    <string name="notification_channel_captcha_desc">Venus verifications that need your action</string>
     <string name="notification_channel_progress">Venus Task Progress</string>
     <string name="notification_channel_progress_desc">Venus background task progress</string>
 
