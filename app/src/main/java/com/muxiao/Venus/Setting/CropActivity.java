@@ -44,7 +44,7 @@ public class CropActivity extends BaseActivity {
     public static final String EXTRA_RESULT_PATH = "extra_result_path";
 
     /**
-     * 解码降采样上限：最长边 ≤ {@link #MAX_DECODE_DIM}，且总像素 ≤ {@link #MAX_DECODE_PIXELS}。
+     * 解码降采样上限：最长边 ≤ {@code 4800}，且总像素 ≤ {@link #MAX_DECODE_PIXELS}。
      * 注意 Glide 默认 DownsampleStrategy.CENTER_OUTSIDE 是「放大到覆盖 override 区域」——只传
      * override(4800) 会把小图（如 1080×2418 截图）放大成 4800×10747 ≈ 206MB，
      * Compose Canvas drawImage 超过硬件画布单张位图 100MB 红线直接抛

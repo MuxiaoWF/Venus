@@ -27,6 +27,7 @@ android {
         applicationId = "com.muxiao.Venus"
         minSdk = 24
         targetSdk = 37
+        compileSdkMinor = 1
         versionCode = 10
         versionName = "0.0.10"
 

@@ -184,14 +184,14 @@ public final class GeetestV4Dialog {
     /** 读取 assets 中的验证页；失败返回 null（由调用方走失败分支） */
     @Nullable
     private String readPage() {
-        try (java.io.InputStream in = activity.getAssets().open(PAGE_ASSET)) {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
+        try (java.io.Reader reader = new java.io.InputStreamReader(
+                activity.getAssets().open(PAGE_ASSET), StandardCharsets.UTF_8)) {
+            StringBuilder sb = new StringBuilder(8192);
+            char[] buffer = new char[4096];
             int read;
-            while ((read = in.read(buffer)) > 0)
-                out.write(buffer, 0, read);
-            // ByteArrayOutputStream#toString(Charset) 需 API 33，minSdk 23 只能走 String 构造
-            return out.toString(StandardCharsets.UTF_8);
+            while ((read = reader.read(buffer)) > 0)
+                sb.append(buffer, 0, read);
+            return sb.toString();
         } catch (java.io.IOException e) {
             Logger.debug("VenusGeetestV4", "read asset failed: " + e);
             return null;

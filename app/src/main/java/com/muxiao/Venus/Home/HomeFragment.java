@@ -634,17 +634,16 @@ public class HomeFragment implements PageController {
         // Geetest.geetest() 包含同步网络请求，必须在后台线程执行
         AppExecutors.get().execute(() -> {
             try {
-                CaptchaStore.Pending pending = current;
-                final String solveUserId = pending != null && pending.userId != null
-                        ? pending.userId : viewModel.getCurrentUser();
+                final String solveUserId = current != null && current.userId != null
+                        ? current.userId : viewModel.getCurrentUser();
                 // 优先用挂起时保存的 headers（含 Cookie），确保 API2 二次验证绑定同一会话；
                 // 拿不到就按当前用户现构一份完整的——裸 get_bbs_headers() 里没有 Cookie，
                 // API2 二次验证会绑定不到账号会话，用户验完拿到的是无效凭证。
-                Map<String, String> headers = pending != null && pending.headers != null
-                        && !pending.headers.isEmpty()
-                        ? new HashMap<>(pending.headers) : buildCaptchaHeaders(solveUserId);
+                Map<String, String> headers = current != null && current.headers != null
+                        && !current.headers.isEmpty()
+                        ? new HashMap<>(current.headers) : buildCaptchaHeaders(solveUserId);
                 final java.util.List<String> suspendedIds =
-                        mergeSuspendedIds(pending, captchaFallbackIds, solveUserId);
+                        mergeSuspendedIds(current, captchaFallbackIds, solveUserId);
 
                 Notification notification = new Notification(activity);
                 Geetest.GeetestVerificationCallback callback = new Geetest.GeetestVerificationCallback() {
@@ -686,9 +685,9 @@ public class HomeFragment implements PageController {
                 };
 
                 // 用后台挂起时的同一 challenge 验证：重复取 API1 会拿到不匹配的 challenge（表现为反复 1034）
-                if (pending != null && pending.challenge != null && !pending.challenge.isEmpty()) {
-                    Logger.debug("VenusCaptcha", "Using pending challenge: gt=" + pending.gt);
-                    Geetest.geetestWithChallenge(activity, pending.gt, pending.challenge,
+                if (current != null && current.challenge != null && !current.challenge.isEmpty()) {
+                    Logger.debug("VenusCaptcha", "Using pending challenge: gt=" + current.gt);
+                    Geetest.geetestWithChallenge(activity, current.gt, current.challenge,
                             headers, callback, controller);
                 } else {
                     Logger.debug("VenusCaptcha", "No pending challenge, calling API1");

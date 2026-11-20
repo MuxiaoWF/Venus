@@ -412,14 +412,11 @@
     <string name="captcha_challenge_failed">无法获取人机验证挑战，请稍后重试</string>
     <string name="geetest_no_ui_context">当前环境无法弹出人机验证，请在应用内重试</string>
     <string name="geetest_ui_init_failed">验证码控件加载失败，请重试；若持续失败请更新应用</string>
-    <string name="notif_captcha_no_retry_title">验证码未通过，已停止自动重试</string>
-    <string name="notif_captcha_no_retry_fmt">以下任务需人工验证后手动重试：%s</string>
 
     <!-- 任务执行器 -->
     <string name="task_mgr_start">任务管理器 开始执行，用户: %s</string>
     <string name="task_mgr_error">任务管理器 执行异常: %s</string>
     <string name="task_bbs_daily_no_forum">米游币签到 失败，请先在设置中勾选至少一个板块</string>
-    <string name="task_game_sign_in">游戏签到</string>
     <string name="task_game_sign_in_no_game">游戏签到 失败，请先在设置中勾选至少一个游戏</string>
     <string name="task_sign_preparing">%s签到 正在准备…</string>
     <string name="task_cloud_game_no_game">云游戏签到 未勾选任何游戏，请先在设置中至少选择一款</string>
@@ -507,9 +504,6 @@
 
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">米游币签到 需要进行人机验证…</string>
-    <string name="bbs_captcha_notification">米游币签到 等待进行人机验证</string>
-    <string name="bbs_captcha_needed">需要进行人机验证</string>
-    <string name="bbs_captcha_failed">人机验证失败，未获取到验证结果</string>
     <string name="bbs_cookie_expired">米游币签到 失败，cookie可能已过期，请重新设置cookie</string>
     <string name="bbs_cookie_refreshed">米游币签到 登录态已自动续期</string>
     <string name="bbs_signin_failed">米游币签到 失败</string>

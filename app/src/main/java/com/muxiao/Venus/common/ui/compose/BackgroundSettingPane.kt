@@ -9,7 +9,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
@@ -100,12 +102,17 @@ fun BackgroundSettingPane(
             )
         }
         // 0..90 每 5 一格共 19 个刻度，故 steps = 17
+        val sliderState = rememberSliderState(value = alphaPercent, steps = 17, trackRange = 0f..90f)
+        // SliderState 只认初值（rememberSaveable），宿主改 alphaPercent 时须回写，否则百分比与滑块错位；
+        // 用 SideEffect 而非 LaunchedEffect：拖动时 alphaPercent 每帧都变，后者会反复重启协程
+        SideEffect {
+            if (sliderState.value != alphaPercent)
+                sliderState.value = alphaPercent
+        }
         Slider(
-            value = alphaPercent,
+            state = sliderState,
             onValueChange = onAlphaChange,
             onValueChangeFinished = onAlphaChangeFinished,
-            valueRange = 0f..90f,
-            steps = 17,
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.primary,
                 activeTrackColor = MaterialTheme.colorScheme.primary,

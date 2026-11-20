@@ -3,7 +3,7 @@ package com.muxiao.Venus.common.ui.compose
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -26,7 +26,6 @@ import com.muxiao.Venus.R
  * @param options 语言名列表（顺序与 `SELECTED_LANGUAGE` 的下标一致）
  * @param onSelect 选中某语言后的回调
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageSettingPane(
     options: List<String>,

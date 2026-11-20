@@ -403,14 +403,11 @@
     <string name="captcha_challenge_failed">無法取得人機驗證挑戰，請稍後重試</string>
     <string name="geetest_no_ui_context">目前環境無法彈出人機驗證，請在應用內重試</string>
     <string name="geetest_ui_init_failed">驗證碼控件載入失敗，請重試；若持續失敗請更新應用</string>
-    <string name="notif_captcha_no_retry_title">驗證碼未通過，已停止自動重試</string>
-    <string name="notif_captcha_no_retry_fmt">以下任務需人工驗證後手動重試：%s</string>
 
     <!-- 任務執行器 -->
     <string name="task_mgr_start">任務管理器 開始執行，使用者：%s</string>
     <string name="task_mgr_error">任務管理器 執行異常：%s</string>
     <string name="task_bbs_daily_no_forum">米遊幣簽到 失敗，請先在設定中勾選至少一個板塊</string>
-    <string name="task_game_sign_in">遊戲簽到</string>
     <string name="task_game_sign_in_no_game">遊戲簽到 失敗，請先在設定中勾選至少一個遊戲</string>
     <string name="task_sign_preparing">%s簽到 正在準備…</string>
     <string name="task_cloud_game_no_game">雲遊戲簽到 未勾選任何遊戲，請先在設定中至少選擇一款</string>
@@ -497,9 +494,6 @@
 
     <!-- BBSDaily -->
     <string name="bbs_captcha_waiting">米遊幣簽到 需要進行人機驗證…</string>
-    <string name="bbs_captcha_notification">米遊幣簽到 等待進行人機驗證</string>
-    <string name="bbs_captcha_needed">需要進行人機驗證</string>
-    <string name="bbs_captcha_failed">人機驗證失敗，未取得驗證結果</string>
     <string name="bbs_cookie_expired">米遊幣簽到 失敗，cookie可能已過期，請重新設定cookie</string>
     <string name="bbs_cookie_refreshed">米遊幣簽到 登入狀態已自動續期</string>
     <string name="bbs_signin_failed">米遊幣簽到 失敗</string>

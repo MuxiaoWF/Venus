@@ -9,7 +9,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -228,7 +227,6 @@ object VenusDialogs {
 
     /** 时间选择器（对应 MaterialTimePicker）：确认后回调 24 小时制整数；12/24 制由调用方按系统设置传入。 */
     @JvmStatic
-    @OptIn(ExperimentalMaterial3Api::class)
     fun timePicker(
         activity: android.app.Activity,
         is24Hour: Boolean,
