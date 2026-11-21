@@ -1620,7 +1620,7 @@ public class HomeFragment implements PageController {
                     public void onError(String message) {
                         // 批量运行不弹模态框，改为提示条 + 日志
                         Logger.w("VenusBatch account " + userId + ": " + message);
-                        runOnUi(() -> tools.showCustomSnackbar(screenView, activity, message));
+                        runOnUi(() -> tools.showToast(screenView, activity, message));
                     }
 
                     @Override

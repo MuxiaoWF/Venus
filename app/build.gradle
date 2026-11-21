@@ -36,8 +36,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        resConfigs "zh-rCN", "zh-rTW", "en"
-        // 注意：release 包将无法安装到 x86_64 模拟器，模拟器请用 debug 包。
+        // 注意：release 无法安装到 x86_64 模拟器（模拟器请用 debug 包）。
+        // 另：adb 二进制的 assets 只内置 arm/ARM64，模拟器上的 ADB 抓取会提示组件缺失，属预期限制。
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters 'arm64-v8a', 'armeabi-v7a'
@@ -84,6 +84,8 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
     androidResources {
+        // AGP 9 起 resConfigs 弃用，迁移到 localeFilters（简/繁/英三语言，与 LocaleHelper 对应）
+        localeFilters += ["zh-rCN", "zh-rTW", "en"]
         // OkHttp 的 PublicSuffixDatabase.list 只在 Cookie.domainMatches() 时按需读取。本项目 Cookie
         // 一律由 HeaderManager 自己拼请求头、全程没有 CookieJar，该表是纯死重（assets 里占 41.5KB）。
         // 注意：该属性是整体覆盖而非追加，必须把 AGP 默认忽略模式一起写上。
@@ -110,7 +112,7 @@ android {
             ]
         }
         jniLibs {
-            // 与 extractNativeLibs=false 配合：.so 以未压缩/页对齐方式存储，Android 12+ 不再解压到私有存储
+            // adb 二进制以 .bin 存于 assets 压缩存放（.so 可能被 AGP 默认不压缩）；保持 false 避免解包其他 .so
             useLegacyPackaging = false
         }
     }

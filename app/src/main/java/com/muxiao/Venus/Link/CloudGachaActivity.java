@@ -3,6 +3,7 @@ package com.muxiao.Venus.Link;
 import com.muxiao.Venus.common.BaseActivity;
 import static com.muxiao.Venus.common.tools.copyToClipboard;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.showToast;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
@@ -284,7 +285,7 @@ public class CloudGachaActivity extends BaseActivity {
         tools.write(this, userId,
                 CloudGameDaily.tokenKey(game, oversea), token);
         String displayName = CloudGameDaily.displayName(this, game);
-        showCustomSnackbar(pane, this, getString(R.string.cloud_game_token_captured, displayName));
+        showToast(pane, this, getString(R.string.cloud_game_token_captured, displayName));
         if (targetGame == null || game.equals(targetGame)) setResult(RESULT_OK);
     }
 

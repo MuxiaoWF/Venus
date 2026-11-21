@@ -102,6 +102,9 @@ class LinkUiState {
     var vpnStatusText by mutableStateOf("")
     var vpnStatusState by mutableIntStateOf(VPN_STATUS_DEFAULT)
     var vpnResult by mutableStateOf<LinkRow?>(null)
+    var adbStatusText by mutableStateOf("")
+    var adbStatusState by mutableIntStateOf(VPN_STATUS_DEFAULT)
+    var adbResult by mutableStateOf<LinkRow?>(null)
     var bottomClearancePx by mutableIntStateOf(0)
     val sources = mutableStateListOf(LinkSourceState(), LinkSourceState())
 }
@@ -125,6 +128,7 @@ fun LinkScreen(
     onRefreshClick: (Int) -> Unit,
     onCloudClick: () -> Unit,
     onVpnClick: () -> Unit,
+    onAdbClick: () -> Unit,
     onCopy: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -209,6 +213,15 @@ fun LinkScreen(
             )
             // VPN 捕获结果常驻区：切页/切后台回来仍在，可重复复制
             state.vpnResult?.let { LinkResultRow(row = it, onCopy = onCopy) }
+            NavRow(
+                icon = VenusIcons.LinkUrl,
+                title = stringResource(R.string.adb_capture_title),
+                // 状态语义与 VPN 行共用 VPN_STATUS_* 四态
+                subtitle = state.adbStatusText.ifEmpty { stringResource(R.string.adb_capture_hint) },
+                subtitleColor = vpnStatusColor(state.adbStatusState),
+                onClick = onAdbClick,
+            )
+            state.adbResult?.let { LinkResultRow(row = it, onCopy = onCopy) }
         }
     }
 }
@@ -642,6 +655,7 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
     private var onRefreshClickListener: IndexConsumer? = null
     private var onCloudClickListener: Runnable? = null
     private var onVpnClickListener: Runnable? = null
+    private var onAdbClickListener: Runnable? = null
     private var onCopyListener: UrlConsumer? = null
 
     @Composable
@@ -655,6 +669,7 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
                 onRefreshClick = { onRefreshClickListener?.accept(it) },
                 onCloudClick = { onCloudClickListener?.run() },
                 onVpnClick = { onVpnClickListener?.run() },
+                onAdbClick = { onAdbClickListener?.run() },
                 onCopy = { onCopyListener?.accept(it) },
             )
         }
@@ -714,6 +729,17 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
         uiState.vpnResult = if (label == null || url == null) null else LinkRow(label, url)
     }
 
+    /** 设 ADB 行文案与语义色（复用 VPN_STATUS_* 四态）。 */
+    fun setAdbStatus(text: String, status: Int) {
+        uiState.adbStatusText = text
+        uiState.adbStatusState = status
+    }
+
+    /** 设 ADB 捕获结果常驻行；label 或 url 为 null 时收起。 */
+    fun setAdbResult(label: String?, url: String?) {
+        uiState.adbResult = if (label == null || url == null) null else LinkRow(label, url)
+    }
+
     /** 底栏覆盖高度（px）：正文底部留白，等价于原来的 BottomBarOverlay.attachClearance。 */
     fun setBottomClearance(px: Int) {
         uiState.bottomClearancePx = px
@@ -741,6 +767,10 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
 
     fun setOnVpnClickListener(listener: Runnable?) {
         onVpnClickListener = listener
+    }
+
+    fun setOnAdbClickListener(listener: Runnable?) {
+        onAdbClickListener = listener
     }
 
     fun setOnCopyListener(listener: UrlConsumer?) {

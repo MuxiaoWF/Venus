@@ -25,6 +25,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.THEME_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_LOCAL_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_PREF;
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.showToast;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.app.Activity;
@@ -509,7 +510,7 @@ public class SettingsFragment implements PageController {
                         // 凭证补上/改掉会改变任务的「就绪」样式（列表划线），小组件须同步重渲染：
                         // token 存在 user_{id} 里，不受设置项监听覆盖，故此处显式刷新
                         TaskWidgetProvider.refreshAllWidgets(activity);
-                        showCustomSnackbar(screenView, context, activity.getString(R.string.snack_skland_content_saved));
+                        showToast(screenView, context, activity.getString(R.string.snack_skland_content_saved));
                     });
         });
         // 云游戏签到（Compose 版内容）：token 按当前用户存储，与米游社登录态无关
@@ -904,9 +905,9 @@ public class SettingsFragment implements PageController {
             activity.runOnUiThread(() -> {
                 if (success) {
                     displayCurrentConfigValues();
-                    showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_config_updated));
+                    showToast(screenView, activity, activity.getString(R.string.snack_config_updated));
                 } else {
-                    showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_config_update_failed));
+                    showToast(screenView, activity, activity.getString(R.string.snack_config_update_failed));
                 }
             });
         });
@@ -960,9 +961,9 @@ public class SettingsFragment implements PageController {
                 if (finalSuccess) {
                     cachePane.setCacheSize(activity.getString(R.string.current_cache_size_zero));
                     if (cacheCard != null) cacheCard.setValue("0 B");
-                    showCustomSnackbar(activity, activity.getString(R.string.snack_cache_cleared));
+                    showToast(activity, activity.getString(R.string.snack_cache_cleared));
                 } else {
-                    showCustomSnackbar(activity, activity.getString(R.string.snack_cache_clear_partial_failed));
+                    showToast(activity, activity.getString(R.string.snack_cache_clear_partial_failed));
                 }
             });
         });
@@ -1143,7 +1144,7 @@ public class SettingsFragment implements PageController {
                     TaskProfileStore.saveTemplate(activity, taskProfile);
                     for (String userId : all) TaskProfileStore.save(activity, userId, taskProfile);
                     tools.writeLog(activity, "task profile applied to " + all.size() + " account(s)");
-                    showCustomSnackbar(screenView, activity,
+                    showToast(screenView, activity,
                             activity.getString(R.string.settings_apply_all_done, all.size()));
                     TaskWidgetProvider.refreshAllWidgets(activity);
                 },
@@ -1488,7 +1489,7 @@ public class SettingsFragment implements PageController {
                     refreshCloudGameTokens();
                     // 就绪状态变化会改变小组件的划线样式（token 不在 settings_prefs，监听覆盖不到）
                     TaskWidgetProvider.refreshAllWidgets(activity);
-                    showCustomSnackbar(screenView, activity,
+                    showToast(screenView, activity,
                             activity.getString(R.string.cloud_game_token_saved, displayName));
                 });
     }

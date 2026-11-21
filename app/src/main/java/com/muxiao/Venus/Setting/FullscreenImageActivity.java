@@ -5,6 +5,7 @@ import dagger.hilt.android.AndroidEntryPoint;
 
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.showToast;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.Manifest;
@@ -210,7 +211,7 @@ public class FullscreenImageActivity extends BaseActivity {
                 com.muxiao.Venus.common.tools.saveBitmapToGallery(this, bitmap, fileName);
                 runOnUiThread(() -> {
                     if (pane != null) pane.setDownloading(false);
-                    showCustomSnackbar(this, getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName));
+                    showToast(this, getString(R.string.snack_image_saved_to, "Pictures/Venus/" + fileName));
                 });
             } catch (IOException e) {
                 runOnUiThread(() -> {

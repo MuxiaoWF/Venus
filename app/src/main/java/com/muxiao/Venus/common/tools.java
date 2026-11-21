@@ -19,6 +19,9 @@ import com.muxiao.Venus.VenusApplication;
 import com.muxiao.Venus.common.data.UserRepository;
 
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import android.os.Environment;
 import android.provider.Settings;
 import android.provider.MediaStore;
@@ -58,6 +61,10 @@ import okio.Okio;
  * Snackbar/错误对话框、剪贴板、日志文件读写、键盘收起。
  */
 public class tools {
+    private static volatile Toast sToast;
+    private static volatile String sToastText = "";
+    private static volatile long sToastAtMs = 0;
+
     // OkHttpClient 统一由 ApiClient 提供，连接池共享
 
     /** 返回应用共享的 OkHttpClient（{@link ApiClient#get()}，复用连接池）。 */
@@ -266,6 +273,34 @@ public class tools {
         VenusSnackbar.show(message);
     }
 
+    /** 系统 Toast：跨应用可见；同文案 1s 内去重，不同文案替换上一条而非排队。 */
+    public static void showToast(String message) {
+        if (message == null || message.isEmpty()) return;
+        Runnable deliver = () -> {
+            long now = System.currentTimeMillis();
+            if (message.equals(sToastText) && now - sToastAtMs < 1_000) return;
+            if (sToast != null) sToast.cancel();
+            Context app = VenusApplication.getAppContext();
+            if (app == null) return;
+            sToast = Toast.makeText(app, message, Toast.LENGTH_SHORT);
+            sToastText = message;
+            sToastAtMs = now;
+            sToast.show();
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) deliver.run();
+        else new Handler(Looper.getMainLooper()).post(deliver);
+    }
+
+    /** 保留历史签名，便于按站点替换 Snackbar 调用。 */
+    public static void showToast(View view, Context context, String message) {
+        showToast(message);
+    }
+
+    /** 同上。 */
+    public static void showToast(Context context, String message) {
+        showToast(message);
+    }
+
     /** 推荐签名：Compose 宿主自己决定落点，无需传锚点 View。 */
     @SuppressWarnings("unused") // context 为历史签名保留，实际仅转发 message
     public static void showCustomSnackbar(Context context, String message) {
@@ -293,7 +328,7 @@ public class tools {
                     ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
                     ClipData clip = ClipData.newPlainText(context.getString(R.string.error_label), error_message);
                     clipboard.setPrimaryClip(clip);
-                    showCustomSnackbar(context, context.getString(R.string.snack_error_copied));
+                    showToast(context, context.getString(R.string.snack_error_copied));
                 },
                 context.getString(R.string.btn_close));
     }
@@ -315,7 +350,7 @@ public class tools {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clip = ClipData.newPlainText("Copy Venus", text);
         clipboard.setPrimaryClip(clip);
-        showCustomSnackbar(view, context, context.getString(R.string.snack_link_copied));
+        showToast(view, context, context.getString(R.string.snack_link_copied));
     }
 
     /** 把 sourceUri 流拷贝到 destFile（8KB 缓冲）；源不可打开时抛异常。 */

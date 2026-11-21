@@ -182,6 +182,11 @@ public class Notification {
         sendErrorSystemNotification(title, content, false);
     }
 
+    /** 强制发错误通知：用于用户主动发起的抓包失败回执，不受任务通知开关限制。 */
+    public void sendForcedErrorNotification(String title, String content) {
+        sendErrorSystemNotification(title, content, true);
+    }
+
     /** 同上，force=true 忽略通知开关强制弹出。 */
     public void sendErrorNotification(String title, String content, boolean force) {
         sendErrorSystemNotification(title, content, force);

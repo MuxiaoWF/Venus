@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- ADB 抓取的 mDNS 需 multicast lock 才能在部分 ROM 上收到 adbd 的组播响应 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Devices running Android 12L (API level 32) or lower  -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -131,6 +133,21 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="tun" />
         </service>
+
+        <!-- 原神/绝区零抽卡链接 ADB 抓取（复刻自 Ascent）：本机 adb 客户端经无线调试
+             loopback 连接自身 adbd，以 shell 身份轮询 logcat 过滤抽卡记录 URL -->
+        <service
+            android:name=".Link.AdbCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="adb_logcat_watch" />
+        </service>
+        <!-- 配对通知的 RemoteInput 转发：结果必须经应用内接收器进服务（同 Ascent 的通知输入方案） -->
+        <receiver
+            android:name=".Link.AdbPairingReplyReceiver"
+            android:exported="false" />
 
         <!-- 任务状态小组件 -->
         <receiver

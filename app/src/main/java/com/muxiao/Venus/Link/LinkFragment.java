@@ -18,7 +18,8 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
-import com.muxiao.Venus.common.Logger;
+import com.muxiao.Venus.common.Notification;
+import com.muxiao.Venus.common.ui.compose.AdbGuideDialog;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 import com.muxiao.Venus.common.ui.compose.LinkRow;
@@ -66,15 +67,14 @@ public class LinkFragment implements PageController {
             if (CaptureService.ACTION_CAPTURE_UPDATING.equals(intent.getAction())) {
                 if (root == null) return;
                 setStatusVpn(activity.getString(R.string.vpn_capture_updating), VpnStatus.WARN);
-                tools.showCustomSnackbar(root, context.getApplicationContext(),
+                tools.showToast(root, context.getApplicationContext(),
                         activity.getString(R.string.vpn_capture_updating));
                 return;
             }
             if (CaptureService.ACTION_CAPTURE_FAILED.equals(intent.getAction())) {
                 if (root == null) return;
                 setStatusVpn(activity.getString(R.string.vpn_capture_failed_key), VpnStatus.WARN);
-                tools.showCustomSnackbar(root, context.getApplicationContext(),
-                        activity.getString(R.string.vpn_capture_failed_key));
+                notifyCaptureIssue(activity.getString(R.string.vpn_capture_failed_key));
                 return;
             }
             if (!CaptureService.ACTION_GET_AUTHKEY.equals(intent.getAction())) return;
@@ -88,8 +88,34 @@ public class LinkFragment implements PageController {
             setStatusVpn(activity.getString(R.string.vpn_authkey_captured, channelLabel(channel)),
                     VpnStatus.SUCCESS);
             renderVpnResult();
-            tools.showCustomSnackbar(root, context.getApplicationContext(),
+            tools.showToast(root, context.getApplicationContext(),
                     activity.getString(R.string.vpn_authkey_captured, channelLabel(channel)));
+        }
+    };
+
+    /** ADB 广播接收：STATUS 同步副标题；GET_AUTHKEY 命中即复制并常驻结果区。 */
+    private final BroadcastReceiver adbReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            View root = linkPane;
+            if (AdbCaptureService.ACTION_ADB_STATUS.equals(intent.getAction())) {
+                if (root == null) return;
+                String message = intent.getStringExtra(AdbCaptureService.EXTRA_MESSAGE);
+                if (message == null) return;
+                setStatusAdb(message, intent.getIntExtra(AdbCaptureService.EXTRA_STATE,
+                        LinkScreenKt.VPN_STATUS_DEFAULT));
+                return;
+            }
+            if (!AdbCaptureService.ACTION_ADB_GET_AUTHKEY.equals(intent.getAction())) return;
+            String url = intent.getStringExtra(AdbCaptureService.EXTRA_URL);
+            if (url == null || url.isEmpty() || root == null) return;
+            lastAdbUrl = url;
+            copyToClipboard(root, context.getApplicationContext(), url);
+            setStatusAdb(activity.getString(R.string.adb_status_captured, adbGameLabel(url)),
+                    LinkScreenKt.VPN_STATUS_SUCCESS);
+            renderAdbResult();
+            tools.showToast(root, context.getApplicationContext(),
+                    activity.getString(R.string.adb_status_captured, adbGameLabel(url)));
         }
     };
 
@@ -99,6 +125,11 @@ public class LinkFragment implements PageController {
     /** 最近一次捕获的渠道与完整 URL：常驻结果区的数据源（进程内记忆，重启抓包不丢） */
     private String lastCapturedChannel;
     private String lastCapturedUrl;
+
+    /** 最近一次 ADB 捕获的 URL。 */
+    private String lastAdbUrl;
+    /** 首次解压 libadb.so 进行中，避免重复点击起多个线程。 */
+    private boolean adbPreparing = false;
 
     /** Compose 版页面宿主：页眉 / 账号行 / 来源列表 / 结果区全部由它绘制。 */
     private LinkScreenView linkPane;
@@ -198,6 +229,94 @@ public class LinkFragment implements PageController {
         }
     }
 
+    // ============================== ADB 抓取 ==============================
+
+    /** ADB 行点击：运行中则停止，否则先展示图文引导，确认后再进入配对流程。 */
+    private void toggleAdbCapture() {
+        android.content.Context appContext = activity.getApplicationContext();
+        if (AdbCaptureService.running) {
+            AdbCaptureService.stop(appContext);
+            setStatusAdb(activity.getString(R.string.adb_capture_hint), LinkScreenKt.VPN_STATUS_DEFAULT);
+            return;
+        }
+        AdbGuideDialog.show(activity, () -> startAdbFlow(appContext));
+    }
+
+    /** 引导确认后的实际启动流程：确保 adb 就绪 → 检查通知权限 → 进入配对。 */
+    private void startAdbFlow(Context appContext) {
+        if (adbPreparing) return;
+        if (!AdbGachaCapture.isAdbReady(appContext)) {
+            adbPreparing = true;
+            setStatusAdb(activity.getString(R.string.adb_status_preparing), LinkScreenKt.VPN_STATUS_RUNNING);
+            AdbGachaCapture.ensureAdb(appContext,
+                    () -> {
+                        adbPreparing = false;
+                        startAdbPairing(appContext);
+                    },
+                    () -> {
+                        adbPreparing = false;
+                        showAdbMissing();
+                    });
+            return;
+        }
+        startAdbPairing(appContext);
+    }
+
+    private void showAdbMissing() {
+        setStatusAdb(activity.getString(R.string.adb_error_missing_binary), LinkScreenKt.VPN_STATUS_WARN);
+        notifyCaptureIssue(activity.getString(R.string.adb_error_missing_binary));
+    }
+
+    /** 抓包失败：状态行已同步，再补一条不依赖页面上屏的通知。 */
+    private void notifyCaptureIssue(String message) {
+        new Notification(activity.getApplicationContext())
+                .sendForcedErrorNotification(activity.getString(R.string.app_name), message);
+    }
+
+    /** 配对码只能经通知输入：Android 13+ 未给通知权限时整个流程不可用，先引导开启。 */
+    private void startAdbPairing(Context appContext) {
+        Notification notification = new Notification(appContext);
+        if (notification.areNotificationsDisabled()) {
+            VenusDialogs.confirm(
+                    activity,
+                    activity.getString(R.string.dialog_need_notification_permission),
+                    activity.getString(R.string.msg_need_notification_for_background),
+                    activity.getString(R.string.btn_go_to_settings),
+                    () -> activity.startActivity(notification.getNotificationSettingsIntent()),
+                    activity.getString(R.string.btn_cancel));
+            return;
+        }
+        AdbCaptureService.startPairing(appContext);
+        setStatusAdb(activity.getString(R.string.adb_status_pairing), LinkScreenKt.VPN_STATUS_RUNNING);
+    }
+
+    /** ADB 行状态（复用 VPN_STATUS_* 四态）。 */
+    private void setStatusAdb(CharSequence text, int state) {
+        if (linkPane == null) return;
+        linkPane.setAdbStatus(text.toString(), state);
+    }
+
+    /** ADB 结果区常驻渲染（切页回来仍在，可重复复制）。 */
+    private void renderAdbResult() {
+        if (linkPane == null) return;
+        if (lastAdbUrl == null) {
+            linkPane.setAdbResult(null, null);
+            return;
+        }
+        linkPane.setAdbResult(adbGameLabel(lastAdbUrl), lastAdbUrl);
+    }
+
+    /** 按 game_biz 标注结果行归属。 */
+    private String adbGameLabel(String url) {
+        if (url.contains("game_biz=hk4e"))
+            return activity.getString(R.string.genshin_impact);
+        if (url.contains("game_biz=hkrpg"))
+            return activity.getString(R.string.star_rail);
+        if (url.contains("game_biz=nap"))
+            return activity.getString(R.string.zenless_zone_zero);
+        return "ADB";
+    }
+
     /** 构建页面 UI（外壳首次组合时调用一次）：绑定回调、初始化账号下拉与底栏订阅。 */
     public View createView(Context context) {
         if (linkPane != null) return linkPane; // 幂等：外壳重组不会重复装配
@@ -214,6 +333,10 @@ public class LinkFragment implements PageController {
             captureFilter.addAction(CaptureService.ACTION_CAPTURE_FAILED);
             ContextCompat.registerReceiver(activity.getApplicationContext(), authkeyReceiver,
                     captureFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+            IntentFilter adbFilter = new IntentFilter(AdbCaptureService.ACTION_ADB_STATUS);
+            adbFilter.addAction(AdbCaptureService.ACTION_ADB_GET_AUTHKEY);
+            ContextCompat.registerReceiver(activity.getApplicationContext(), adbReceiver,
+                    adbFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
             receiverRegistered = true;
         }
 
@@ -225,6 +348,8 @@ public class LinkFragment implements PageController {
                 activity.startActivity(new Intent(context, CloudGachaActivity.class)));
         // VPN 抓包获取：启动/停止本地 VPN 抓包服务（导航行，点击切换）
         root.setOnVpnClickListener(this::toggleVpnCapture);
+        // ADB 抓取：进入配对模式或停止监听
+        root.setOnAdbClickListener(this::toggleAdbCapture);
         // 账号下拉选中；无用户时整行进引导（跳转用户管理页）
         root.setOnUserSelectedListener(this::onUserSelected);
         root.setOnEmptyUserClickListener(this::jumpToUserManagement);
@@ -488,6 +613,8 @@ public class LinkFragment implements PageController {
             }
             // 恢复常驻结果区：捕获过的链接切页/切后台回来仍在，可随时重复复制
             renderVpnResult();
+            // ADB 结果同样常驻回显
+            renderAdbResult();
             renderGameResult(0);
             renderGameResult(1);
         }
@@ -503,6 +630,7 @@ public class LinkFragment implements PageController {
         BottomBarOverlay.removeListener(bottomBarListener);
         if (receiverRegistered) {
             activity.getApplicationContext().unregisterReceiver(authkeyReceiver);
+            activity.getApplicationContext().unregisterReceiver(adbReceiver);
             receiverRegistered = false;
         }
         linkPane = null;

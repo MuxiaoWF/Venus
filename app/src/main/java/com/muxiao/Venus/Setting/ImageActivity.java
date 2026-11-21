@@ -4,6 +4,7 @@ import com.muxiao.Venus.common.BaseActivity;
 import dagger.hilt.android.AndroidEntryPoint;
 
 import static com.muxiao.Venus.common.tools.showCustomSnackbar;
+import static com.muxiao.Venus.common.tools.showToast;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
 import android.Manifest;
@@ -531,7 +532,7 @@ public class ImageActivity extends BaseActivity {
     private void downloadImage() {
         if (downloadProgress >= totalDownloads || itemsToDownload.isEmpty()) {
             if (pane != null) pane.setDownloadProgress(0, 0);
-            showCustomSnackbar(this, getString(R.string.snack_download_complete));
+            showToast(this, getString(R.string.snack_download_complete));
             exitSelectionMode();
             return;
         }
@@ -541,7 +542,7 @@ public class ImageActivity extends BaseActivity {
             if (currentPostIndex >= itemsToDownload.size()) {
                 // 队列已耗尽但仍有未完成计数（数据异常）：直接收尾，避免死循环
                 if (pane != null) pane.setDownloadProgress(0, 0);
-                showCustomSnackbar(this, getString(R.string.snack_download_complete));
+                showToast(this, getString(R.string.snack_download_complete));
                 exitSelectionMode();
                 return;
             }
