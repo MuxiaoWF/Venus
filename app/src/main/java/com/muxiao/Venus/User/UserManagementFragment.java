@@ -154,16 +154,17 @@ public class UserManagementFragment implements PageController {
         String currentUsername = userManager.getCurrentUser();
         // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
         String serverType = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
-        // 功能开关是全局配置、凭证是按账号的，所以每张卡的状态要按「开关 × 该账号 token」算
-        TaskSettings settings = TaskSettings.fromPreferences(getContext());
+        // 任务开关与凭证都按账号存：每张卡要按「该账号自己的开关 × 该账号 token」算，
+        // 不能再在循环外读一份全局配置（否则所有卡显示的是同一个账号的签到计划）
         List<UserCardRow> rows = new ArrayList<>(users.size());
         for (String username : users) {
+            TaskSettings settings = TaskSettings.fromPreferences(getContext(), username);
             rows.add(new UserCardRow(
                     username,
                     activity.getString(R.string.user_label_with_server, username, serverType),
                     // 当前用户标注「默认」chip（设计稿语义）
                     username.equals(currentUsername),
-                    credentialChip(settings, username, isOversea)));
+                    credentialChip(settings, username)));
         }
         screenView.setUsers(rows);
     }
@@ -197,8 +198,8 @@ public class UserManagementFragment implements PageController {
      * 两个都开时压成汇总（「凭证 3/3」/「凭证 待配 2」），点击后由 {@link #onCredentialClick} 让用户先选；
      * 都没开返回 null，整项不渲染。
      */
-    private CredentialChipRow credentialChip(TaskSettings settings, String username, boolean isOversea) {
-        Credential cloud = cloudGameCredential(settings, username, isOversea);
+    private CredentialChipRow credentialChip(TaskSettings settings, String username) {
+        Credential cloud = cloudGameCredential(settings, username);
         Credential skland = sklandCredential(settings, username);
         if (cloud == null && skland == null) return null;
         if (cloud == null || skland == null) {
@@ -217,12 +218,14 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 云游戏凭证状态：开关是全局的、token 按账号，两者必须一起看——开关未开「未开启」，开了但未配「未配置」，
-     * 配齐「已配置」，部分配置给 n/m 进度。
+     * 云游戏凭证状态：开关按账号（P0-1）、token 按账号且键含服务器类型，两者必须一起看——开关未开「未开启」，
+     * 开了但未配「未配置」，配齐「已配置」，部分配置给 n/m 进度。
      */
-    private Credential cloudGameCredential(TaskSettings settings, String username, boolean isOversea) {
+    private Credential cloudGameCredential(TaskSettings settings, String username) {
         // 功能没开就别在卡片上占位：返回 null，Compose 侧整项不渲染
         if (!settings.isCloudGameEnabled()) return null;
+        // token 键与账号所属服绑定：必须按该账号自己判定，不能读全局 SERVER_TYPE
+        boolean isOversea = userManager.isOversea(username);
         String name = activity.getString(R.string.user_cred_cloud_game);
         String[] games = settings.getCloudGames();
         // 开了总开关却没勾游戏：仍占 1 条待配名额，否则汇总会把它从分母里漏掉
@@ -264,9 +267,9 @@ public class UserManagementFragment implements PageController {
      * 业务判断留在 Java 侧，Compose 只上报被点的用户名。
      */
     private void onCredentialClick(String username) {
-        TaskSettings settings = TaskSettings.fromPreferences(getContext());
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
-        Credential cloud = cloudGameCredential(settings, username, isOversea);
+        // 开关项按该账号自己的配置读（凭证抽屉的「需要配哪几项」由此决定）
+        TaskSettings settings = TaskSettings.fromPreferences(getContext(), username);
+        Credential cloud = cloudGameCredential(settings, username);
         Credential skland = sklandCredential(settings, username);
         // 两个都开才需要选。弹窗条目带该项自身状态（「云游戏 · 未配置」「森空岛 · 已配置」），
         // 汇总 chip 只显示「待配 N」看不出缺哪一项，这里补上。
@@ -346,6 +349,8 @@ public class UserManagementFragment implements PageController {
         new com.muxiao.Venus.common.data.UserRepository(getContext()).migrate(oldUsername, newUsername);
         // 头像文件按 md5(用户名) 键存储，随重命名一并迁移
         AvatarStore.renameAvatar(getContext(), oldUsername, newUsername);
+        // 任务配置（按账号存）同样跟随账号走：重命名 = 新增 + 删除，不显式迁移等于丢掉旧账号的签到计划
+        com.muxiao.Venus.Home.TaskProfileStore.rename(getContext(), oldUsername, newUsername);
 
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
@@ -423,6 +428,8 @@ public class UserManagementFragment implements PageController {
                     userManager.removeUser(username);
                     // 头像文件随用户一并清除，避免残留
                     AvatarStore.deleteAvatar(getContext(), username);
+                    // 任务配置同口径清理：否则 task_profile_<旧账号> 会永远留在 settings_prefs 里
+                    com.muxiao.Venus.Home.TaskProfileStore.delete(getContext(), username);
                     refreshUserList();
                     // 删的可能正是当前账号（removeUser 会清掉当前用户标记）：
                     // 首页据此回落到剩余账号，否则账号行会空着、任务按已删除的用户分桶
@@ -446,7 +453,9 @@ public class UserManagementFragment implements PageController {
             return;
         }
         userManager.setCurrentUser(username);
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        // 重新登录要进该账号自己所属服的登录页：全局 SERVER_TYPE 只是「当前浏览的服」，
+        // 用它会在跨服账号上打开错误的登录页，登录成功后还会把 server_type 改写成另一个服
+        boolean isOversea = userManager.isOversea(username);
         Intent intent = new Intent(activity,
                 isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
         intent.putExtra("RELOGIN_MODE", true);

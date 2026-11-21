@@ -98,6 +98,9 @@ public class TaskExecutor {
      */
     public void executeAll(TaskSettings settings, java.util.Set<String> onlyIds) {
         boolean runAll = onlyIds == null || onlyIds.isEmpty();
+        // 服务器类型由快照带下来（按账号算好，见 TaskSettings#isOversea）：模块内不再读全局 is_oversea，
+        // 否则多账号跨服批跑会拿全局值去签某一个账号，接口域名/请求头全错
+        final boolean oversea = settings.isOversea();
         notifier.notifyListeners(context.getString(R.string.task_mgr_start, userId));
         List<Future<?>> futures = new ArrayList<>();
         // 凭证就绪表：云游戏/森空岛未配置 token 的任务在列表里已划线，这里同样跳过，
@@ -106,11 +109,11 @@ public class TaskExecutor {
         // 统一线程池（AppExecutors）：三类签到可并行；共享池不可 shutdown，取消时改为 future.cancel(true)。
         // 经 AppExecutors.submit() 门面提交（不暴露 AutoCloseable 的 ExecutorService），避免 Lint 误报。
         if (settings.isDailyEnabled() && (runAll || onlyIds.contains(TaskIds.BBS_DAILY)))
-            futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums())));
+            futures.add(AppExecutors.get().submit(() -> executeBbsDaily(settings.getDailyForums(), oversea)));
         if (settings.isGameDailyEnabled()) {
             List<String> games = filterGames(settings.getGameDailyGames(), onlyIds, runAll);
             if (!games.isEmpty())
-                futures.add(AppExecutors.get().submit(() -> executeGameDaily(games)));
+                futures.add(AppExecutors.get().submit(() -> executeGameDaily(games, oversea)));
         }
         // 云游戏：每个游戏独立提交（无「父任务阻塞等待子任务」结构），
         // 因此与游戏签到共用共享池也不会造成线程饥饿；单次仅 1~2 个轻量 GET 请求。
@@ -123,7 +126,7 @@ public class TaskExecutor {
                 for (String gameName : cloudGames) {
                     String taskId = TaskIds.cloudGame(gameName);
                     if (!isReady(readiness, taskId, CloudGameDaily.displayName(context, gameName))) continue;
-                    futures.add(AppExecutors.get().submit(() -> executeCloudGame(gameName)));
+                    futures.add(AppExecutors.get().submit(() -> executeCloudGame(gameName, oversea)));
                 }
             }
         }
@@ -258,13 +261,13 @@ public class TaskExecutor {
     }
 
     /** 执行米游币社区签到：未配置板块时报错，否则提交 BBSDaily.runTask。 */
-    private void executeBbsDaily(String[] forums) {
+    private void executeBbsDaily(String[] forums, boolean isOversea) {
         if (forums == null || forums.length == 0) {
             reportEmptyTargets(TaskIds.BBS_DAILY, R.string.task_bbs_daily_no_forum);
             return;
         }
         executeTask(TaskIds.BBS_DAILY, () -> {
-            BBSDaily bbsDaily = new BBSDaily(context, userId, notifier, controller);
+            BBSDaily bbsDaily = new BBSDaily(context, userId, notifier, controller, isOversea);
             bbsDaily.runTask(forums);
         });
     }
@@ -273,7 +276,7 @@ public class TaskExecutor {
      * 并发执行游戏签到（并发度 2，由 {@link #GAME_SIGN_POOL} 保证）。每款游戏内部仍保留请求前后 2~9 秒随机
      * 风控延时，跨游戏并行只提高请求密度、不改变单游戏节奏，429 仍由 {@code BBSGameDaily} 冷却逻辑兜底。
      */
-    private void executeGameDaily(List<String> games) {
+    private void executeGameDaily(List<String> games, boolean isOversea) {
         if (games == null || games.isEmpty()) {
             // 「游戏签到总开关开着但一款没勾」时列表里没有任何游戏行，写状态只会留下一个野键
             // （旧版即写入了未格式化的 R.string.task_name_game_sign_in），故只提示不落状态。
@@ -286,7 +289,7 @@ public class TaskExecutor {
             futures.add(GAME_SIGN_POOL.submit(() -> {
                 String displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
                 executeTask(TaskIds.gameSignIn(gameName), () -> {
-                    BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, controller);
+                    BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, controller, isOversea);
                     notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
                     gameModule.run();
                 });
@@ -309,10 +312,10 @@ public class TaskExecutor {
     /**
      * 执行单个云游戏签到（云原神 / 云绝区零）。token 未配置/失效均以异常抛出，由 {@link #executeTask} 记为 ERROR。
      */
-    private void executeCloudGame(String gameName) {
+    private void executeCloudGame(String gameName, boolean isOversea) {
         String displayName = CloudGameDaily.displayName(context, gameName);
         executeTask(TaskIds.cloudGame(gameName), () -> {
-            CloudGameDaily cloudGame = new CloudGameDaily(context, userId, gameName, notifier);
+            CloudGameDaily cloudGame = new CloudGameDaily(context, userId, gameName, notifier, isOversea);
             notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
             cloudGame.run();
         });

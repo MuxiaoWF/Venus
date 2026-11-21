@@ -189,7 +189,7 @@ public class Notification {
 
     /**
      * 人机验证提示通知，点击直达验证流程：内容 Intent 带 {@link Constants#ACTION_HANDLE_CAPTCHA}
-     * 打开 MainActivity，由其置位 captcha_pending 并自动弹框。
+     * 与挂起账号（{@link Constants#EXTRA_CAPTCHA_USER}），打开 MainActivity 后自动切到该账号并弹框。
      *
      * <p>两点刻意设计：
      * <ul>
@@ -197,8 +197,11 @@ public class Notification {
      *       静默卡在待验证、什么也不做。它是功能件，不是提醒件。</li>
      *   <li><b>独立通知 ID</b>：与错误通知分开，等待验证期间其它任务报错不会把它顶掉。</li>
      * </ul>
+     *
+     * <p>必须携带 userId：验证请求按账号存放，用户点通知时展示的账号未必是挂起的那个；
+     * 不带就只能在当前账号上找 pending，找不到便什么都不弹（点了没反应）。
      */
-    public void sendCaptchaNotification(String title, String content) {
+    public void sendCaptchaNotification(String title, String content, String userId) {
         // 应用内运行：验证 UI 由 HomeFragment 直接挂在首页，不需要「点通知去验证」这条路
         if (inForegroundRun()) return;
         ensureChannels();
@@ -208,8 +211,12 @@ public class Notification {
         Intent intent = new Intent(context, com.muxiao.Venus.MainActivity.class);
         intent.setAction(Constants.ACTION_HANDLE_CAPTCHA);
         intent.putExtra("navigate_to", "home");
+        intent.putExtra(Constants.EXTRA_CAPTCHA_USER, userId);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent contentIntent = PendingIntent.getActivity(context, 0, intent,
+        // requestCode 按账号区分：同一时刻只有一条验证通知（ID 相同、后到的覆盖），
+        // 但它携带的账号必须跟着最新那份走，不能复用别的账号的 PendingIntent 缓存
+        int requestCode = userId == null ? 0 : userId.hashCode();
+        PendingIntent contentIntent = PendingIntent.getActivity(context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_CAPTCHA)

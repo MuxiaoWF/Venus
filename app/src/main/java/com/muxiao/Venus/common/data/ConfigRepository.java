@@ -26,7 +26,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi;
  * 对外 get/put 同步热读（Write-Through），与原 SP 版签名/语义一致。
  *
  * <p>承载 config_prefs 的全部键：字符串 SALT_6X / SALT_4X / LK2 / K2 / bbs_version / update_time /
- * update_time_local（MiHoYoBBSConstants 写入、SettingsFragment 展示），布尔 captcha_pending（MainActivity 读写）。
+ * update_time_local（MiHoYoBBSConstants 写入、SettingsFragment 展示）；人机验证的挂起请求与凭证也在这里
+ * （{@code CaptchaStore} 按账号存，键为 captcha_pending_request_&lt;userId&gt; / captcha_solution_&lt;userId&gt;）。
+ * 旧版的全局布尔 {@code captcha_pending} 已废弃：它无法表达「哪个账号还没弹过」，多账号时会互相吞掉信号。
  * 除本类的 {@link #seedCacheFromLegacy}/{@link #clear()}（旧 xml 回灌与清理）外，config_prefs 已无直接
  * getSharedPreferences 访问点，故不存在「同一键分属 xml 与 pb」的读写分叉。
  *

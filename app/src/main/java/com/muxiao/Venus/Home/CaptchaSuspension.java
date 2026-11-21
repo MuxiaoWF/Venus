@@ -58,17 +58,21 @@ public final class CaptchaSuspension {
 
         // 应用此刻可能就在前台（后台服务在跑、用户正开着首页）：广播让它立刻弹验证，
         // 不必等下一次 onResume。不在前台时这条广播无人接收，通知仍是入口。
+        // 必须带账号：验证请求按账号存放，前台收到广播后要先切到这个账号才读得到 pending
         Intent intent = new Intent(Constants.ACTION_CAPTCHA_REQUIRED);
         intent.setPackage(context.getPackageName());
+        intent.putExtra(Constants.EXTRA_CAPTCHA_USER, userId);
         context.sendBroadcast(intent);
 
-        // 通知里列出全部待验证任务：一次验证后这些任务会一并重跑
+        // 通知里列出全部待验证任务：一次验证后这些任务会一并重跑。
+        // 必须带上 userId：验证请求按账号存放，点通知时要先切到该账号才读得到这份 challenge
         if (notifyUser) {
             List<String> names = new ArrayList<>(taskIds.size());
             for (String taskId : taskIds) names.add(TaskIds.displayName(context, taskId));
             notification.sendCaptchaNotification(
                     context.getString(R.string.captcha_suspend_title),
-                    context.getString(R.string.captcha_suspend_content, TextUtils.join(", ", names)));
+                    context.getString(R.string.captcha_suspend_content, TextUtils.join(", ", names)),
+                    userId);
         }
         return true;
     }

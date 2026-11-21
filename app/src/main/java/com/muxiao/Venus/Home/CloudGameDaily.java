@@ -9,7 +9,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
-import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
 
@@ -56,11 +55,16 @@ public class CloudGameDaily {
     private final tools.StatusNotifier notifier;
     private final Notification notification;
 
-    public CloudGameDaily(Context context, String userId, String gameName, tools.StatusNotifier notifier) {
+    /**
+     * @param isOversea 目标账号的服务器类型（由 {@code TaskSettings.isOversea()} 经 TaskExecutor 传入）：
+     *                  决定云游戏 token 的存储键与钱包接口域，不能读全局 {@code is_oversea}。
+     */
+    public CloudGameDaily(Context context, String userId, String gameName,
+                          tools.StatusNotifier notifier, boolean isOversea) {
         this.context = context;
         this.userId = userId;
         this.gameName = gameName;
-        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
+        this.isOversea = isOversea;
         this.displayName = displayName(context, gameName);
         this.notifier = notifier;
         this.notification = new Notification(context);

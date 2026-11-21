@@ -32,6 +32,11 @@ public class Constants {
      * {@code ConfigRepository} 的 {@code captcha_pending} 标记，验证请求对前台变成「随时可发现」的状态。
      */
     public static final String ACTION_CAPTCHA_REQUIRED = "ACTION_CAPTCHA_REQUIRED";
+    /**
+     * 人机验证通知携带的挂起账号。点通知进来时 MainActivity 先切到该账号，再按该账号读 pending——
+     * 验证请求已按账号存放，拿展示账号去找会读不到（表现为「点了通知没反应」）。
+     */
+    public static final String EXTRA_CAPTCHA_USER = "captcha_user";
 
     public static class Urls {
         // 国服 URL
@@ -200,9 +205,6 @@ public class Constants {
         // Venus应用信息
         public static final String APP_INFO_PREFS_NAME = "app_info";
         public static final String LAST_VERSION = "last_version";
-
-        // 后台人机验证标记
-        public static final String PREF_CAPTCHA_PENDING = "captcha_pending";
 
         // 服务器类型
         public static final String SERVER_TYPE = "server_type"; // 0=国服, 1=国际服

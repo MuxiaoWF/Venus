@@ -112,15 +112,21 @@ public class BBSDaily {
     private final boolean isOversea;
     private final Context context;
 
-    public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, GeetestController gt3Controller) {
+    /**
+     * @param isOversea 目标账号的服务器类型（由 {@code TaskSettings.isOversea()} 经 TaskExecutor 传入）。
+     *                  国服/国际服的接口域名、appId、Referer 与 DS 头都不同，故由调用方给定，
+     *                  不在构造里读全局 {@code is_oversea}——多账号跨服批跑时全局值可能是别人的服。
+     */
+    public BBSDaily(Context context, String userId, tools.StatusNotifier notifier,
+                    GeetestController gt3Controller, boolean isOversea) {
         this.context = context;
         this.userId = userId;
         this.notification = new Notification(context);
         // 凭证改从跨轮存储读（挂起-续跑模型），不再持有控制器与等待状态
         this.captchaHelper = new CaptchaVerificationHelper(context, userId);
-        this.headerManager = new HeaderManager(context);
+        this.isOversea = isOversea;
+        this.headerManager = new HeaderManager(context, isOversea);
         this.notifier = notifier;
-        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
         String builtCookie = tools.buildUserCookie(context, userId);
         if (builtCookie == null) {
             String errorMsg = context.getString(R.string.bbs_stoken_null);

@@ -8,26 +8,6 @@ import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PRESET;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BBS_VERSION_PREF;
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ENABLED;
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ZZZ;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HNA;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR2;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR3;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_SRG;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_WEIDING;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_XINGBUGUDI;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_ZZZ;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR2;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR3;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_SRG;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_WEIDING;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_ZZZ;
 import static com.muxiao.Venus.common.Constants.Prefs.K2_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.LANGUAGE_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.LK2_PREF;
@@ -41,10 +21,7 @@ import static com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_TIME;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ARKNIGHTS_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENABLED;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENDFIELD_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.THEME_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_LOCAL_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.UPDATE_TIME_PREF;
@@ -72,6 +49,8 @@ import com.muxiao.Venus.Home.CloudGameDaily;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.Home.SklandDaily;
+import com.muxiao.Venus.Home.TaskProfile;
+import com.muxiao.Venus.Home.TaskProfileStore;
 import com.muxiao.Venus.Link.CloudGachaActivity;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
@@ -166,6 +145,12 @@ public class SettingsFragment implements PageController {
      * 凭证抽屉的「配置目标账号」；null = 跟随当前账号。仅本次打开有效（show() 清空）。
      */
     private String credentialUserId;
+    /**
+     * 正在编辑的任务配置（内存副本，改动立即落盘）。归属账号恒为<b>当前登录账号</b>——
+     * 刻意不跟随 {@link #credentialUserId}：后者是「给某个账号填 token」的临时上下文，
+     * 而任务配置决定「这个账号签哪些任务」，与首页/后台实际运行的账号必须一致。
+     */
+    private TaskProfile taskProfile;
     // 「通知 / 后台运行」抽屉内容为 Compose。
     private NotificationSettingPaneView notificationPane;
     // 「米游币签到」「游戏签到」抽屉内容为 Compose。
@@ -291,50 +276,44 @@ public class SettingsFragment implements PageController {
         configRepository = new ConfigRepository(context);
         backgroundPreferences = activity.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
 
-        dailyPane.setSwitchChecked(sharedPreferences.getBoolean(DAILY, true));
-        gameDailyPane.setSwitchChecked(sharedPreferences.getBoolean(GAME_DAILY, true));
+        // 任务配置按账号：先加载当前账号的配置，四类卡片的值统一由 renderTaskConfig 回填
+        // （必须早于下面装监听，避免回填被当成用户改动而触发落盘）
+        reloadTaskProfile();
         notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
         // 折叠行值摘要初始态（设计稿：行右侧 mono 摘要）
-        updateDailyCardValue(dailyPane.getSwitchChecked());
-        updateGameCardValue();
         updateNotificationCardValue(notificationPane.getBackgroundChecked());
+        renderTaskConfig();
 
-        // chip-pref 映射顺序须与 Compose 侧 DAILY_CHIP_LABEL_RES / GAME_CHIP_LABEL_RES 一致
-        final String[] dailyKeys = {
-                DAILY_GENSHIN, DAILY_ZZZ, DAILY_SRG, DAILY_HR3,
-                DAILY_HR2, DAILY_WEIDING, DAILY_DABIEYE, DAILY_HNA,
-                DAILY_XINGBUGUDI,
-        };
-        final boolean[] dailyDefaults = {false, false, false, false, false, false, true, false, false};
-        for (int i = 0; i < dailyKeys.length; i++)
-            dailyPane.setChipChecked(i, sharedPreferences.getBoolean(dailyKeys[i], dailyDefaults[i]));
         dailyPane.setOnChipChangeListener((index, checked) -> {
             // 任务运行中弹窗，dismiss 时回滚勾选（与原 CompoundButton 版语义一致）
             if (blockIfTaskRunning(() -> dailyPane.setChipChecked(index, !checked))) return;
-            sharedPreferences.edit().putBoolean(dailyKeys[index], checked).apply();
+            if (blockIfNoTaskUser(() -> dailyPane.setChipChecked(index, !checked))) return;
+            setProfileEntry(taskProfile.dailyForums, TaskProfileStore.DAILY_FORUM_ORDER[index], checked);
+            persistTaskProfile();
         });
 
-        final String[] gameKeys = {
-                GAME_DAILY_GENSHIN, GAME_DAILY_ZZZ, GAME_DAILY_SRG,
-                GAME_DAILY_HR3, GAME_DAILY_HR2, GAME_DAILY_WEIDING,
-        };
-        for (int i = 0; i < gameKeys.length; i++)
-            gameDailyPane.setChipChecked(i, sharedPreferences.getBoolean(gameKeys[i], false));
         gameDailyPane.setOnChipChangeListener((index, checked) -> {
             if (blockIfTaskRunning(() -> gameDailyPane.setChipChecked(index, !checked))) return;
-            sharedPreferences.edit().putBoolean(gameKeys[index], checked).apply();
+            if (blockIfNoTaskUser(() -> gameDailyPane.setChipChecked(index, !checked))) return;
+            setProfileEntry(taskProfile.gameDailyGames, TaskProfileStore.GAME_SIGN_ORDER[index], checked);
+            persistTaskProfile();
             updateGameCardValue();
         });
 
         dailyPane.setOnSwitchChangeListener(isChecked -> {
             if (blockIfTaskRunning(() -> dailyPane.setSwitchChecked(!isChecked))) return;
-            sharedPreferences.edit().putBoolean(DAILY, isChecked).apply();
+            if (blockIfNoTaskUser(() -> dailyPane.setSwitchChecked(!isChecked))) return;
+            taskProfile.daily = isChecked;
+            persistTaskProfile();
             updateDailyCardValue(isChecked);
         });
 
         gameDailyPane.setOnSwitchChangeListener(isChecked -> {
             if (blockIfTaskRunning(() -> gameDailyPane.setSwitchChecked(!isChecked))) return;
-            sharedPreferences.edit().putBoolean(GAME_DAILY, isChecked).apply();
+            if (blockIfNoTaskUser(() -> gameDailyPane.setSwitchChecked(!isChecked))) return;
+            taskProfile.gameDaily = isChecked;
+            persistTaskProfile();
+            updateGameCardValue();
         });
 
         notificationPane.setOnBackgroundChangeListener(isChecked -> {
@@ -484,23 +463,21 @@ public class SettingsFragment implements PageController {
         calculateCacheSize(cachePane);
         cachePane.setOnClearClickListener(() -> clearCache(cachePane));
 
-        //森空岛设置（Compose 版内容）
-        boolean sklandEnabled = sharedPreferences.getBoolean(SKLAND_ENABLED, false);
-        sklandPane.setEnabledChecked(sklandEnabled);
-        sklandPane.setArknightsChecked(sharedPreferences.getBoolean(SKLAND_ARKNIGHTS_ENABLED, false));
-        sklandPane.setEndfieldChecked(sharedPreferences.getBoolean(SKLAND_ENDFIELD_ENABLED, false));
-        updateSklandCardValue(sklandEnabled);
+        //森空岛设置（Compose 版内容）：值已由 renderTaskConfig 按当前账号回填，此处只装监听
         sklandPane.setOnEnabledChangeListener(isChecked -> {
             if (blockIfTaskRunning(() -> sklandPane.setEnabledChecked(!isChecked))) return;
-            sharedPreferences.edit().putBoolean(SKLAND_ENABLED, isChecked).apply();
+            if (blockIfNoTaskUser(() -> sklandPane.setEnabledChecked(!isChecked))) return;
+            taskProfile.skland = isChecked;
+            persistTaskProfile();
             // 两个子项的可点态由 pane 依 enabledChecked 自行派生，无需再 setEnabled
             updateSklandCardValue(isChecked);
         });
         sklandPane.setOnSubItemChangeListener((index, isChecked) -> {
             if (blockIfTaskRunning(() -> setSklandSubItemChecked(index, !isChecked))) return;
-            sharedPreferences.edit().putBoolean(
-                    index == SklandSettingPaneKt.SKLAND_INDEX_ARKNIGHTS ? SKLAND_ARKNIGHTS_ENABLED : SKLAND_ENDFIELD_ENABLED,
-                    isChecked).apply();
+            if (blockIfNoTaskUser(() -> setSklandSubItemChecked(index, !isChecked))) return;
+            if (index == SklandSettingPaneKt.SKLAND_INDEX_ARKNIGHTS) taskProfile.sklandArknights = isChecked;
+            else taskProfile.sklandEndfield = isChecked;
+            persistTaskProfile();
         });
         sklandPane.setOnLoginLinkClickListener(() -> activity.startActivity(
                 new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Urls.SKLAND_LOGIN_URL))));
@@ -534,7 +511,7 @@ public class SettingsFragment implements PageController {
                     });
         });
         // 云游戏签到（Compose 版内容）：token 按当前用户存储，与米游社登录态无关
-        setupCloudGameSettings(context);
+        setupCloudGameSettings();
         return root;
     }
 
@@ -548,6 +525,10 @@ public class SettingsFragment implements PageController {
         // 正常从底栏切到设置页时回到当前账号，避免残留成幽灵上下文
         credentialUserId = null;
         if (sharedPreferences != null && screenView != null) {
+            // 账号可能在「用户管理」页被切换过：任务配置按账号存，必须整体重载重绘。
+            // 漏这一步的后果是页面停在旧账号的勾选上，用户改一下就把改动写进了新账号的配置
+            reloadTaskProfile();
+            renderTaskConfig();
             notificationPane.setBackgroundChecked(sharedPreferences.getBoolean(BACKGROUND_TASK_ENABLED, false));
             updateNotificationCardValue(notificationPane.getBackgroundChecked());
             // 电池豁免是系统级开关，没有变更广播：用户无论是从本页跳系统设置、还是自己从桌面
@@ -1054,6 +1035,96 @@ public class SettingsFragment implements PageController {
         return false;
     }
 
+    /**
+     * 无账号守卫：任务配置按账号存，没有账号就没有可写入的位置。
+     *
+     * <p>不静默丢弃：回滚控件状态并提示，否则用户会以为「勾了却没生效」。
+     * 与 {@link #blockIfTaskRunning} 同风格，返回 true 表示已拦截。
+     */
+    private boolean blockIfNoTaskUser(Runnable revertAction) {
+        if (!taskConfigUser().isEmpty()) return false;
+        revertAction.run();
+        // screenView 在页面 release 后为 null：此时用户不可能正在勾选，判空只为兜住极端时序
+        if (screenView != null)
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.home_no_user_hint));
+        return true;
+    }
+
+    /**
+     * 任务配置的归属账号：恒为当前登录账号。
+     *
+     * <p>刻意不复用 {@link #credentialUser()}：后者可能被「从用户管理页跳过来填 token」临时指到别的账号，
+     * 而任务配置决定「这个账号签哪些任务」，必须与首页/后台实际运行的账号一致，
+     * 否则会出现「在设置页改了 A 的任务，跑的却是 B」。
+     */
+    private String taskConfigUser() {
+        return new UserManager(activity).getCurrentUser();
+    }
+
+    /** 从当前账号加载任务配置（无账号时为内存默认值，不落盘，见 {@link TaskProfileStore#load}）。 */
+    private void reloadTaskProfile() {
+        taskProfile = TaskProfileStore.load(activity, taskConfigUser());
+    }
+
+    /**
+     * 任务卡片（可见性 / 已开启计数）用的服务器类型：跟随<b>正在编辑的任务配置</b>所属账号。
+     * <p>
+     * 不能读全局 {@code is_oversea}：任务配置自 P0-1 起按账号存，一个国际服账号在「全局=国服」时
+     * 仍应看到国际服的 chip 集合（崩坏2/未定/云绝区零都不可用），否则勾了也跑不了。
+     */
+    private boolean overseaForTaskConfig() {
+        return new UserManager(activity).isOversea(taskConfigUser());
+    }
+
+    /** 凭证（云游戏 token）用的服务器类型：跟随<b>凭证目标账号</b>{@link #credentialUser()}。 */
+    private boolean overseaForCredential() {
+        return new UserManager(activity).isOversea(credentialUser());
+    }
+
+    /** 落盘当前账号的任务配置；无账号时静默跳过（调用方已由 {@link #blockIfNoTaskUser} 拦截）。 */
+    private void persistTaskProfile() {
+        TaskProfileStore.save(activity, taskConfigUser(), taskProfile);
+    }
+
+    /**
+     * 把 taskProfile 回填到四类任务卡片。
+     *
+     * <p>必须是唯一的回填入口：chip 下标与 {@link TaskProfileStore#DAILY_FORUM_ORDER} 等数组严格对应，
+     * 分散回填时任何一处漏改都表现为「勾选跑到别的游戏上」。
+     */
+    private void renderTaskConfig() {
+        if (taskProfile == null) return;
+
+        dailyPane.setSwitchChecked(taskProfile.daily);
+        for (int i = 0; i < TaskProfileStore.DAILY_FORUM_ORDER.length; i++)
+            dailyPane.setChipChecked(i, taskProfile.dailyForums.contains(TaskProfileStore.DAILY_FORUM_ORDER[i]));
+        updateDailyCardValue(taskProfile.daily);
+
+        gameDailyPane.setSwitchChecked(taskProfile.gameDaily);
+        for (int i = 0; i < TaskProfileStore.GAME_SIGN_ORDER.length; i++)
+            gameDailyPane.setChipChecked(i, taskProfile.gameDailyGames.contains(TaskProfileStore.GAME_SIGN_ORDER[i]));
+        updateGameCardValue();
+
+        sklandPane.setEnabledChecked(taskProfile.skland);
+        sklandPane.setArknightsChecked(taskProfile.sklandArknights);
+        sklandPane.setEndfieldChecked(taskProfile.sklandEndfield);
+        updateSklandCardValue(taskProfile.skland);
+
+        cloudGamePane.setEnabledChecked(taskProfile.cloudGame);
+        for (int i = 0; i < TaskProfileStore.CLOUD_GAME_ORDER.length; i++)
+            cloudGamePane.setChipChecked(i, taskProfile.cloudGames.contains(TaskProfileStore.CLOUD_GAME_ORDER[i]));
+        updateCloudGameCardValue();
+    }
+
+    /** 勾选集合的增删（{@link TaskProfile} 的列表是「已勾选项」语义，不是逐项布尔）。 */
+    private static void setProfileEntry(java.util.List<String> entries, String value, boolean present) {
+        if (!present) {
+            entries.remove(value);
+        } else if (!entries.contains(value)) {
+            entries.add(value);
+        }
+    }
+
     /** 森空岛子项勾选态回写（任务运行中弹窗 dismiss 时的回滚入口）。 */
     private void setSklandSubItemChecked(int index, boolean checked) {
         if (index == SklandSettingPaneKt.SKLAND_INDEX_ARKNIGHTS) sklandPane.setArknightsChecked(checked);
@@ -1079,17 +1150,21 @@ public class SettingsFragment implements PageController {
         setCardValue(dailyCard, activity.getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 
-    /** 游戏签到行值：已开启游戏数 / 总数（设计稿：4/5 已开启）。 */
+    /** 游戏签到行值：已开启数 / 当前服务器可见的游戏数（设计稿：4/5 已开启）。 */
     private void updateGameCardValue() {
-        if (gameDailyCard == null) return;
-        String[][] defs = {
-                {GAME_DAILY_GENSHIN, "false"}, {GAME_DAILY_ZZZ, "false"}, {GAME_DAILY_SRG, "false"},
-                {GAME_DAILY_HR3, "false"}, {GAME_DAILY_HR2, "false"}, {GAME_DAILY_WEIDING, "false"}
-        };
+        if (gameDailyCard == null || taskProfile == null) return;
+        boolean oversea = overseaForTaskConfig();
+        int total = 0;
         int enabled = 0;
-        for (String[] d : defs)
-            if (sharedPreferences.getBoolean(d[0], Boolean.parseBoolean(d[1]))) enabled++;
-        setCardValue(gameDailyCard, activity.getString(R.string.game_enabled_fmt, enabled, defs.length), enabled > 0);
+        for (String game : TaskProfileStore.GAME_SIGN_ORDER) {
+            // 国际服没有崩坏2 / 未定事件簿的签到活动（chip 已隐藏）：分子分母都要排除，
+            // 否则会显示「6/6 已开启」而界面上只有 4 个 chip
+            if (oversea && (TaskProfileStore.GAME_HR2.equals(game)
+                    || TaskProfileStore.GAME_WEIDING.equals(game))) continue;
+            total++;
+            if (taskProfile.gameDailyGames.contains(game)) enabled++;
+        }
+        setCardValue(gameDailyCard, activity.getString(R.string.game_enabled_fmt, enabled, total), enabled > 0);
     }
 
     private void updateNotificationCardValue(boolean enabled) {
@@ -1138,25 +1213,23 @@ public class SettingsFragment implements PageController {
     }
 
     /** 云游戏抽屉：总开关、两款勾选、token 入口与状态；token 按用户存 user_{id}，国际服隐藏绝区零。 */
-    private void setupCloudGameSettings(Context context) {
-        boolean cloudEnabled = sharedPreferences.getBoolean(CLOUD_GAME_ENABLED, false);
-        cloudGamePane.setEnabledChecked(cloudEnabled);
-        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ,
-                !MiHoYoBBSConstants.is_oversea(context));
+    private void setupCloudGameSettings() {
+        // 开关与勾选已由 renderTaskConfig 按当前账号回填；这里只做「国际服没有云绝区零」的可见性与凭证刷新
+        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, !overseaForTaskConfig());
         refreshCloudGameTokens();
-        updateCloudGameCardValue();
         cloudGamePane.setOnEnabledChangeListener(isChecked -> {
             if (blockIfTaskRunning(() -> cloudGamePane.setEnabledChecked(!isChecked))) return;
-            sharedPreferences.edit().putBoolean(CLOUD_GAME_ENABLED, isChecked).apply();
+            if (blockIfNoTaskUser(() -> cloudGamePane.setEnabledChecked(!isChecked))) return;
+            taskProfile.cloudGame = isChecked;
+            persistTaskProfile();
             updateCloudGameCardValue();
         });
-        // 顺序须与 Compose 侧 CLOUD_GAME_CHIP_LABEL_RES 一致
-        final String[] cloudGameKeys = {CLOUD_GAME_GENSHIN, CLOUD_GAME_ZZZ};
-        for (int i = 0; i < cloudGameKeys.length; i++)
-            cloudGamePane.setChipChecked(i, sharedPreferences.getBoolean(cloudGameKeys[i], false));
+        // 顺序须与 Compose 侧 CLOUD_GAME_CHIP_LABEL_RES 一致（下标即 TaskProfileStore.CLOUD_GAME_ORDER 下标）
         cloudGamePane.setOnChipChangeListener((index, checked) -> {
             if (blockIfTaskRunning(() -> cloudGamePane.setChipChecked(index, !checked))) return;
-            sharedPreferences.edit().putBoolean(cloudGameKeys[index], checked).apply();
+            if (blockIfNoTaskUser(() -> cloudGamePane.setChipChecked(index, !checked))) return;
+            setProfileEntry(taskProfile.cloudGames, TaskProfileStore.CLOUD_GAME_ORDER[index], checked);
+            persistTaskProfile();
             updateCloudGameCardValue();
         });
         // 两款云游戏共用同一个获取入口：token 本身互不通用（按云游戏服务签发），
@@ -1192,7 +1265,7 @@ public class SettingsFragment implements PageController {
     /** 刷新 token 进度（按目标账号读，未登录视为未配置）；国际服只有云原神，分母为 1。 */
     private void refreshCloudGameTokens() {
         String userId = credentialUser();
-        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        boolean oversea = overseaForCredential();
         String[] games = oversea
                 ? new String[]{CloudGameDaily.GAME_GENSHIN}
                 : new String[]{CloudGameDaily.GAME_GENSHIN, CloudGameDaily.GAME_ZZZ};
@@ -1241,7 +1314,7 @@ public class SettingsFragment implements PageController {
             showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
             return;
         }
-        if (MiHoYoBBSConstants.is_oversea(activity)) {
+        if (overseaForCredential()) {
             showCloudGameTokenInput(CloudGameDaily.GAME_GENSHIN, userId);
             return;
         }
@@ -1287,7 +1360,8 @@ public class SettingsFragment implements PageController {
 
     /** 手动填写云游戏 token；token 与米游社登录态无关，但按用户存放。 */
     private void showCloudGameTokenInput(String gameName, String userId) {
-        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        // 键与服务器类型绑定（两服云原神 token 不通用）：按 token 归属的账号判定，而不是全局
+        boolean oversea = new UserManager(activity).isOversea(userId);
         String key = CloudGameDaily.tokenKey(gameName, oversea);
         String displayName = CloudGameDaily.displayName(activity, gameName);
         VenusDialogs.input(
@@ -1316,15 +1390,18 @@ public class SettingsFragment implements PageController {
      * M 取当前服务器实际可用的云游戏数（国际服没有云绝区零）。
      */
     private void updateCloudGameCardValue() {
-        if (cloudGameCard == null || sharedPreferences == null) return;
-        if (!sharedPreferences.getBoolean(CLOUD_GAME_ENABLED, false)) {
+        if (cloudGameCard == null || taskProfile == null) return;
+        if (!taskProfile.cloudGame) {
             setCardValue(cloudGameCard, activity.getString(R.string.value_off), false);
             return;
         }
-        boolean oversea = MiHoYoBBSConstants.is_oversea(activity);
+        boolean oversea = overseaForTaskConfig();
         int total = oversea ? 1 : 2;
-        int enabledCount = sharedPreferences.getBoolean(CLOUD_GAME_GENSHIN, false) ? 1 : 0;
-        if (!oversea && sharedPreferences.getBoolean(CLOUD_GAME_ZZZ, false)) enabledCount++;
+        int enabledCount = 0;
+        for (String game : TaskProfileStore.CLOUD_GAME_ORDER) {
+            if (oversea && CloudGameDaily.GAME_ZZZ.equals(game)) continue;
+            if (taskProfile.cloudGames.contains(game)) enabledCount++;
+        }
         setCardValue(cloudGameCard,
                 activity.getString(R.string.game_enabled_fmt, enabledCount, total), enabledCount > 0);
     }

@@ -10,6 +10,7 @@ import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.tools;
 
 import java.util.ArrayList;
@@ -28,9 +29,11 @@ public class GachaLink {
 
     public GachaLink(Context context, String userId) {
         this.context = context;
-        this.header_manager = new HeaderManager(context);
         this.userId = userId;
-        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
+        // 服务器类型按账号取：抽卡记录的接口域与 region 都随账号所属服变化，
+        // 用全局 SERVER_TYPE 会在「当前切到国服、实际看国际服账号」时取错接口
+        this.isOversea = new UserManager(context).isOversea(userId);
+        this.header_manager = new HeaderManager(context, isOversea);
     }
 
     /**

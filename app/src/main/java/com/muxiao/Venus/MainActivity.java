@@ -8,7 +8,6 @@ import static com.muxiao.Venus.common.Constants.Prefs.AUTO_UPDATE_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_IMAGE_URI;
 import static com.muxiao.Venus.common.Constants.Prefs.BACKGROUND_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.LAST_VERSION;
-import static com.muxiao.Venus.common.Constants.Prefs.PREF_CAPTCHA_PENDING;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.tools.show_error_dialog;
 
@@ -28,9 +27,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.core.splashscreen.SplashScreen;
 
+import com.muxiao.Venus.Home.CaptchaStore;
 import com.muxiao.Venus.Home.HomeFragment;
 import com.muxiao.Venus.Link.LinkFragment;
 import com.muxiao.Venus.User.UserManagementFragment;
+import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.Setting.UpdateChecker;
 import com.muxiao.Venus.common.Constants;
@@ -141,7 +142,11 @@ public class MainActivity extends BaseActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Logger.debug("VenusCaptcha", "ACTION_CAPTCHA_REQUIRED received");
+                // 广播携带挂起账号：先切过去，否则按当前展示账号读 pending 会读不到，
+                // 表现为「后台明明挂起了验证，前台什么都不弹」
+                switchToCaptchaUser(intent.getStringExtra(Constants.EXTRA_CAPTCHA_USER));
                 captchaPending = true;
+                captchaPendingUser = new UserManager(MainActivity.this).getCurrentUser();
                 shell.setCurrentPage(0, false);
                 tryTriggerCaptchaIfReady();
             }
@@ -249,19 +254,35 @@ public class MainActivity extends BaseActivity {
     /** 待触发的后台人机验证标记（避免轮询）。 */
     private boolean captchaPending = false;
 
+    /**
+     * 本次待弹验证的归属账号。从「判定有待验证」到「控制器就绪真正弹框」之间可能隔着一次页面切换/账号切换，
+     * 用当时记下的账号去标记 seen，才不会被后来的账号顶掉。
+     */
+    private String captchaPendingUser = null;
+
+    /**
+     * 本次触发是否来自「用户点验证通知」：点通知是明确的用户意图，即使这份 pending 已经弹过
+     * （seen = true，用户之前关掉了框）也要再弹一次；onResume 的自动检查则只在「还没弹过」时触发。
+     */
+    private boolean captchaForceShow = false;
+
     /** 「后台正在等待验证」广播接收器（onCreate 注册、onDestroy 注销）。 */
     private BroadcastReceiver captchaRequiredReceiver;
 
-    /** 检查是否有待处理的后台人机验证，有则触发（就绪回调见 {@link #tryTriggerCaptchaIfReady()}）。 */
+    /** 检查当前账号是否有待处理的后台人机验证，有则触发（就绪回调见 {@link #tryTriggerCaptchaIfReady()}）。 */
     private void triggerCaptchaIfPending() {
-        ConfigRepository configRepo = new ConfigRepository(this);
-        boolean pending = configRepo.getBoolean(PREF_CAPTCHA_PENDING, false);
-        Logger.debug("VenusCaptcha", "triggerCaptchaIfPending: pending=" + pending);
+        // 验证请求按账号存放：判断的是「当前展示账号」自己的 pending。
+        // 旧实现读全局 captcha_pending 布尔，多账号时任一账号消费掉标记，其余账号就再也弹不出来
+        String userId = new UserManager(this).getCurrentUser();
+        boolean pending = captchaForceShow
+                ? CaptchaStore.getPending(this, userId) != null
+                : CaptchaStore.hasPendingToShow(this, userId);
+        captchaForceShow = false;
+        Logger.debug("VenusCaptcha", "triggerCaptchaIfPending: user=" + userId + ", pending=" + pending);
         if (!pending) return;
 
-        // 清除标记，防止重复触发（仓储写入为 Write-Through：缓存即时生效，后续读取无问题）
-        configRepo.putBoolean(PREF_CAPTCHA_PENDING, false);
         captchaPending = true;
+        captchaPendingUser = userId;
         shell.setCurrentPage(0, false);
 
         // 主页控制器可能尚未就绪（视图未创建）：直接尝试一次；未就绪则等就绪回调。
@@ -273,18 +294,39 @@ public class MainActivity extends BaseActivity {
         if (!captchaPending) return;
         if (homeController.isReady()) {
             captchaPending = false;
+            String userId = captchaPendingUser;
+            captchaPendingUser = null;
+            // 弹一次即标记「已看过」：后续 onResume 的自动检查不再重复弹，用户主动关掉后也不会骚扰。
+            // 只改 seen、不清请求本身——验证 UI 仍要用这份 challenge，通知入口也仍能重新唤起它
+            if (userId != null && !userId.isEmpty()) CaptchaStore.markPendingSeen(this, userId);
             homeController.performBackgroundCaptchaVerification();
         }
     }
 
-    // 解析来自后台人机验证通知的 Intent：置位 captchaPending 并切到首页等待触发
+    // 解析来自后台人机验证通知的 Intent：切到挂起账号、置位强弹标记并切到首页等待触发
     private void handleCaptchaIntent(Intent intent) {
         Logger.debug("VenusCaptcha", "handleCaptchaIntent called, action=" + (intent != null ? intent.getAction() : "null"));
         if (intent != null && Constants.ACTION_HANDLE_CAPTCHA.equals(intent.getAction())) {
             intent.setAction(null);
-            new ConfigRepository(this).putBoolean(PREF_CAPTCHA_PENDING, true);
+            // 通知携带挂起账号：先切过去。否则会拿当前展示的账号去找 pending，找不到就什么都不弹
+            switchToCaptchaUser(intent.getStringExtra(Constants.EXTRA_CAPTCHA_USER));
+            captchaForceShow = true;
             shell.setCurrentPage(0, false);
         }
+    }
+
+    /**
+     * 切到人机验证的挂起账号（通知点击与前台广播两个入口共用）。
+     *
+     * <p>必须切：验证请求按账号存放，而「弹验证」用的是首页当前展示账号。账号已被删除时保持原样，
+     * 让后续流程按当前账号走（拿不到 pending 时会走「已验证则续跑」的安全分支，不会凭空造一个验证框）。
+     */
+    private void switchToCaptchaUser(String targetUser) {
+        if (targetUser == null || targetUser.isEmpty()) return;
+        UserManager users = new UserManager(this);
+        if (targetUser.equals(users.getCurrentUser()) || !users.isUserExists(targetUser)) return;
+        users.setCurrentUser(targetUser);
+        onCurrentUserChanged();
     }
 
     @Override

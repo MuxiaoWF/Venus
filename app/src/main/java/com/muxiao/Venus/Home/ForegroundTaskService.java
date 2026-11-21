@@ -156,13 +156,14 @@ public class ForegroundTaskService extends Service {
                     // 新一轮运行：仅复位该用户桶内的瞬态，保留当日终态——重跑中途终止不会抹掉已完成记录。
                     // App 内「开始任务」已由 resetForNewRun 复位过（重复复位无副作用），但小组件入口
                     // TaskWidgetReceiver 没有对应调用，统一由服务侧复位以保证三条入口一致。
-                    statusManager.resetTransientStatuses(runningUserId, TaskSettings.fromPreferences(this).getTaskIds());
+                    statusManager.resetTransientStatuses(runningUserId,
+                            TaskSettings.fromPreferences(this, runningUserId).getTaskIds());
                     // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
                     TaskWidgetProvider.refreshAllWidgets(this);
                     // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
                     statusManager.setCurrentUser(runningUserId);
 
-                    TaskSettings settings = TaskSettings.fromPreferences(this);
+                    TaskSettings settings = TaskSettings.fromPreferences(this, runningUserId);
                     int totalTasks = settings.getTaskIds().size();
                     AtomicInteger completedTasks = new AtomicInteger(0);
                     // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）

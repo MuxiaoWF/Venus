@@ -59,7 +59,12 @@ public class BBSGameDaily {
     private final CaptchaVerificationHelper captchaHelper;
     private final boolean isOversea;
 
-    public BBSGameDaily(Context context, String userId, String gameName, tools.StatusNotifier statusNotifier, GeetestController gt3Controller) {
+    /**
+     * @param isOversea 目标账号的服务器类型（由 {@code TaskSettings.isOversea()} 经 TaskExecutor 传入）：
+     *                  决定活动 id / game_biz 映射表、Cookie 获取方式与请求头域，不能读全局 {@code is_oversea}。
+     */
+    public BBSGameDaily(Context context, String userId, String gameName, tools.StatusNotifier statusNotifier,
+                        GeetestController gt3Controller, boolean isOversea) {
         this.gameName = gameName;
         this.displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
         this.context = context;
@@ -68,8 +73,8 @@ public class BBSGameDaily {
         this.notification = new Notification(context);
         // 凭证改从跨轮存储读（挂起-续跑模型），不再持有控制器与等待状态
         this.captchaHelper = new CaptchaVerificationHelper(context, userId);
-        this.headerManager = new HeaderManager(context);
-        this.isOversea = MiHoYoBBSConstants.is_oversea(context);
+        this.isOversea = isOversea;
+        this.headerManager = new HeaderManager(context, isOversea);
         this.actId = MiHoYoBBSConstants.name_to_act_id(gameName, isOversea);
         String gameId = MiHoYoBBSConstants.name_to_game_id(gameName, isOversea);
         // 国际服映射表不含全部国服游戏，映射缺失时会在后续 Map.of("game_biz", null) 处抛 NPE；

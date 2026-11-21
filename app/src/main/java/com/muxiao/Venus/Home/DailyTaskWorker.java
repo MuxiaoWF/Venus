@@ -82,6 +82,24 @@ public class DailyTaskWorker extends Worker {
             return Result.success();
         }
 
+        // 本轮目标账号：续跑轮必须用「验证归属的账号」（WorkData 携带），不能重新取当前账号——
+        // 验证请求与凭证都按账号存放，用户验证期间切过账号就会跑到别人的桶里，挂起项永远停在待验证。
+        // 旧版本入队的 resume 工作没有该键，回退到当前账号保持其原行为；定时轮一律用当前账号
+        // （批量跑全部账号属 P1 的 MultiUserRunner，不在这里展开）。
+        String resumeUser = resume
+                ? getInputData().getString(DailyTaskScheduler.KEY_RESUME_USER) : null;
+        String userId = (resumeUser != null && !resumeUser.isEmpty())
+                ? resumeUser : TaskWidgetReceiver.resolveTargetUser(context);
+
+        // 挂起/排队期间账号可能已被用户删除：续跑名单来自 WorkData，绕过了 resolveTargetUser 的存在性校验。
+        // 不拦住的话会给不存在的账号建孤儿任务配置（task_profile_*）与状态桶，并把那一轮记成失败。
+        if (!userId.isEmpty() && !new com.muxiao.Venus.User.UserManager(context).isUserExists(userId)) {
+            tools.writeLog(context, TAG + ": target user no longer exists, skip this round: " + userId);
+            DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
+                    delayToNextOccurrence());
+            return Result.success();
+        }
+
         // 与手动入口互斥：前台/后台任务在跑则短延时后复查而非直接排明天，手动轮结束（含失败收场）后
         // 仍能当日兜底；若手动轮已跑完全部任务，下方幂等检查会直接排明天，复查不产生多余执行。
         // 续跑轮改用秒级复查：它是用户刚完成验证后的收尾，那个「在跑」的轮次往往只剩收尾动作，
@@ -92,10 +110,10 @@ public class DailyTaskWorker extends Worker {
                     : TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES);
             tools.writeLog(context, TAG + ": another round active, recheck in " + delayMs + "ms");
             if (resume) {
-                // 必须保留 resume 标记与名单，否则重排后退化成「全量执行 + 受定时开关约束」
+                // 必须保留 resume 标记、目标账号与名单，否则重排后退化成「全量执行 + 受定时开关约束」
                 String[] rawIds = getInputData()
                         .getNullableStringArray(DailyTaskScheduler.KEY_ONLY_IDS);
-                DailyTaskScheduler.enqueueResumeLater(context,
+                DailyTaskScheduler.enqueueResumeLater(context, userId,
                         rawIds == null ? null : java.util.Arrays.asList(rawIds), delayMs);
             } else {
                 DailyTaskScheduler.enqueueNext(context,
@@ -104,8 +122,8 @@ public class DailyTaskWorker extends Worker {
             return Result.success();
         }
 
-        String userId = TaskWidgetReceiver.resolveTargetUser(context);
-        TaskSettings settings = TaskSettings.fromPreferences(context);
+        // 任务配置按账号：读本轮的运行账号，而不是全局配置
+        TaskSettings settings = TaskSettings.fromPreferences(context, userId);
         if (userId.isEmpty() || settings.hasAnyTaskDisabled()) {
             tools.writeLog(context, TAG + ": no user or no task enabled, skip this round");
             DailyTaskScheduler.enqueueNext(context,
@@ -260,7 +278,7 @@ public class DailyTaskWorker extends Worker {
                 // 必须带 resume 标记：丢掉它会让下一轮按「当前状态」二次过滤名单，而被上一轮
                 // resetTransientStatuses 复位成 pending 的挂起项会被全部筛掉，续跑轮静默空跑。
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
-                    DailyTaskScheduler.enqueueCaptchaRetry(context, captchaTaskIds,
+                    DailyTaskScheduler.enqueueCaptchaRetry(context, userId, captchaTaskIds,
                             DailyTaskScheduler.CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
                             attempt + 1);
                 else

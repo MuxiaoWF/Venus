@@ -225,7 +225,8 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         /** 从各数据源读取当前时刻的完整快照（触发 {@code TaskStatusManager.ensureToday()} 跨天校验）。 */
         static WidgetSnapshot load(Context context) {
             String targetUser = TaskWidgetReceiver.resolveTargetUser(context);
-            TaskSettings settings = TaskSettings.fromPreferences(context);
+            // 任务集合、状态、就绪三者必须同源：任务配置也按 targetUser 读，否则会拿别的账号的签到计划配这个账号的状态
+            TaskSettings settings = TaskSettings.fromPreferences(context, targetUser);
             List<TaskDescriptor> tasks = settings.getTasks(context);
             TaskStatusManager statusManager = new TaskStatusManager(context);
             Map<String, String> statuses = statusManager.getAllStatuses(targetUser);

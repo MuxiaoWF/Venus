@@ -65,9 +65,10 @@ public class TaskWidgetService extends RemoteViewsService {
 
         // 读取任务配置、每个任务的状态与凭证就绪情况，重建四个平行列表（id/名/状态/就绪）
         private void loadData() {
-            TaskSettings settings = TaskSettings.fromPreferences(context);
             // 状态按用户分桶：展示小组件目标用户（当前选中，兜底最后运行）的完成情况
             String targetUser = TaskWidgetReceiver.resolveTargetUser(context);
+            // 任务集合也按同一账号读（配置按账号存）：否则列表里会出现别的账号的任务
+            TaskSettings settings = TaskSettings.fromPreferences(context, targetUser);
             Map<String, String> statuses = new TaskStatusManager(context).getAllStatuses(targetUser);
             // 就绪表：与应用内一致——未配置凭证的任务照样列出，但划线灰显（执行入口会跳过）
             Map<String, Boolean> readiness = settings.getTaskReadiness(context, targetUser);

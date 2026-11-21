@@ -61,6 +61,18 @@ public final class DailyTaskScheduler {
      */
     public static final String KEY_RESUME = "scheduled_resume";
 
+    /**
+     * WorkData 键：续跑轮的目标账号（{@link #KEY_RESUME} 为真时必带）。
+     *
+     * <p>为什么必须显式带：验证请求与凭证都按账号存放，续跑要重跑的正是<b>那个挂起账号</b>的任务。
+     * 旧实现不传用户、Worker 用 {@code resolveTargetUser} 重新取「当前账号」——用户验证期间切过账号，
+     * 续跑就会跑到别人的桶里，挂起项永远停在待验证。
+     *
+     * <p>旧版本入队的 resume 工作没有这个键：Worker 侧读到 null 时回退到 {@code resolveTargetUser}，
+     * 保持升级瞬间在途工作的行为（而不是直接丢弃）。
+     */
+    public static final String KEY_RESUME_USER = "scheduled_resume_user";
+
     /** 当日错过后补跑的延迟（分钟）。 */
     private static final long CATCH_UP_DELAY_MINUTES = 15;
 
@@ -160,14 +172,24 @@ public final class DailyTaskScheduler {
     /** 排下一次工作；onlyIds 非空时写入部分执行名单（同日重试只重跑非验证码失败项）。 */
     static void enqueueNext(Context context, ExistingWorkPolicy policy, long delay,
                             int attempt, Set<String> onlyIds) {
-        enqueue(context, policy, delay, attempt, onlyIds, false);
+        enqueue(context, policy, delay, attempt, onlyIds, false, null);
     }
 
-    /** 实际入队：resume 标记「验证完成后的续跑」，Worker 据此跳过定时开关的判断。 */
+    /**
+     * 实际入队。
+     *
+     * @param resume         「验证完成后的续跑」标记，Worker 据此跳过定时开关的判断
+     * @param resumeUserId   续跑目标账号（仅 resume 为真时写入）；为空表示旧版入队的工作
+     */
     private static void enqueue(Context context, ExistingWorkPolicy policy, long delay,
-                                int attempt, Set<String> onlyIds, boolean resume) {
+                                int attempt, Set<String> onlyIds, boolean resume,
+                                String resumeUserId) {
         Data.Builder data = new Data.Builder().putInt(KEY_ATTEMPT, attempt);
-        if (resume) data.putBoolean(KEY_RESUME, true);
+        if (resume) {
+            data.putBoolean(KEY_RESUME, true);
+            if (resumeUserId != null && !resumeUserId.isEmpty())
+                data.putString(KEY_RESUME_USER, resumeUserId);
+        }
         if (onlyIds != null && !onlyIds.isEmpty())
             data.putStringArray(KEY_ONLY_IDS, onlyIds.toArray(new String[0]));
         OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(DailyTaskWorker.class)
@@ -183,7 +205,7 @@ public final class DailyTaskScheduler {
     }
 
     /**
-     * 用户完成人机验证后触发一次立即续跑：只重跑挂起过的任务，凭证由 {@code CaptchaStore} 注入请求头。
+     * 用户完成人机验证后触发一次立即续跑：只重跑<b>该账号</b>挂起过的任务，凭证由 {@code CaptchaStore} 注入请求头。
      *
      * <p>正常情况下用 {@code REPLACE} 而非 {@link #CHAIN_POLICY}：当前链尾是「明天到点」那一个节点，
      * APPEND 会留下两个待执行节点（立即续跑 + 明天），而续跑轮结束后又会自己挂一个明天，导致次日双跑。
@@ -191,13 +213,16 @@ public final class DailyTaskScheduler {
      *
      * <p><b>例外</b>：定时 Worker 正在跑时不能 REPLACE——它就在这条唯一链上，REPLACE 会取消它自己，
      * 正在执行的签到被 {@code isStopped()} 短路成「已取消」。这种情形改为追加到链尾，它那轮结束后立刻接着跑。
+     *
+     * @param userId 验证归属的账号：必须原样传到 Worker，续跑轮据此定位状态桶与凭证（不能由 Worker 自行取当前账号）
      */
-    public static void enqueueCaptchaResume(Context context, java.util.Collection<String> taskIds) {
+    public static void enqueueCaptchaResume(Context context, String userId,
+                                            java.util.Collection<String> taskIds) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
         if (DailyTaskWorker.isRunning()) {
-            tools.writeLog(context, "captcha resume appended: scheduled worker still running");
-            enqueue(context, CHAIN_POLICY, TimeUnit.SECONDS.toMillis(10), 1, onlyIds, true);
+            tools.writeLog(context, "captcha resume appended: scheduled worker still running (" + userId + ")");
+            enqueue(context, CHAIN_POLICY, TimeUnit.SECONDS.toMillis(10), 1, onlyIds, true, userId);
             return;
         }
         // 前台轮/后台服务在跑时不丢弃，改为短延迟入队（旧实现直接 return）：验证刚完成时那一轮通常正处在
@@ -209,18 +234,19 @@ public final class DailyTaskScheduler {
         if (delay > 0)
             tools.writeLog(context, "captcha resume delayed " + delay + "ms: another round still running");
         // resume 标记让 Worker 跳过定时开关判断：用户刚完成验证，与此开关无关
-        enqueue(context, ExistingWorkPolicy.REPLACE, delay, 1, onlyIds, true);
+        enqueue(context, ExistingWorkPolicy.REPLACE, delay, 1, onlyIds, true, userId);
     }
 
     /**
-     * 续跑轮自身被占用时的短延迟重排：保留 resume 标记与部分执行名单。
-     * <p>不能用 {@link #enqueueNext(Context, ExistingWorkPolicy, long)}——它会丢掉这两个 WorkData，
-     * 把「只重跑挂起项」退化成「全量执行且受定时开关约束」。
+     * 续跑轮自身被占用时的短延迟重排：保留 resume 标记、目标账号与部分执行名单。
+     * <p>不能用 {@link #enqueueNext(Context, ExistingWorkPolicy, long)}——它会丢掉这些 WorkData，
+     * 把「只重跑该账号的挂起项」退化成「全量执行且受定时开关约束」。
      */
-    static void enqueueResumeLater(Context context, java.util.Collection<String> taskIds, long delayMs) {
+    static void enqueueResumeLater(Context context, String userId,
+                                   java.util.Collection<String> taskIds, long delayMs) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
-        enqueue(context, ExistingWorkPolicy.REPLACE, Math.max(0, delayMs), 1, onlyIds, true);
+        enqueue(context, ExistingWorkPolicy.REPLACE, Math.max(0, delayMs), 1, onlyIds, true, userId);
     }
 
     /**
@@ -228,16 +254,17 @@ public final class DailyTaskScheduler {
      * {@link #CHAIN_POLICY} 追加到链尾而非 REPLACE——调用方正是链上正在运行的 Worker，
      * REPLACE 会把它自己取消掉。
      *
-     * <p>同样必须带 resume 标记：Worker 侧据此跳过「当日全完成」幂等检查，且
-     * {@code resolveOnlyIds} 直接采信名单而不是按当前状态二次过滤（挂起项可能已被复位成待执行）。
+     * <p>同样必须带 resume 标记与目标账号：Worker 侧据此跳过「当日全完成」幂等检查，
+     * 且 {@code resolveOnlyIds} 直接采信名单而不是按当前状态二次过滤（挂起项可能已被复位成待执行）。
      *
      * @param attempt 让 Worker 的重试额度继续累加，达到 {@link #MAX_ATTEMPTS} 后由它改排明天
      */
-    static void enqueueCaptchaRetry(Context context, java.util.Collection<String> taskIds,
+    static void enqueueCaptchaRetry(Context context, String userId,
+                                    java.util.Collection<String> taskIds,
                                     long delayMs, int attempt) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
-        enqueue(context, CHAIN_POLICY, Math.max(0, delayMs), attempt, onlyIds, true);
+        enqueue(context, CHAIN_POLICY, Math.max(0, delayMs), attempt, onlyIds, true, userId);
     }
 
     /** 距「下一个设定时刻」的毫秒数（严格未来，不做当日补跑判断）。 */
@@ -273,7 +300,7 @@ public final class DailyTaskScheduler {
     private static boolean shouldCatchUpToday(Context context) {
         String userId = TaskWidgetReceiver.resolveTargetUser(context);
         if (userId.isEmpty()) return false;
-        TaskSettings settings = TaskSettings.fromPreferences(context);
+        TaskSettings settings = TaskSettings.fromPreferences(context, userId);
         if (settings.hasAnyTaskDisabled()) return false;
         return !allEnabledTasksCompletedToday(context, userId);
     }
@@ -284,7 +311,8 @@ public final class DailyTaskScheduler {
      */
     public static boolean allEnabledTasksCompletedToday(Context context, String userId) {
         Context localized = LocaleHelper.wrap(context.getApplicationContext());
-        TaskSettings settings = TaskSettings.fromPreferences(localized);
+        // 该账号自己的任务集合：不同账号的任务列表不同，「全部完成」只能按各自配置判定
+        TaskSettings settings = TaskSettings.fromPreferences(localized, userId);
         if (settings.hasAnyTaskDisabled()) return true;
         List<String> taskIds = settings.getTaskIds();
         if (taskIds.isEmpty()) return true;

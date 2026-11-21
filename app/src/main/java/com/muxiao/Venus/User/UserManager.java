@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.muxiao.Venus.common.Constants;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -97,30 +98,49 @@ public class UserManager {
         return sharedPreferences.getString(KEY_CURRENT_USER, "");
     }
 
+    /**
+     * 账号自身的服务器类型（真源）。
+     *
+     * <p>读的是账号维度 {@code user_{id}} 的 {@code server_type}（{@code UserLoginActivity} /
+     * {@code OAuthLoginActivity} 登录成功时写入 "0"/"1"），<b>不是</b>全局 {@code SERVER_TYPE}：多账号可以
+     * 分属国服/国际服，签到接口域名、appId/package、Referer、云游戏 token 键都随它变。
+     *
+     * <p>两种兜底，刻意与既有口径保持一致：
+     * <ul>
+     *   <li>{@code userId} 为空（界面还没绑定账号）→ 跟随全局 {@code SERVER_TYPE}，这是唯一能用的信号；</li>
+     *   <li>有账号但无 {@code server_type} 记录（P0 之前登录的旧账号）→ 按国服处理。
+     *       {@link #getUsernamesByServerType} 也是这么判的，两处必须同口径，否则会出现
+     *       「列表里按国服显示、执行时按国际服取接口」。</li>
+     * </ul>
+     */
+    public boolean isOversea(String userId) {
+        if (userId == null || userId.isEmpty()) return isGlobalOversea();
+        return "1".equals(serverTypeOf(userId));
+    }
+
+    /** 全局服务器类型（settings_prefs 的 SERVER_TYPE，1=国际服）。无账号上下文时的兜底，也是设置页切换的目标。 */
+    public boolean isGlobalOversea() {
+        return context.getSharedPreferences(Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(Constants.Prefs.SERVER_TYPE, 0) == 1;
+    }
+
+    /** 账号原始 server_type 值（""/"0"/"1"）；未记录时为空串。 */
+    private String serverTypeOf(String username) {
+        return context.getSharedPreferences("user_" + username, Context.MODE_PRIVATE)
+                .getString(Constants.Prefs.SERVER_TYPE, "");
+    }
+
     public List<String> getUsernamesByServerType(boolean isOversea) {
         List<String> result = new ArrayList<>();
         Map<String, String> allUsers = getUsers();
         for (String username : allUsers.keySet()) {
-            SharedPreferences userPrefs = context.getSharedPreferences("user_" + username, Context.MODE_PRIVATE);
-            String serverType = userPrefs.getString("server_type", "");
-            if (serverType.isEmpty()) {
-                // 无 server_type 的旧用户一律按国服处理，国际服下不显示
-                if (!isOversea) {
-                    result.add(username);
-                }
-            } else {
-                boolean userIsOversea = "1".equals(serverType);
-                if (userIsOversea == isOversea) {
-                    result.add(username);
-                }
-            }
+            if (isUserMatchingServerType(username, isOversea)) result.add(username);
         }
         return result;
     }
 
     public boolean isUserMatchingServerType(String username, boolean isOversea) {
-        SharedPreferences userPrefs = context.getSharedPreferences("user_" + username, Context.MODE_PRIVATE);
-        String serverType = userPrefs.getString("server_type", "");
+        String serverType = serverTypeOf(username);
         if (serverType.isEmpty()) {
             // 对于没有服务器类型信息的旧用户，只在国服下显示
             return !isOversea;

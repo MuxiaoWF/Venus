@@ -1,35 +1,11 @@
 package com.muxiao.Venus.Home;
 
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ENABLED;
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.CLOUD_GAME_ZZZ;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_DABIEYE;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HNA;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR2;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_HR3;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_SRG;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_WEIDING;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_XINGBUGUDI;
-import static com.muxiao.Venus.common.Constants.Prefs.DAILY_ZZZ;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_GENSHIN;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR2;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_HR3;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_SRG;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_WEIDING;
-import static com.muxiao.Venus.common.Constants.Prefs.GAME_DAILY_ZZZ;
-import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ARKNIGHTS_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_COOKIE;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENABLED;
-import static com.muxiao.Venus.common.Constants.Prefs.SKLAND_ENDFIELD_ENABLED;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
@@ -39,7 +15,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 用户配置的任务开关快照：从 SharedPreferences 读取并组装为不可变列表，供 TaskExecutor 执行。
+ * 单个账号的任务配置快照：由 {@link TaskProfileStore} 的按账号配置组装成不可变列表，供 TaskExecutor 执行。
+ *
+ * <p>「任务配置按账号」之后本类不再读全局开关：{@link #fromPreferences(Context, String)} 必须给出目标账号，
+ * 服务器相关的裁剪（国际服缺米游币/崩坏2/未定/云绝区零）也统一收在这个方法里，见其注释。
  */
 public class TaskSettings {
     private final boolean dailyEnabled;
@@ -72,42 +51,54 @@ public class TaskSettings {
         this.cloudGames = cloudGames;
     }
 
-    /** 国际服自动禁用米游币签到（需 stoken，Cookie 登录不提供）与部分国服专属游戏签到。 */
-    public static TaskSettings fromPreferences(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
+    /**
+     * 读取指定账号的任务配置并组装成执行快照。
+     *
+     * <p>数据源是 {@link TaskProfileStore}（按账号存，见 {@link TaskProfile}），旧版的全局开关只在
+     * 「该账号首次继承模板」时被读取一次。profile 存的是原始勾选，<b>服务器相关的裁剪在这里做</b>：
+     * 国际服没有米游币 stoken 链路、缺崩坏2/未定事件簿的签到活动、云绝区零没有海外钱包接口——
+     * 这些差异按<b>该账号自己的</b>服务器类型（{@link UserManager#isOversea(String)}）统一处理，
+     * 配置本身不因换服而丢勾选。
+     *
+     * <p>刻意不留 {@code fromPreferences(Context)} 重载：「取当前账号」的隐式行为在多账号批跑时
+     * 会读到别人的签到计划，而编译期又不会报错。所有调用点都必须显式给出目标账号。
+     *
+     * @param userId 目标账号；为空时按默认配置返回（不落盘，见 {@link TaskProfileStore#load}）
+     */
+    public static TaskSettings fromPreferences(Context context, String userId) {
+        // 服务器类型按账号取：同一台设备上可以同时存在国服/国际服账号，接口域名与 token 键都不同
+        boolean isOversea = new UserManager(context).isOversea(userId);
+        TaskProfile profile = TaskProfileStore.load(context, userId);
 
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(context);
-        boolean dailyEnabled = !isOversea && prefs.getBoolean(DAILY, true);
-        boolean gameDailyEnabled = prefs.getBoolean(GAME_DAILY, true);
-        boolean sklandMasterEnabled = prefs.getBoolean(SKLAND_ENABLED, false);
-        boolean sklandArknightsEnabled = sklandMasterEnabled && prefs.getBoolean(SKLAND_ARKNIGHTS_ENABLED, false);
-        boolean sklandEndfieldEnabled = sklandMasterEnabled && prefs.getBoolean(SKLAND_ENDFIELD_ENABLED, false);
+        // 国际服自动禁用米游币签到（需 stoken，Cookie 登录不提供）
+        boolean dailyEnabled = !isOversea && profile.daily;
+        boolean gameDailyEnabled = profile.gameDaily;
+        // 森空岛：总开关与两款子项都要满足（子项独立保存，关掉总开关不会清掉勾选）
+        boolean sklandArknightsEnabled = profile.skland && profile.sklandArknights;
+        boolean sklandEndfieldEnabled = profile.skland && profile.sklandEndfield;
+        boolean cloudGameEnabled = profile.cloudGame;
 
+        // 输出顺序统一走 *_ORDER：profile 里的顺序取决于用户勾选先后，不能直接当执行/展示顺序
         ArrayList<String> daily = new ArrayList<>();
-        if (prefs.getBoolean(DAILY_GENSHIN, false)) daily.add("原神");
-        if (prefs.getBoolean(DAILY_ZZZ, false)) daily.add("绝区零");
-        if (prefs.getBoolean(DAILY_SRG, false)) daily.add("星铁");
-        if (prefs.getBoolean(DAILY_HR3, false)) daily.add("崩坏3");
-        if (prefs.getBoolean(DAILY_HR2, false)) daily.add("崩坏2");
-        if (prefs.getBoolean(DAILY_WEIDING, false)) daily.add("未定事件簿");
-        if (prefs.getBoolean(DAILY_DABIEYE, true)) daily.add("大别野");
-        if (prefs.getBoolean(DAILY_HNA, false)) daily.add("崩坏因缘精灵");
-        if (prefs.getBoolean(DAILY_XINGBUGUDI, false)) daily.add("星布谷地");
+        for (String game : TaskProfileStore.DAILY_FORUM_ORDER)
+            if (profile.dailyForums.contains(game)) daily.add(game);
 
         ArrayList<String> gameDaily = new ArrayList<>();
-        if (prefs.getBoolean(GAME_DAILY_GENSHIN, false)) gameDaily.add("原神");
-        if (prefs.getBoolean(GAME_DAILY_ZZZ, false)) gameDaily.add("绝区零");
-        if (prefs.getBoolean(GAME_DAILY_SRG, false)) gameDaily.add("星铁");
-        if (prefs.getBoolean(GAME_DAILY_HR3, false)) gameDaily.add("崩坏3");
-        if (!isOversea && prefs.getBoolean(GAME_DAILY_HR2, false)) gameDaily.add("崩坏2");
-        if (!isOversea && prefs.getBoolean(GAME_DAILY_WEIDING, false)) gameDaily.add("未定事件簿");
+        for (String game : TaskProfileStore.GAME_SIGN_ORDER) {
+            if (!profile.gameDailyGames.contains(game)) continue;
+            if (isOversea && (TaskProfileStore.GAME_HR2.equals(game)
+                    || TaskProfileStore.GAME_WEIDING.equals(game))) continue;
+            gameDaily.add(game);
+        }
 
         // 云游戏：云绝区零无国际服钱包接口，国服限定；云原神双服均可
-        boolean cloudGameEnabled = prefs.getBoolean(CLOUD_GAME_ENABLED, false);
         ArrayList<String> cloudGames = new ArrayList<>();
         if (cloudGameEnabled) {
-            if (prefs.getBoolean(CLOUD_GAME_GENSHIN, false)) cloudGames.add(CloudGameDaily.GAME_GENSHIN);
-            if (!isOversea && prefs.getBoolean(CLOUD_GAME_ZZZ, false)) cloudGames.add(CloudGameDaily.GAME_ZZZ);
+            for (String game : TaskProfileStore.CLOUD_GAME_ORDER) {
+                if (!profile.cloudGames.contains(game)) continue;
+                if (isOversea && CloudGameDaily.GAME_ZZZ.equals(game)) continue;
+                cloudGames.add(game);
+            }
         }
 
         return new TaskSettings(dailyEnabled, gameDailyEnabled,
@@ -148,6 +139,18 @@ public class TaskSettings {
     /** 云游戏总开关是否开启（与「是否勾选了具体游戏」无关，见 {@link #getCloudGames()}）。 */
     public boolean isCloudGameEnabled() {
         return cloudGameEnabled;
+    }
+
+    /**
+     * 本快照所属账号的服务器类型。
+     *
+     * <p>执行层（{@link TaskExecutor} → 各签到模块 → {@code HeaderManager}）一律用它，<b>不要</b>在模块里
+     * 再读全局 {@code is_oversea}：多账号跨服批跑时，全局值与「正在跑的这个账号」可能不同。
+     * 这里已经是全链路唯一派生点——{@link #fromPreferences(Context, String)} 按账号算好，
+     * 具体游戏/板块的裁剪也用它，执行层拿同一个值才不会出现「列表按国际服裁掉、请求按国服发」。
+     */
+    public boolean isOversea() {
+        return isOversea;
     }
 
     /**

@@ -214,7 +214,8 @@ public class HomeViewModel extends AndroidViewModel {
 
     /** 依据当前设置与持久化状态重建任务列表（主线程）。 */
     public void refreshTaskItems() {
-        refreshTaskItems(TaskSettings.fromPreferences(getApplication()));
+        // 任务配置按账号：读的是「本页当前账号」的配置，不是全局配置
+        refreshTaskItems(TaskSettings.fromPreferences(getApplication(), currentUser));
     }
 
     /** 依据给定设置重建任务列表（主线程）。 */
@@ -247,7 +248,7 @@ public class HomeViewModel extends AndroidViewModel {
      * ForegroundTaskService 在启动时统一执行，本方法覆盖本页前台运行。
      */
     public void resetForNewRun() {
-        TaskSettings settings = TaskSettings.fromPreferences(getApplication());
+        TaskSettings settings = TaskSettings.fromPreferences(getApplication(), currentUser);
         new TaskStatusManager(getApplication())
                 .resetTransientStatuses(currentUser, settings.getTaskIds());
         refreshTaskItems(settings);
