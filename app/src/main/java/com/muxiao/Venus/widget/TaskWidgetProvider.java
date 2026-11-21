@@ -128,6 +128,17 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_summary,
                 context.getResources().getQuantityString(
                         R.plurals.widget_task_summary, completed, completed, taskCount));
+
+        // 多账号汇总行：≥2 个有任务的账号才显示
+        if (snapshot.activeAccountCount >= 2) {
+            views.setViewVisibility(R.id.widget_accounts, android.view.View.VISIBLE);
+            views.setTextViewText(R.id.widget_accounts, context.getString(
+                    R.string.widget_accounts_summary,
+                    snapshot.activeAccountCount, snapshot.allDone, snapshot.allTotal));
+        } else {
+            views.setViewVisibility(R.id.widget_accounts, android.view.View.GONE);
+        }
+
         // 日期 chip 显示状态归属日（status_date）而非渲染时刻：任务状态按日重置，
         // 归属日才是这组 ✓/✗ 的语义日期（首页页眉同源，已统一）。status_date 格式固定 yyyy-MM-dd，
         // 直接截取 MM/dd 段
@@ -209,10 +220,16 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         final String statusDate;
         /** 语言标识（设置项 + 跟随系统时的系统语言）：切换语言后即使数据未变也须重渲染文案。 */
         final String languageTag;
+    /** 至少勾了一项任务的账号数（与 {@code MultiUserRunner.filterRunnable} 同口径）；&lt;2 时汇总行隐藏。 */
+    final int activeAccountCount;
+    /** 全部账号的已完成数与总数。 */
+        final int allDone;
+        final int allTotal;
 
         private WidgetSnapshot(String targetUser, List<TaskDescriptor> tasks,
                                Map<String, String> statuses, Map<String, Boolean> readiness,
-                               boolean isRunning, String statusDate, String languageTag) {
+                               boolean isRunning, String statusDate, String languageTag,
+                               int activeAccountCount, int allDone, int allTotal) {
             this.targetUser = targetUser;
             this.tasks = tasks;
             this.statuses = statuses;
@@ -220,6 +237,9 @@ public class TaskWidgetProvider extends AppWidgetProvider {
             this.isRunning = isRunning;
             this.statusDate = statusDate;
             this.languageTag = languageTag;
+            this.activeAccountCount = activeAccountCount;
+            this.allDone = allDone;
+            this.allTotal = allTotal;
         }
 
         /** 从各数据源读取当前时刻的完整快照（触发 {@code TaskStatusManager.ensureToday()} 跨天校验）。 */
@@ -238,9 +258,28 @@ public class TaskWidgetProvider extends AppWidgetProvider {
             int selectedLanguage = languagePrefs.getInt(Constants.Prefs.SELECTED_LANGUAGE, 0);
             String languageTag = selectedLanguage + ":"
                     + (selectedLanguage == 0 ? Locale.getDefault().toLanguageTag() : "");
+
+            // 多账号汇总：列表区仍只渲染 targetUser，汇总行回答「全部账号现在什么状态」；
+            // 口径与 MultiUserRunner.filterRunnable 一致，四类任务全关的账号不计入
+            com.muxiao.Venus.User.UserManager userManager =
+                    new com.muxiao.Venus.User.UserManager(context);
+            int activeAccounts = 0, allDone = 0, allTotal = 0;
+            for (String user : userManager.getAllUsernames()) {
+                TaskSettings userSettings = user.equals(targetUser)
+                        ? settings : TaskSettings.fromPreferences(context, user);
+                if (userSettings.hasAnyTaskDisabled()) continue;
+                activeAccounts++;
+                Map<String, String> userStatuses = user.equals(targetUser)
+                        ? statuses : statusManager.getAllStatuses(user);
+                for (String taskId : userSettings.getTaskIds()) {
+                    allTotal++;
+                    if (TaskStatusManager.STATUS_COMPLETED.equals(userStatuses.get(taskId))) allDone++;
+                }
+            }
+
             return new WidgetSnapshot(targetUser, tasks, statuses, readiness,
                     ForegroundTaskService.isRunning() || HomeFragment.isTaskRunning(),
-                    statusDate, languageTag);
+                    statusDate, languageTag, activeAccounts, allDone, allTotal);
         }
 
         /** 统计快照内「已完成」的任务数（按任务 id 查状态）。 */
@@ -260,9 +299,10 @@ public class TaskWidgetProvider extends AppWidgetProvider {
             return sb.toString();
         }
 
-        /** 整体画面签名：列表签名 + 运行按钮态 + 状态归属日 + 完成统计。 */
+        /** 整体画面签名：列表签名 + 运行按钮态 + 状态归属日 + 完成统计 + 多账号汇总。 */
         String fullSignature() {
-            return listSignature() + '|' + isRunning + '|' + statusDate + '|' + completedCount();
+            return listSignature() + '|' + isRunning + '|' + statusDate + '|' + completedCount()
+                    + '|' + activeAccountCount + '/' + allDone + '/' + allTotal;
         }
     }
 }

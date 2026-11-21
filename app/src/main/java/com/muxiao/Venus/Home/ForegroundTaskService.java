@@ -242,8 +242,12 @@ public class ForegroundTaskService extends Service {
 
                         @Override
                         public void onError(String message) {
+                            // 错误通知 ID 固定，批量时正文带账号名标明归属
+                            String account = new com.muxiao.Venus.User.UserManager(
+                                    ForegroundTaskService.this).displayName(userId);
                             notificationHelper.sendErrorNotification(
-                                    getString(R.string.notif_task_failed), message, true);
+                                    getString(R.string.notif_task_failed),
+                                    getString(R.string.notif_error_with_account, account, message), true);
                         }
 
                         @Override

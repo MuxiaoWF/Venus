@@ -136,6 +136,17 @@ public class TaskStatusRepository {
         Logger.w("TaskStatusRepository: 持久化任务状态失败（内存缓存已生效）: " + t);
     }
 
+    /** 删除指定键（内存缓存立即生效，DataStore 异步落盘）。用于重命名/删除账号时清理旧桶。 */
+    public void removeKeys(java.util.Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) return;
+        for (String key : keys) cache.remove(key);
+        persistentDisposables.add(store.updateDataAsync(prefs -> {
+            MutablePreferences m = prefs.toMutablePreferences();
+            for (String key : keys) m.remove(PreferencesKeys.stringKey(key));
+            return Single.just(m);
+        }).subscribe(ignored -> { }, this::logPersistFailure));
+    }
+
     /**
      * 清空内存缓存、DataStore 与旧 SP。旧 SP 必须一并清：否则残留内容会作为「DataStore 中不存在的键」
      * 在下次冷启动被 {@link #seedCacheFromLegacy} 重新灌入，使清空在重启后失效。

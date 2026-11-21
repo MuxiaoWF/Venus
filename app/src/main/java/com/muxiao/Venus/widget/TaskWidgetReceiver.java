@@ -25,13 +25,6 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
      * 解析小组件的目标用户（运行与展示共用）：优先 App 内当前选中用户（UserManager，
      * 跟随首页下拉切换），未选择时兜底「最后一次运行的用户」（TaskStatusManager.current_user）。
      */
-    /**
-     * 解析本轮任务的目标账号：优先当前选中，兜底「最后一次运行任务的用户」。
-     *
-     * <p>兜底来源（{@code TaskStatusManager.current_user}）不会被 {@code removeUser} 清理，可能指向已删除的账号；
-     * 直接用它跑任务会给不存在的账号建孤儿任务配置（{@code task_profile_*}）与状态桶。故统一在这里判存在性，
-     * 删号后回落到空串，由各入口按「无账号」处理。
-     */
     public static String resolveTargetUser(Context context) {
         UserManager userManager = new UserManager(context);
         String userId = userManager.getCurrentUser();

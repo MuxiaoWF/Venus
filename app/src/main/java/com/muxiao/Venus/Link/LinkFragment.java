@@ -433,7 +433,7 @@ public class LinkFragment implements PageController {
         List<String> labels = new ArrayList<>(usernames.size());
         for (String username : usernames) {
             boolean oversea = userManager.isOversea(username);
-            labels.add(username + " [" + activity.getString(
+            labels.add(userManager.displayName(username) + " [" + activity.getString(
                     oversea ? R.string.server_os : R.string.server_cn) + "]");
         }
         int selectedIndex = -1;

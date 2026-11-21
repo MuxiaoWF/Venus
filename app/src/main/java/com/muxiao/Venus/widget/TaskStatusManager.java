@@ -306,6 +306,33 @@ public class TaskStatusManager {
         ensureToday();
         return loadBucket(userId).date;
     }
+
+    /**
+     * 账号重命名：把旧 id 的状态桶整体搬到新 id。直接搬原始 JSON，保留归属日与完成标记。
+     */
+    public void renameUser(String oldUserId, String newUserId) {
+        if (oldUserId == null || newUserId == null || oldUserId.isEmpty()
+                || newUserId.isEmpty() || oldUserId.equals(newUserId)) return;
+        ensureToday();
+        synchronized (BUCKET_WRITE_LOCK) {
+            String oldKey = KEY_PREFIX_BUCKET + oldUserId;
+            String raw = repo.getString(oldKey, "");
+            repo.removeKeys(java.util.Collections.singletonList(oldKey));
+            if (raw.isEmpty()) return;
+            repo.putString(KEY_PREFIX_BUCKET + newUserId, raw);
+            // 当前用户标记指向旧 id 时同步改
+            if (oldUserId.equals(repo.getString(KEY_CURRENT_USER, "")))
+                repo.putString(KEY_CURRENT_USER, newUserId);
+        }
+    }
+
+    /** 删除账号时清掉它的状态桶。 */
+    public void clearUser(String userId) {
+        if (userId == null || userId.isEmpty()) return;
+        synchronized (BUCKET_WRITE_LOCK) {
+            repo.removeKeys(java.util.Collections.singletonList(KEY_PREFIX_BUCKET + userId));
+        }
+    }
     /** 记录本次运行任务的用户（运行开始写一次，跨日保留），现仅作小组件目标用户兜底。 */
     public void setCurrentUser(String userId) {
         repo.putString(KEY_CURRENT_USER, userId);

@@ -374,6 +374,8 @@
         <item quantity="one">%1$d/%2$d completed</item>
         <item quantity="other">%1$d/%2$d completed</item>
     </plurals>
+    <!-- Multi-account summary: account count · completed/total across all accounts -->
+    <string name="widget_accounts_summary">%1$d accounts · %2$d/%3$d</string>
     <string name="widget_run">Run</string>
     <string name="widget_running">Running…</string>
     <string name="widget_no_user">Please log in to the app first</string>
@@ -425,7 +427,6 @@
 
     <!-- Login page -->
     <string name="login_input_username">Please enter a username</string>
-    <string name="login_username_exists_in_server">Username already exists in %s, please use a different username</string>
     <string name="login_relogin_button">Re-login %s</string>
     <string name="login_start_task">Starting login task…\nFetching QR code…</string>
     <string name="login_qr_generated">QR code generated, waiting for scan…\nPlease take a screenshot and use the Miyoushe app (Me - top left) to scan the QR code…\n</string>
@@ -705,4 +706,9 @@
     <string name="settings_apply_all_accounts">Apply to all accounts</string>
     <string name="settings_apply_all_confirm">Write this task plan to all %1$d accounts? Their current selections will be overwritten.</string>
     <string name="settings_apply_all_done">Applied to %1$d accounts</string>
+    <!-- MiYouBi check-in is CN-only: card summary and block hint -->
+    <string name="daily_card_unsupported_oversea">Not on OS server</string>
+    <string name="daily_unsupported_oversea">MiYouBi check-in is only available on the CN server</string>
+    <!-- Error notification prefix: identifies the failing account (fixed notification ID) -->
+    <string name="notif_error_with_account">%1$s: %2$s</string>
 </resources>

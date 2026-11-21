@@ -73,7 +73,10 @@ public class UserLoginActivity extends BaseActivity {
     /** Compose 版页面宿主：输入框 / 二维码 / 状态日志都在这里。 */
     private com.muxiao.Venus.common.ui.compose.UserLoginScreenView pane;
     private UserManager user_manager;
+    /** 登录页输入框里的名字：仅用于校验与展示，不能当存储键。 */
     private String username;
+    /** 本次登录要写入的存储 id，可能与 {@link #username} 不同（同名异服时带后缀）。 */
+    private volatile String storageId;
     private ExecutorService executor_service;
     private tools.StatusNotifier status_notifier;
     private boolean relogin_mode = false; // 是否为重新登录模式
@@ -120,8 +123,9 @@ public class UserLoginActivity extends BaseActivity {
         pane.setOnBackClickListener(this::finish);
 
         // 如果是重新登录模式，用户名固定展示在按钮上并隐藏输入框
+        // 用 displayName：存储 id 可能带内部后缀
         if (relogin_mode && relogin_username != null)
-            pane.setRelogin(relogin_username);
+            pane.setRelogin(user_manager.displayName(relogin_username));
 
         // 登录方式切换：账号密码/短信/Cookie 均仅国服可用，国际服隐藏切换入口
         if (MiHoYoBBSConstants.is_oversea(this)) {
@@ -219,15 +223,20 @@ public class UserLoginActivity extends BaseActivity {
                 return;
             }
         }
-        if (!relogin_mode && user_manager.getUsers().containsKey(username)) {
-            if (!user_manager.isUserMatchingServerType(username, isOversea)) {
-                String userServer = isOversea ? getString(R.string.server_cn) : getString(R.string.server_os);
-                status_notifier.notifyListeners(getString(R.string.login_username_exists_in_server, userServer));
+        if (!relogin_mode && user_manager.isUserExists(username)) {
+            if (user_manager.isUserMatchingServerType(username, isOversea)) {
+                // 同服同名：这就是已有账号本身。不能在这里重复登录——会覆盖它的凭证。
+                // 需要刷新凭证请走用户管理页的「重新登录」入口（那边按 id 精确操作）
+                status_notifier.notifyListeners(getString(R.string.snack_username_exists));
                 return;
             }
-            status_notifier.notifyListeners(getString(R.string.snack_username_exists));
-            return;
+            // 同名但属于另一个服务器：放行。storageId 会追加该服后缀，两个账号从此各用一套存储
         }
+
+        // 重登录沿用原 id，避免再追加一层后缀
+        storageId = (relogin_mode && relogin_username != null)
+                ? relogin_username
+                : user_manager.resolveStorageId(username, isOversea);
 
         // 如果是重新登录模式，先清除旧的token数据（经仓储清除缓存 + 旧 SP + DataStore 三处，
         // 只清旧 SP 时读取仍会命中缓存/DataStore，导致重新登录后继续使用旧凭证）
@@ -566,12 +575,12 @@ public class UserLoginActivity extends BaseActivity {
             }
             status_notifier.notifyListeners(getString(R.string.login_password_token_ok));
 
-            tools.write(context, username, "stoken", result.stoken);
-            tools.write(context, username, "mid", result.mid);
+            tools.write(context, storageId, "stoken", result.stoken);
+            tools.write(context, storageId, "mid", result.mid);
             if (result.aid != null)
-                tools.write(context, username, "stuid", result.aid);
+                tools.write(context, storageId, "stuid", result.aid);
             if (result.loginTicket != null && !result.loginTicket.isEmpty())
-                tools.write(context, username, "login_ticket", result.loginTicket);
+                tools.write(context, storageId, "login_ticket", result.loginTicket);
             if (result.realnameRequired || result.needRealperson)
                 status_notifier.notifyListeners(getString(R.string.login_password_realname));
 
@@ -595,12 +604,12 @@ public class UserLoginActivity extends BaseActivity {
             }
             status_notifier.notifyListeners(getString(R.string.login_sms_token_ok));
 
-            tools.write(context, username, "stoken", result.stoken);
-            tools.write(context, username, "mid", result.mid);
+            tools.write(context, storageId, "stoken", result.stoken);
+            tools.write(context, storageId, "mid", result.mid);
             if (result.aid != null)
-                tools.write(context, username, "stuid", result.aid);
+                tools.write(context, storageId, "stuid", result.aid);
             if (result.loginTicket != null && !result.loginTicket.isEmpty())
-                tools.write(context, username, "login_ticket", result.loginTicket);
+                tools.write(context, storageId, "login_ticket", result.loginTicket);
             if (result.realnameRequired || result.needRealperson)
                 status_notifier.notifyListeners(getString(R.string.login_password_realname));
 
@@ -623,15 +632,15 @@ public class UserLoginActivity extends BaseActivity {
             CookieLogin.Result result = CookieLogin.importFromCookie(context, header_manager, cookie);
 
             // 只覆盖本次真实拿到的字段：空值不写，避免把已有可用凭证清空
-            tools.write(context, username, "stuid", result.stuid);
+            tools.write(context, storageId, "stuid", result.stuid);
             if (result.mid != null && !result.mid.isEmpty())
-                tools.write(context, username, "mid", result.mid);
+                tools.write(context, storageId, "mid", result.mid);
             if (result.stoken != null && !result.stoken.isEmpty())
-                tools.write(context, username, "stoken", result.stoken);
+                tools.write(context, storageId, "stoken", result.stoken);
             if (result.ltoken != null && !result.ltoken.isEmpty())
-                tools.write(context, username, "ltoken", result.ltoken);
+                tools.write(context, storageId, "ltoken", result.ltoken);
             if (result.cookieToken != null && !result.cookieToken.isEmpty())
-                tools.write(context, username, "cookie_token", result.cookieToken);
+                tools.write(context, storageId, "cookie_token", result.cookieToken);
 
             status_notifier.notifyListeners(getString(R.string.login_cookie_parsed));
             // 只有 ltoken 时社区签到可用；游戏签到与抽卡链接依赖 stoken，明确提示而不是假装成功
@@ -650,9 +659,9 @@ public class UserLoginActivity extends BaseActivity {
             // 重登录沿用该账号自身的服务器类型
             boolean overseaToWrite = relogin_mode && relogin_username != null
                     ? user_manager.isOversea(relogin_username) : isOversea;
-            tools.write(context, username, "server_type", overseaToWrite ? "1" : "0");
-            // 头像：登录页选过才写，且只在成功后落盘；重登录沿用原账号名
-            String avatarUser = relogin_mode && relogin_username != null ? relogin_username : username;
+            tools.write(context, storageId, "server_type", overseaToWrite ? "1" : "0");
+            // 头像按存储 id 落盘
+            String avatarUser = relogin_mode && relogin_username != null ? relogin_username : storageId;
             Uri avatarToSave = pendingAvatar;
             if (avatarToSave != null) {
                 AvatarStore.saveFromUri(getApplicationContext(), avatarUser, avatarToSave);
@@ -667,12 +676,15 @@ public class UserLoginActivity extends BaseActivity {
                 if (relogin_mode && relogin_username != null) {
                     user_manager.setCurrentUser(relogin_username);
                 } else {
-                    user_manager.addUser(username);
-                    user_manager.setCurrentUser(username);
+                    // 登记账号与当前用户都用存储 id
+                    user_manager.addUser(storageId);
+                    user_manager.setCurrentUser(storageId);
                 }
                 change_component_status(true);
             });
-            status_notifier.notifyListeners("\n" + getString(R.string.login_success, username) + "\n");
+            // 提示用展示名
+            status_notifier.notifyListeners("\n" + getString(R.string.login_success,
+                    user_manager.displayName(storageId)) + "\n");
         }
 
         /**
@@ -817,9 +829,9 @@ public class UserLoginActivity extends BaseActivity {
             String aid = opt_string(user_info, "aid");
             if (stoken == null || mid == null || aid == null)
                 throw new RuntimeException(getString(R.string.login_payload_missing));
-            tools.write(context, username, "stoken", stoken);
-            tools.write(context, username, "mid", mid);
-            tools.write(context, username, "stuid", aid);
+            tools.write(context, storageId, "stoken", stoken);
+            tools.write(context, storageId, "mid", mid);
+            tools.write(context, storageId, "stuid", aid);
             get_ltoken_by_stoken();
             finish_login_success();
         }
@@ -904,10 +916,10 @@ public class UserLoginActivity extends BaseActivity {
                     ? tokenObj.get("token").getAsString() : null;
             if (mid == null || stoken == null)
                 throw new RuntimeException(getString(R.string.login_stoken_token_failed, retcode, response));
-            tools.write(context, username, "stoken", stoken);
-            tools.write(context, username, "mid", mid);
-            tools.write(context, username, "game_token", game_token);
-            tools.write(context, username, "stuid", stuid);
+            tools.write(context, storageId, "stoken", stoken);
+            tools.write(context, storageId, "mid", mid);
+            tools.write(context, storageId, "game_token", game_token);
+            tools.write(context, storageId, "stuid", stuid);
             get_ltoken_by_stoken();
         }
 
@@ -916,7 +928,7 @@ public class UserLoginActivity extends BaseActivity {
          */
         private void get_ltoken_by_stoken() {
             Map<String, String> bbs_headers = header_manager.get_bbs_headers();
-            bbs_headers.put("Cookie", "stoken=" + tools.read(context, username, "stoken") + ";mid=" + tools.read(context, username, "mid"));
+            bbs_headers.put("Cookie", "stoken=" + tools.read(context, storageId, "stoken") + ";mid=" + tools.read(context, storageId, "mid"));
             String ltokenUrl = isOversea ? Constants.Urls.OS_LTOKEN_URL : Constants.Urls.LTOKEN_URL;
             String response = tools.sendGetRequest(ltokenUrl, bbs_headers, null);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
@@ -928,7 +940,7 @@ public class UserLoginActivity extends BaseActivity {
             if (ltokenData == null || !ltokenData.has("ltoken") || ltokenData.get("ltoken").isJsonNull())
                 throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
             String ltoken = ltokenData.get("ltoken").getAsString();
-            tools.write(context, username, "ltoken", ltoken);
+            tools.write(context, storageId, "ltoken", ltoken);
         }
     }
 

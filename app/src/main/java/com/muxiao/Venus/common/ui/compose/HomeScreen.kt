@@ -945,7 +945,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
         uiState.avatarUsername = username
     }
 
-    /** 强制重载头像：文件按用户名定址、换头像时原地覆盖，只调 [setAvatarUsername] 不重组且 Glide 会命中旧缓存。 */
+    /** 强制重载头像：文件按存储 id 定址、换头像时原地覆盖，只调 [setAvatarUsername] 不重组且 Glide 会命中旧缓存。 */
     fun refreshAvatar() {
         uiState.avatarVersion++
     }

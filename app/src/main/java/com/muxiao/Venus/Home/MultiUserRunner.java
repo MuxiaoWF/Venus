@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 多账号串行调度：按给定顺序逐个账号执行，账号间插入冷却。
+ * 多账号串行调度：按给定顺序逐个账号执行，账号间可选冷却（默认无，见 {@link #DEFAULT_GAP_MS}）。
  *
  * <p>单账号异常记录后继续，取消则中断。调用方：{@link ForegroundTaskService}、{@link HomeFragment}。
  */
@@ -18,8 +18,10 @@ public final class MultiUserRunner {
 
     private static final String TAG = "MultiUserRunner";
 
-    /** 账号间默认冷却（毫秒）。 */
-    public static final long DEFAULT_GAP_MS = 3000L;
+    /**
+     * 账号间默认冷却（毫秒）。默认 0：账号内部任务自带 2~9s 随机风控延时；实测限流再调大。
+     */
+    public static final long DEFAULT_GAP_MS = 0L;
 
     /** 单个账号的执行单元，由调用方实现（各入口的进度上报、验证码处理、状态持久化都不同）。 */
     public interface Step {

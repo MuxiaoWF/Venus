@@ -34,6 +34,18 @@
             android:textSize="@dimen/widget_text_small" />
     </LinearLayout>
 
+    <!-- 多账号汇总：仅在「有任务的账号 ≥ 2」时显示 -->
+    <TextView
+        android:id="@+id/widget_accounts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="@dimen/widget_text_mini"
+        android:visibility="gone" />
+
     <!-- 分隔线 -->
     <TextView
         android:layout_width="match_parent"

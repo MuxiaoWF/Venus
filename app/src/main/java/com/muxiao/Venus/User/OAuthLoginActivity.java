@@ -146,16 +146,20 @@ public class OAuthLoginActivity extends BaseActivity {
                     if (username.isEmpty()) {
                         return getString(R.string.username_hint);
                     }
-                    if (user_manager.getUsers().containsKey(username)) {
+                    // 只拦「同名且已是国际服」；同名国服放行，resolveStorageId 会加 @os 后缀
+                    if (user_manager.isUserExists(username)
+                            && user_manager.isUserMatchingServerType(username, true)) {
                         return getString(R.string.snack_username_exists);
                     }
                     return null;
                 },
                 username -> {
-                    saveCookieUser(username, cookieString);
+                    // 本页固定国际服，同名国服账号存在时返回「名字@os」
+                    String storageId = user_manager.resolveStorageId(username, true);
+                    saveCookieUser(storageId, cookieString);
                     runOnUiThread(() -> {
-                        user_manager.addUser(username);
-                        user_manager.setCurrentUser(username);
+                        user_manager.addUser(storageId);
+                        user_manager.setCurrentUser(storageId);
                         changeButtonStatus();
                     });
                 });

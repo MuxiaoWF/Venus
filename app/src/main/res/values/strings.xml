@@ -377,6 +377,8 @@
     <plurals name="widget_task_summary">
         <item quantity="other">%1$d/%2$d 已完成</item>
     </plurals>
+    <!-- 多账号汇总：账号数 · 全部账号的已完成/总数 -->
+    <string name="widget_accounts_summary">%1$d 个账号 · %2$d/%3$d</string>
     <string name="widget_run">运行</string>
     <string name="widget_running">运行中…</string>
     <string name="widget_no_user">请先在应用中登录账号</string>
@@ -428,7 +430,6 @@
 
     <!-- 登录页 -->
     <string name="login_input_username">请输入用户名</string>
-    <string name="login_username_exists_in_server">用户名已存在于%s，请使用不同的用户名</string>
     <string name="login_relogin_button">重新登录%s</string>
     <string name="login_start_task">开始执行登录任务…\n开始获取二维码…</string>
     <string name="login_qr_generated">二维码已生成，等待扫描…\n请自行截图并使用米游社APP-我-左上角扫描二维码…\n</string>
@@ -699,4 +700,9 @@
     <string name="settings_apply_all_accounts">应用到全部账号</string>
     <string name="settings_apply_all_confirm">把这套签到计划写入全部 %1$d 个账号（各自原有的勾选会被覆盖）。</string>
     <string name="settings_apply_all_done">已应用到 %1$d 个账号</string>
+    <!-- 米游币签到是国服专属：卡片摘要与拦截提示 -->
+    <string name="daily_card_unsupported_oversea">国际服不支持</string>
+    <string name="daily_unsupported_oversea">米游币签到仅支持国服账号</string>
+    <!-- 错误通知正文前缀：多账号时标明失败归属（通知 ID 固定，不前缀就分不清是谁） -->
+    <string name="notif_error_with_account">%1$s：%2$s</string>
 </resources>

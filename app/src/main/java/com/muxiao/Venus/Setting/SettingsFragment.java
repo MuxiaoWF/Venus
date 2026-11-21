@@ -289,6 +289,7 @@ public class SettingsFragment implements PageController {
 
         dailyPane.setOnChipChangeListener((index, checked) -> {
             // 任务运行中弹窗，dismiss 时回滚勾选（与原 CompoundButton 版语义一致）
+            if (blockIfDailyUnavailable(() -> dailyPane.setChipChecked(index, !checked))) return;
             if (blockIfTaskRunning(() -> dailyPane.setChipChecked(index, !checked))) return;
             if (blockIfNoTaskUser(() -> dailyPane.setChipChecked(index, !checked))) return;
             setProfileEntry(taskProfile.dailyForums, TaskProfileStore.DAILY_FORUM_ORDER[index], checked);
@@ -304,6 +305,7 @@ public class SettingsFragment implements PageController {
         });
 
         dailyPane.setOnSwitchChangeListener(isChecked -> {
+            if (blockIfDailyUnavailable(() -> dailyPane.setSwitchChecked(!isChecked))) return;
             if (blockIfTaskRunning(() -> dailyPane.setSwitchChecked(!isChecked))) return;
             if (blockIfNoTaskUser(() -> dailyPane.setSwitchChecked(!isChecked))) return;
             taskProfile.daily = isChecked;
@@ -1058,6 +1060,17 @@ public class SettingsFragment implements PageController {
     }
 
     /**
+     * 米游币签到是国服专属：国际服账号操作开关/板块时回滚并提示。
+     */
+    private boolean blockIfDailyUnavailable(Runnable revertAction) {
+        if (!overseaForTaskConfig()) return false;
+        revertAction.run();
+        if (screenView != null)
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.daily_unsupported_oversea));
+        return true;
+    }
+
+    /**
      * 任务配置的归属账号：默认当前登录账号，可被「配置目标账号」临时指定。
      * 与 {@link #credentialUser()} 相互独立。
      */
@@ -1103,7 +1116,7 @@ public class SettingsFragment implements PageController {
         List<String> labels = new ArrayList<>(all.size());
         for (String userId : all) {
             boolean oversea = users.isOversea(userId);
-            labels.add(userId + " [" + activity.getString(oversea ? R.string.server_os : R.string.server_cn) + "]");
+            labels.add(users.displayName(userId) + " [" + activity.getString(oversea ? R.string.server_os : R.string.server_cn) + "]");
         }
         VenusDialogs.items(
                 activity,
@@ -1185,7 +1198,9 @@ public class SettingsFragment implements PageController {
     private void renderTaskConfig() {
         if (taskProfile == null) return;
 
-        dailyPane.setSwitchChecked(taskProfile.daily);
+        // 国际服没有米游币体系：开关显示为关闭，profile 原值不动
+        boolean dailyAvailable = !overseaForTaskConfig();
+        dailyPane.setSwitchChecked(taskProfile.daily && dailyAvailable);
         for (int i = 0; i < TaskProfileStore.DAILY_FORUM_ORDER.length; i++)
             dailyPane.setChipChecked(i, taskProfile.dailyForums.contains(TaskProfileStore.DAILY_FORUM_ORDER[i]));
         updateDailyCardValue(taskProfile.daily);
@@ -1240,6 +1255,12 @@ public class SettingsFragment implements PageController {
     }
 
     private void updateDailyCardValue(boolean enabled) {
+        if (dailyCard == null) return;
+        // 国际服卡片摘要标注「不支持」
+        if (overseaForTaskConfig()) {
+            setCardValue(dailyCard, activity.getString(R.string.daily_card_unsupported_oversea), false);
+            return;
+        }
         setCardValue(dailyCard, activity.getString(enabled ? R.string.value_on : R.string.value_off), enabled);
     }
 

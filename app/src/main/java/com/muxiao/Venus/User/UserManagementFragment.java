@@ -161,7 +161,8 @@ public class UserManagementFragment implements PageController {
                     ? R.string.server_os : R.string.server_cn);
             rows.add(new UserCardRow(
                     username,
-                    activity.getString(R.string.user_label_with_server, username, serverType),
+                    activity.getString(R.string.user_label_with_server,
+                            userManager.displayName(username), serverType),
                     // 当前用户标注「默认」chip（设计稿语义）
                     username.equals(currentUsername),
                     credentialChip(settings, username)));
@@ -312,11 +313,14 @@ public class UserManagementFragment implements PageController {
 
     /** 显示重命名用户对话框（Compose 版输入框 + 就地校验）。 */
     private void showRenameUserDialog(String oldUsername) {
+        // 预填展示名；后缀原样保留，避免与另一服的兄弟账号撞键
+        String oldDisplay = userManager.displayName(oldUsername);
+        String suffix = userManager.serverSuffixOf(oldUsername);
         VenusDialogs.input(
                 activity,
                 activity.getString(R.string.dialog_rename_user),
                 null,
-                oldUsername,
+                oldDisplay,
                 null,
                 activity.getString(R.string.btn_ok),
                 activity.getString(R.string.btn_cancel),
@@ -329,10 +333,12 @@ public class UserManagementFragment implements PageController {
                     if (newUsername.isEmpty()) {
                         return activity.getString(R.string.username_hint);
                     }
-                    if (newUsername.equals(oldUsername)) {
+                    // 输入框是展示名，按展示名比较
+                    if (newUsername.equals(oldDisplay)) {
                         return activity.getString(R.string.username_hint);
                     }
-                    if (userManager.isUserExists(newUsername)) {
+                    // 冲突检查针对「新名 + 原后缀」这个真实目标键
+                    if (userManager.isUserExists(newUsername + suffix)) {
                         return activity.getString(R.string.snack_username_exists);
                     }
                     return null;
@@ -341,16 +347,23 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 把用户数据迁移到新用户名，并同步 UserManager 的当前用户标记与账户列表、刷新视图。
-     * 迁移统一走 {@link com.muxiao.Venus.common.data.UserRepository#migrate(String, String)}：
-     * 只复制旧 SP 会遗漏 DataStore 与内存缓存，重命名后读取到的令牌可能为空。
+     * 把账号数据迁移到新名字并同步各处状态。入参为展示名，实际存储 id 会接回原账号的
+     * {@code @os}/{@code @cn} 后缀。五类按账号存的存储都要跟着迁。
      */
-    private void renameUser(String oldUsername, String newUsername) {
+    private void renameUser(String oldUsername, String newDisplayName) {
+        String newUsername = newDisplayName + userManager.serverSuffixOf(oldUsername);
+        // 系统后缀标记随 id 迁移
+        userManager.transferSuffixedMark(oldUsername, newUsername);
         new com.muxiao.Venus.common.data.UserRepository(getContext()).migrate(oldUsername, newUsername);
-        // 头像文件按 md5(用户名) 键存储，随重命名一并迁移
+        // 头像文件随重命名迁移
         AvatarStore.renameAvatar(getContext(), oldUsername, newUsername);
-        // 任务配置（按账号存）同样跟随账号走：重命名 = 新增 + 删除，不显式迁移等于丢掉旧账号的签到计划
+        // 任务配置跟随账号
         com.muxiao.Venus.Home.TaskProfileStore.rename(getContext(), oldUsername, newUsername);
+        // 任务状态桶：不迁会丢当日完成态
+        new com.muxiao.Venus.widget.TaskStatusManager(getContext()).renameUser(oldUsername, newUsername);
+        // 验证码是一次性数据，换 id 后清掉即可
+        com.muxiao.Venus.Home.CaptchaStore.clearSolution(getContext(), oldUsername);
+        com.muxiao.Venus.Home.CaptchaStore.clearPending(getContext(), oldUsername);
 
         userManager.addUser(newUsername);
         if (userManager.getCurrentUser().equals(oldUsername))
@@ -359,7 +372,8 @@ public class UserManagementFragment implements PageController {
         refreshUserList();
         // 用户名变了，首页的账号行 / 下拉列表 / 按账号分桶的任务列表都要跟着重建
         activity.onCurrentUserChanged();
-        showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_renamed, newUsername));
+        showCustomSnackbar(screenView, getContext(),
+                activity.getString(R.string.snack_user_renamed, newDisplayName));
     }
 
     /** 头像操作入口：更换（拉起系统照片选择器）或恢复默认图标。 */
@@ -419,10 +433,11 @@ public class UserManagementFragment implements PageController {
             showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_delete));
             return;
         }
+        String display = userManager.displayName(username);
         VenusDialogs.confirm(
                 activity,
                 activity.getString(R.string.dialog_delete_user),
-                activity.getString(R.string.msg_delete_user_confirm, username),
+                activity.getString(R.string.msg_delete_user_confirm, display),
                 activity.getString(R.string.btn_delete),
                 () -> {
                     userManager.removeUser(username);
@@ -430,11 +445,16 @@ public class UserManagementFragment implements PageController {
                     AvatarStore.deleteAvatar(getContext(), username);
                     // 任务配置同口径清理：否则 task_profile_<旧账号> 会永远留在 settings_prefs 里
                     com.muxiao.Venus.Home.TaskProfileStore.delete(getContext(), username);
+                    // 任务状态桶与验证码一并清理
+                    new com.muxiao.Venus.widget.TaskStatusManager(getContext()).clearUser(username);
+                    com.muxiao.Venus.Home.CaptchaStore.clearPending(getContext(), username);
+                    com.muxiao.Venus.Home.CaptchaStore.clearSolution(getContext(), username);
                     refreshUserList();
                     // 删的可能正是当前账号（removeUser 会清掉当前用户标记）：
                     // 首页据此回落到剩余账号，否则账号行会空着、任务按已删除的用户分桶
                     activity.onCurrentUserChanged();
-                    showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_user_deleted, username));
+                    showCustomSnackbar(screenView, getContext(),
+                            activity.getString(R.string.snack_user_deleted, display));
                 },
                 activity.getString(R.string.btn_cancel));
     }

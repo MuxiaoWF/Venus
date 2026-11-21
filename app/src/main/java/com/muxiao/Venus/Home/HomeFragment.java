@@ -1230,7 +1230,9 @@ public class HomeFragment implements PageController {
     private String formatUserLabel(String username) {
         boolean oversea = userManager != null ? userManager.isOversea(username) : false;
         String serverName = activity.getString(oversea ? R.string.server_os : R.string.server_cn);
-        return username + " [" + serverName + "]";
+        // 存储 id 可能带后缀，展示前去掉
+        String display = userManager != null ? userManager.displayName(username) : username;
+        return display + " [" + serverName + "]";
     }
 
     /** 全部账号里是否同时存在国服与国际服（决定下拉项要不要逐个带服后缀）。 */
@@ -1258,8 +1260,9 @@ public class HomeFragment implements PageController {
         int selectedIndex = currentUsernames.indexOf(current);
         boolean mixed = hasMixedServers(currentUsernames);
         List<String> dropdown = new ArrayList<>(currentUsernames.size());
+        // 单服时下拉不带后缀，但账号本身可能是「名字@os」形态，两种分支都要过 displayName
         for (String username : currentUsernames)
-            dropdown.add(mixed ? formatUserLabel(username) : username);
+            dropdown.add(mixed ? formatUserLabel(username) : userManager.displayName(username));
         screenView.setUsers(dropdown, selectedIndex);
         screenView.setUserLabel(current.isEmpty() ? "" : formatUserLabel(current));
         // 「全部账号」入口：账号数 ≥2 时可见

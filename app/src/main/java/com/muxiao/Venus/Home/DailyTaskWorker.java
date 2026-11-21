@@ -239,9 +239,12 @@ public class DailyTaskWorker extends Worker {
 
                     @Override
                     public void onError(String message) {
-                        // 定时运行用户不在场：错误必须强制可见（同一通知 ID 互相覆盖不堆积）
+                        // 错误通知 ID 固定，批量时后一条覆盖前一条，正文带账号名标明归属
                         notificationHelper.sendErrorNotification(
-                                context.getString(R.string.notif_task_failed), message, true);
+                                context.getString(R.string.notif_task_failed),
+                                context.getString(R.string.notif_error_with_account,
+                                        new com.muxiao.Venus.User.UserManager(context).displayName(userId),
+                                        message), true);
                     }
 
                     @Override
@@ -285,7 +288,9 @@ public class DailyTaskWorker extends Worker {
             tools.writeLog(context, TAG + ": executeAll failed: " + e.getMessage());
             notificationHelper.sendErrorNotification(
                     context.getString(R.string.notif_task_failed),
-                    e.getMessage() != null ? e.getMessage() : e.toString(), true);
+                    context.getString(R.string.notif_error_with_account,
+                            new com.muxiao.Venus.User.UserManager(context).displayName(userId),
+                            e.getMessage() != null ? e.getMessage() : e.toString()), true);
         } finally {
             // 无条件撤销进度通知
             notificationHelper.cancelProgressNotification();
