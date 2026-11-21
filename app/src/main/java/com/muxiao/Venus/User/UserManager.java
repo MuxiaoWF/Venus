@@ -139,6 +139,18 @@ public class UserManager {
         return result;
     }
 
+    /** 全部账号（不按服务器过滤）。 */
+    public List<String> getAllUsernames() {
+        return new ArrayList<>(getUsers().keySet());
+    }
+
+    /** 该用户名是否已被另一个服务器的账号占用。 */
+    public boolean isNameTakenByOtherServer(String username, boolean isOversea) {
+        if (username == null || username.isEmpty() || !isUserExists(username)) return false;
+        boolean existingOversea = "1".equals(serverTypeOf(username));
+        return existingOversea != isOversea;
+    }
+
     public boolean isUserMatchingServerType(String username, boolean isOversea) {
         String serverType = serverTypeOf(username);
         if (serverType.isEmpty()) {

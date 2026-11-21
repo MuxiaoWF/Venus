@@ -127,6 +127,10 @@ const val SETTINGS_DRAWER_CONTENT_TAG = "settings-drawer-content"
 class SettingsUiState {
     var versionChip by mutableStateOf("")
     var bottomClearancePx by mutableIntStateOf(0)
+    /** 任务配置的目标账号（用户名 + 服务器后缀）；无账号时为空串。 */
+    var taskAccountLabel by mutableStateOf("")
+    /** 目标账号相关行是否可见（无账号时隐藏）。 */
+    var taskAccountRowVisible by mutableStateOf(false)
 }
 
 /**
@@ -150,6 +154,8 @@ fun SettingsScreen(
     skland: SettingsCard,
     about: SettingsCard,
     onImageClick: () -> Unit,
+    onPickTaskAccount: () -> Unit,
+    onApplyAllAccounts: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -194,6 +200,23 @@ fun SettingsScreen(
             SettingsCardItem(gameDaily)
             VenusDivider()
             SettingsCardItem(cloudGame)
+
+            // 任务配置的目标账号与「应用到全部账号」
+            if (state.taskAccountRowVisible) {
+                GlassActionRow(
+                    icon = VenusIcons.Settings,
+                    text = stringResource(R.string.settings_target_account),
+                    trailing = state.taskAccountLabel,
+                    onClick = onPickTaskAccount,
+                    modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
+                )
+                GlassActionRow(
+                    icon = VenusIcons.Copy,
+                    text = stringResource(R.string.settings_apply_all_accounts),
+                    onClick = onApplyAllAccounts,
+                    modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
+                )
+            }
             VenusDivider()
 
             SectionLabel(
@@ -450,6 +473,8 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     }
 
     private var onImageClickListener: Runnable? = null
+    private var onPickTaskAccountListener: Runnable? = null
+    private var onApplyAllAccountsListener: Runnable? = null
 
     @Composable
     override fun Content() {
@@ -470,6 +495,8 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
                 skland = sklandCard,
                 about = aboutCard,
                 onImageClick = { onImageClickListener?.run() },
+                onPickTaskAccount = { onPickTaskAccountListener?.run() },
+                onApplyAllAccounts = { onApplyAllAccountsListener?.run() },
             )
         }
     }
@@ -486,6 +513,22 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
 
     fun setOnImageClickListener(listener: Runnable?) {
         onImageClickListener = listener
+    }
+
+    /** 「配置目标账号」点击：由 Java 侧弹账号列表并切换编辑目标。 */
+    fun setOnPickTaskAccountListener(listener: Runnable?) {
+        onPickTaskAccountListener = listener
+    }
+
+    /** 「应用到全部账号」点击：由 Java 侧确认后批量写入。 */
+    fun setOnApplyAllAccountsListener(listener: Runnable?) {
+        onApplyAllAccountsListener = listener
+    }
+
+    /** 目标账号行文案与可见性。 */
+    fun setTaskAccount(label: String, visible: Boolean) {
+        uiState.taskAccountLabel = label
+        uiState.taskAccountRowVisible = visible
     }
 }
 
@@ -526,6 +569,8 @@ private fun SettingsScreenPreview() {
             skland = cards[11].apply { setValue("已关闭") },
             about = cards[12].apply { setValue("开源许可 · 隐私政策") },
             onImageClick = {},
+            onPickTaskAccount = {},
+            onApplyAllAccounts = {},
         )
     }
 }

@@ -174,6 +174,13 @@ public final class TaskProfileStore {
         return profile;
     }
 
+    /** 显式改写模板（「应用到全部账号」调用），新账号首次加载时继承它。 */
+    public static void saveTemplate(Context context, TaskProfile profile) {
+        if (profile == null) return;
+        profile.v = TaskProfile.VERSION;
+        prefs(context).edit().putString(KEY_TEMPLATE, GSON.toJson(profile)).apply();
+    }
+
     /** 把旧版的全局任务开关展开成一份 {@link TaskProfile}（不做服务器类型过滤，见类注释）。 */
     private static TaskProfile legacySnapshot(SharedPreferences prefs) {
         TaskProfile profile = new TaskProfile();

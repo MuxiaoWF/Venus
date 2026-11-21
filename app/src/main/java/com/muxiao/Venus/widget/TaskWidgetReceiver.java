@@ -15,7 +15,6 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.LocaleHelper;
-import com.muxiao.Venus.Home.TaskSettings;
 
 /** 接收小组件「运行」按钮的广播，启动前台任务服务。 */
 public class TaskWidgetReceiver extends BroadcastReceiver {
@@ -42,6 +41,19 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
         return userId;
     }
 
+    /** 批量运行的目标账号：全部账号（含跨服），当前账号排最前。 */
+    public static java.util.List<String> resolveTargetUsers(Context context) {
+        UserManager userManager = new UserManager(context);
+        java.util.List<String> all = userManager.getAllUsernames();
+        java.util.List<String> ordered = new java.util.ArrayList<>(all.size());
+        String current = resolveTargetUser(context);
+        if (!current.isEmpty() && all.contains(current)) ordered.add(current);
+        for (String userId : all) {
+            if (!userId.equals(current)) ordered.add(userId);
+        }
+        return ordered;
+    }
+
     @Override
     // 拦截 RUN_TASKS 广播：任务未在运行、任务已配置且能确定用户时，启动前台任务服务执行签到
     public void onReceive(Context context, Intent intent) {
@@ -61,21 +73,25 @@ public class TaskWidgetReceiver extends BroadcastReceiver {
             Toast.makeText(context, localized.getString(R.string.widget_bg_disabled), Toast.LENGTH_SHORT).show();
             return;
         }
-        // 先定目标账号再校验任务：任务配置按账号存，没有账号时「请先设置任务」的提示会误导用户
-        String userId = resolveTargetUser(context);
-        if (userId.isEmpty()) {
+        // 先定目标账号再校验任务
+        // 小组件按钮语义 = 跑一遍所有账号
+        java.util.List<String> allUsers = resolveTargetUsers(context);
+        if (allUsers.isEmpty()) {
             Toast.makeText(context, localized.getString(R.string.widget_no_user), Toast.LENGTH_SHORT).show();
             return;
         }
-        // 任务配置校验：与 App 内两条入口的 hasAnyTaskDisabled 检查对齐，避免全部任务关闭时空跑一轮
-        if (TaskSettings.fromPreferences(context, userId).hasAnyTaskDisabled()) {
+        java.util.List<String> users = com.muxiao.Venus.Home.MultiUserRunner.filterRunnable(context, allUsers);
+        if (users.isEmpty()) {
+            // 有账号但都没配任务
             Toast.makeText(context, localized.getString(R.string.err_set_task_first), Toast.LENGTH_SHORT).show();
             return;
         }
 
         Intent serviceIntent = new Intent(context, ForegroundTaskService.class);
         serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
-        serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
+        serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_IDS, users.toArray(new String[0]));
+        // 单账号时同时写兼容字段
+        if (users.size() == 1) serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, users.get(0));
         ContextCompat.startForegroundService(context, serviceIntent);
     }
 }

@@ -426,9 +426,16 @@ public class LinkFragment implements PageController {
     * 行内展示带服务器后缀（如「t [国服]」）由 Compose 依 oversea 标志拼接，下拉展开项仍是原始用户名。
     */
     private void updateDropdown() {
+        // 跨服全量，展示文案逐账号带服务器后缀
         boolean isOversea = MiHoYoBBSConstants.is_oversea(activity);
-        List<String> usernames = userManager.getUsernamesByServerType(isOversea);
+        List<String> usernames = userManager.getAllUsernames();
         currentUsers = usernames;
+        List<String> labels = new ArrayList<>(usernames.size());
+        for (String username : usernames) {
+            boolean oversea = userManager.isOversea(username);
+            labels.add(username + " [" + activity.getString(
+                    oversea ? R.string.server_os : R.string.server_cn) + "]");
+        }
         int selectedIndex = -1;
         String currentUser = userManager.getCurrentUser();
         if (currentUser != null && !currentUser.isEmpty() && usernames.contains(currentUser)) {
@@ -441,10 +448,10 @@ public class LinkFragment implements PageController {
             currentUserId = firstUser;
             selectedIndex = 0;
         } else {
-            // 当前服务器没有用户，清空选择（Compose 侧自动切到「前往添加」引导）
+            // 没有任何账号，清空选择（Compose 侧自动切到「前往添加」引导）
             currentUserId = null;
         }
-        if (linkPane != null) linkPane.setUsers(usernames, selectedIndex, isOversea);
+        if (linkPane != null) linkPane.setUsers(usernames, labels, selectedIndex, isOversea);
         // 账号行头像随当前用户刷新（复用账号体系自定义头像，见 AvatarStore）
         loadUserAvatar();
     }

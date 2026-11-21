@@ -136,6 +136,12 @@ class HomeUiState {
     var runHint by mutableStateOf("")
     var retryCount by mutableStateOf("")
     var bgButtonText by mutableStateOf("")
+    /** 「全部账号（N）」入口文案与可见性。 */
+    var runAllText by mutableStateOf("")
+    var runAllVisible by mutableStateOf(false)
+    /** 多账号聚合条文案与可见性。 */
+    var aggregateText by mutableStateOf("")
+    var aggregateVisible by mutableStateOf(false)
     var tasks by mutableStateOf<List<HomeTaskRow>>(emptyList())
     var runMode by mutableIntStateOf(HOME_RUN_IDLE)
     var bgFeatureEnabled by mutableStateOf(false)
@@ -164,6 +170,7 @@ fun HomeScreen(
     onUserSelected: (Int) -> Unit,
     onJumpToUsers: () -> Unit,
     onStartDaily: () -> Unit,
+    onRunAll: () -> Unit,
     onCancelDaily: () -> Unit,
     onRetryFailed: () -> Unit,
     onBackgroundClick: () -> Unit,
@@ -222,9 +229,9 @@ fun HomeScreen(
         // 懒加载只组合视口内的项，列表滚在别处时该项根本不存在，用户就看不到验证按钮。
         // 这里只用 scrollToItem（瞬时跳转，无动画）——旧版是布局里已 inflate 好的 View，
         // setVisibility 下一帧就出现；用 animateScrollToItem 会多出 300ms 动画，手感上就是「没立刻出现」。
-        // geetestIndex 前面的固定项：账号区 3 项（前台运行期间隐藏）+ 操作区 5 项
-        // （标签 / 开始 / 取消 / 重试 / 后台）。在此之上加 item 时必须同步这里。
-        val geetestIndex = (if (state.userVisible) 3 else 0) + 5
+        // geetestIndex 前面的固定项：账号区 3 项（前台运行期间隐藏）+ 操作区 6 项
+        // （标签 / 开始 / 全部账号 / 取消 / 重试 / 后台）。在此之上加 item 时必须同步这里。
+        val geetestIndex = (if (state.userVisible) 3 else 0) + 6
         LaunchedEffect(state.geetestVisible) {
             if (!state.geetestVisible) return@LaunchedEffect
             // 等一帧让 item 组合并参与布局，再判断是否真的完整可见
@@ -274,6 +281,23 @@ fun HomeScreen(
             item(key = "start-daily") {
                 AnimatedVisibility(visible = state.startVisible, enter = enter, exit = exit) {
                     PrimaryRunRow(hint = state.runHint, onClick = onStartDaily)
+                }
+            }
+            // 「全部账号」批量入口
+            item(key = "run-all") {
+                AnimatedVisibility(
+                    visible = state.startVisible && state.runAllVisible,
+                    enter = enter,
+                    exit = exit,
+                ) {
+                    SurfaceRow(
+                        icon = VenusIcons.Play,
+                        iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = state.runAllText,
+                        trailing = "",
+                        trailingColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = onRunAll,
+                    )
                 }
             }
             item(key = "cancel-daily") {
@@ -330,6 +354,18 @@ fun HomeScreen(
             item(key = "actions-divider") {
                 Box(modifier = Modifier.padding(top = dimensionResource(R.dimen.space_4))) {
                     VenusDivider()
+                }
+            }
+
+            // 多账号聚合条
+            if (state.aggregateVisible) {
+                item(key = "aggregate") {
+                    Text(
+                        text = state.aggregateText,
+                        style = textStyles.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
+                    )
                 }
             }
 
@@ -855,6 +891,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     private var onUserSelectedListener: IndexConsumer? = null
     private var onJumpToUsersListener: Runnable? = null
     private var onStartDailyListener: Runnable? = null
+    private var onRunAllListener: Runnable? = null
     private var onCancelDailyListener: Runnable? = null
     private var onRetryFailedListener: Runnable? = null
     private var onBackgroundClickListener: Runnable? = null
@@ -871,6 +908,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
                 onUserSelected = { onUserSelectedListener?.accept(it) },
                 onJumpToUsers = { onJumpToUsersListener?.run() },
                 onStartDaily = { onStartDailyListener?.run() },
+                onRunAll = { onRunAllListener?.run() },
                 onCancelDaily = { onCancelDailyListener?.run() },
                 onRetryFailed = { onRetryFailedListener?.run() },
                 onBackgroundClick = { onBackgroundClickListener?.run() },
@@ -980,6 +1018,29 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
         onStartDailyListener = listener
     }
 
+    /** 「全部账号」批量入口。 */
+    fun setOnRunAllListener(listener: Runnable?) {
+        onRunAllListener = listener
+    }
+
+    /** 「全部账号（N）」文案与可见性。 */
+    fun setRunAllText(text: String) {
+        uiState.runAllText = text
+    }
+
+    fun setRunAllVisible(visible: Boolean) {
+        uiState.runAllVisible = visible
+    }
+
+    /** 多账号聚合条文案。 */
+    fun setAggregateText(text: String) {
+        uiState.aggregateText = text
+    }
+
+    fun setAggregateVisible(visible: Boolean) {
+        uiState.aggregateVisible = visible
+    }
+
     fun setOnCancelDailyListener(listener: Runnable?) {
         onCancelDailyListener = listener
     }
@@ -1030,6 +1091,7 @@ private fun HomeScreenPreview() {
             onUserSelected = {},
             onJumpToUsers = {},
             onStartDaily = {},
+            onRunAll = {},
             onCancelDaily = {},
             onRetryFailed = {},
             onBackgroundClick = {},

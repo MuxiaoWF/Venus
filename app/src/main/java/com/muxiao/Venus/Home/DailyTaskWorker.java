@@ -82,21 +82,33 @@ public class DailyTaskWorker extends Worker {
             return Result.success();
         }
 
-        // 本轮目标账号：续跑轮必须用「验证归属的账号」（WorkData 携带），不能重新取当前账号——
-        // 验证请求与凭证都按账号存放，用户验证期间切过账号就会跑到别人的桶里，挂起项永远停在待验证。
-        // 旧版本入队的 resume 工作没有该键，回退到当前账号保持其原行为；定时轮一律用当前账号
-        // （批量跑全部账号属 P1 的 MultiUserRunner，不在这里展开）。
+        // 批量链：本轮只跑名单里的一个账号（用 getNullableStringArray：缺失键返回 null，
+        // 与「有批量名单但为空」区分开；getStringArray 已废弃且会把两者都抹成空数组）
+        String[] batchUsers = getInputData().getNullableStringArray(DailyTaskScheduler.KEY_USERS);
+        int batchIndex = getInputData().getInt(DailyTaskScheduler.KEY_USER_INDEX, 0);
+        boolean batch = batchUsers != null && batchUsers.length > 1;
+        if (batch && batchIndex >= batchUsers.length) batchIndex = batchUsers.length - 1;
+        // 链首开始时置批量标记
+        if (batch && batchIndex == 0 && !DailyTaskScheduler.isBatchActive(context))
+            DailyTaskScheduler.setBatchActive(context, true);
+
+        // 本轮目标账号：续跑轮取 WorkData，缺省回落当前账号
         String resumeUser = resume
                 ? getInputData().getString(DailyTaskScheduler.KEY_RESUME_USER) : null;
-        String userId = (resumeUser != null && !resumeUser.isEmpty())
-                ? resumeUser : TaskWidgetReceiver.resolveTargetUser(context);
+        String userId;
+        if (batch) {
+            userId = batchUsers[batchIndex];
+        } else {
+            userId = (resumeUser != null && !resumeUser.isEmpty())
+                    ? resumeUser : TaskWidgetReceiver.resolveTargetUser(context);
+        }
 
         // 挂起/排队期间账号可能已被用户删除：续跑名单来自 WorkData，绕过了 resolveTargetUser 的存在性校验。
         // 不拦住的话会给不存在的账号建孤儿任务配置（task_profile_*）与状态桶，并把那一轮记成失败。
         if (!userId.isEmpty() && !new com.muxiao.Venus.User.UserManager(context).isUserExists(userId)) {
             tools.writeLog(context, TAG + ": target user no longer exists, skip this round: " + userId);
-            DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence());
+            if (batch) return chainBatch(context, batchUsers, batchIndex + 1);
+            DailyTaskScheduler.enqueueTomorrow(context);
             return Result.success();
         }
 
@@ -109,7 +121,11 @@ public class DailyTaskWorker extends Worker {
                     ? TimeUnit.SECONDS.toMillis(15)
                     : TimeUnit.MINUTES.toMillis(DailyTaskScheduler.MANUAL_BUSY_RECHECK_DELAY_MINUTES);
             tools.writeLog(context, TAG + ": another round active, recheck in " + delayMs + "ms");
-            if (resume) {
+            if (batch) {
+                // 批量链被手动轮占用：15 秒后重试同一账号
+                DailyTaskScheduler.enqueueBatchNext(context, java.util.Arrays.asList(batchUsers),
+                        batchIndex, TimeUnit.SECONDS.toMillis(15));
+            } else if (resume) {
                 // 必须保留 resume 标记、目标账号与名单，否则重排后退化成「全量执行 + 受定时开关约束」
                 String[] rawIds = getInputData()
                         .getNullableStringArray(DailyTaskScheduler.KEY_ONLY_IDS);
@@ -126,9 +142,8 @@ public class DailyTaskWorker extends Worker {
         TaskSettings settings = TaskSettings.fromPreferences(context, userId);
         if (userId.isEmpty() || settings.hasAnyTaskDisabled()) {
             tools.writeLog(context, TAG + ": no user or no task enabled, skip this round");
-            DailyTaskScheduler.enqueueNext(context,
-                    DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence());
+            if (batch) return chainBatch(context, batchUsers, batchIndex + 1);
+            DailyTaskScheduler.enqueueTomorrow(context);
             return Result.success();
         }
 
@@ -140,20 +155,27 @@ public class DailyTaskWorker extends Worker {
         if (onlyIds != null && onlyIds.isEmpty()) {
             // 名单内失败项已全部被手动修复：无需重跑，直接排明天
             tools.writeLog(context, TAG + ": retry list all resolved, skip this round");
-            DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence());
+            if (batch) return chainBatch(context, batchUsers, batchIndex + 1);
+            DailyTaskScheduler.enqueueTomorrow(context);
             return Result.success();
         }
 
-        // 幂等去重：当日启用任务已全部完成（手动已跑/上轮已跑完）则不重复执行。
-        // 续跑轮例外：它的名单本身就是「验证已通过、待重跑」的权威依据，与「当日是否全完成」无关——
-        // 挂起项若已被用户从设置里关掉，这个检查会把它永久留在「待验证」（没人再推进它）。
-        if (!resume && DailyTaskScheduler.allEnabledTasksCompletedToday(context, userId)) {
-            tools.writeLog(context, TAG + ": all tasks completed today, skip this round");
-            DailyTaskScheduler.enqueueNext(context,
-                    DailyTaskScheduler.CHAIN_POLICY,
-                    delayToNextOccurrence());
-            return Result.success();
+        // 幂等去重：当日启用任务已全部完成则不重复执行；续跑轮例外。
+        // 批量链仅在链首做全局判定。
+        if (!resume) {
+            boolean alreadyDone = batch && batchIndex == 0
+                    ? DailyTaskScheduler.allTargetsCompletedToday(context)
+                    : DailyTaskScheduler.allEnabledTasksCompletedToday(context, userId);
+            if (alreadyDone) {
+                tools.writeLog(context, TAG + ": all tasks completed today, skip this round");
+                if (batch) {
+                    return batchIndex == 0
+                            ? finishBatch(context)
+                            : chainBatch(context, batchUsers, batchIndex + 1);
+                }
+                DailyTaskScheduler.enqueueTomorrow(context);
+                return Result.success();
+            }
         }
 
         tools.writeLog(context, context.getString(R.string.task_mgr_start, userId)
@@ -269,6 +291,13 @@ public class DailyTaskWorker extends Worker {
             notificationHelper.cancelProgressNotification();
         }
 
+        // 批量链：不逐账号重试，只排下一个账号
+        if (batch) {
+            if (suspended)
+                tools.writeLog(context, TAG + ": account suspended for captcha, continue batch: " + userId);
+            return chainBatch(context, batchUsers, batchIndex + 1);
+        }
+
         // 续链决策：验证码失败不自动重试（用户不在场时大概率再次超时），改为发通知让用户手动处理
         // （首页「重试失败任务」；次日到点的定时执行仍会再试）。其余失败在重试额度内只重跑这些项（名单随 WorkData 传递）。
         if (DailyTaskScheduler.isEnabled(appContext)) {
@@ -282,16 +311,14 @@ public class DailyTaskWorker extends Worker {
                             DailyTaskScheduler.CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
                             attempt + 1);
                 else
-                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                            delayToNextOccurrence());
+                    DailyTaskScheduler.enqueueTomorrow(context);
             } else if (!executed) {
                 // 任务体整体未执行（提交阶段异常）：按全量重试处理
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             DailyTaskScheduler.RETRY_DELAY_MINUTES * 60_000L, attempt + 1, null);
                 else
-                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                            delayToNextOccurrence());
+                    DailyTaskScheduler.enqueueTomorrow(context);
             } else {
                 // 挂起项已在上面按 suspended 分支处理，这里只剩真正的失败项
                 Set<String> retryable = new HashSet<>(errorIds);
@@ -302,12 +329,32 @@ public class DailyTaskWorker extends Worker {
                     DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
                             retryDelayMinutes * 60_000L, attempt + 1, retryable);
                 } else {
-                    DailyTaskScheduler.enqueueNext(context, DailyTaskScheduler.CHAIN_POLICY,
-                            delayToNextOccurrence());
+                    DailyTaskScheduler.enqueueTomorrow(context);
                 }
             }
         }
 
+        return Result.success();
+    }
+
+    /**
+     * 批量链续链：还有账号就排下一个，否则清标记并排明天。用 {@code CHAIN_POLICY} 追加。
+     */
+    private Result chainBatch(Context context, String[] users, int nextIndex) {
+        if (nextIndex < users.length) {
+            tools.writeLog(context, TAG + ": batch next account " + (nextIndex + 1) + "/" + users.length);
+            DailyTaskScheduler.enqueueBatchNext(context, java.util.Arrays.asList(users), nextIndex,
+                    MultiUserRunner.DEFAULT_GAP_MS);
+        } else {
+            tools.writeLog(context, TAG + ": batch finished, schedule next day");
+            DailyTaskScheduler.finishBatch(context);
+        }
+        return Result.success();
+    }
+
+    /** 整批无事可做：清批量标记并排明天。 */
+    private Result finishBatch(Context context) {
+        DailyTaskScheduler.finishBatch(context);
         return Result.success();
     }
 
@@ -374,11 +421,6 @@ public class DailyTaskWorker extends Worker {
             statusManager.markStatus(userId, id, TaskStatusManager.STATUS_PENDING);
             tools.writeLog(context, TAG + ": captcha target dropped (no longer enabled): " + id);
         }
-    }
-
-    /** 距下一个设定时刻的毫秒数（明天到点或同日时刻未到则今天到点）。 */
-    private long delayToNextOccurrence() {
-        return DailyTaskScheduler.delayToNextOccurrence(getApplicationContext());
     }
 
     /** 将单条任务状态广播给首页（与 ForegroundTaskService 同一 Action/Extras 契约，载荷为任务 id）。 */

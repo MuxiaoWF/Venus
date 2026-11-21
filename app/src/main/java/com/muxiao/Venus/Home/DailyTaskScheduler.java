@@ -73,6 +73,17 @@ public final class DailyTaskScheduler {
      */
     public static final String KEY_RESUME_USER = "scheduled_resume_user";
 
+    /**
+     * WorkData 键：批量链的账号名单（String[]）。存在即批量链：每个 Work 只跑其中一个账号。
+     */
+    public static final String KEY_USERS = "scheduled_users";
+
+    /** WorkData 键：批量链当前账号下标（0 基）。 */
+    public static final String KEY_USER_INDEX = "scheduled_user_index";
+
+    /** settings_prefs 键：批量链正在推进。决定验证码续跑用 APPEND 还是 REPLACE。 */
+    private static final String PREF_BATCH_ACTIVE = "scheduled_batch_active";
+
     /** 当日错过后补跑的延迟（分钟）。 */
     private static final long CATCH_UP_DELAY_MINUTES = 15;
 
@@ -139,15 +150,28 @@ public final class DailyTaskScheduler {
      */
     public static void applySchedule(Context context) {
         if (isEnabled(context)) {
-            enqueueNext(context, ExistingWorkPolicy.REPLACE, delayToNextOccurrence(context));
+            enqueueBatchStart(context, batchTargets(context),
+                    delayToNextOccurrence(context), ExistingWorkPolicy.REPLACE);
         } else {
+            setBatchActive(context, false);
             WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
         }
     }
 
     /** 关闭定时签到：取消待执行工作（执行中的工作由 Worker 通过开关短路自行收尾）。 */
     public static void cancel(Context context) {
+        setBatchActive(context, false);
         WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
+    }
+
+    /** 批量链是否正在推进。 */
+    public static boolean isBatchActive(Context context) {
+        return prefs(context).getBoolean(PREF_BATCH_ACTIVE, false);
+    }
+
+    /** 标记批量链状态。终止路径均需清掉。 */
+    static void setBatchActive(Context context, boolean active) {
+        prefs(context).edit().putBoolean(PREF_BATCH_ACTIVE, active).apply();
     }
 
     /**
@@ -156,7 +180,58 @@ public final class DailyTaskScheduler {
      */
     public static void ensureScheduled(Context context) {
         if (!isEnabled(context)) return;
-        enqueueNext(context, ExistingWorkPolicy.KEEP, computeRepairDelay(context));
+        enqueueBatchStart(context, batchTargets(context),
+                computeRepairDelay(context), ExistingWorkPolicy.KEEP);
+    }
+
+    /** 全部账号（跨服），只保留配置了任务的账号，当前账号优先。 */
+    static java.util.List<String> batchTargets(Context context) {
+        Context localized = LocaleHelper.wrap(context.getApplicationContext());
+        return MultiUserRunner.filterRunnable(localized,
+                TaskWidgetReceiver.resolveTargetUsers(localized));
+    }
+
+    /** 启动定时链：账号 ≥2 走批量链，否则单账号逻辑。 */
+    static void enqueueBatchStart(Context context, java.util.List<String> users,
+                                  long delayMs, ExistingWorkPolicy policy) {
+        if (users == null || users.size() < 2) {
+            enqueueNext(context, policy, delayMs);
+            return;
+        }
+        // 不在此处置 batch 标记：由 Worker 在 index==0 开始时置位
+        enqueueBatch(context, users, 0, delayMs, 1, policy);
+    }
+
+    /** 批量链：把第 {@code index} 个账号排到链尾。 */
+    static void enqueueBatchNext(Context context, java.util.List<String> users, int index, long delayMs) {
+        enqueueBatch(context, users, index, delayMs, 1, CHAIN_POLICY);
+    }
+
+    private static void enqueueBatch(Context context, java.util.List<String> users, int index,
+                                     long delayMs, int attempt, ExistingWorkPolicy policy) {
+        Data.Builder data = new Data.Builder()
+                .putInt(KEY_ATTEMPT, attempt)
+                .putStringArray(KEY_USERS, users.toArray(new String[0]))
+                .putInt(KEY_USER_INDEX, index);
+        WorkManager.getInstance(context)
+                .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, buildRequest(data.build(), delayMs));
+    }
+
+    /** 排「明天到点」那一轮：账号 ≥2 时排批量链首节点。 */
+    static void enqueueTomorrow(Context context) {
+        long delay = delayToNextOccurrence(context);
+        java.util.List<String> users = batchTargets(context);
+        if (users.size() >= 2) {
+            enqueueBatch(context, users, 0, delay, 1, CHAIN_POLICY);
+        } else {
+            enqueueNext(context, CHAIN_POLICY, delay);
+        }
+    }
+
+    /** 批量链收尾：清标记并排明天那一轮。 */
+    static void finishBatch(Context context) {
+        setBatchActive(context, false);
+        enqueueTomorrow(context);
     }
 
     /**
@@ -192,16 +267,20 @@ public final class DailyTaskScheduler {
         }
         if (onlyIds != null && !onlyIds.isEmpty())
             data.putStringArray(KEY_ONLY_IDS, onlyIds.toArray(new String[0]));
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(DailyTaskWorker.class)
+        WorkManager.getInstance(context)
+                .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, buildRequest(data.build(), delay));
+    }
+
+    /** 构造 OneTimeWorkRequest：约束、退避、延迟对所有入口一致。 */
+    private static OneTimeWorkRequest buildRequest(Data data, long delay) {
+        return new OneTimeWorkRequest.Builder(DailyTaskWorker.class)
                 .setInitialDelay(Math.max(0, delay), TimeUnit.MILLISECONDS)
-                .setInputData(data.build())
+                .setInputData(data)
                 .setConstraints(new Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build())
                 .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.MINUTES)
                 .build();
-        WorkManager.getInstance(context)
-                .enqueueUniqueWork(UNIQUE_WORK_NAME, policy, request);
     }
 
     /**
@@ -220,8 +299,9 @@ public final class DailyTaskScheduler {
                                             java.util.Collection<String> taskIds) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
-        if (DailyTaskWorker.isRunning()) {
-            tools.writeLog(context, "captcha resume appended: scheduled worker still running (" + userId + ")");
+        // 批量链推进中改为追加到链尾
+        if (DailyTaskWorker.isRunning() || isBatchActive(context)) {
+            tools.writeLog(context, "captcha resume appended: batch/worker still running (" + userId + ")");
             enqueue(context, CHAIN_POLICY, TimeUnit.SECONDS.toMillis(10), 1, onlyIds, true, userId);
             return;
         }
@@ -296,13 +376,24 @@ public final class DailyTaskScheduler {
         return target.getTimeInMillis() - now.getTimeInMillis();
     }
 
-    /** 当日是否需要补跑：任务已配置、能确定用户、且未全部完成。 */
+    /** 当日是否需要补跑：任务已配置、能确定账号、且还有账号没跑完。 */
     private static boolean shouldCatchUpToday(Context context) {
-        String userId = TaskWidgetReceiver.resolveTargetUser(context);
-        if (userId.isEmpty()) return false;
-        TaskSettings settings = TaskSettings.fromPreferences(context, userId);
-        if (settings.hasAnyTaskDisabled()) return false;
-        return !allEnabledTasksCompletedToday(context, userId);
+        java.util.List<String> users = batchTargets(context);
+        if (users.isEmpty()) return false;
+        for (String userId : users) {
+            if (!allEnabledTasksCompletedToday(context, userId)) return true;
+        }
+        return false;
+    }
+
+    /** 全部可跑账号当日是否都已完成。 */
+    public static boolean allTargetsCompletedToday(Context context) {
+        java.util.List<String> users = batchTargets(context);
+        if (users.isEmpty()) return true;
+        for (String userId : users) {
+            if (!allEnabledTasksCompletedToday(context, userId)) return false;
+        }
+        return true;
     }
 
     /**

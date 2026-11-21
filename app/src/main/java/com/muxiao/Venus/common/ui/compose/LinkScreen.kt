@@ -92,6 +92,8 @@ class LinkSourceState {
 @Stable
 class LinkUiState {
     var users by mutableStateOf<List<String>>(emptyList())
+    /** 与 [users] 一一对应的展示文案（用户名 + 服务器后缀），空列表时回退到全局 [oversea]。 */
+    var userLabels by mutableStateOf<List<String>>(emptyList())
     var selectedUserIndex by mutableIntStateOf(-1)
     var oversea by mutableStateOf(false)
     var avatarUsername by mutableStateOf<String?>(null)
@@ -240,10 +242,11 @@ private fun AccountRow(
     var expanded by remember { mutableStateOf(false) }
     val hasUsers = state.users.isNotEmpty()
     val serverSuffix = stringResource(if (state.oversea) R.string.server_os else R.string.server_cn)
+    // 优先用逐账号展示文案，缺失时回退到全局服后缀
     val label = if (hasUsers) {
-        state.users.getOrNull(state.selectedUserIndex)
-            ?.let { "$it [$serverSuffix]" }
-            .orEmpty()
+        state.userLabels.getOrNull(state.selectedUserIndex)
+            ?: state.users.getOrNull(state.selectedUserIndex)?.let { "$it [$serverSuffix]" }
+                .orEmpty()
     } else {
         stringResource(R.string.home_no_user_hint)
     }
@@ -273,11 +276,16 @@ private fun AccountRow(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        // 下拉项为「头像 + 原始用户名」，不带服务器后缀（后缀只在行内展示）
+        // 下拉项为「头像 + 展示文案」，头像按原始用户名取
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             state.users.forEachIndexed { index, username ->
                 DropdownMenuItem(
-                    text = { Text(text = username, style = textStyles.bodyLarge) },
+                    text = {
+                        Text(
+                            text = state.userLabels.getOrNull(index) ?: username,
+                            style = textStyles.bodyLarge,
+                        )
+                    },
                     leadingIcon = { VenusAvatar(username = username) },
                     onClick = {
                         expanded = false
@@ -654,7 +662,13 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
 
     /** 填充账号下拉：原始用户名列表 + 当前选中下标（-1 = 无选中）+ 是否国际服。 */
     fun setUsers(users: List<String>, selectedIndex: Int, oversea: Boolean) {
+        setUsers(users, emptyList(), selectedIndex, oversea)
+    }
+
+    /** @param labels 与 [users] 一一对应的展示文案；空列表时回退到全局 [oversea] */
+    fun setUsers(users: List<String>, labels: List<String>, selectedIndex: Int, oversea: Boolean) {
         uiState.users = ArrayList(users)
+        uiState.userLabels = ArrayList(labels)
         uiState.selectedUserIndex = selectedIndex
         uiState.oversea = oversea
     }

@@ -675,4 +675,18 @@
     <string name="login_avatar_label">頭像</string>
     <string name="login_avatar_hint">選填，登入成功後套用到這個帳號</string>
     <string name="login_avatar_picked">已選擇，登入成功後套用</string>
+
+    <!-- 多帳號：首頁批次入口與聚合列 -->
+    <string name="home_run_all">全部帳號（%1$d）</string>
+    <string name="home_aggregate">%1$d 個帳號 · %2$d/%3$d</string>
+    <string name="home_aggregate_captcha">%1$d 待驗證</string>
+    <string name="captcha_queue_hint">待驗證 %1$s（共 %2$d）</string>
+    <string name="notif_with_account">帳號 %1$d/%2$d · %3$s</string>
+    <!-- 設定頁：任務設定的目標帳號 -->
+    <string name="settings_target_account">設定目標帳號</string>
+    <string name="settings_target_account_temp">%1$s（臨時）</string>
+    <string name="settings_target_account_pick">選擇要編輯的帳號</string>
+    <string name="settings_apply_all_accounts">套用到全部帳號</string>
+    <string name="settings_apply_all_confirm">把這套簽到計畫寫入全部 %1$d 個帳號（各自原有的勾選會被覆蓋）。</string>
+    <string name="settings_apply_all_done">已套用到 %1$d 個帳號</string>
 </resources>

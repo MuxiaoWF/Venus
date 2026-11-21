@@ -91,7 +91,9 @@ import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.User.UserManager;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -146,11 +148,12 @@ public class SettingsFragment implements PageController {
      */
     private String credentialUserId;
     /**
-     * 正在编辑的任务配置（内存副本，改动立即落盘）。归属账号恒为<b>当前登录账号</b>——
-     * 刻意不跟随 {@link #credentialUserId}：后者是「给某个账号填 token」的临时上下文，
-     * 而任务配置决定「这个账号签哪些任务」，与首页/后台实际运行的账号必须一致。
+     * 正在编辑的任务配置（内存副本，改动立即落盘）。归属账号默认为当前登录账号，可由
+     * {@link #taskConfigUserId} 临时指定。
      */
     private TaskProfile taskProfile;
+    /** 任务配置的目标账号；null = 跟随当前登录账号。仅供本页编辑。 */
+    private String taskConfigUserId;
     // 「通知 / 后台运行」抽屉内容为 Compose。
     private NotificationSettingPaneView notificationPane;
     // 「米游币签到」「游戏签到」抽屉内容为 Compose。
@@ -458,6 +461,10 @@ public class SettingsFragment implements PageController {
             Intent intent = new Intent(activity, ImageActivity.class);
             activity.startActivity(intent);
         });
+
+        // 任务配置的目标账号
+        root.setOnPickTaskAccountListener(this::pickTaskConfigAccount);
+        root.setOnApplyAllAccountsListener(this::applyTaskConfigToAll);
 
         // 缓存管理（Compose 版内容：计算并显示当前缓存大小）
         calculateCacheSize(cachePane);
@@ -1051,14 +1058,97 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 任务配置的归属账号：恒为当前登录账号。
-     *
-     * <p>刻意不复用 {@link #credentialUser()}：后者可能被「从用户管理页跳过来填 token」临时指到别的账号，
-     * 而任务配置决定「这个账号签哪些任务」，必须与首页/后台实际运行的账号一致，
-     * 否则会出现「在设置页改了 A 的任务，跑的却是 B」。
+     * 任务配置的归属账号：默认当前登录账号，可被「配置目标账号」临时指定。
+     * 与 {@link #credentialUser()} 相互独立。
      */
     private String taskConfigUser() {
-        return new UserManager(activity).getCurrentUser();
+        UserManager users = new UserManager(activity);
+        if (taskConfigUserId != null && !taskConfigUserId.isEmpty()) {
+            // 账号已失效则回落当前账号
+            if (users.isUserExists(taskConfigUserId)) return taskConfigUserId;
+            taskConfigUserId = null;
+        }
+        return users.getCurrentUser();
+    }
+
+    /** 目标账号行的文案与可见性（无账号时隐藏）。 */
+    private void renderTaskAccountRow() {
+        if (screenView == null) return;
+        String userId = taskConfigUser();
+        if (userId.isEmpty()) {
+            screenView.setTaskAccount("", false);
+            return;
+        }
+        boolean oversea = new UserManager(activity).isOversea(userId);
+        String server = activity.getString(oversea ? R.string.server_os : R.string.server_cn);
+        String label = userId + " [" + server + "]";
+        // 非当前账号时标注为临时目标
+        String current = new UserManager(activity).getCurrentUser();
+        if (!userId.equals(current)) {
+            label = activity.getString(R.string.settings_target_account_temp, label);
+        }
+        screenView.setTaskAccount(label, true);
+    }
+
+    /** 选择任务配置的目标账号（默认当前账号）。 */
+    private void pickTaskConfigAccount() {
+        if (blockIfTaskRunning(null)) return;
+        UserManager users = new UserManager(activity);
+        List<String> all = users.getAllUsernames();
+        if (all.isEmpty()) {
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.home_no_user_hint));
+            return;
+        }
+        // 条目文案带各自服务器后缀
+        List<String> labels = new ArrayList<>(all.size());
+        for (String userId : all) {
+            boolean oversea = users.isOversea(userId);
+            labels.add(userId + " [" + activity.getString(oversea ? R.string.server_os : R.string.server_cn) + "]");
+        }
+        VenusDialogs.items(
+                activity,
+                activity.getString(R.string.settings_target_account_pick),
+                labels,
+                index -> {
+                    if (index < 0 || index >= all.size()) return;
+                    String picked = all.get(index);
+                    taskConfigUserId = picked.equals(users.getCurrentUser()) ? null : picked;
+                    // 换账号即换配置：重载并回填
+                    reloadTaskProfile();
+                    renderTaskConfig();
+                    renderTaskAccountRow();
+                    setupCloudGameSettings();
+                    TaskWidgetProvider.refreshAllWidgets(activity);
+                });
+    }
+
+    /**
+     * 把当前配置应用到全部账号，并写回模板。
+     */
+    private void applyTaskConfigToAll() {
+        if (blockIfTaskRunning(null)) return;
+        String owner = taskConfigUser();
+        if (owner.isEmpty() || taskProfile == null) {
+            showCustomSnackbar(screenView, activity, activity.getString(R.string.home_no_user_hint));
+            return;
+        }
+        UserManager users = new UserManager(activity);
+        List<String> all = users.getAllUsernames();
+        VenusDialogs.confirm(
+                activity,
+                activity.getString(R.string.settings_apply_all_accounts),
+                activity.getString(R.string.settings_apply_all_confirm, all.size()),
+                activity.getString(R.string.btn_ok),
+                () -> {
+                    // 模板先行
+                    TaskProfileStore.saveTemplate(activity, taskProfile);
+                    for (String userId : all) TaskProfileStore.save(activity, userId, taskProfile);
+                    tools.writeLog(activity, "task profile applied to " + all.size() + " account(s)");
+                    showCustomSnackbar(screenView, activity,
+                            activity.getString(R.string.settings_apply_all_done, all.size()));
+                    TaskWidgetProvider.refreshAllWidgets(activity);
+                },
+                activity.getString(R.string.btn_cancel));
     }
 
     /** 从当前账号加载任务配置（无账号时为内存默认值，不落盘，见 {@link TaskProfileStore#load}）。 */
@@ -1114,6 +1204,9 @@ public class SettingsFragment implements PageController {
         for (int i = 0; i < TaskProfileStore.CLOUD_GAME_ORDER.length; i++)
             cloudGamePane.setChipChecked(i, taskProfile.cloudGames.contains(TaskProfileStore.CLOUD_GAME_ORDER[i]));
         updateCloudGameCardValue();
+
+        // 目标账号行与卡片同步刷新
+        renderTaskAccountRow();
     }
 
     /** 勾选集合的增删（{@link TaskProfile} 的列表是「已勾选项」语义，不是逐项布尔）。 */

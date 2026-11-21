@@ -133,32 +133,32 @@ public class UserManagementFragment implements PageController {
     }
 
     /**
-     * 按当前服务器类型重建用户卡列表状态（空态/区块标签/计数副标题一并派生）。
+     * 重建用户卡列表状态（空态/区块标签/计数副标题一并派生）。
      * 列表项增删动画由 Compose 侧 {@code animateItem()} 逐项 diff 完成。
+     * <p>
+     * 列表为全部账号（含跨服），服别逐卡按该账号自身的 {@code server_type} 渲染。
      */
     private void refreshUserList() {
         if (screenView == null) return;
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
-        List<String> users = userManager.getUsernamesByServerType(isOversea);
+        List<String> users = userManager.getAllUsernames();
         // 页眉副标题带账号计数（设计稿：管理登录账号 · 共 N 个账号）
         screenView.setSubtitle(activity.getResources().getQuantityString(
                 R.plurals.user_count_fmt, users.size(), users.size()));
         // 如果没有用户，显示空态（Compose 侧同时隐藏区块标签）
         if (users.isEmpty()) {
-            String serverName = isOversea ? activity.getString(R.string.server_os) : activity.getString(R.string.server_cn);
-            screenView.setEmptyText(activity.getString(R.string.msg_no_server_user, serverName));
+            screenView.setEmptyText(activity.getString(R.string.home_no_user_hint));
             screenView.setUsers(Collections.emptyList());
             return;
         }
         screenView.setEmptyText(null);
         String currentUsername = userManager.getCurrentUser();
-        // 显示用户名和服务器类型（占位符格式化，避免 setText 拼接触发 Lint SetTextI18n）
-        String serverType = activity.getString(isOversea ? R.string.server_os : R.string.server_cn);
-        // 任务开关与凭证都按账号存：每张卡要按「该账号自己的开关 × 该账号 token」算，
-        // 不能再在循环外读一份全局配置（否则所有卡显示的是同一个账号的签到计划）
+        // 任务开关与凭证都按账号存，每张卡按该账号自己的配置计算
         List<UserCardRow> rows = new ArrayList<>(users.size());
         for (String username : users) {
             TaskSettings settings = TaskSettings.fromPreferences(getContext(), username);
+            // 服务器后缀按账号取
+            String serverType = activity.getString(userManager.isOversea(username)
+                    ? R.string.server_os : R.string.server_cn);
             rows.add(new UserCardRow(
                     username,
                     activity.getString(R.string.user_label_with_server, username, serverType),
@@ -453,9 +453,19 @@ public class UserManagementFragment implements PageController {
             return;
         }
         userManager.setCurrentUser(username);
-        // 重新登录要进该账号自己所属服的登录页：全局 SERVER_TYPE 只是「当前浏览的服」，
-        // 用它会在跨服账号上打开错误的登录页，登录成功后还会把 server_type 改写成另一个服
+        // 重新登录进入该账号自身所属服的登录页
         boolean isOversea = userManager.isOversea(username);
+        // 全局服对齐到该账号（登录页内部读全局值）
+        boolean globalOversea = MiHoYoBBSConstants.is_oversea(getContext());
+        if (globalOversea != isOversea) {
+            getContext().getSharedPreferences(
+                            com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME,
+                            android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putInt(com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE, isOversea ? 1 : 0)
+                    .apply();
+            MiHoYoBBSConstants.clearOverseaCache();
+        }
         Intent intent = new Intent(activity,
                 isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
         intent.putExtra("RELOGIN_MODE", true);

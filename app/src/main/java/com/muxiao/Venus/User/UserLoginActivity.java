@@ -647,7 +647,10 @@ public class UserLoginActivity extends BaseActivity {
 
         /** 各登录方式共用的收尾：写入服务器类型、登记用户、恢复界面。 */
         private void finish_login_success() {
-            tools.write(context, username, "server_type", isOversea ? "1" : "0");
+            // 重登录沿用该账号自身的服务器类型
+            boolean overseaToWrite = relogin_mode && relogin_username != null
+                    ? user_manager.isOversea(relogin_username) : isOversea;
+            tools.write(context, username, "server_type", overseaToWrite ? "1" : "0");
             // 头像：登录页选过才写，且只在成功后落盘；重登录沿用原账号名
             String avatarUser = relogin_mode && relogin_username != null ? relogin_username : username;
             Uri avatarToSave = pendingAvatar;

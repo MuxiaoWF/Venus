@@ -9,7 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.PowerManager;
 
 import androidx.core.app.NotificationCompat;
 
@@ -36,7 +35,10 @@ public class ForegroundTaskService extends Service {
     public static final String ACTION_START_TASK = "com.muxiao.Venus.START_TASK";
     public static final String ACTION_STOP_TASK = "com.muxiao.Venus.STOP_TASK";
     public static final String ACTION_TASK_STATE_CHANGED = "com.muxiao.Venus.TASK_STATE_CHANGED";
+    /** 单账号（兼容旧调用方）。 */
     public static final String EXTRA_USER_ID = "user_id";
+    /** 批量账号名单（String[]），优先于 {@link #EXTRA_USER_ID}。 */
+    public static final String EXTRA_USER_IDS = "user_ids";
     public static final String EXTRA_IS_RUNNING = "is_running";
 
     /** 逐条任务状态变更广播（供 HomeFragment 实时/恢复刷新列表图标）。 */
@@ -51,10 +53,11 @@ public class ForegroundTaskService extends Service {
     private NotificationCompat.Builder notificationBuilder;
     private com.muxiao.Venus.common.Notification notificationHelper;
     private tools.StatusNotifier notifier;
-    private PowerManager.WakeLock wakeLock;
+    /** WakeLock 租约：按账号边界续租。 */
+    private WakeLockLease wakeLockLease;
     /** 任务状态写入器：构造含跨日校验，运行期间复用单一实例，避免每条状态重建。 */
     private TaskStatusManager statusManager;
-    /** 本次运行的用户：任务状态按用户分桶，逐条状态写入时按此定位桶。 */
+    /** 本次运行的用户：任务状态按用户分桶，批量运行期间随账号切换。 */
     private volatile String runningUserId = "";
 
     private static volatile ForegroundTaskService instance;
@@ -111,7 +114,7 @@ public class ForegroundTaskService extends Service {
         }
 
         if (intent != null && ACTION_START_TASK.equals(intent.getAction())) {
-            String userId = intent.getStringExtra(EXTRA_USER_ID);
+            java.util.List<String> users = resolveRequestedUsers(intent);
             notificationBuilder = notificationHelper.createProgressNotification("Venus", getString(R.string.notif_executing_task));
 
             Intent stopIntent = new Intent(this, ForegroundTaskService.class);
@@ -127,109 +130,44 @@ public class ForegroundTaskService extends Service {
                 startForeground(Constants.NOTIFICATION_ID_PROGRESS, notificationBuilder.build());
             }
             tools.writeLogSeparator(this);
-            executeTasks(userId);
+            executeTasks(users);
         }
 
         return START_NOT_STICKY;
     }
 
     /**
-     * 在 IO 线程执行全部签到任务：先取 10 分钟 WakeLock 防 CPU 休眠，再提交 TaskExecutor 并把状态回传通知/小组件；
+     * 解析本次要跑的账号：名单优先，其次单值，最后回退当前账号。
+     */
+    private java.util.List<String> resolveRequestedUsers(Intent intent) {
+        String[] rawUsers = intent.getStringArrayExtra(EXTRA_USER_IDS);
+        if (rawUsers != null && rawUsers.length > 0)
+            return new java.util.ArrayList<>(java.util.Arrays.asList(rawUsers));
+        String single = intent.getStringExtra(EXTRA_USER_ID);
+        if (single != null && !single.isEmpty())
+            return java.util.Collections.singletonList(single);
+        String fallback = com.muxiao.Venus.widget.TaskWidgetReceiver.resolveTargetUser(this);
+        return fallback.isEmpty()
+                ? java.util.Collections.emptyList()
+                : java.util.Collections.singletonList(fallback);
+    }
+
+    /**
+     * 在 IO 线程执行签到任务：账号串行（{@link MultiUserRunner}），每账号开始/结束各续租一次 WakeLock。
      * 无论成功或异常，finally 都释放资源并 stopSelf()。
      *
-     * <p>复位/持久化/小组件刷新一律放在提交的执行线程内：本方法由 {@code onStartCommand} 在主线程调用，而这些
-     * 动作会触碰 DataStore（首次构造还会同步阻塞读首帧）、跨天时的整仓读写与历史日志落盘、AppWidget 更新，
-     * 放主线程等于在服务启动路径上做磁盘 IO（慢机可能卡顿甚至 ANR）。
+     * <p>复位、持久化、小组件刷新放在执行线程内，避免在主线程做磁盘 IO。
      */
-    private void executeTasks(String userId) {
-        // 获取 WakeLock，防止 CPU 休眠导致任务中断
-        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Venus:TaskWakeLock");
-        // 最长10分钟，超时自动释放防止泄漏
-        wakeLock.acquire(10 * 60 * 1000L);
-
-        runningUserId = userId != null ? userId : "";
+    private void executeTasks(java.util.List<String> users) {
+        // WakeLock 租约：按账号边界续租
+        wakeLockLease = new WakeLockLease(this);
+        wakeLockLease.start();
 
         try {
             currentTaskFuture = AppExecutors.get().submit(() -> {
                 try {
-                    // 新一轮运行：仅复位该用户桶内的瞬态，保留当日终态——重跑中途终止不会抹掉已完成记录。
-                    // App 内「开始任务」已由 resetForNewRun 复位过（重复复位无副作用），但小组件入口
-                    // TaskWidgetReceiver 没有对应调用，统一由服务侧复位以保证三条入口一致。
-                    statusManager.resetTransientStatuses(runningUserId,
-                            TaskSettings.fromPreferences(this, runningUserId).getTaskIds());
-                    // 立即把复位结果反映到小组件（任务首个状态回调前有 2~9s 随机风控延时）
-                    TaskWidgetProvider.refreshAllWidgets(this);
-                    // 记录本次运行的用户：小组件目标用户的兜底（历史日志归属由分桶自带）
-                    statusManager.setCurrentUser(runningUserId);
-
-                    TaskSettings settings = TaskSettings.fromPreferences(this, runningUserId);
-                    int totalTasks = settings.getTaskIds().size();
-                    AtomicInteger completedTasks = new AtomicInteger(0);
-                    // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）
-                    Set<String> captchaTaskIds = ConcurrentHashMap.newKeySet();
-                    AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
-
-                    GeetestController geetestController = new BackgroundGeetestController();
-
-                    TaskExecutor taskExecutor = new TaskExecutor(
-                            this, userId, notifier, geetestController,
-                            new TaskExecutor.Callback() {
-                                @Override
-                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
-                                    saveTaskStatus(taskId, status);
-                                    if (status == TaskItem.TaskStatus.COMPLETED) {
-                                        completedTasks.incrementAndGet();
-                                    }
-                                    updateServiceNotification(taskId, status,
-                                            completedTasks.get(), totalTasks);
-                                }
-
-                                @Override
-                                public void onAllTasksCompleted() {
-                                    // 有挂起待验证的任务时本轮并未真正跑完：等续跑轮收尾再报完成
-                                    if (!captchaTaskIds.isEmpty()) return;
-                                    notificationHelper.completeProgressNotification(
-                                            "Venus", getString(R.string.notif_all_tasks_done));
-                                }
-
-                                @Override
-                                public void onCaptchaRequired(CaptchaRequiredException error) {
-                                    // 本轮不等人：只记下挂起项，轮末统一取一次挑战并落库
-                                    captchaTaskIds.add(error.getTaskId());
-                                    captchaHeaders.compareAndSet(null, error.getHeaders());
-                                }
-
-                                @Override
-                                public void onError(String message) {
-                                    notificationHelper.sendErrorNotification(getString(R.string.notif_task_failed), message, true);
-                                }
-
-                                @Override
-                                public boolean isCancelled() {
-                                    return Thread.currentThread().isInterrupted()
-                                            || (currentTaskFuture != null && currentTaskFuture.isCancelled());
-                                }
-                            });
-
-                    taskExecutor.executeAll(settings);
-
-                    // 轮末收口：把本轮挂起的人机验证需求合并成一次，落库并发通知；随后结束本轮。
-                    // 用户完成验证后，凭证由 CaptchaStore 落库，下一轮续跑自动带上——服务不再等人。
-                    if (!captchaTaskIds.isEmpty()) {
-                        // 用应用语言包裹的 Context：通知里的任务名须与界面一致
-                        boolean suspended = CaptchaSuspension.suspend(
-                                LocaleHelper.wrap(this), userId, captchaTaskIds,
-                                captchaHeaders.get(), notificationHelper,
-                                // 后台运行：用户可能不在界面，通知是唯一的验证入口
-                                true);
-                        if (!suspended) {
-                            // 连挑战都取不到：挂起不成立，按失败处理，避免任务永远停在「待验证」
-                            for (String id : captchaTaskIds)
-                                statusManager.applyStatus(userId, id, TaskItem.TaskStatus.ERROR);
-                            TaskWidgetProvider.refreshAllWidgets(this);
-                        }
-                    }
+                    MultiUserRunner.run(this, users, MultiUserRunner.DEFAULT_GAP_MS,
+                            this::runOneAccount, this::isCancelled);
                 } finally {
                     finishTask();
                 }
@@ -237,6 +175,103 @@ public class ForegroundTaskService extends Service {
         } catch (Exception e) {
             // 仅提交阶段可能同步抛错（如线程池拒绝）；任务体内的异常由 Callback 上报
             finishTask();
+        }
+    }
+
+    /** 取消判定：线程被中断或 future 被 cancel。 */
+    private boolean isCancelled() {
+        return Thread.currentThread().isInterrupted()
+                || (currentTaskFuture != null && currentTaskFuture.isCancelled());
+    }
+
+    /**
+     * 跑一个账号：复位瞬态 → 执行启用任务 → 收口人机验证需求。
+     *
+     * @param index 账号下标（0 基），用于进度文案与「最后一个账号」判定
+     */
+    private void runOneAccount(String userId, int index, int total) {
+        runningUserId = userId == null ? "" : userId;
+        if (wakeLockLease != null) wakeLockLease.renew();
+        try {
+            // 仅复位该账号桶内的瞬态，保留当日终态
+            statusManager.resetTransientStatuses(runningUserId,
+                    TaskSettings.fromPreferences(this, runningUserId).getTaskIds());
+            // 立即同步到小组件
+            TaskWidgetProvider.refreshAllWidgets(this);
+            // 记录本次运行账号
+            statusManager.setCurrentUser(runningUserId);
+
+            TaskSettings settings = TaskSettings.fromPreferences(this, runningUserId);
+            int totalTasks = settings.getTaskIds().size();
+            AtomicInteger completedTasks = new AtomicInteger(0);
+            // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）
+            Set<String> captchaTaskIds = ConcurrentHashMap.newKeySet();
+            AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
+
+            GeetestController geetestController = new BackgroundGeetestController();
+
+            TaskExecutor taskExecutor = new TaskExecutor(
+                    this, runningUserId, notifier, geetestController,
+                    new TaskExecutor.Callback() {
+                        @Override
+                        public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                            saveTaskStatus(taskId, status);
+                            if (status == TaskItem.TaskStatus.COMPLETED) {
+                                completedTasks.incrementAndGet();
+                            }
+                            updateServiceNotification(taskId, status,
+                                    completedTasks.get(), totalTasks, index, total);
+                        }
+
+                        @Override
+                        public void onAllTasksCompleted() {
+                            // 有挂起项时本轮未真正完成
+                            if (!captchaTaskIds.isEmpty()) return;
+                            // 批量运行时仅最后一个账号报「全部完成」
+                            if (index == total - 1)
+                                notificationHelper.completeProgressNotification(
+                                        "Venus", getString(R.string.notif_all_tasks_done));
+                        }
+
+                        @Override
+                        public void onCaptchaRequired(CaptchaRequiredException error) {
+                            // 只记下挂起项，轮末统一处理
+                            captchaTaskIds.add(error.getTaskId());
+                            captchaHeaders.compareAndSet(null, error.getHeaders());
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            notificationHelper.sendErrorNotification(
+                                    getString(R.string.notif_task_failed), message, true);
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return ForegroundTaskService.this.isCancelled();
+                        }
+                    });
+
+            taskExecutor.executeAll(settings);
+
+            // 轮末收口：把该账号挂起项合并成一次验证请求，落库并发通知
+            if (!captchaTaskIds.isEmpty()) {
+                // 用应用语言包裹的 Context，通知文案与界面一致
+                boolean suspended = CaptchaSuspension.suspend(
+                        LocaleHelper.wrap(this), runningUserId, captchaTaskIds,
+                        captchaHeaders.get(), notificationHelper,
+                        // 后台运行，通知是唯一验证入口
+                        true);
+                if (!suspended) {
+                    // 取不到挑战则按失败处理
+                    for (String id : captchaTaskIds)
+                        statusManager.applyStatus(runningUserId, id, TaskItem.TaskStatus.ERROR);
+                    TaskWidgetProvider.refreshAllWidgets(this);
+                }
+            }
+        } finally {
+            // 账号结束再续租，覆盖账号间冷却
+            if (wakeLockLease != null) wakeLockLease.renew();
         }
     }
 
@@ -264,7 +299,7 @@ public class ForegroundTaskService extends Service {
 
     /** 根据任务状态拼出通知文案，并更新前台进度通知的进度与文本（文案用当前语言的显示名）。 */
     private void updateServiceNotification(String taskId, TaskItem.TaskStatus status,
-                                            int progress, int max) {
+                                            int progress, int max, int accountIndex, int accountTotal) {
         String taskName = TaskIds.displayName(this, taskId);
         String statusText;
         switch (status) {
@@ -289,6 +324,9 @@ public class ForegroundTaskService extends Service {
                 statusText = getString(R.string.notif_preparing);
                 break;
         }
+        // 批量运行才带账号前缀
+        if (accountTotal > 1)
+            statusText = getString(R.string.notif_with_account, accountIndex + 1, accountTotal, statusText);
         notificationHelper.updateProgressNotification(
                 notificationBuilder, "Venus", statusText, progress, max);
     }
@@ -317,8 +355,8 @@ public class ForegroundTaskService extends Service {
 
     /** 若仍持有则释放 WakeLock，避免 CPU 常驻。 */
     private void releaseWakeLock() {
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
+        if (wakeLockLease != null) {
+            wakeLockLease.release();
         }
     }
 

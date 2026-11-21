@@ -691,4 +691,18 @@
     <string name="login_avatar_label">Avatar</string>
     <string name="login_avatar_hint">Optional · applied to this account after sign-in</string>
     <string name="login_avatar_picked">Selected · applied after sign-in</string>
+
+    <!-- Multi-account: home batch entry and aggregate bar -->
+    <string name="home_run_all">All accounts (%1$d)</string>
+    <string name="home_aggregate">%1$d accounts · %2$d/%3$d</string>
+    <string name="home_aggregate_captcha">%1$d awaiting verification</string>
+    <string name="captcha_queue_hint">verifying %1$s (%2$d in queue)</string>
+    <string name="notif_with_account">Account %1$d/%2$d · %3$s</string>
+    <!-- Settings: target account of task config -->
+    <string name="settings_target_account">Config target account</string>
+    <string name="settings_target_account_temp">%1$s (temporary)</string>
+    <string name="settings_target_account_pick">Choose account to edit</string>
+    <string name="settings_apply_all_accounts">Apply to all accounts</string>
+    <string name="settings_apply_all_confirm">Write this task plan to all %1$d accounts? Their current selections will be overwritten.</string>
+    <string name="settings_apply_all_done">Applied to %1$d accounts</string>
 </resources>

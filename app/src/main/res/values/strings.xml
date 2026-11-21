@@ -683,4 +683,20 @@
     <string name="login_avatar_label">头像</string>
     <string name="login_avatar_hint">选填，登录成功后应用到这个账号</string>
     <string name="login_avatar_picked">已选择，登录成功后应用</string>
+
+    <!-- 多账号：首页批量入口与聚合条 -->
+    <string name="home_run_all">全部账号（%1$d）</string>
+    <string name="home_aggregate">%1$d 个账号 · %2$d/%3$d</string>
+    <string name="home_aggregate_captcha">%1$d 待验证</string>
+    <!-- 待验证队列：%1$s 为队首账号，%2$d 为队列长度 -->
+    <string name="captcha_queue_hint">待验证 %1$s（共 %2$d）</string>
+    <!-- 批量运行时进度通知的账号前缀 -->
+    <string name="notif_with_account">账号 %1$d/%2$d · %3$s</string>
+    <!-- 设置页：任务配置的目标账号 -->
+    <string name="settings_target_account">配置目标账号</string>
+    <string name="settings_target_account_temp">%1$s（临时）</string>
+    <string name="settings_target_account_pick">选择要编辑的账号</string>
+    <string name="settings_apply_all_accounts">应用到全部账号</string>
+    <string name="settings_apply_all_confirm">把这套签到计划写入全部 %1$d 个账号（各自原有的勾选会被覆盖）。</string>
+    <string name="settings_apply_all_done">已应用到 %1$d 个账号</string>
 </resources>

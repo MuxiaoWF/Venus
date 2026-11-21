@@ -97,11 +97,15 @@ public class HomeViewModel extends AndroidViewModel {
     private volatile String currentUser = "";
 
     /**
-     * 本轮已收到过状态回调的任务名。运行期间凡 COMPLETED 且不在本集合中的任务按 {@code RETAINED} 展示
-     * ——绿色结果沿用上一次运行，与本轮实心绿区分（见 TaskItem.TaskStatus.RETAINED）。
-     * 由 {@link #beginRun()} 在每轮开始时清空，跨轮不残留。
+     * 本轮已收到过状态回调的任务，键为 {@code userId|taskId}。运行期间凡 COMPLETED 且不在本集合中的任务按
+     * {@code RETAINED} 展示（见 TaskItem.TaskStatus.RETAINED）。由 {@link #beginRun()} 每轮清空。
      */
     private final Set<String> touchedTasks = new HashSet<>();
+
+    /** 触达集合的键：账号 + 任务 id。 */
+    private static String touchKey(String userId, String taskId) {
+        return (userId == null ? "" : userId) + "|" + taskId;
+    }
 
     public HomeViewModel(@NonNull Application application) {
         super(application);
@@ -138,21 +142,21 @@ public class HomeViewModel extends AndroidViewModel {
         return currentUser;
     }
 
-    /** 新一轮运行开始（前台启动/重试失败/后台启动）时调用：清空触达集合。 */
+    /** 新一轮运行开始：清空触达集合。批量运行只在整批开始时调用一次。 */
     public void beginRun() {
         touchedTasks.clear();
     }
 
     /**
-     * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本轮未触达的任务以 RETAINED 展示。
+     * 展示态派生：运行期间（非 IDLE）凡 COMPLETED 且本账号本轮未触达的任务以 RETAINED 展示。
      * RETAINED 仅为展示态——持久化与回调链路始终用原始状态，回到 IDLE 后自然还原为绿色。
      *
-     * @param taskId 稳定任务 id（触达集合按 id 记录，与语言无关）
+     * @param taskId 稳定任务 id（触达集合按 {@code userId|id} 记录）
      */
     private TaskItem.TaskStatus deriveDisplayStatus(String taskId, TaskItem.TaskStatus status) {
         if (status == TaskItem.TaskStatus.COMPLETED
                 && current().runMode != RunMode.IDLE
-                && !touchedTasks.contains(taskId))
+                && !touchedTasks.contains(touchKey(currentUser, taskId)))
             return TaskItem.TaskStatus.RETAINED;
         return status;
     }
@@ -283,8 +287,8 @@ public class HomeViewModel extends AndroidViewModel {
      * @param taskId 稳定任务 id
      */
     public void updateTaskStatus(String taskId, TaskItem.TaskStatus status) {
-        // 收到回调即视为本轮已触达：该任务此后恢复原始状态展示（不再 RETAINED）
-        touchedTasks.add(taskId);
+        // 收到回调即视为本轮已触达（带账号）
+        touchedTasks.add(touchKey(currentUser, taskId));
         persistTaskStatus(taskId, status);
         applyExternalTaskStatus(currentUser, taskId, status);
         TaskWidgetProvider.refreshAllWidgets(getApplication());
@@ -301,9 +305,8 @@ public class HomeViewModel extends AndroidViewModel {
      * @param taskId 稳定任务 id（广播载荷，不是显示名）
      */
     public void applyExternalTaskStatus(String userId, String taskId, TaskItem.TaskStatus status) {
-        // 任何状态回调都意味着本轮已执行到该任务：先于展示用户判断打点，
-        // 保证后台运行 A 期间切到 B 再切回时，A 已重跑过的任务不会被误标 RETAINED
-        touchedTasks.add(taskId);
+        // 先于展示用户判断打点（带账号）
+        touchedTasks.add(touchKey(userId, taskId));
         // 展示用户 ≠ 运行用户时跳过：避免后台运行中切换用户后，A 的进度按 id 混入 B 的列表
         String owner = userId == null ? "" : userId;
         if (!owner.equals(currentUser)) return;
