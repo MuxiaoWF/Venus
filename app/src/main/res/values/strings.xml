@@ -225,6 +225,8 @@
     <string name="server_type">服务器类型</string>
     <string name="server_cn">国服</string>
     <string name="server_os">国际服</string>
+    <string name="add_account_cn">国服账号（账密 / 扫码登录）</string>
+    <string name="add_account_os">国际服账号（网页授权登录）</string>
     <string name="oauth_login_title">HoYoLAB登录</string>
     <string name="oauth_set_username">请设置一个用户名（推荐使用UID）</string>
     <string name="cookie_login">Cookie 登录</string>
@@ -298,8 +300,6 @@
     <string name="snack_background_cleared">背景图片已清除</string>
     <string name="snack_no_background_to_clear">当前未设置背景图片</string>
     <string name="snack_opacity_set">不透明度已设置为 %d%%</string>
-    <string name="snack_switched_to_cn">已切换到国服，重新启动后生效</string>
-    <string name="snack_switched_to_os">已切换到国际服，重新启动后生效</string>
     <string name="snack_theme_saved">主题已保存，请重启应用以应用新主题</string>
     <string name="snack_config_updated">配置更新成功</string>
     <string name="snack_config_update_failed">配置更新失败</string>
@@ -687,19 +687,18 @@
 
     <!-- 多账号：首页批量入口与聚合条 -->
     <string name="home_run_all">全部账号（%1$d）</string>
-    <string name="home_aggregate">%1$d 个账号 · %2$d/%3$d</string>
-    <string name="home_aggregate_captcha">%1$d 待验证</string>
     <!-- 待验证队列：%1$s 为队首账号，%2$d 为队列长度 -->
     <string name="captcha_queue_hint">待验证 %1$s（共 %2$d）</string>
     <!-- 批量运行时进度通知的账号前缀 -->
     <string name="notif_with_account">账号 %1$d/%2$d · %3$s</string>
     <!-- 设置页：任务配置的目标账号 -->
-    <string name="settings_target_account">配置目标账号</string>
-    <string name="settings_target_account_temp">%1$s（临时）</string>
-    <string name="settings_target_account_pick">选择要编辑的账号</string>
     <string name="settings_apply_all_accounts">应用到全部账号</string>
     <string name="settings_apply_all_confirm">把这套签到计划写入全部 %1$d 个账号（各自原有的勾选会被覆盖）。</string>
     <string name="settings_apply_all_done">已应用到 %1$d 个账号</string>
+    <string name="settings_editing_task">正在编辑：%1$s</string>
+    <string name="settings_task_account_title">编辑目标账号</string>
+    <string name="chips_overflow_collapse">收起</string>
+    <string name="user_card_task_summary">签到 %1$d 项 · 今日 %2$d/%3$d</string>
     <!-- 米游币签到是国服专属：卡片摘要与拦截提示 -->
     <string name="daily_card_unsupported_oversea">国际服不支持</string>
     <string name="daily_unsupported_oversea">米游币签到仅支持国服账号</string>

@@ -57,9 +57,12 @@ public class Constants {
         public static final String ACCOUNT_LIST_URL = BASE_URL + "/binding/api/getUserGameRolesByCookie";
         public static final String GAME_ROLES_URL = "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken";
         public static final String GEN_AUTH_KEY_URL = BASE_URL + "/binding/api/genAuthKey";
-        // 极验验证码：API1获取gt/challenge，API2二次验证
+        // 极验验证码：API1获取gt/challenge，API2二次验证。按账号服别取域名：
+        // 国际服账号的验证会话绑定在 hoyolab 侧，打国服域名带 OS Cookie 拿不到匹配的 challenge
         public static final String GEETEST_API1_URL = BBS_BASE_URL + "/misc/api/createVerification?is_high=true";
         public static final String GEETEST_API2_URL = BBS_BASE_URL + "/misc/api/verifyVerification";
+        public static final String OS_GEETEST_API1_URL = OS_BBS_BASE_URL + "/misc/api/createVerification?is_high=true";
+        public static final String OS_GEETEST_API2_URL = OS_BBS_BASE_URL + "/misc/api/verifyVerification";
         // 扫码登录：国服走 passport 的 ma-cn-passport（见下方 QR_LOGIN_*），
         // hk4e-sdk 的 combo/panda 接口仅国际服在用（见 OS_LOGIN_QR_URL / OS_LOGIN_CHECK_URL）
         public static final String STOKEN_URL = BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";

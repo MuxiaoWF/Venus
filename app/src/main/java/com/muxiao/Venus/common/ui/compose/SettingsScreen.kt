@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -65,7 +68,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * 解决底部抽屉展开后被底栏遮挡的问题。
  */
 @Stable
-class SettingsCard(@StringRes internal val titleRes: Int) {
+class SettingsCard(@StringRes internal val titleRes: Int, defaultExpanded: Boolean = false) {
 
     /** 折叠态标题行右侧的 mono 摘要（如「已开启」「国服」）。 */
     var value by mutableStateOf("")
@@ -74,7 +77,7 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
     /** 摘要颜色（ARGB）；0 表示回退到主题的 onSurfaceVariant。 */
     internal var valueColorArgb by mutableIntStateOf(0)
 
-    internal var isExpanded by mutableStateOf(false)
+    internal var isExpanded by mutableStateOf(defaultExpanded)
     internal var isVisible by mutableStateOf(true)
 
     /**
@@ -122,20 +125,28 @@ class SettingsCard(@StringRes internal val titleRes: Int) {
  */
 const val SETTINGS_DRAWER_CONTENT_TAG = "settings-drawer-content"
 
-/** 设置页的可变状态（页眉版本 chip + 底栏避让高度）。 */
+/**
+ * 「编辑目标账号」抽屉的账号行模型。[id] 是存储 id（头像按它定址），[label] 是展示名，[selected] = 正在编辑它。
+ */
+@Immutable
+class SettingAccountChip(
+    val id: String,
+    val label: String,
+    val selected: Boolean = false,
+)
+
+/** 设置页的可变状态（页眉版本 chip + 底栏避让高度）。编辑目标账号状态由 [TaskAccountPaneView] 自持。 */
 @Stable
 class SettingsUiState {
     var versionChip by mutableStateOf("")
     var bottomClearancePx by mutableIntStateOf(0)
-    /** 任务配置的目标账号（用户名 + 服务器后缀）；无账号时为空串。 */
-    var taskAccountLabel by mutableStateOf("")
-    /** 目标账号相关行是否可见（无账号时隐藏）。 */
-    var taskAccountRowVisible by mutableStateOf(false)
 }
 
 /**
  * 设置页：页眉固定 + 正文滚动；正文按「签到 / 配置 / 应用 / 其他」四组，每组以 mono 区块标签开头，
  * 组内每行之间一条发丝线、组尾多留 space_2。13 个 [SettingsCard] 由宿主按固定顺序传入——顺序即版式。
+ * 「编辑目标账号」卡置于签到组最顶部：下面四张任务卡（含森空岛）的读写都指向它，先选人再配置。
+ * 服务器类型不在此页：它是「添加账号时登录哪一服」的选择，入口在用户管理页的添加流程里。
  */
 @Composable
 fun SettingsScreen(
@@ -143,7 +154,7 @@ fun SettingsScreen(
     daily: SettingsCard,
     gameDaily: SettingsCard,
     cloudGame: SettingsCard,
-    server: SettingsCard,
+    targetAccount: SettingsCard,
     config: SettingsCard,
     update: SettingsCard,
     cache: SettingsCard,
@@ -154,8 +165,6 @@ fun SettingsScreen(
     skland: SettingsCard,
     about: SettingsCard,
     onImageClick: () -> Unit,
-    onPickTaskAccount: () -> Unit,
-    onApplyAllAccounts: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -195,36 +204,24 @@ fun SettingsScreen(
                 ),
         ) {
             SectionLabel(stringResource(R.string.section_sign_in_settings))
+
+            // 编辑目标账号：标题行右侧 mono 显当前目标名，展开抽屉选人（含「应用到全部」）。
+            // 四张任务卡（含森空岛）的读写都指向这个编辑目标
+            SettingsCardItem(targetAccount)
+            VenusDivider()
             SettingsCardItem(daily)
             VenusDivider()
             SettingsCardItem(gameDaily)
             VenusDivider()
             SettingsCardItem(cloudGame)
-
-            // 任务配置的目标账号与「应用到全部账号」
-            if (state.taskAccountRowVisible) {
-                GlassActionRow(
-                    icon = VenusIcons.Settings,
-                    text = stringResource(R.string.settings_target_account),
-                    trailing = state.taskAccountLabel,
-                    onClick = onPickTaskAccount,
-                    modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
-                )
-                GlassActionRow(
-                    icon = VenusIcons.Copy,
-                    text = stringResource(R.string.settings_apply_all_accounts),
-                    onClick = onApplyAllAccounts,
-                    modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
-                )
-            }
+            VenusDivider()
+            SettingsCardItem(skland)
             VenusDivider()
 
             SectionLabel(
                 text = stringResource(R.string.section_config),
                 modifier = Modifier.padding(top = dimensionResource(R.dimen.space_4)),
             )
-            SettingsCardItem(server)
-            VenusDivider()
             SettingsCardItem(config)
             VenusDivider()
 
@@ -249,8 +246,6 @@ fun SettingsScreen(
                 text = stringResource(R.string.section_other),
                 modifier = Modifier.padding(top = dimensionResource(R.dimen.space_4)),
             )
-            SettingsCardItem(skland)
-            VenusDivider()
             SettingsCardItem(about)
 
             // 查看榜单图：独立表面行按钮，与四个分组平级；复用 GlassActionRow，不要再写九宫格 drawable 的私有版本
@@ -303,8 +298,14 @@ private fun SettingsCardItem(card: SettingsCard) {
     )
 
     // 展开后把整卡带入视口，但必须等布局落定：bringIntoView 在未 attach 的节点上会抛 IllegalStateException；
-    // 「减少动态效果」下退化为等一帧
+    // 「减少动态效果」下退化为等一帧。跳过初组合：defaultExpanded 的卡（编辑目标账号）初值即为展开，
+    // 不算「用户展开」动作，进页面时不应触发滚动定位
+    val firstExpandObserved = remember { mutableStateOf(false) }
     LaunchedEffect(card.isExpanded) {
+        if (!firstExpandObserved.value) {
+            firstExpandObserved.value = true
+            return@LaunchedEffect
+        }
         if (!card.isExpanded) return@LaunchedEffect
         delay((if (reducedMotion) 16L else duration.toLong()).milliseconds)
         bringIntoView.bringIntoView()
@@ -419,6 +420,135 @@ private fun rememberReducedMotion(): Boolean {
 }
 
 /**
+ * 「编辑目标账号」抽屉内容：全宽账号行（头像 + 名字 + 选中勾）+「正在编辑」说明 + 应用到全部入口。
+ *
+ * <p>由 Java 侧 [setAccounts]/[setEditingHint] 驱动；点击账号行回传其在列表中的下标
+ * （列表与全量账号同序，Java 侧按下标切编辑目标）。选中行用 Check 图标标注，替代旧 chips 行的描边。
+ */
+class TaskAccountPaneView {
+
+    private val accountsState = mutableStateOf<List<SettingAccountChip>>(emptyList())
+    private val editingHintState = mutableStateOf("")
+
+    private var onSelectAccountListener: IndexConsumer? = null
+    private var onApplyAllListener: Runnable? = null
+
+    @Composable
+    fun Render() {
+        val textStyles = LocalVenusTextStyles.current
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    top = dimensionResource(R.dimen.space_1),
+                    bottom = dimensionResource(R.dimen.drawer_content_bottom),
+                ),
+        ) {
+            accountsState.value.forEachIndexed { index, account ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)))
+                        .clickable { onSelectAccountListener?.accept(index) }
+                        .padding(
+                            horizontal = dimensionResource(R.dimen.space_2),
+                            vertical = dimensionResource(R.dimen.space_2),
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+                ) {
+                    VenusAvatar(
+                        username = account.id,
+                        size = dimensionResource(R.dimen.icon_badge_md),
+                    )
+                    Text(
+                        text = account.label,
+                        style = textStyles.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (account.selected) {
+                        Icon(
+                            imageVector = VenusIcons.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val hint = editingHintState.value
+                if (hint.isNotEmpty()) {
+                    Text(
+                        text = hint,
+                        style = textStyles.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(
+                                start = dimensionResource(R.dimen.space_2),
+                                top = dimensionResource(R.dimen.space_2),
+                                bottom = dimensionResource(R.dimen.space_2),
+                            ),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(dimensionResource(R.dimen.shape_corner_sm)))
+                        .clickable { onApplyAllListener?.run() }
+                        .padding(
+                            horizontal = dimensionResource(R.dimen.space_2),
+                            vertical = dimensionResource(R.dimen.space_2),
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+                ) {
+                    Icon(
+                        imageVector = VenusIcons.Copy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(dimensionResource(R.dimen.icon_inline)),
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_apply_all_accounts),
+                        style = textStyles.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+
+    /** 全量账号行（与全量账号列表同序）；空列表时仅剩「应用到全部」行（无账号时整卡由 Java 侧隐藏）。 */
+    fun setAccounts(accounts: List<SettingAccountChip>) {
+        accountsState.value = accounts
+    }
+
+    /** 「正在编辑：xxx」说明，与「应用到全部」同行左对齐；空串 = 隐藏（入口仍靠右）。 */
+    fun setEditingHint(hint: String) {
+        editingHintState.value = hint
+    }
+
+    fun setOnSelectAccountListener(listener: IndexConsumer?) {
+        onSelectAccountListener = listener
+    }
+
+    fun setOnApplyAllListener(listener: Runnable?) {
+        onApplyAllListener = listener
+    }
+}
+
+/**
  * 设置页宿主：13 个抽屉（[SettingsCard]）与 13 个窗格状态宿主都在此急切构造并对外暴露，供 `SettingsFragment`
  * 调 setValue / setVisibility / expand / setXxx。接线在构造时完成（`card.setPaneContent { pane.Render() }`），
  * 使窗格组合直接长在设置页的同一 composition 里，不经 `AndroidView` 桥接。
@@ -430,7 +560,8 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     val dailyCard = SettingsCard(R.string.miyoushe_coin_sign_in)
     val gameDailyCard = SettingsCard(R.string.game_sign_in)
     val cloudGameCard = SettingsCard(R.string.cloud_game_sign_in)
-    val serverCard = SettingsCard(R.string.server_type)
+    // 默认展开：编辑目标是四张任务卡读写的唯一事实，进页面直接可见可切
+    val targetAccountCard = SettingsCard(R.string.settings_task_account_title, defaultExpanded = true)
     val configCard = SettingsCard(R.string.config_info)
     val updateCard = SettingsCard(R.string.update)
     val cacheCard = SettingsCard(R.string.cache)
@@ -445,7 +576,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     val dailyPane = DailySettingPaneView()
     val gameDailyPane = GameDailySettingPaneView()
     val cloudGamePane = CloudGameSettingPaneView()
-    val serverPane = ServerSettingPaneView()
+    val taskAccountPane = TaskAccountPaneView()
     val configPane = BbsUtilsSettingPaneView()
     val updatePane = UpdateSettingPaneView()
     val cachePane = CacheSettingPaneView()
@@ -460,7 +591,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
         dailyCard.setPaneContent { dailyPane.Render() }
         gameDailyCard.setPaneContent { gameDailyPane.Render() }
         cloudGameCard.setPaneContent { cloudGamePane.Render() }
-        serverCard.setPaneContent { serverPane.Render() }
+        targetAccountCard.setPaneContent { taskAccountPane.Render() }
         configCard.setPaneContent { configPane.Render() }
         updateCard.setPaneContent { updatePane.Render() }
         cacheCard.setPaneContent { cachePane.Render() }
@@ -473,9 +604,6 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     }
 
     private var onImageClickListener: Runnable? = null
-    private var onPickTaskAccountListener: Runnable? = null
-    private var onApplyAllAccountsListener: Runnable? = null
-
     @Composable
     override fun Content() {
         VenusTheme {
@@ -484,7 +612,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
                 daily = dailyCard,
                 gameDaily = gameDailyCard,
                 cloudGame = cloudGameCard,
-                server = serverCard,
+                targetAccount = targetAccountCard,
                 config = configCard,
                 update = updateCard,
                 cache = cacheCard,
@@ -495,8 +623,6 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
                 skland = sklandCard,
                 about = aboutCard,
                 onImageClick = { onImageClickListener?.run() },
-                onPickTaskAccount = { onPickTaskAccountListener?.run() },
-                onApplyAllAccounts = { onApplyAllAccountsListener?.run() },
             )
         }
     }
@@ -514,22 +640,6 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     fun setOnImageClickListener(listener: Runnable?) {
         onImageClickListener = listener
     }
-
-    /** 「配置目标账号」点击：由 Java 侧弹账号列表并切换编辑目标。 */
-    fun setOnPickTaskAccountListener(listener: Runnable?) {
-        onPickTaskAccountListener = listener
-    }
-
-    /** 「应用到全部账号」点击：由 Java 侧确认后批量写入。 */
-    fun setOnApplyAllAccountsListener(listener: Runnable?) {
-        onApplyAllAccountsListener = listener
-    }
-
-    /** 目标账号行文案与可见性。 */
-    fun setTaskAccount(label: String, visible: Boolean) {
-        uiState.taskAccountLabel = label
-        uiState.taskAccountRowVisible = visible
-    }
 }
 
 @Preview(name = "设置 · 折叠", showBackground = true)
@@ -540,7 +650,7 @@ private fun SettingsScreenPreview() {
             SettingsCard(R.string.miyoushe_coin_sign_in),
             SettingsCard(R.string.game_sign_in),
             SettingsCard(R.string.cloud_game_sign_in),
-            SettingsCard(R.string.server_type),
+            SettingsCard(R.string.settings_task_account_title),
             SettingsCard(R.string.config_info),
             SettingsCard(R.string.update),
             SettingsCard(R.string.cache),
@@ -558,7 +668,7 @@ private fun SettingsScreenPreview() {
             daily = cards[0].apply { setValue("已开启"); setValueColor(0xFF146511.toInt()) },
             gameDaily = cards[1].apply { setValue("4/5 已开启") },
             cloudGame = cards[2].apply { setValue("已关闭") },
-            server = cards[3].apply { setValue("国服") },
+            targetAccount = cards[3].apply { setValue("张三") },
             config = cards[4].apply { setValue("已配置") },
             update = cards[5].apply { setValue("自动检查") },
             cache = cards[6].apply { setValue("12.4 MB") },
@@ -569,8 +679,6 @@ private fun SettingsScreenPreview() {
             skland = cards[11].apply { setValue("已关闭") },
             about = cards[12].apply { setValue("开源许可 · 隐私政策") },
             onImageClick = {},
-            onPickTaskAccount = {},
-            onApplyAllAccounts = {},
         )
     }
 }

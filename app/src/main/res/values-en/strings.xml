@@ -220,6 +220,8 @@
     <string name="server_type">Server Type</string>
     <string name="server_cn">China</string>
     <string name="server_os">Global</string>
+    <string name="add_account_cn">China account (password / QR login)</string>
+    <string name="add_account_os">Global account (web authorization)</string>
     <string name="oauth_login_title">HoYoLAB Login</string>
     <string name="oauth_set_username">Please set a username (UID recommended)</string>
     <string name="cookie_login">Cookie Login</string>
@@ -293,8 +295,6 @@
     <string name="snack_background_cleared">Background image cleared</string>
     <string name="snack_no_background_to_clear">No background image is currently set</string>
     <string name="snack_opacity_set">Opacity set to %d%%</string>
-    <string name="snack_switched_to_cn">Switched to China server, restart to apply</string>
-    <string name="snack_switched_to_os">Switched to Global server, restart to apply</string>
     <string name="snack_theme_saved">Theme saved, please restart the app to apply</string>
     <string name="snack_config_updated">Config updated successfully</string>
     <string name="snack_config_update_failed">Config update failed</string>
@@ -695,17 +695,16 @@
 
     <!-- Multi-account: home batch entry and aggregate bar -->
     <string name="home_run_all">All accounts (%1$d)</string>
-    <string name="home_aggregate">%1$d accounts · %2$d/%3$d</string>
-    <string name="home_aggregate_captcha">%1$d awaiting verification</string>
     <string name="captcha_queue_hint">verifying %1$s (%2$d in queue)</string>
     <string name="notif_with_account">Account %1$d/%2$d · %3$s</string>
     <!-- Settings: target account of task config -->
-    <string name="settings_target_account">Config target account</string>
-    <string name="settings_target_account_temp">%1$s (temporary)</string>
-    <string name="settings_target_account_pick">Choose account to edit</string>
     <string name="settings_apply_all_accounts">Apply to all accounts</string>
     <string name="settings_apply_all_confirm">Write this task plan to all %1$d accounts? Their current selections will be overwritten.</string>
     <string name="settings_apply_all_done">Applied to %1$d accounts</string>
+    <string name="settings_editing_task">Editing: %1$s</string>
+    <string name="settings_task_account_title">Edit target account</string>
+    <string name="chips_overflow_collapse">Collapse</string>
+    <string name="user_card_task_summary">%1$d tasks · today %2$d/%3$d</string>
     <!-- MiYouBi check-in is CN-only: card summary and block hint -->
     <string name="daily_card_unsupported_oversea">Not on OS server</string>
     <string name="daily_unsupported_oversea">MiYouBi check-in is only available on the CN server</string>

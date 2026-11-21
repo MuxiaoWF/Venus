@@ -120,7 +120,9 @@ private fun SettingRowLayout(
                 Spacer(Modifier.width(dimensionResource(R.dimen.space_3)))
             }
         }
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = if (fillWidth) Modifier.weight(1f) else Modifier
+        ) {
             Text(
                 text = title,
                 style = textStyles.drawerLabel,

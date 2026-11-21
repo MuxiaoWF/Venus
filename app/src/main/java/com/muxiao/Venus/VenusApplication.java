@@ -81,7 +81,10 @@ public class VenusApplication extends Application {
         // 都直接命中缓存、不再阻塞。
         new Thread(() -> {
             try {
+                // 设备指纹缓存按服别分开存（CACHED_FP_BY_SERVER）：两服各预热一份，
+                // 否则第一个登录国际服账号的任务仍会在任务线程里阻塞等 OAID
                 new HeaderManager(appContext, false);
+                new HeaderManager(appContext, true);
             } catch (Throwable ignored) {
                 // 预热失败不应影响启动；UI 路径仍有超时回退兜底
             }

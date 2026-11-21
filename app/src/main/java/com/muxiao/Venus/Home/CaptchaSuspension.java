@@ -43,7 +43,9 @@ public final class CaptchaSuspension {
                                   boolean notifyUser) {
         if (taskIds == null || taskIds.isEmpty()) return false;
 
-        String[] challenge = Geetest.requestChallenge(headers);
+        // API1 域名按挂起账号的服别取：OS 账号的验证会话在 hoyolab 侧，打国服域名绑定不到会话
+        boolean oversea = new com.muxiao.Venus.User.UserManager(context).isOversea(userId);
+        String[] challenge = Geetest.requestChallenge(headers, oversea);
         if (challenge == null) {
             Logger.debug("VenusCaptcha", "suspend: API1 challenge request failed");
             if (notifyUser) {

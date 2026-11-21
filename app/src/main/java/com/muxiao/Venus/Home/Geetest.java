@@ -40,9 +40,12 @@ public class Geetest {
      * 完整验证流程：API1 取 gt/challenge → 配置极验 SDK 弹窗 → 回调结果。后台控制器会额外暂存
      * challenge/headers 供前台复用同一 challenge（重复调 API1 会拿到不匹配的 challenge）。
      *
-     * @param headers 含 Cookie 的请求头，API1 与 API2 共用
+     * @param headers   含 Cookie 的请求头，API1 与 API2 共用（由调用方按目标账号构建）
+     * @param isOversea 目标账号的服别：API1/API2 域名与 API2 的 DS salt 都随它变，
+     *                  不读全局 {@code is_oversea}——多账号跨服时全局值可能是别人的服
      */
-    public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback, GeetestController gt3Controller) {
+    public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback,
+                               GeetestController gt3Controller, boolean isOversea) {
         Logger.debug("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
         // 后台没有 UI 承载：任务应在命中 1034 时抛 CaptchaRequiredException 挂起，不该走到这里。
         // 明确失败而不是静默等待，避免又回到「后台空转 5 分钟」的老路。
@@ -53,7 +56,7 @@ public class Geetest {
         }
         gt3Controller.createUtils(); // 防止未创建
         Logger.debug("VenusCaptcha", "Calling API1...");
-        String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
+        String response = sendGetRequest(api1Url(isOversea), headers, null);
         Logger.debug("VenusCaptcha", "API1 response: " + (response != null ? response.substring(0, Math.min(200, response.length())) : "null"));
         if (response == null) {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_network));
@@ -74,18 +77,19 @@ public class Geetest {
             callback.onVerificationFailed(context.getString(R.string.geetest_captcha_failed_api) + response);
             return;
         }
-        setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
+        setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller, isOversea);
     }
 
     /**
      * 只走 API1 取 gt/challenge，不创建验证按钮——供「挂起-续跑」模型在轮末统一取一次挑战
      * （多个任务并发撞 1034 时共用同一 challenge，避免各取一份互不匹配、表现为反复 1034）。
      *
-     * @param headers 含 Cookie 的请求头，API1 用它绑定会话
+     * @param headers   含 Cookie 的请求头，API1 用它绑定会话
+     * @param isOversea 目标账号服别（决定 API1 域名）
      * @return {gt, challenge}；网络失败或响应异常返回 null
      */
-    public static String[] requestChallenge(Map<String, String> headers) {
-        String response = sendGetRequest(Constants.Urls.GEETEST_API1_URL, headers, null);
+    public static String[] requestChallenge(Map<String, String> headers, boolean isOversea) {
+        String response = sendGetRequest(api1Url(isOversea), headers, null);
         if (response == null) {
             Logger.debug("VenusCaptcha", "requestChallenge: API1 network failure");
             return null;
@@ -108,7 +112,8 @@ public class Geetest {
 
     /** 用已有 gt/challenge 验证（跳过 API1）：前台复用后台任务的 challenge，避免重复 API1 后 challenge 不匹配。 */
     public static void geetestWithChallenge(Context context, String gt, String challenge, Map<String, String> headers,
-                                            GeetestVerificationCallback callback, GeetestController gt3Controller) {
+                                            GeetestVerificationCallback callback, GeetestController gt3Controller,
+                                            boolean isOversea) {
         Logger.debug("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
         if (!gt3Controller.hasUi()) {
             Logger.debug("VenusCaptcha", "geetestWithChallenge() rejected: controller has no UI");
@@ -116,7 +121,12 @@ public class Geetest {
             return;
         }
         gt3Controller.createUtils();
-        setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller);
+        setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller, isOversea);
+    }
+
+    /** API1 域名随账号服别：国服 miyoushe / 国际服 hoyolab。 */
+    private static String api1Url(boolean isOversea) {
+        return isOversea ? Constants.Urls.OS_GEETEST_API1_URL : Constants.Urls.GEETEST_API1_URL;
     }
 
     /**
@@ -124,7 +134,8 @@ public class Geetest {
      * onClosed 仅在未成功时视为失败；后台控制器在 createButton 返回后直接读静态字段取结果。
      */
     private static void setupAndCreateButton(Context context, String gt, String challenge, Map<String, String> headers,
-                                             GeetestVerificationCallback callback, GeetestController gt3Controller) {
+                                             GeetestVerificationCallback callback, GeetestController gt3Controller,
+                                             boolean isOversea) {
         GT3ConfigBean gt3ConfigBean = new GT3ConfigBean();
         // 验证模式：1 = bind，2 = unbind
         gt3ConfigBean.setPattern(1);
@@ -178,8 +189,10 @@ public class Geetest {
                         verifyHeaders.remove("x-rpc-validate");
                         verifyHeaders.remove("x-rpc-seccode");
                         verifyHeaders.put("DS",
-                                new HeaderManager(context).getDS_signIn(GSON.toJson(body)));
-                        String checkResponse = sendPostRequest(Constants.Urls.GEETEST_API2_URL, verifyHeaders, body);
+                                new HeaderManager(context, isOversea).getDS_signIn(GSON.toJson(body)));
+                        String checkResponse = sendPostRequest(
+                                isOversea ? Constants.Urls.OS_GEETEST_API2_URL : Constants.Urls.GEETEST_API2_URL,
+                                verifyHeaders, body);
                         if (checkResponse == null) {
                             callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed_network));
                             return;

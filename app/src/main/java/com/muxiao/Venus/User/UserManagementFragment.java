@@ -28,6 +28,7 @@ import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 import com.muxiao.Venus.common.ui.compose.CredentialChipRow;
 import com.muxiao.Venus.common.ui.compose.UserCardRow;
 import com.muxiao.Venus.common.ui.compose.UserManagementScreenView;
+import com.muxiao.Venus.widget.TaskStatusManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,6 +85,8 @@ public class UserManagementFragment implements PageController {
         root.setOnDeleteClickListener(this::showDeleteUserDialog);
         // 凭证入口：一键跳到设置页配置该账号，省去「去设置里找哪一页」的来回
         root.setOnCredentialClickListener(this::onCredentialClick);
+        // 任务摘要行：直达设置页并锁定该账号为编辑目标（见 MainActivity.openSettingsForTaskConfig）
+        root.setOnTaskSummaryClickListener(activity::openSettingsForTaskConfig);
 
         // 页眉日期 chip：MM/dd 周几（与设计稿一致）
         root.setDateChip(new java.text.SimpleDateFormat("MM/dd E", java.util.Locale.getDefault())
@@ -120,16 +123,40 @@ public class UserManagementFragment implements PageController {
         return activity;
     }
 
-    /** 右下角「添加 / 登录用户」：任务运行中拦截，否则按服务器类型进对应登录页。 */
+    /**
+     * 右下角「添加 / 登录用户」：任务运行中拦截，否则先选服务器——国服走账密/扫码登录页，
+     * 国际服走网页授权页。服务器类型是「这次要登录哪一服」的一次性选择，不设常驻开关：
+     * 选择写入全局 SERVER_TYPE（登录页内部读它），重登录时按目标账号自动对齐，无需用户再管。
+     */
     private void onAddUserClick() {
         if (isTaskRunning()) {
             showCustomSnackbar(screenView, getContext(), activity.getString(R.string.snack_task_running_cannot_add));
             return;
         }
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(getContext());
-        Intent intent = new Intent(activity,
-                isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
-        activity.startActivity(intent);
+        VenusDialogs.items(
+                activity,
+                activity.getString(R.string.server_type),
+                java.util.Arrays.asList(
+                        activity.getString(R.string.add_account_cn),
+                        activity.getString(R.string.add_account_os)),
+                which -> {
+                    boolean oversea = which == 1;
+                    alignGlobalServer(oversea);
+                    activity.startActivity(new Intent(activity,
+                            oversea ? OAuthLoginActivity.class : UserLoginActivity.class));
+                },
+                activity.getString(R.string.btn_cancel));
+    }
+
+    /** 对齐全局服别（登录页内部读全局值）：写 SERVER_TYPE 并清 {@code is_oversea} 缓存。 */
+    private void alignGlobalServer(boolean oversea) {
+        getContext().getSharedPreferences(
+                        com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME,
+                        android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putInt(com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE, oversea ? 1 : 0)
+                .apply();
+        MiHoYoBBSConstants.clearOverseaCache();
     }
 
     /**
@@ -165,9 +192,26 @@ public class UserManagementFragment implements PageController {
                             userManager.displayName(username), serverType),
                     // 当前用户标注「默认」chip（设计稿语义）
                     username.equals(currentUsername),
-                    credentialChip(settings, username)));
+                    credentialChip(settings, username),
+                    buildTaskSummary(settings, username)));
         }
         screenView.setUsers(rows);
+    }
+
+    /**
+     * 卡片上的任务摘要（「签到 12 项 · 今日 8/12」）；该账号四类任务全关时返回 null（不显示摘要行）。
+     *
+     * <p>只读内存缓存（状态桶热读）与 settings_prefs 的 JSON，N 个账号一次遍历的成本与首页聚合同级。
+     */
+    private String buildTaskSummary(TaskSettings settings, String username) {
+        if (settings.hasAnyTaskDisabled()) return null;
+        java.util.List<String> ids = settings.getTaskIds();
+        if (ids.isEmpty()) return null;
+        int done = 0;
+        TaskStatusManager statusManager = new TaskStatusManager(getContext());
+        for (String taskId : ids)
+            if (TaskStatusManager.STATUS_COMPLETED.equals(statusManager.getStatus(username, taskId))) done++;
+        return activity.getString(R.string.user_card_task_summary, ids.size(), done, ids.size());
     }
 
     /**
@@ -473,21 +517,11 @@ public class UserManagementFragment implements PageController {
             return;
         }
         userManager.setCurrentUser(username);
-        // 重新登录进入该账号自身所属服的登录页
-        boolean isOversea = userManager.isOversea(username);
-        // 全局服对齐到该账号（登录页内部读全局值）
-        boolean globalOversea = MiHoYoBBSConstants.is_oversea(getContext());
-        if (globalOversea != isOversea) {
-            getContext().getSharedPreferences(
-                            com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME,
-                            android.content.Context.MODE_PRIVATE)
-                    .edit()
-                    .putInt(com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE, isOversea ? 1 : 0)
-                    .apply();
-            MiHoYoBBSConstants.clearOverseaCache();
-        }
+        // 重新登录进入该账号自身所属服的登录页；全局服别按目标账号对齐（登录页内部读全局值）
+        boolean oversea = userManager.isOversea(username);
+        alignGlobalServer(oversea);
         Intent intent = new Intent(activity,
-                isOversea ? OAuthLoginActivity.class : UserLoginActivity.class);
+                oversea ? OAuthLoginActivity.class : UserLoginActivity.class);
         intent.putExtra("RELOGIN_MODE", true);
         intent.putExtra("USERNAME", username); // 传递用户名
         activity.startActivity(intent);

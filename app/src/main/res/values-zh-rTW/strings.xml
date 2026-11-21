@@ -216,6 +216,8 @@
     <string name="server_type">伺服器類型</string>
     <string name="server_cn">國服</string>
     <string name="server_os">國際服</string>
+    <string name="add_account_cn">國服帳號（帳密 / 掃碼登入）</string>
+    <string name="add_account_os">國際服帳號（網頁授權登入）</string>
     <string name="oauth_login_title">HoYoLAB登入</string>
     <string name="oauth_set_username">請設定一個使用者名稱（推薦使用UID）</string>
     <string name="cookie_login">Cookie 登入</string>
@@ -289,8 +291,6 @@
     <string name="snack_background_cleared">背景圖片已清除</string>
     <string name="snack_no_background_to_clear">目前未設定背景圖片</string>
     <string name="snack_opacity_set">不透明度已設為 %d%%</string>
-    <string name="snack_switched_to_cn">已切換到國服，重新啟動後生效</string>
-    <string name="snack_switched_to_os">已切換到國際服，重新啟動後生效</string>
     <string name="snack_theme_saved">主題已儲存，請重新啟動應用以套用新主題</string>
     <string name="snack_config_updated">設定更新成功</string>
     <string name="snack_config_update_failed">設定更新失敗</string>
@@ -679,17 +679,16 @@
 
     <!-- 多帳號：首頁批次入口與聚合列 -->
     <string name="home_run_all">全部帳號（%1$d）</string>
-    <string name="home_aggregate">%1$d 個帳號 · %2$d/%3$d</string>
-    <string name="home_aggregate_captcha">%1$d 待驗證</string>
     <string name="captcha_queue_hint">待驗證 %1$s（共 %2$d）</string>
     <string name="notif_with_account">帳號 %1$d/%2$d · %3$s</string>
     <!-- 設定頁：任務設定的目標帳號 -->
-    <string name="settings_target_account">設定目標帳號</string>
-    <string name="settings_target_account_temp">%1$s（臨時）</string>
-    <string name="settings_target_account_pick">選擇要編輯的帳號</string>
     <string name="settings_apply_all_accounts">套用到全部帳號</string>
     <string name="settings_apply_all_confirm">把這套簽到計畫寫入全部 %1$d 個帳號（各自原有的勾選會被覆蓋）。</string>
     <string name="settings_apply_all_done">已套用到 %1$d 個帳號</string>
+    <string name="settings_editing_task">正在編輯：%1$s</string>
+    <string name="settings_task_account_title">編輯目標帳號</string>
+    <string name="chips_overflow_collapse">收起</string>
+    <string name="user_card_task_summary">簽到 %1$d 項 · 今日 %2$d/%3$d</string>
     <!-- 米遊幣簽到是國服專屬：卡片摘要與攔截提示 -->
     <string name="daily_card_unsupported_oversea">國際服不支援</string>
     <string name="daily_unsupported_oversea">米遊幣簽到僅支援國服帳號</string>

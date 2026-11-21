@@ -18,7 +18,7 @@ import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.User.UserManager;
 import com.muxiao.Venus.common.BatteryHelper;
-import com.muxiao.Venus.common.MiHoYoBBSConstants;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 import com.muxiao.Venus.common.ui.compose.LinkRow;
@@ -427,7 +427,6 @@ public class LinkFragment implements PageController {
     */
     private void updateDropdown() {
         // 跨服全量，展示文案逐账号带服务器后缀
-        boolean isOversea = MiHoYoBBSConstants.is_oversea(activity);
         List<String> usernames = userManager.getAllUsernames();
         currentUsers = usernames;
         List<String> labels = new ArrayList<>(usernames.size());
@@ -451,7 +450,10 @@ public class LinkFragment implements PageController {
             // 没有任何账号，清空选择（Compose 侧自动切到「前往添加」引导）
             currentUserId = null;
         }
-        if (linkPane != null) linkPane.setUsers(usernames, labels, selectedIndex, isOversea);
+        // 后缀兜底标记按选中账号自己的服别：labels 逐账号已带后缀，仅在缺失时生效，
+        // 不再读全局 is_oversea（跨服全量列表里全局值对单个账号没有意义）
+        boolean oversea = userManager.isOversea(currentUserId != null ? currentUserId : "");
+        if (linkPane != null) linkPane.setUsers(usernames, labels, selectedIndex, oversea);
         // 账号行头像随当前用户刷新（复用账号体系自定义头像，见 AvatarStore）
         loadUserAvatar();
     }

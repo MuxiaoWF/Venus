@@ -17,7 +17,6 @@ import static com.muxiao.Venus.common.Constants.Prefs.SALT_6X_PREF;
 import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_LANGUAGE;
 import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME;
 import static com.muxiao.Venus.common.Constants.Prefs.SELECTED_THEME_VARIANT;
-import static com.muxiao.Venus.common.Constants.Prefs.SERVER_TYPE;
 import static com.muxiao.Venus.common.Constants.Prefs.SETTINGS_PREFS_NAME;
 import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_ENABLED;
 import static com.muxiao.Venus.common.Constants.Prefs.SCHEDULED_TASK_TIME;
@@ -72,7 +71,6 @@ import com.muxiao.Venus.common.ui.compose.LanguageSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.SklandSettingPaneKt;
 import com.muxiao.Venus.common.ui.compose.SklandSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.NotificationSettingPaneView;
-import com.muxiao.Venus.common.ui.compose.ServerSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.ThemeSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.UpdateSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.VenusColorSchemes;
@@ -84,6 +82,7 @@ import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.data.ConfigRepository;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
+import com.muxiao.Venus.common.ui.compose.SettingAccountChip;
 import com.muxiao.Venus.common.ui.compose.SettingsCard;
 import com.muxiao.Venus.common.ui.compose.SettingsScreenView;
 import com.muxiao.Venus.common.Logger;
@@ -122,7 +121,6 @@ public class SettingsFragment implements PageController {
 
     private SettingsCard dailyCard;
     private SettingsCard gameDailyCard;
-    private SettingsCard serverCard;
     private SettingsCard updateCard;
     private SettingsCard cacheCard;
     private SettingsCard languageCard;
@@ -230,7 +228,6 @@ public class SettingsFragment implements PageController {
 
         SettingsCard bbsCard = root.getDailyCard();
         SettingsCard bbsGameCard = root.getGameDailyCard();
-        SettingsCard serverCardView = root.getServerCard();
         SettingsCard bbsUtilsCard = root.getConfigCard();
         SettingsCard updateCardView = root.getUpdateCard();
         SettingsCard cacheCardView = root.getCacheCard();
@@ -243,7 +240,6 @@ public class SettingsFragment implements PageController {
         SettingsCard cloudGameCardView = root.getCloudGameCard();
         dailyCard = bbsCard;
         gameDailyCard = bbsGameCard;
-        serverCard = serverCardView;
         updateCard = updateCardView;
         cacheCard = cacheCardView;
         languageCard = languageCardView;
@@ -260,7 +256,6 @@ public class SettingsFragment implements PageController {
         notificationPane = root.getNotificationPane();
         sklandPane = root.getSklandPane();
         cloudGamePane = root.getCloudGamePane();
-        ServerSettingPaneView serverPane = root.getServerPane();
         UpdateSettingPaneView updatePane = root.getUpdatePane();
         LanguageSettingPaneView languagePane = root.getLanguagePane();
         ThemeSettingPaneView themePane = root.getThemePane();
@@ -427,8 +422,6 @@ public class SettingsFragment implements PageController {
         });
         displayCurrentConfigValues();
 
-        // 服务器选择
-        setupServerSelection(serverPane, bbsCard, gameDailyPane);
         // 语言选择
         setupLanguageSelection(languagePane);
         // 主题选择
@@ -464,9 +457,9 @@ public class SettingsFragment implements PageController {
             activity.startActivity(intent);
         });
 
-        // 任务配置的目标账号
-        root.setOnPickTaskAccountListener(this::pickTaskConfigAccount);
-        root.setOnApplyAllAccountsListener(this::applyTaskConfigToAll);
+        // 编辑目标账号：抽屉内账号行点击切编辑目标；「应用到全部」由 Java 侧确认后批量写入
+        root.getTaskAccountPane().setOnSelectAccountListener(this::selectTaskConfigAccount);
+        root.getTaskAccountPane().setOnApplyAllListener(this::applyTaskConfigToAll);
 
         // 缓存管理（Compose 版内容：计算并显示当前缓存大小）
         calculateCacheSize(cachePane);
@@ -565,6 +558,23 @@ public class SettingsFragment implements PageController {
         setCredentialUser(credentialUser);
         if (pane == PANE_CLOUD_GAME && cloudGameCard != null) cloudGameCard.expand();
         else if (pane == PANE_SKLAND && sklandCard != null) sklandCard.expand();
+    }
+
+    /**
+     * 任务配置的编辑目标账号（从用户管理页的任务摘要直达时指定）。
+     *
+     * <p>与 {@link #setCredentialUser} 不同：任务配置的编辑目标<b>跨页保持</b>（{@code show()} 不清它）——
+     * 用户点摘要进来就是明确要编辑这个账号，编辑完留在设置页继续调整也应当仍作用于该账号；
+     * 凭证目标只在「本次打开」有效。账号被删除时由 {@link #taskConfigUser()} 回落当前账号。
+     */
+    public void setTaskConfigUser(String userId) {
+        taskConfigUserId = (userId != null && new UserManager(activity).isUserExists(userId)) ? userId : null;
+        if (screenView != null) {
+            reloadTaskProfile();
+            renderTaskConfig();
+            renderTaskAccountRow();
+            setupCloudGameSettings();
+        }
     }
 
     /** 销毁：解除底栏订阅，清空宿主引用（Activity 销毁时由 MainActivity 调用）。 */
@@ -681,40 +691,18 @@ public class SettingsFragment implements PageController {
     }
 
     /**
-     * 设置服务器选择功能：国服/国际服即时切换，无需展开卡片。
+     * 签到相关 UI 的显隐：按任务编辑目标账号自己的服别（{@link #overseaForTaskConfig()}），不读全局。
+     * 国际服没有米游币签到（需 stoken，Cookie 登录不提供）、缺崩坏2/未定事件簿的签到活动、
+     * 云绝区零无海外钱包接口。唯一刷新入口是 {@link #renderTaskConfig()}（createView / 换编辑目标 / show 共用）。
+     * 全局 {@code SERVER_TYPE} 的切换入口已移至用户管理页的添加账号流程。
      */
-    private void setupServerSelection(ServerSettingPaneView view, SettingsCard bbsCard, GameDailySettingPaneView gamePane) {
-        SharedPreferences prefs = activity.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
-        int serverType = prefs.getInt(SERVER_TYPE, 0);
-
-        // 国际服隐藏米游币签到（需要stoken，Cookie登录不提供）
-        bbsCard.setVisibility(serverType == 0 ? View.VISIBLE : View.GONE);
-        // 国际服隐藏不支持的游戏签到（崩坏2 / 未定事件簿）
-        setOverseaChipsVisible(gamePane, serverType == 0);
-        // 国际服无云绝区零钱包接口；且两服的云原神 token 互不通用，需按服刷新已配置状态
-        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, serverType == 0);
+    private void applyTaskServerVisibility() {
+        boolean oversea = overseaForTaskConfig();
+        dailyCard.setVisibility(oversea ? View.GONE : View.VISIBLE);
+        setOverseaChipsVisible(gameDailyPane, !oversea);
+        cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, !oversea);
         refreshCloudGameTokens();
         updateCloudGameCardValue();
-
-        // 先设初始选中（此时监听器尚未注册，不会触发回调/弹 Snackbar），
-        // 再由下面的监听器接管后续交互。
-        view.setSelectedIndex(serverType == 0 ? 0 : 1);
-        updateServerCardValue(serverType == 0);
-
-        view.setOnSelectListener(newType -> {
-            // 重复点选中态不再触发一次切换
-            if (newType == prefs.getInt(SERVER_TYPE, 0)) return;
-            prefs.edit().putInt(SERVER_TYPE, newType).apply();
-            MiHoYoBBSConstants.clearOverseaCache();
-            updateServerCardValue(newType == 0);
-            bbsCard.setVisibility(newType == 0 ? View.VISIBLE : View.GONE);
-            setOverseaChipsVisible(gamePane, newType == 0);
-            cloudGamePane.setChipVisible(CloudGameSettingPaneKt.CLOUD_GAME_INDEX_ZZZ, newType == 0);
-            refreshCloudGameTokens();
-            updateCloudGameCardValue();
-            showCustomSnackbar(screenView, activity,
-                    activity.getString(newType == 0 ? R.string.snack_switched_to_cn : R.string.snack_switched_to_os));
-        });
     }
 
     /**
@@ -1084,55 +1072,53 @@ public class SettingsFragment implements PageController {
         return users.getCurrentUser();
     }
 
-    /** 目标账号行的文案与可见性（无账号时隐藏）。 */
+    /**
+     * 「编辑目标账号」卡：折叠态标题行右侧 mono 值即当前编辑目标名；抽屉内容是全宽账号行
+     * （头像 + 名字 + 选中勾）+「正在编辑」说明 + 应用到全部入口。无账号时整卡隐藏。
+     */
     private void renderTaskAccountRow() {
         if (screenView == null) return;
-        String userId = taskConfigUser();
-        if (userId.isEmpty()) {
-            screenView.setTaskAccount("", false);
+        UserManager users = new UserManager(activity);
+        List<String> all = users.getAllUsernames();
+        SettingsCard card = screenView.getTargetAccountCard();
+        if (all.isEmpty()) {
+            card.setVisibility(android.view.View.GONE);
+            screenView.getTaskAccountPane().setAccounts(java.util.Collections.emptyList());
             return;
         }
-        boolean oversea = new UserManager(activity).isOversea(userId);
-        String server = activity.getString(oversea ? R.string.server_os : R.string.server_cn);
-        String label = userId + " [" + server + "]";
-        // 非当前账号时标注为临时目标
-        String current = new UserManager(activity).getCurrentUser();
-        if (!userId.equals(current)) {
-            label = activity.getString(R.string.settings_target_account_temp, label);
+        card.setVisibility(android.view.View.VISIBLE);
+        String editing = taskConfigUser();
+        List<SettingAccountChip> chips = new ArrayList<>(all.size());
+        for (String userId : all) {
+            chips.add(new SettingAccountChip(userId, users.displayName(userId), userId.equals(editing)));
         }
-        screenView.setTaskAccount(label, true);
+        screenView.getTaskAccountPane().setAccounts(chips);
+        screenView.getTaskAccountPane().setEditingHint(
+                activity.getString(R.string.settings_editing_task, users.displayName(editing)));
+        // 折叠态摘要 = 编辑目标名（中性色：名字无正负语义）
+        setCardValue(card, users.displayName(editing), false);
     }
 
-    /** 选择任务配置的目标账号（默认当前账号）。 */
-    private void pickTaskConfigAccount() {
+    /** 点击目标账号 chip：切编辑目标并重载回填（下标对应 {@link #renderTaskAccountRow} 的 chips 顺序）。 */
+    private void selectTaskConfigAccount(int index) {
         if (blockIfTaskRunning(null)) return;
         UserManager users = new UserManager(activity);
         List<String> all = users.getAllUsernames();
-        if (all.isEmpty()) {
-            showCustomSnackbar(screenView, activity, activity.getString(R.string.home_no_user_hint));
+        if (index < 0 || index >= all.size()) return;
+        String picked = all.get(index);
+        if (picked.equals(users.getCurrentUser())) {
+            taskConfigUserId = null;
+        } else if (!picked.equals(taskConfigUserId)) {
+            taskConfigUserId = picked;
+        } else {
             return;
         }
-        // 条目文案带各自服务器后缀
-        List<String> labels = new ArrayList<>(all.size());
-        for (String userId : all) {
-            boolean oversea = users.isOversea(userId);
-            labels.add(users.displayName(userId) + " [" + activity.getString(oversea ? R.string.server_os : R.string.server_cn) + "]");
-        }
-        VenusDialogs.items(
-                activity,
-                activity.getString(R.string.settings_target_account_pick),
-                labels,
-                index -> {
-                    if (index < 0 || index >= all.size()) return;
-                    String picked = all.get(index);
-                    taskConfigUserId = picked.equals(users.getCurrentUser()) ? null : picked;
-                    // 换账号即换配置：重载并回填
-                    reloadTaskProfile();
-                    renderTaskConfig();
-                    renderTaskAccountRow();
-                    setupCloudGameSettings();
-                    TaskWidgetProvider.refreshAllWidgets(activity);
-                });
+        // 换账号即换配置：重载并回填
+        reloadTaskProfile();
+        renderTaskConfig();
+        renderTaskAccountRow();
+        setupCloudGameSettings();
+        TaskWidgetProvider.refreshAllWidgets(activity);
     }
 
     /**
@@ -1219,6 +1205,11 @@ public class SettingsFragment implements PageController {
         for (int i = 0; i < TaskProfileStore.CLOUD_GAME_ORDER.length; i++)
             cloudGamePane.setChipChecked(i, taskProfile.cloudGames.contains(TaskProfileStore.CLOUD_GAME_ORDER[i]));
         updateCloudGameCardValue();
+
+        // 服别相关的卡片显隐跟着编辑目标走：国际服目标隐藏米游币卡与不支持的游戏 chips。
+        // 放这里是因为本方法是唯一的配置回填入口（createView / 换编辑目标 / show 共用），
+        // 放在旧的全局服切换监听里会出现「全局=国际服、配置国服账号」时卡片整张消失
+        applyTaskServerVisibility();
 
         // 目标账号行与卡片同步刷新
         renderTaskAccountRow();
@@ -1401,6 +1392,7 @@ public class SettingsFragment implements PageController {
     /**
      * 刷新两个凭证抽屉的归属账号与森空岛状态。目标账号 ≠ 当前账号时文案必须明说，
      * 且每次页面显示都要重写（账号可能已换）。
+     * <p>森空岛抽屉不再展示归属账号：编辑目标由签到组顶部的 chips 常驻说明，行内重复一遍是噪音。
      */
     private void refreshCredentialAccountLabels() {
         String userId = credentialUser();
@@ -1409,7 +1401,9 @@ public class SettingsFragment implements PageController {
         boolean isCurrent = hasUser && userId.equals(new UserManager(activity).getCurrentUser());
         if (cloudGamePane != null) cloudGamePane.setAccountLabel(hasUser ? userId : null, isCurrent);
         if (sklandPane != null) {
-            sklandPane.setAccountLabel(hasUser ? userId : null, isCurrent);
+            // 归属行隐藏（null = 不渲染该行），token 就绪状态保留；
+            // Kotlin 默认参数在 Java 侧不可省略，isCurrent 必须显式传
+            sklandPane.setAccountLabel(null, true);
             sklandPane.setTokenConfigured(hasUser
                     && SklandDaily.isValidToken(tools.read(activity, userId, SKLAND_COOKIE)));
         }
@@ -1522,10 +1516,6 @@ public class SettingsFragment implements PageController {
 
     private void updateUpdateCardValue(boolean auto) {
         setCardValue(updateCard, activity.getString(auto ? R.string.update_value_auto : R.string.update_value_manual), false);
-    }
-
-    private void updateServerCardValue(boolean isCn) {
-        setCardValue(serverCard, activity.getString(isCn ? R.string.server_cn : R.string.server_os), false);
     }
 
     /** 主题行值：主题名 · 深浅名（设计稿：蓝色 · 浅色）。 */

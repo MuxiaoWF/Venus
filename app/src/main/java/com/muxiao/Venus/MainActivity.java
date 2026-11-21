@@ -345,6 +345,8 @@ public class MainActivity extends BaseActivity {
     private int pendingSettingsPane = 0;
     /** 待下发给设置页的凭证配置目标账号（null = 跟随当前账号），与 {@link #pendingSettingsPane} 同寿命。 */
     private String pendingCredentialUser;
+    /** 待下发给设置页的任务配置编辑目标账号（null = 跟随当前账号），见 {@link #openSettingsForTaskConfig(String)}。 */
+    private String pendingTaskUser;
 
     /**
      * 当前账号被本页之外改动（用户管理页的凭证 chip 会先切账号、再跳设置页）。必须立刻通知首页：
@@ -388,6 +390,21 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    /**
+     * 从用户管理页点击某账号的「任务摘要」直达设置页，并把任务配置的编辑目标锁定为该账号。
+     *
+     * <p>与 {@link #openSettingsPane(int, String)} 的凭证直达同一模式：任务配置按账号存，
+     * 编辑别人的配置不应该以切换全局当前账号为代价。设置页会把「正在编辑谁」显式提示出来。
+     */
+    public void openSettingsForTaskConfig(String userId) {
+        pendingTaskUser = userId;
+        if (shownPage == 3) {
+            consumePendingTaskUser();
+        } else {
+            navigateToPage(3);
+        }
+    }
+
     private void consumePendingSettingsPane() {
         int pane = pendingSettingsPane;
         if (pane == 0) return;
@@ -395,6 +412,15 @@ public class MainActivity extends BaseActivity {
         String credentialUser = pendingCredentialUser;
         pendingCredentialUser = null;
         settingsController.expandPane(pane, credentialUser);
+        // 任务直达与抽屉直达可能同时发生（暂无此组合，但顺序上先抽屉后任务互不干扰）
+        consumePendingTaskUser();
+    }
+
+    private void consumePendingTaskUser() {
+        String userId = pendingTaskUser;
+        if (userId == null || userId.isEmpty()) return;
+        pendingTaskUser = null;
+        settingsController.setTaskConfigUser(userId);
     }
 
     /**

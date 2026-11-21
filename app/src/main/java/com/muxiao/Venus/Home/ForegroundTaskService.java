@@ -60,6 +60,14 @@ public class ForegroundTaskService extends Service {
     /** 本次运行的用户：任务状态按用户分桶，批量运行期间随账号切换。 */
     private volatile String runningUserId = "";
 
+    /** 进程级镜像：正在执行的账号（批量链随账号推进）。首页状态条用它给「运行中」账号着色；空串 = 无运行。 */
+    private static volatile String sRunningUser = "";
+
+    /** 正在执行的账号（首页状态条判定「运行中」用）。 */
+    public static String getRunningUser() {
+        return sRunningUser;
+    }
+
     private static volatile ForegroundTaskService instance;
 
     /** 是否有前台任务 Service 实例在运行（用于判断是否可取消后台任务）。 */
@@ -159,6 +167,14 @@ public class ForegroundTaskService extends Service {
      * <p>复位、持久化、小组件刷新放在执行线程内，避免在主线程做磁盘 IO。
      */
     private void executeTasks(java.util.List<String> users) {
+        // 开跑前记下本轮目标：服务被系统回收 / 进程被杀后靠它补跑未完成项
+        java.util.Map<String, java.util.Set<String>> targets = new java.util.LinkedHashMap<>();
+        for (String user : users) {
+            if (user == null || user.isEmpty()) continue;
+            targets.put(user, new java.util.LinkedHashSet<>(
+                    TaskSettings.fromPreferences(this, user).getTaskIds()));
+        }
+        RunRecovery.start(this, targets);
         // WakeLock 租约：按账号边界续租
         wakeLockLease = new WakeLockLease(this);
         wakeLockLease.start();
@@ -191,6 +207,7 @@ public class ForegroundTaskService extends Service {
      */
     private void runOneAccount(String userId, int index, int total) {
         runningUserId = userId == null ? "" : userId;
+        sRunningUser = runningUserId;
         if (wakeLockLease != null) wakeLockLease.renew();
         try {
             // 仅复位该账号桶内的瞬态，保留当日终态
@@ -284,11 +301,15 @@ public class ForegroundTaskService extends Service {
      * 正常结束、提交失败、取消三条路径共用，避免同一套收尾动作在多处重复。
      */
     private void finishTask() {
+        // 本轮已收口，撤销中断快照；否则下次冷启动会误判为被杀而补跑
+        RunRecovery.finish(this);
         broadcastState(false);
         releaseWakeLock();
         dismissForegroundNotification();
         // 再按 ID 显式撤一次
         if (notificationHelper != null) notificationHelper.cancelProgressNotification();
+        sRunningUser = "";
+        runningUserId = "";
         instance = null;
         stopSelf();
     }
@@ -337,6 +358,8 @@ public class ForegroundTaskService extends Service {
 
     /** 取消进行中的任务：中断 future、释放 WakeLock、撤销前台通知并停止自身。 */
     private void cancelTask() {
+        // 用户主动取消 / 系统配额超时：不按「意外中断」补跑
+        RunRecovery.finish(this);
         if (currentTaskFuture != null) {
             currentTaskFuture.cancel(true);
         }

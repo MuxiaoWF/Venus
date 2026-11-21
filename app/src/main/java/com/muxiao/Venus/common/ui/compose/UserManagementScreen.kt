@@ -62,6 +62,8 @@ class UserCardRow(
     val isDefault: Boolean,
     /** 凭证入口（云游戏 + 森空岛合并为一枚）；null = 两个功能都没开启，卡片上不出现。合并是为了不让两枚状态块与「头像 + 名称 + 已登录」抢层级。 */
     val credential: CredentialChipRow? = null,
+    /** 任务摘要（如「签到 12 项 · 今日 8/12」）；null = 不显示。点击直达设置页并锁定编辑目标。 */
+    val taskSummary: String? = null,
 )
 
 /**
@@ -106,6 +108,7 @@ fun UserManagementScreen(
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
     onCredentialClick: (String) -> Unit,
+    onTaskSummaryClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -172,6 +175,7 @@ fun UserManagementScreen(
                         onReloginClick = onReloginClick,
                         onDeleteClick = onDeleteClick,
                         onCredentialClick = onCredentialClick,
+                        onTaskSummaryClick = onTaskSummaryClick,
                         // 结构性增删/重排的让位动画；「减少动态效果」下不挂，避免列表整体位移
                         modifier = Modifier
                             .padding(top = if (index == 0) 0.dp else dimensionResource(R.dimen.gap_card))
@@ -251,6 +255,7 @@ private fun UserCard(
     onReloginClick: (String) -> Unit,
     onDeleteClick: (String) -> Unit,
     onCredentialClick: (String) -> Unit,
+    onTaskSummaryClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
@@ -311,6 +316,20 @@ private fun UserCard(
                         user = user,
                         onClick = { onCredentialClick(user.username) },
                     )
+                    // 任务摘要：点击直达设置页并锁定编辑目标为该账号（一步替代「去设置 → 选账号」）
+                    user.taskSummary?.let { summary ->
+                        Text(
+                            text = summary,
+                            style = LocalVenusTextStyles.current.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(dimensionResource(R.dimen.shape_corner_xs)))
+                                .clickable { onTaskSummaryClick(user.username) }
+                                .padding(vertical = dimensionResource(R.dimen.space_1)),
+                        )
+                    }
                 }
 
                 // chevron 默认向下，旋转 270° 指向右
@@ -481,6 +500,7 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
     private var onReloginClickListener: UsernameConsumer? = null
     private var onDeleteClickListener: UsernameConsumer? = null
     private var onCredentialClickListener: UsernameConsumer? = null
+    private var onTaskSummaryClickListener: UsernameConsumer? = null
 
     @Composable
     override fun Content() {
@@ -493,6 +513,7 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
                 onReloginClick = { onReloginClickListener?.accept(it) },
                 onDeleteClick = { onDeleteClickListener?.accept(it) },
                 onCredentialClick = { onCredentialClickListener?.accept(it) },
+                onTaskSummaryClick = { onTaskSummaryClickListener?.accept(it) },
             )
         }
     }
@@ -529,6 +550,11 @@ class UserManagementScreenView(context: Context) : AbstractComposeView(context) 
 
     fun setOnAddUserClickListener(listener: Runnable?) {
         onAddUserClickListener = listener
+    }
+
+    /** 点击任务摘要行：直达设置页并锁定该账号为编辑目标。 */
+    fun setOnTaskSummaryClickListener(listener: UsernameConsumer?) {
+        onTaskSummaryClickListener = listener
     }
 
     fun setOnAvatarClickListener(listener: UsernameConsumer?) {
@@ -574,6 +600,7 @@ private fun UserManagementScreenPreview() {
             onReloginClick = {},
             onDeleteClick = {},
             onCredentialClick = {},
+            onTaskSummaryClick = {},
         )
     }
 }
@@ -594,6 +621,7 @@ private fun UserManagementScreenEmptyPreview() {
             onReloginClick = {},
             onDeleteClick = {},
             onCredentialClick = {},
+            onTaskSummaryClick = {},
         )
     }
 }

@@ -15,12 +15,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +37,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -116,6 +121,31 @@ class HomeTaskRow(
     val disabled: Boolean = false,
 )
 
+/** 状态条色档（决定进度文本与描边的语义色）。 */
+object AccountStatusKind {
+    const val NONE = 0
+    const val DONE = 1
+    const val RUNNING = 2
+    const val WAITING = 3
+    const val ERROR = 4
+}
+
+/**
+ * 账号状态条的一块：一个账号的进度与状态。
+ *
+ * [id] 是存储 id（点击切换的载荷与头像键，同名跨服账号靠它区分）；[label] 是展示名。
+ * [kind] 见 [AccountStatusKind]；[selected] = 主列表当前正展示这个账号（高亮描边）。
+ */
+@Immutable
+class HomeAccountStatus(
+    val id: String,
+    val label: String,
+    val done: Int,
+    val total: Int,
+    val kind: Int = AccountStatusKind.NONE,
+    val selected: Boolean = false,
+)
+
 /**
  * 主页的全部可变状态。可见性不在 Java 侧逐个 set，而由 [runMode] / [bgFeatureEnabled] / [tasks] 派生
  * （对应原 `HomeViewModel.TaskUiState` 的五个 `xxxVisible()`）——保证「同一时刻只有一套可见性真相」。
@@ -142,6 +172,14 @@ class HomeUiState {
     /** 多账号聚合条文案与可见性。 */
     var aggregateText by mutableStateOf("")
     var aggregateVisible by mutableStateOf(false)
+    /**
+     * 账号状态条（聚合条的升级形态）：多账号时逐个展示「头像 + 名字 + 进度/状态」，点击切换主列表。
+     * 与 [aggregateText] 互斥——有状态条就不需要纯文本聚合。
+     */
+    var accountRows by mutableStateOf<List<HomeAccountStatus>>(emptyList())
+    var accountRowsVisible by mutableStateOf(false)
+    /** 下拉数据源里的存储 id（与 [users] 一一对应）：头像按存储 id 定址，文本才是展示名。 */
+    var userIds by mutableStateOf<List<String>>(emptyList())
     var tasks by mutableStateOf<List<HomeTaskRow>>(emptyList())
     var runMode by mutableIntStateOf(HOME_RUN_IDLE)
     var bgFeatureEnabled by mutableStateOf(false)
@@ -168,6 +206,7 @@ fun HomeScreen(
     state: HomeUiState,
     geetestContainer: LinearLayout,
     onUserSelected: (Int) -> Unit,
+    onAccountStatusSelected: (String) -> Unit,
     onJumpToUsers: () -> Unit,
     onStartDaily: () -> Unit,
     onRunAll: () -> Unit,
@@ -357,8 +396,17 @@ fun HomeScreen(
                 }
             }
 
-            // 多账号聚合条
-            if (state.aggregateVisible) {
+            // 多账号聚合：状态条优先——逐账号展示进度与状态色、点击切换主列表；
+            // 纯文本聚合条仅在状态条未启用时兜底显示。
+            if (state.accountRowsVisible) {
+                item(key = "account-strip") {
+                    AccountStatusStrip(
+                        rows = state.accountRows,
+                        onClick = onAccountStatusSelected,
+                        modifier = Modifier.padding(top = dimensionResource(R.dimen.space_2)),
+                    )
+                }
+            } else if (state.aggregateVisible) {
                 item(key = "aggregate") {
                     Text(
                         text = state.aggregateText,
@@ -467,18 +515,114 @@ private fun UserRow(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        // 下拉展开项 = 头像 + 原始用户名（item_user_dropdown 不带服务器后缀，后缀只在行内展示）
+        // 下拉展开项：文本用展示名（含服务器后缀），头像必须按存储 id 定址——
+        // 展示文本带「[国服]」后缀，拿它当头像键永远回落默认图
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             state.users.forEachIndexed { index, username ->
                 DropdownMenuItem(
                     text = { Text(text = username, style = textStyles.bodyLarge) },
                     leadingIcon = {
-                        VenusAvatar(username = username, refreshToken = state.avatarVersion)
+                        VenusAvatar(
+                            username = state.userIds.getOrNull(index) ?: username,
+                            refreshToken = state.avatarVersion,
+                        )
                     },
                     onClick = {
                         expanded = false
                         onUserSelected(index)
                     },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 账号状态条：多账号时逐个展示「头像 + 名字 + 进度/状态」，点击切换主列表。
+ *
+ * <p>替代纯文本聚合条——批量运行时用户最需要的是「哪个账号跑完了 / 谁卡在验证码」，一行数字
+ * 回答不了这个问题。状态色四档（完成/运行中/待验证/失败），当前展示账号高亮描边。
+ * <p>账号多时折叠：默认只显示前 3 个 + 「+N」溢出 chip，点击展开全部、再点收起；选中的账号
+ * 落在溢出区时自动展开——「当前展示账号」必须始终可见，否则描边指向一个看不见的 chip。
+ */
+@Composable
+private fun AccountStatusStrip(
+    rows: List<HomeAccountStatus>,
+    onClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val textStyles = LocalVenusTextStyles.current
+    var expanded by remember { mutableStateOf(false) }
+    val visibleCount = 3
+    val overflow = rows.size - visibleCount
+    val selectedHidden = rows.indexOfFirst { it.selected } >= visibleCount
+    val showAll = overflow <= 0 || expanded || selectedHidden
+    val visibleRows = if (showAll) rows else rows.take(visibleCount)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+    ) {
+        visibleRows.forEach { row ->
+            val statusColor = when (row.kind) {
+                AccountStatusKind.DONE -> colorResource(R.color.status_success)
+                AccountStatusKind.RUNNING -> MaterialTheme.colorScheme.primary
+                AccountStatusKind.WAITING -> colorResource(R.color.status_warning)
+                AccountStatusKind.ERROR -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            val shape = RoundedCornerShape(dimensionResource(R.dimen.shape_corner_md))
+            val borderModifier = if (row.selected) {
+                Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), shape)
+            } else {
+                Modifier
+            }
+            Row(
+                modifier = Modifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .then(borderModifier)
+                    .clickable { onClick(row.id) }
+                    .padding(horizontal = dimensionResource(R.dimen.space_3), vertical = dimensionResource(R.dimen.space_2)),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2)),
+            ) {
+                VenusAvatar(username = row.id, size = dimensionResource(R.dimen.icon_badge_md))
+                Column {
+                    Text(
+                        text = row.label,
+                        style = textStyles.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${row.done}/${row.total}",
+                        style = textStyles.labelMedium,
+                        color = statusColor,
+                    )
+                }
+            }
+        }
+        if (overflow > 0) {
+            // 溢出开关：折叠时显「+N」（N 为隐藏的账号数），展开后变「收起」
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(dimensionResource(R.dimen.shape_corner_md)))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { expanded = !expanded }
+                    .padding(
+                        horizontal = dimensionResource(R.dimen.space_3),
+                        vertical = dimensionResource(R.dimen.space_2),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (showAll) stringResource(R.string.chips_overflow_collapse) else "+$overflow",
+                    style = textStyles.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
         }
@@ -889,6 +1033,8 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
     }
 
     private var onUserSelectedListener: IndexConsumer? = null
+    /** 状态条点击直接回传账号存储 id：rows 只含配置了任务的账号，行下标与全量账号列表不对齐，不能传下标 */
+    private var onAccountStatusSelectedListener: UsernameConsumer? = null
     private var onJumpToUsersListener: Runnable? = null
     private var onStartDailyListener: Runnable? = null
     private var onRunAllListener: Runnable? = null
@@ -906,6 +1052,7 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
                 state = uiState,
                 geetestContainer = geetestContainer,
                 onUserSelected = { onUserSelectedListener?.accept(it) },
+                onAccountStatusSelected = { onAccountStatusSelectedListener?.accept(it) },
                 onJumpToUsers = { onJumpToUsersListener?.run() },
                 onStartDaily = { onStartDailyListener?.run() },
                 onRunAll = { onRunAllListener?.run() },
@@ -929,10 +1076,30 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
         onCaptchaClickListener = listener
     }
 
-    /** 填充账号下拉：原始用户名列表 + 当前选中下标（-1 = 无选中）。 */
-    fun setUsers(users: List<String>, selectedIndex: Int) {
+    /**
+     * 填充账号下拉：展示名列表 + 存储 id 列表（一一对应）+ 当前选中下标（-1 = 无选中）。
+     *
+     * <p>[users] 是展示文本（含服务器后缀），[userIds] 是存储 id——头像按 id 定址，
+     * 传错的话同名跨服账号的下拉头像会回落默认图。
+     */
+    fun setUsers(users: List<String>, userIds: List<String>, selectedIndex: Int) {
         uiState.users = ArrayList(users)
+        uiState.userIds = ArrayList(userIds)
         uiState.selectedUserIndex = selectedIndex
+    }
+
+    /**
+     * 账号状态条：多账号时展示每个账号的进度与状态（[visible] = 有任务的账号 ≥ 2）。
+     * 行顺序与下拉一致（当前账号排最前），点击回调按下标。
+     */
+    fun setAccountRows(rows: List<HomeAccountStatus>, visible: Boolean) {
+        uiState.accountRows = rows
+        uiState.accountRowsVisible = visible
+    }
+
+    /** 点击状态条上的某个账号：与下拉选择同义（切换主列表展示的账号）。 */
+    fun setOnAccountStatusSelectedListener(listener: UsernameConsumer?) {
+        onAccountStatusSelectedListener = listener
     }
 
     /** 账号行展示文案（用户名 + 服务器后缀）。 */
@@ -1089,6 +1256,7 @@ private fun HomeScreenPreview() {
             },
             geetestContainer = geetest,
             onUserSelected = {},
+            onAccountStatusSelected = {},
             onJumpToUsers = {},
             onStartDaily = {},
             onRunAll = {},

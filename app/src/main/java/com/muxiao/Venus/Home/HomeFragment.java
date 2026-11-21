@@ -27,6 +27,8 @@ import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.ui.compose.BottomBarOverlay;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
+import com.muxiao.Venus.common.ui.compose.AccountStatusKind;
+import com.muxiao.Venus.common.ui.compose.HomeAccountStatus;
 import com.muxiao.Venus.common.ui.compose.HomeScreenKt;
 import com.muxiao.Venus.common.ui.compose.HomeScreenView;
 import com.muxiao.Venus.common.ui.compose.HomeTaskRow;
@@ -240,6 +242,15 @@ public class HomeFragment implements PageController {
             userManager.setCurrentUser(picked);
             // 切换账号：账号行文案、下拉选中项、头像与按账号分桶的任务列表一起重建。
             // 只刷新头像与任务列表会漏掉账号行文案——那一个是独立写进 Compose 状态的。
+            renderUserContext();
+        });
+        // 状态条与下拉同义：点击某账号 = 主列表切到它。回传的是账号存储 id——
+        // 状态条只展示「配置了任务的账号」，行下标与全量账号列表不对齐，不能按下标映射
+        root.setOnAccountStatusSelectedListener(username -> {
+            if (username == null || username.isEmpty()) return;
+            if (username.equals(viewModel.getCurrentUser())) return;
+            viewModel.setCurrentUser(username);
+            userManager.setCurrentUser(username);
             renderUserContext();
         });
         // 无用户空态引导：账号行点击跳转用户管理页（而非弹出一个空下拉）
@@ -739,6 +750,8 @@ public class HomeFragment implements PageController {
                         ? new HashMap<>(current.headers) : buildCaptchaHeaders(solveUserId);
                 final java.util.List<String> suspendedIds =
                         mergeSuspendedIds(current, captchaFallbackIds.get(solveUserId), solveUserId);
+                // 验证全链路按挂起账号的服别取域名/DS salt：与 buildCaptchaHeaders 同口径，不读全局 is_oversea
+                final boolean solveOversea = new UserManager(activity).isOversea(solveUserId);
 
                 Notification notification = new Notification(activity);
                 Geetest.GeetestVerificationCallback callback = new Geetest.GeetestVerificationCallback() {
@@ -790,10 +803,10 @@ public class HomeFragment implements PageController {
                 if (current != null && current.challenge != null && !current.challenge.isEmpty()) {
                     Logger.debug("VenusCaptcha", "Using pending challenge: gt=" + current.gt);
                     Geetest.geetestWithChallenge(activity, current.gt, current.challenge,
-                            headers, callback, controller);
+                            headers, callback, controller, solveOversea);
                 } else {
                     Logger.debug("VenusCaptcha", "No pending challenge, calling API1");
-                    Geetest.geetest(activity, headers, callback, controller);
+                    Geetest.geetest(activity, headers, callback, controller, solveOversea);
                 }
             } catch (Exception e) {
                 Logger.e("Exception in performBackgroundCaptchaVerification", e);
@@ -1263,7 +1276,8 @@ public class HomeFragment implements PageController {
         // 单服时下拉不带后缀，但账号本身可能是「名字@os」形态，两种分支都要过 displayName
         for (String username : currentUsernames)
             dropdown.add(mixed ? formatUserLabel(username) : userManager.displayName(username));
-        screenView.setUsers(dropdown, selectedIndex);
+        // 头像键必须是存储 id：display 文本带后缀，拿它定址头像文件永远落空
+        screenView.setUsers(dropdown, currentUsernames, selectedIndex);
         screenView.setUserLabel(current.isEmpty() ? "" : formatUserLabel(current));
         // 「全部账号」入口：账号数 ≥2 时可见
         screenView.setRunAllVisible(currentUsernames.size() > 1);
@@ -1305,6 +1319,8 @@ public class HomeFragment implements PageController {
         if (screenView == null || userManager == null || viewModel == null) return;
         applyUserList(userManager.getAllUsernames());
         viewModel.refreshTaskItems();
+        // 账号切换后状态条的「当前账号」描边也要跟上：selected 标记在 refreshAggregate 里按当前账号重算
+        refreshAggregate();
     }
 
     /**
@@ -1626,35 +1642,68 @@ public class HomeFragment implements PageController {
         }
     }
 
-    /** 首页聚合条：账号数 · 已完成/总数 · 待验证数（含读 N 个状态桶，仅在必要时调用）。 */
+    /**
+     * 多账号聚合：优先推「账号状态条」（逐账号进度 + 状态色，点击切列表），纯文本聚合条只是兜底。
+     *
+     * <p>可见性口径与 {@code MultiUserRunner.filterRunnable} 一致：只统计「至少勾了一项任务」的账号，
+     * 四类全关的账号不出现——否则「3 个账号」里混进一个没配任务的，数字对不上用户认知。
+     * 单账号（或全部没配任务）时两者都隐藏，不占位。
+     */
     private void refreshAggregate() {
         if (screenView == null || viewModel == null) return;
         if (userManager == null) userManager = new UserManager(activity);
         List<String> users = userManager.getAllUsernames();
         if (users.size() < 2) {
+            screenView.setAccountRows(java.util.Collections.emptyList(), false);
             screenView.setAggregateVisible(false);
             return;
         }
         Context localized = LocaleHelper.wrap(activity);
         TaskStatusManager statusManager = new TaskStatusManager(localized);
-        int done = 0, total = 0, waiting = 0;
+        String currentUser = viewModel.getCurrentUser();
+        // 「运行中」账号：后台 Service 的批量链正在跑的，或前台批量（本类）正在跑的
+        String runningUser = ForegroundTaskService.isRunning()
+                ? ForegroundTaskService.getRunningUser() : runningRoundUser;
+        int usableAccounts = 0, allDone = 0, allTotal = 0;
+        java.util.List<HomeAccountStatus> rows = new ArrayList<>(users.size());
         for (String user : users) {
             TaskSettings settings = TaskSettings.fromPreferences(localized, user);
+            if (settings.hasAnyTaskDisabled()) continue;
+            usableAccounts++;
+            int done = 0, total = 0, waiting = 0, failed = 0;
             for (String taskId : settings.getTaskIds()) {
                 total++;
                 String status = statusManager.getStatus(user, taskId);
                 if (TaskStatusManager.STATUS_COMPLETED.equals(status)) done++;
                 else if (TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(status)) waiting++;
+                else if (TaskStatusManager.STATUS_ERROR.equals(status)) failed++;
             }
+            allDone += done;
+            allTotal += total;
+            // 状态优先级：运行中 > 待验证 > 失败 > 全部完成；进度数字恒显示 done/total
+            int kind;
+            if (user.equals(runningUser) && !runningUser.isEmpty()) {
+                kind = AccountStatusKind.RUNNING;
+            } else if (waiting > 0) {
+                kind = AccountStatusKind.WAITING;
+            } else if (failed > 0) {
+                kind = AccountStatusKind.ERROR;
+            } else if (total > 0 && done == total) {
+                kind = AccountStatusKind.DONE;
+            } else {
+                kind = AccountStatusKind.NONE;
+            }
+            rows.add(new HomeAccountStatus(
+                    user, userManager.displayName(user), done, total, kind, user.equals(currentUser)));
         }
-        if (total == 0) {
+        if (usableAccounts < 2 || allTotal == 0) {
+            screenView.setAccountRows(java.util.Collections.emptyList(), false);
             screenView.setAggregateVisible(false);
             return;
         }
-        String text = activity.getString(R.string.home_aggregate, users.size(), done, total);
-        if (waiting > 0) text += " · " + activity.getString(R.string.home_aggregate_captcha, waiting);
-        screenView.setAggregateText(text);
-        screenView.setAggregateVisible(true);
+        screenView.setAccountRows(rows, true);
+        // 状态条可见时不需要纯文本聚合（信息重叠）
+        screenView.setAggregateVisible(false);
     }
 
     /** 在主线程执行；Activity 已销毁时静默忽略（后台线程回传 UI 的统一出口）。 */
