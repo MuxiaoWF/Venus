@@ -282,16 +282,29 @@ public class HomeViewModel extends AndroidViewModel {
 
     /**
      * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。用于「本页线程执行任务」的场景（本页是唯一写入方）。
-     * 可从任意线程调用。
+     * 可从任意线程调用。默认写当前展示账号，兼容旧调用。
      *
      * @param taskId 稳定任务 id
      */
     public void updateTaskStatus(String taskId, TaskItem.TaskStatus status) {
+        updateTaskStatus(currentUser, taskId, status);
+    }
+
+    /**
+     * 按<b>运行账号</b>更新任务状态。多账号环境下，前台任务跑着时用户仍可切换展示账号——
+     * 此时继续用 currentUser 会把 A 的执行结果（尤其是 WAITING_CAPTCHA）写进 B 的桶，
+     * 验证码与续跑名单也就跟着错位（表现为「验完了 A 还是待验证」）。
+     *
+     * <p>持久化与小组件按 owner 写；列表只在展示账号与 owner 一致时刷新，
+     * 与后台服务广播采用同一条口径（见 {@link #applyExternalTaskStatus}）。
+     */
+    public void updateTaskStatus(String userId, String taskId, TaskItem.TaskStatus status) {
+        String owner = userId == null || userId.isEmpty() ? currentUser : userId;
         // 收到回调即视为本轮已触达（带账号）
-        touchedTasks.add(touchKey(currentUser, taskId));
-        persistTaskStatus(taskId, status);
-        applyExternalTaskStatus(currentUser, taskId, status);
+        touchedTasks.add(touchKey(owner, taskId));
+        new TaskStatusManager(getApplication()).applyStatus(owner, taskId, status);
         TaskWidgetProvider.refreshAllWidgets(getApplication());
+        applyExternalTaskStatus(owner, taskId, status);
     }
 
     /**
@@ -328,11 +341,4 @@ public class HomeViewModel extends AndroidViewModel {
         new TaskStatusManager(getApplication()).setCurrentUser(currentUser);
     }
 
-    /**
-     * 持久化任务状态。不逐条调 {@code setCurrentUser}：当前用户已在 {@link #persistCurrentUserForWidget()}
-     * 于运行开始时写一次、运行期间恒定，逐条重写只会让 DataStore 多背无意义的事务。
-     */
-    private void persistTaskStatus(String taskId, TaskItem.TaskStatus status) {
-        new TaskStatusManager(getApplication()).applyStatus(currentUser, taskId, status);
-    }
 }

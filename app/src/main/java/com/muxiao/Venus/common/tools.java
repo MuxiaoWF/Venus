@@ -74,6 +74,8 @@ public class tools {
 
     private static final Gson GSON = new Gson();
     private static final Random RANDOM = new Random();
+    /** 日志文件写入锁：批量任务并发回调 notifier 时多条日志会同时落盘，串行化避免内容交错或丢失。 */
+    private static final Object LOG_FILE_LOCK = new Object();
 
     /** 登录状态变化监听器，回调最新登录状态文案。 */
     public interface StatusInterface {
@@ -392,8 +394,16 @@ public class tools {
      * 写入与清理共用同一目录。
      */
     private static File logDir(Context context) {
-        File external = context.getExternalFilesDir(null);
-        return new File(external != null ? external : context.getFilesDir(), "logs");
+        // 日志目录只能有一个真相。批量链路里分隔符用 Compose 传入的 context、清空/查看用 Activity、
+        // 后台任务用 Service/Worker 的 context——只要其中一个 getExternalFilesDir 返回 null 而另一个
+        // 不返回（外置存储被回收/未挂载），它们就会各自回退到不同的 filesDir，于是出现
+        // 「清空了 A、写进 B、查看 A 为空」——正是「跑完任务却提示暂无日志」。统一锚到 Application Context。
+        Context app = VenusApplication.getAppContext();
+        if (app == null) app = context != null ? context.getApplicationContext() : null;
+        if (app == null) app = context;
+        File external = app.getExternalFilesDir(null);
+        File base = external != null ? external : app.getFilesDir();
+        return new File(base, "logs");
     }
 
     /**
@@ -429,24 +439,37 @@ public class tools {
         }
     }
 
-    /** 静默写日志，不触发通知。 */
+    /**
+     * 写一条运行日志，不触发通知。
+     *
+     * <p>文件是用户侧「查看日志」的唯一来源；同时经 {@link Logger#debug} 镜像到 logcat，便于调试包直接搜
+     * Venus 标签看任务进度（release 下该调用被 R8 常量折叠剔除，不产生日志噪声）。
+     */
     public static void writeLog(Context context, String message) {
+        String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+        String line = "[" + timestamp + "] " + message;
+        Logger.debug("VenusLog", line);
         try {
             File logFile = getTodayLogFile(context);
-            String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-            try (FileWriter writer = new FileWriter(logFile, true)) {
-                writer.append("[").append(timestamp).append("] ").append(message).append("\n");
+            synchronized (LOG_FILE_LOCK) {
+                try (FileWriter writer = new FileWriter(logFile, true)) {
+                    writer.append(line).append("\n");
+                }
             }
         } catch (IOException ignored) {}
     }
 
     /** 写一条分隔符，区分不同次任务执行。 */
     public static void writeLogSeparator(Context context) {
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+        String line = "\n==================== " + timestamp + " ====================\n\n";
+        Logger.debug("VenusLog", line.trim());
         try {
             File logFile = getTodayLogFile(context);
-            String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-            try (FileWriter writer = new FileWriter(logFile, true)) {
-                writer.append("\n==================== ").append(timestamp).append(" ====================\n\n");
+            synchronized (LOG_FILE_LOCK) {
+                try (FileWriter writer = new FileWriter(logFile, true)) {
+                    writer.append(line);
+                }
             }
         } catch (IOException ignored) {}
     }

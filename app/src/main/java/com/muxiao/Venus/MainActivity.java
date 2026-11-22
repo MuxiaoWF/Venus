@@ -296,10 +296,16 @@ public class MainActivity extends BaseActivity {
             captchaPending = false;
             String userId = captchaPendingUser;
             captchaPendingUser = null;
+            // 从「判定有待验证」到「控制器就绪」之间用户可能已经切到别的账号：验证 UI 必须按
+            // 当时记下的挂起账号弹，不能降级成当前展示账号（否则读不到 pending，或验完按错账号续跑）
+            switchToCaptchaUser(userId);
             // 弹一次即标记「已看过」：后续 onResume 的自动检查不再重复弹，用户主动关掉后也不会骚扰。
             // 只改 seen、不清请求本身——验证 UI 仍要用这份 challenge，通知入口也仍能重新唤起它
             if (userId != null && !userId.isEmpty()) CaptchaStore.markPendingSeen(this, userId);
-            homeController.performBackgroundCaptchaVerification();
+            if (userId != null && !userId.isEmpty())
+                homeController.performBackgroundCaptchaVerificationFor(userId);
+            else
+                homeController.performBackgroundCaptchaVerification();
         }
     }
 
