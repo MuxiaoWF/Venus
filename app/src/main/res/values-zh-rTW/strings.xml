@@ -279,10 +279,14 @@
     <string name="btn_clear_log">清除日誌</string>
     <string name="btn_ignore">忽略</string>
     <string name="btn_copy_error">複製錯誤訊息</string>
+    <string name="btn_rerun">重新執行</string>
 
     <!-- 對話框標題 -->
     <string name="dialog_error">錯誤</string>
     <string name="dialog_hint">提示</string>
+    <string name="dialog_rerun_title">任務已完成</string>
+    <string name="msg_rerun_confirm">今日啟用的任務已全部成功執行。確定要重新執行一次嗎？已完成的任務會再次簽到（當日重複簽到通常不會額外增加次數）。</string>
+    <string name="captcha_marked_failed">驗證碼未通過或已逾時，相關任務已標記為失敗，可於「重試失敗任務」中重新執行。</string>
     <string name="dialog_rename_user">重新命名使用者</string>
     <string name="dialog_delete_user">刪除使用者</string>
     <string name="dialog_need_notification_permission">需要通知權限</string>

@@ -283,10 +283,14 @@
     <string name="btn_clear_log">Clear Log</string>
     <string name="btn_ignore">Ignore</string>
     <string name="btn_copy_error">Copy Error</string>
+    <string name="btn_rerun">Run Again</string>
 
     <!-- Dialog titles -->
     <string name="dialog_error">Error</string>
     <string name="dialog_hint">Notice</string>
+    <string name="dialog_rerun_title">Tasks Completed</string>
+    <string name="msg_rerun_confirm">All enabled tasks for today have completed successfully. Run them again? Already-signed tasks will be checked in again (repeat check-ins on the same day usually grant no extra credit).</string>
+    <string name="captcha_marked_failed">Captcha failed or timed out. The affected tasks are marked as failed and can be retried from \"Retry Failed Tasks\".</string>
     <string name="dialog_rename_user">Rename User</string>
     <string name="dialog_delete_user">Delete User</string>
     <string name="dialog_need_notification_permission">Notification Permission Required</string>

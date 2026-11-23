@@ -249,7 +249,7 @@ public class HomeFragment implements PageController {
         // 状态条与下拉同义：点击某账号 = 主列表切到它。回传的是账号存储 id——
         // 状态条只展示「配置了任务的账号」，行下标与全量账号列表不对齐，不能按下标映射
         root.setOnAccountStatusSelectedListener(username -> {
-            if (username == null || username.isEmpty()) return;
+            if (username.isEmpty()) return;
             if (username.equals(viewModel.getCurrentUser())) return;
             viewModel.setCurrentUser(username);
             userManager.setCurrentUser(username);
@@ -269,6 +269,13 @@ public class HomeFragment implements PageController {
                 tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_scheduled_task_running));
                 return;
             }
+            // 当日已全部完成：先问一句再跑，不在这里擅自重复签到（确认回调里才走下面的运行体）
+            String current = viewModel.getCurrentUser();
+            Runnable run = () -> {
+            // 开跑前记下本轮目标：进程被杀 / 页面被回收后凭它补跑未完成项。
+            // 用户主动取消会在取消回调里清快照，不在这里误判成中断。
+            RunRecovery.start(context, java.util.Collections.singletonMap(current,
+                    TaskSettings.fromPreferences(context, current).getTaskIds()));
             // 清空今日日志失败只提示、不阻断本轮任务（与原有行为一致）；属轻微故障，用 Snackbar 而非错误弹窗
             if (!clearLogFile())
                 tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
@@ -364,13 +371,28 @@ public class HomeFragment implements PageController {
                         else if (captchaPending)
                             Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
                     } finally {
-                        // 这两步必须在 finally 里：上面任何一步抛异常都不能留下「永久收尾中」或「永久静音」
+                        // 这几步必须在 finally 里：上面任何一步抛异常都不能留下「永久收尾中」或「永久静音」
                         sRoundClosing = false;
+                        // 本轮已收口（含取消），撤销中断快照，下次启动不再补跑
+                        RunRecovery.finish(context);
                         // 收尾一定要清：否则后续所有运行（含后台）都会被永久静音
                         Notification.endForegroundRun();
                     }
                 }
             });
+            };
+            // 全部完成时弹确认，确认后的回调执行上面的 run；否则直接 run
+            if (current != null && !current.isEmpty()
+                    && DailyTaskScheduler.allEnabledTasksCompletedToday(context, current)) {
+                VenusDialogs.confirm(activity,
+                        activity.getString(R.string.dialog_rerun_title),
+                        activity.getString(R.string.msg_rerun_confirm),
+                        activity.getString(R.string.btn_rerun),
+                    run,
+                        activity.getString(R.string.btn_cancel));
+            } else {
+                run.run();
+            }
         });
 
         // 「全部账号」批量入口
@@ -385,12 +407,32 @@ public class HomeFragment implements PageController {
                 runOnUi(() -> show_warning_dialog(context, activity.getString(R.string.err_set_task_first)));
                 return;
             }
-            if (!clearLogFile())
-                tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
-            tools.writeLogSeparator(context);
-            viewModel.resetForNewRun();
-            viewModel.persistCurrentUserForWidget();
-            runBatchAccounts(targets, null);
+            Runnable run = () -> {
+                if (!clearLogFile())
+                    tools.showCustomSnackbar(screenView, context, activity.getString(R.string.err_clear_log_failed));
+                tools.writeLogSeparator(context);
+                viewModel.resetForNewRun();
+                viewModel.persistCurrentUserForWidget();
+                runBatchAccounts(targets, null);
+            };
+            // 批量入口同样要确认：所有目标账号当日启用任务都完成时才问，避免误触重复签到
+            boolean allDone = true;
+            for (String user : targets) {
+                if (!DailyTaskScheduler.allEnabledTasksCompletedToday(context, user)) {
+                    allDone = false;
+                    break;
+                }
+            }
+            if (allDone) {
+                VenusDialogs.confirm(activity,
+                        activity.getString(R.string.dialog_rerun_title),
+                        activity.getString(R.string.msg_rerun_confirm),
+                        activity.getString(R.string.btn_rerun),
+                    run,
+                        activity.getString(R.string.btn_cancel));
+            } else {
+                run.run();
+            }
         });
 
         // 重试失败任务：只重跑当日 ERROR 状态的任务，已完成项不重复执行
@@ -426,6 +468,8 @@ public class HomeFragment implements PageController {
             viewModel.refreshTaskItems();
             // 同「运行签到」：把运行账号钉死，验证码与状态写入都不跟随展示账号漂移
             final String runUser = onlyUser;
+            // 只补跑这批失败项：中断恢复时名单来自这里，不会顺带把已完成任务重跑一遍
+            RunRecovery.start(context, java.util.Collections.singletonMap(runUser, failedIds));
             captchaSolvedInRound = false;
             captchaSolutionUserId = null;
 
@@ -503,6 +547,7 @@ public class HomeFragment implements PageController {
                             Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
                     } finally {
                         sRoundClosing = false;
+                        RunRecovery.finish(context);
                         Notification.endForegroundRun();
                     }
                 }
@@ -515,6 +560,8 @@ public class HomeFragment implements PageController {
                 activity.getString(R.string.msg_confirm_cancel_current_task),
                 activity.getString(R.string.btn_ok),
                 () -> {
+                    // 用户主动中断：撤销快照，回前台时不做「意外中断」补跑
+                    RunRecovery.finish(context);
                     if (currentTaskFuture != null) {
                         currentTaskFuture.cancel(true);
                         controller.destroyButton();
@@ -537,6 +584,8 @@ public class HomeFragment implements PageController {
                         activity.getString(R.string.msg_confirm_cancel_background_task),
                         activity.getString(R.string.btn_ok),
                         () -> {
+                            // 主动取消后台任务：服务侧 cancelTask 也会清，这里先清避免服务已被回收时漏网
+                            RunRecovery.finish(context);
                             Intent stopIntent = new Intent(context, ForegroundTaskService.class);
                             stopIntent.setAction(ForegroundTaskService.ACTION_STOP_TASK);
                             context.startService(stopIntent);
@@ -732,12 +781,11 @@ public class HomeFragment implements PageController {
         // 新 challenge 与已有 solution 无关，用户做完还是同一个结果，表现为「点了条目又冒一个无效验证框」。
         // 直接走续跑；没有可续跑的项就把残留的「待验证」复位，避免列表永久卡在这个状态。
         if (current == null) {
-            String solvedUser = viewingUser;
-            if (CaptchaStore.getSolution(activity, solvedUser) != null) {
+            if (CaptchaStore.getSolution(activity, viewingUser) != null) {
                 Logger.debug("VenusCaptcha", "solution already present, resume instead of showing captcha again");
-                resumeAfterCaptcha(solvedUser, collectWaitingCaptchaIds(solvedUser));
+                resumeAfterCaptcha(viewingUser, collectWaitingCaptchaIds(viewingUser));
                 // 已无需验证：出队并推进下一个
-                finishQueuedCaptcha(solvedUser);
+                finishQueuedCaptcha(viewingUser);
                 return;
             }
         }
@@ -815,6 +863,9 @@ public class HomeFragment implements PageController {
                         tools.writeLog(activity, activity.getString(R.string.notif_captcha_failed)
                                 + " (" + solveUserId + "): " + error);
                         controller.destroyButton();
+                        // 验证明确失败：把挂起任务判为失败，让「重试失败任务」按钮出现。
+                        // 只改仍是 waiting_captcha 的项；suspendedIds 是验证开始时的权威名单，不受切账号影响。
+                        markCaptchaTasksFailed(solveUserId, suspendedIds);
                         // 只标记「已看过」，保留 challenge：用户可再点一次通知重试同一份验证
                         CaptchaStore.markPendingSeen(activity, solveUserId);
                         notification.dismissCaptchaNotification();
@@ -1117,6 +1168,33 @@ public class HomeFragment implements PageController {
     }
 
     /**
+     * 把指定账号仍停在「待验证」的任务判为失败，使「重试失败任务」按钮（只认 ERROR）可见。
+     *
+     * <p>用于两种终态：① 验证码明确失败（API2 不通过 / 用户关闭 / 网络失败）；② 超时未验证
+     * （pending 已过期被清、solution 也不存在、没人会再推进）。只改仍是 {@code waiting_captcha} 的项，
+     * 不覆盖已被续跑改成 completed / in_progress 的终态；也不清 pending——用户仍可点通知用同一 challenge
+     * 重试，验证成功后续跑名单来自验证开始时的快照，不受这里的状态改写影响。
+     */
+    private void markCaptchaTasksFailed(String userId, java.util.Collection<String> ids) {
+        if (userId == null || userId.isEmpty() || ids == null || ids.isEmpty()) return;
+        TaskStatusManager statusManager = new TaskStatusManager(activity);
+        boolean changed = false;
+        for (String id : ids) {
+            if (TaskStatusManager.STATUS_WAITING_CAPTCHA.equals(statusManager.getStatus(userId, id))) {
+                statusManager.markStatus(userId, id, TaskStatusManager.STATUS_ERROR);
+                changed = true;
+            }
+        }
+        if (!changed) return;
+        tools.writeLog(activity, activity.getString(R.string.captcha_marked_failed) + " (" + userId + ")");
+        TaskWidgetProvider.refreshAllWidgets(activity);
+        runOnUi(() -> {
+            viewModel.refreshTaskItems();
+            refreshAggregate();
+        });
+    }
+
+    /**
      * 把持久层残留的「待验证」复位为「待执行」。
      *
      * <p>只在「验证已完成、却找不到任何可续跑项」时调用：此时它不再表示「有人在等验证」，
@@ -1152,9 +1230,16 @@ public class HomeFragment implements PageController {
         if (userId == null || userId.isEmpty()) return;
         // 只看当前账号的 pending：别的账号的待验证与本次自愈无关
         if (CaptchaStore.getPending(activity, userId) != null) return;
-        if (CaptchaStore.getSolution(activity, userId) == null) return;
         java.util.List<String> ids = collectWaitingCaptchaIds(userId);
         if (ids.isEmpty()) return;
+        if (CaptchaStore.getSolution(activity, userId) == null) {
+            // pending 已过期被清、也没有验证结果，且没有在途验证/运行轮次：这份「待验证」没人会再推进。
+            // 判为失败，让「重试失败任务」按钮出现，用户不必干等定时兜底或次日。标记后状态不再是
+            // waiting_captcha，下次 show() 不会再进来，天然幂等。
+            Logger.debug("VenusCaptcha", "onResume self-heal: captcha timed out, mark failed " + ids);
+            markCaptchaTasksFailed(userId, ids);
+            return;
+        }
         long now = System.currentTimeMillis();
         if (now - lastAutoResumeAt < AUTO_RESUME_THROTTLE_MS) return;
         lastAutoResumeAt = now;
@@ -1295,7 +1380,7 @@ public class HomeFragment implements PageController {
 
     /** 账号展示文案：用户名 + 该账号自己的服务器后缀（如「t [国服]」）。 */
     private String formatUserLabel(String username) {
-        boolean oversea = userManager != null ? userManager.isOversea(username) : false;
+        boolean oversea = userManager != null && userManager.isOversea(username);
         String serverName = activity.getString(oversea ? R.string.server_os : R.string.server_cn);
         // 存储 id 可能带后缀，展示前去掉
         String display = userManager != null ? userManager.displayName(username) : username;
@@ -1518,6 +1603,8 @@ public class HomeFragment implements PageController {
             // 也必须重建列表并清除昨日状态（否则日期变更后「已完成」会被当成当日状态沿用）。
             TaskSettings settings = TaskSettings.fromPreferences(context, viewModel.getCurrentUser());
             viewModel.refreshTaskItems(settings);
+            // 中断续跑：手动运行被进程死亡 / 页面回收打断后，按开跑前记下的目标清单补跑未完成项
+            RunRecovery.recover(context);
             // 自愈：验证做完了、续跑却没发生（轮末漏掉 / 进程被杀 / 续跑被丢弃）时补一次，
             // 否则用户只能看着「待验证」反复点条目，每点一次还多弹一个与目标无关的验证框
             maybeResumeCaptchaOnResume();
@@ -1607,6 +1694,16 @@ public class HomeFragment implements PageController {
      */
     private void runBatchAccounts(List<String> users, Map<String, Set<String>> onlyIdsByUser) {
         if (users == null || users.isEmpty()) return;
+        // 按账号记下本轮目标：批量串行时后续账号可能根本没轮到，单看状态无法区分
+        // 「上一轮已完成」与「本轮还没开始」，必须靠这份快照才能在中断后补跑。
+        java.util.Map<String, java.util.Set<String>> snapshotTargets = new java.util.LinkedHashMap<>();
+        for (String user : users) {
+            java.util.Set<String> ids = onlyIdsByUser == null ? null : onlyIdsByUser.get(user);
+            if (ids == null || ids.isEmpty())
+                ids = new java.util.LinkedHashSet<>(TaskSettings.fromPreferences(activity, user).getTaskIds());
+            snapshotTargets.put(user, ids);
+        }
+        RunRecovery.start(activity, snapshotTargets);
         batchRoundActive = true;
         captchaSolvedInRound = false;
         captchaSolutionUserId = null;
@@ -1638,6 +1735,8 @@ public class HomeFragment implements PageController {
                     });
                 } finally {
                     sRoundClosing = false;
+                    // 整批已收口（含取消），撤销中断快照
+                    RunRecovery.finish(activity);
                     // 最后才放开批量标记：边界上到达的验证回调要么看到「仍批量」走续跑 Worker，
                     // 要么看到「整轮已结束」直接续跑，不会误置一个没人消费的轮内补跑标记
                     batchRoundActive = false;

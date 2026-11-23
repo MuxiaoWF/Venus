@@ -288,10 +288,14 @@
     <string name="btn_clear_log">清空日志</string>
     <string name="btn_ignore">忽略</string>
     <string name="btn_copy_error">复制错误信息</string>
+    <string name="btn_rerun">重新运行</string>
 
     <!-- 对话框标题 -->
     <string name="dialog_error">错误</string>
     <string name="dialog_hint">提示</string>
+    <string name="dialog_rerun_title">任务已完成</string>
+    <string name="msg_rerun_confirm">今日启用的任务已全部成功执行。确定要重新运行一次吗？已完成的任务会再次签到（当日重复签到通常不会额外增加次数）。</string>
+    <string name="captcha_marked_failed">验证码未通过或已超时，相关任务已标记为失败，可在「重试失败任务」中重新运行。</string>
     <string name="dialog_rename_user">重命名用户</string>
     <string name="dialog_delete_user">删除用户</string>
     <string name="dialog_need_notification_permission">需要通知权限</string>

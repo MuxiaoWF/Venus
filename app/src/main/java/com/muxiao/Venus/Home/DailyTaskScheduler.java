@@ -318,6 +318,26 @@ public final class DailyTaskScheduler {
     }
 
     /**
+     * 手动运行被意外中断后的补跑（进程被杀 / 服务回收 / Activity 销毁）。
+     *
+     * <p>复用 resume 语义：跳过「定时开关」与「当日全完成」幂等检查——用户已经主动发起过这一轮，
+     * 中断不是他的本意；名单由 {@link RunRecovery} 按快照反查得出，只会包含尚未完成的项。
+     *
+     * <p>多账号恢复时第一个用 REPLACE 顶掉「明天到点」那个节点以便立即执行，后续账号用
+     * {@link #CHAIN_POLICY} 追加，保持账号串行。调用方须先确认没有运行态，否则 REPLACE
+     * 会取消正在执行的 Worker。
+     */
+    public static void enqueueInterruptedResume(Context context, String userId,
+                                                java.util.Collection<String> taskIds,
+                                                boolean replacePendingChain) {
+        Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
+                ? null : new java.util.LinkedHashSet<>(taskIds);
+        enqueue(context,
+                replacePendingChain ? ExistingWorkPolicy.REPLACE : CHAIN_POLICY,
+                0L, 1, onlyIds, true, userId);
+    }
+
+    /**
      * 续跑轮自身被占用时的短延迟重排：保留 resume 标记、目标账号与部分执行名单。
      * <p>不能用 {@link #enqueueNext(Context, ExistingWorkPolicy, long)}——它会丢掉这些 WorkData，
      * 把「只重跑该账号的挂起项」退化成「全量执行且受定时开关约束」。
