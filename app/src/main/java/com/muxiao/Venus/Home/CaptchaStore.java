@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.google.gson.Gson;
 import com.muxiao.Venus.common.Logger;
+import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.common.data.ConfigRepository;
 
 import java.util.ArrayList;
@@ -99,7 +100,7 @@ public final class CaptchaStore {
 
         String raw = repo.get(keyOf(PREFIX_PENDING, userId), "");
         if (raw == null || raw.isEmpty()) return null;
-        Pending pending = parsePending(raw);
+        Pending pending = tools.fromJsonOrNull(GSON, raw, Pending.class);
         if (pending == null || pending.challenge == null || pending.challenge.isEmpty()) {
             clearPending(context, userId);
             return null;
@@ -131,7 +132,7 @@ public final class CaptchaStore {
         ConfigRepository repo = new ConfigRepository(context);
         String raw = repo.get(keyOf(PREFIX_PENDING, userId), "");
         if (raw == null || raw.isEmpty()) return;
-        Pending pending = parsePending(raw);
+        Pending pending = tools.fromJsonOrNull(GSON, raw, Pending.class);
         if (pending == null) return;
         pending.seen = true;
         repo.putString(keyOf(PREFIX_PENDING, userId), GSON.toJson(pending));
@@ -166,7 +167,7 @@ public final class CaptchaStore {
 
         String raw = repo.get(keyOf(PREFIX_SOLUTION, userId), "");
         if (raw == null || raw.isEmpty()) return null;
-        Solution solution = parseSolution(raw);
+        Solution solution = tools.fromJsonOrNull(GSON, raw, Solution.class);
         if (solution == null || solution.code == null || solution.code.isEmpty()) return null;
         if (userId == null || !userId.equals(solution.userId)) return null;
         if (System.currentTimeMillis() - solution.createdAt > SOLUTION_TTL_MS) {
@@ -196,7 +197,7 @@ public final class CaptchaStore {
     private static void migrateLegacy(ConfigRepository repo) {
         String legacyPending = repo.get(LEGACY_KEY_PENDING, "");
         if (legacyPending != null && !legacyPending.isEmpty()) {
-            Pending moved = parsePending(legacyPending);
+            Pending moved = tools.fromJsonOrNull(GSON, legacyPending, Pending.class);
             if (moved != null && moved.userId != null && !moved.userId.isEmpty())
                 repo.putString(keyOf(PREFIX_PENDING, moved.userId), legacyPending);
             repo.putString(LEGACY_KEY_PENDING, "");
@@ -204,30 +205,13 @@ public final class CaptchaStore {
 
         String legacySolution = repo.get(LEGACY_KEY_SOLUTION, "");
         if (legacySolution != null && !legacySolution.isEmpty()) {
-            Solution moved = parseSolution(legacySolution);
+            Solution moved = tools.fromJsonOrNull(GSON, legacySolution, Solution.class);
             if (moved != null && moved.userId != null && !moved.userId.isEmpty())
                 repo.putString(keyOf(PREFIX_SOLUTION, moved.userId), legacySolution);
             repo.putString(LEGACY_KEY_SOLUTION, "");
         }
     }
 
-    private static Pending parsePending(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
-        try {
-            return GSON.fromJson(raw, Pending.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    private static Solution parseSolution(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
-        try {
-            return GSON.fromJson(raw, Solution.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
 
     // ==================== 数据模型 ====================
 

@@ -318,7 +318,6 @@
     <string name="msg_battery_optimization_hint">System battery optimization may interrupt background tasks. Please set this app to \"Unrestricted\" in battery settings to ensure tasks run properly.\n\nIf you see a vendor settings page, please add this app to the unrestricted list.\n\nThis prompt will not appear again after closing.</string>
     <string name="msg_no_game_role_or_error">No game characters found or error fetching link</string>
     <string name="msg_select_user_first">Please select a user first</string>
-    <string name="msg_no_server_user">No %s users yet\nTap the button at the bottom right to add a new user</string>
 
     <!-- Snackbar messages -->
     <string name="snack_error_copied">Error info copied to clipboard</string>
@@ -418,7 +417,10 @@
         <item quantity="other">%1$d/%2$d completed</item>
     </plurals>
     <!-- Multi-account summary: account count · completed/total across all accounts -->
-    <string name="widget_accounts_summary">%1$d accounts · %2$d/%3$d</string>
+    <plurals name="widget_accounts_summary">
+        <item quantity="one">%1$d account · %2$d/%3$d</item>
+        <item quantity="other">%1$d accounts · %2$d/%3$d</item>
+    </plurals>
     <string name="widget_run">Run</string>
     <string name="widget_running">Running…</string>
     <string name="widget_no_user">Please log in to the app first</string>
@@ -454,7 +456,6 @@
     <string name="captcha_suspend_title">Captcha verification required</string>
     <string name="captcha_suspend_content">Waiting for verification, tap to continue: %s</string>
     <string name="captcha_challenge_failed">Could not obtain a captcha challenge, please try again later</string>
-    <string name="geetest_no_ui_context">Captcha cannot be shown here, please retry inside the app</string>
     <string name="geetest_ui_init_failed">Failed to load the captcha widget. Please retry, and update the app if it keeps failing</string>
 
     <!-- Task executor -->
@@ -742,12 +743,21 @@
     <string name="notif_with_account">Account %1$d/%2$d · %3$s</string>
     <!-- Settings: target account of task config -->
     <string name="settings_apply_all_accounts">Apply to all accounts</string>
-    <string name="settings_apply_all_confirm">Write this task plan to all %1$d accounts? Their current selections will be overwritten.</string>
-    <string name="settings_apply_all_done">Applied to %1$d accounts</string>
+    <plurals name="settings_apply_all_confirm">
+        <item quantity="one">Write this task plan to %1$d account? Its current selections will be overwritten.</item>
+        <item quantity="other">Write this task plan to all %1$d accounts? Their current selections will be overwritten.</item>
+    </plurals>
+    <plurals name="settings_apply_all_done">
+        <item quantity="one">Applied to %1$d account</item>
+        <item quantity="other">Applied to %1$d accounts</item>
+    </plurals>
     <string name="settings_editing_task">Editing: %1$s</string>
     <string name="settings_task_account_title">Edit target account</string>
     <string name="chips_overflow_collapse">Collapse</string>
-    <string name="user_card_task_summary">%1$d tasks · today %2$d/%3$d</string>
+    <plurals name="user_card_task_summary">
+        <item quantity="one">%1$d task · today %2$d/%3$d</item>
+        <item quantity="other">%1$d tasks · today %2$d/%3$d</item>
+    </plurals>
     <!-- MiYouBi check-in is CN-only: card summary and block hint -->
     <string name="daily_card_unsupported_oversea">Not on OS server</string>
     <string name="daily_unsupported_oversea">MiYouBi check-in is only available on the CN server</string>

@@ -1,6 +1,7 @@
 package com.muxiao.Venus.User;
 
 import com.muxiao.Venus.common.BaseActivity;
+import com.muxiao.Venus.common.Constants;
 import dagger.hilt.android.AndroidEntryPoint;
 
 import android.annotation.SuppressLint;
@@ -45,7 +46,7 @@ public class OAuthLoginActivity extends BaseActivity {
 
         user_manager = new UserManager(this);
 
-        relogin_mode = getIntent().getBooleanExtra("RELOGIN_MODE", false);
+        relogin_mode = getIntent().getBooleanExtra(Constants.EXTRA_RELOGIN_MODE, false);
         relogin_username = getIntent().getStringExtra("USERNAME");
 
         // 状态栏内边距由 Compose 的 statusBarsPadding 处理（EdgeToEdge 已让出窗口 inset）

@@ -38,6 +38,9 @@ public class Constants {
      */
     public static final String EXTRA_CAPTCHA_USER = "captcha_user";
 
+    /** 登录页启动参数：true = 重登录模式（刷新既有账号凭证，非新增账号）。 */
+    public static final String EXTRA_RELOGIN_MODE = "RELOGIN_MODE";
+
     public static class Urls {
         // 国服 URL
         private static final String BASE_URL = "https://api-takumi.mihoyo.com";

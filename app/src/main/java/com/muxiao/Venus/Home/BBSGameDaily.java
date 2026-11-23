@@ -63,8 +63,8 @@ public class BBSGameDaily {
      * @param isOversea 目标账号的服务器类型（由 {@code TaskSettings.isOversea()} 经 TaskExecutor 传入）：
      *                  决定活动 id / game_biz 映射表、Cookie 获取方式与请求头域，不能读全局 {@code is_oversea}。
      */
-    public BBSGameDaily(Context context, String userId, String gameName, tools.StatusNotifier statusNotifier,
-                        GeetestController gt3Controller, boolean isOversea) {
+    public BBSGameDaily(Context context, String userId, String gameName,
+                        tools.StatusNotifier statusNotifier, boolean isOversea) {
         this.gameName = gameName;
         this.displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
         this.context = context;

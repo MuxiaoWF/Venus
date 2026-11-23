@@ -1,8 +1,6 @@
 package com.muxiao.Venus.Home;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 
 /**
  * 前台人机验证队列：多账号按挂起先后排队，一次只挂一个极验控件。
@@ -14,10 +12,10 @@ public final class CaptchaQueue {
     /** 等待验证的账号，按挂起先后排序。 */
     private final LinkedHashSet<String> waiting = new LinkedHashSet<>();
 
-    /** 入队；已存在返回 false（不改变原位置）。 */
-    public synchronized boolean offer(String userId) {
-        if (userId == null || userId.isEmpty()) return false;
-        return waiting.add(userId);
+    /** 入队；已在队中则保持原位置（不重复排队，调用方无需关心是否新入队）。 */
+    public synchronized void offer(String userId) {
+        if (userId == null || userId.isEmpty()) return;
+        waiting.add(userId);
     }
 
     /** 队首账号；空队列返回 null。 */
@@ -30,21 +28,12 @@ public final class CaptchaQueue {
         if (userId != null) waiting.remove(userId);
     }
 
-    public synchronized boolean contains(String userId) {
-        return userId != null && waiting.contains(userId);
-    }
-
     public synchronized int size() {
         return waiting.size();
     }
 
     public synchronized boolean isEmpty() {
         return waiting.isEmpty();
-    }
-
-    /** 快照，仅用于日志。 */
-    public synchronized List<String> snapshot() {
-        return new ArrayList<>(waiting);
     }
 
     /** 清空（Activity 销毁时调用）。 */

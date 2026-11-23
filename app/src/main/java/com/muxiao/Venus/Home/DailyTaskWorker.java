@@ -203,12 +203,8 @@ public class DailyTaskWorker extends Worker {
         // 因需人机验证而挂起的任务：轮末合并成一次验证请求（见 CaptchaSuspension）
         Set<String> captchaTaskIds = new CopyOnWriteArraySet<>();
         AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
-        // 控制器实例需在执行后读取「验证码失败任务」，提取为局部变量
-        GeetestController bgController = new BackgroundGeetestController();
-
         TaskExecutor taskExecutor = new TaskExecutor(
                 context, userId, notifier,
-                bgController,
                 new TaskExecutor.Callback() {
                     @Override
                     public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
@@ -313,7 +309,6 @@ public class DailyTaskWorker extends Worker {
                 // resetTransientStatuses 复位成 pending 的挂起项会被全部筛掉，续跑轮静默空跑。
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
                     DailyTaskScheduler.enqueueCaptchaRetry(context, userId, captchaTaskIds,
-                            DailyTaskScheduler.CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
                             attempt + 1);
                 else
                     DailyTaskScheduler.enqueueTomorrow(context);

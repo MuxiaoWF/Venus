@@ -294,92 +294,7 @@ public class HomeFragment implements PageController {
             captchaSolvedInRound = false;
             captchaSolutionUserId = null;
 
-            currentTaskFuture = AppExecutors.get().submit(() -> {
-                // 应用内运行：整轮抑制系统通知——用户就在界面上，进度看列表、错误走对话框。
-                // 任务模块（BBSDaily/BBSGameDaily/…）的失败通知没有运行形态概念，判据统一收在 Notification。
-                Notification.beginForegroundRun();
-                // 挂起的验证需求：首个挂起即发起验证（不等轮末，见 onCaptchaRequired），后续挂起只并入名单
-                Set<String> captchaTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
-                java.util.concurrent.atomic.AtomicBoolean captchaRequested =
-                        new java.util.concurrent.atomic.AtomicBoolean(false);
-                java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders =
-                        new java.util.concurrent.atomic.AtomicReference<>();
-                try {
-                    TaskSettings settings = TaskSettings.fromPreferences(context, runUser);
-                    if (settings.hasAnyTaskDisabled()) {
-                        // 引导性约束而非故障：用「提示」弹窗，不带「复制错误」入口
-                        runOnUi(() -> show_warning_dialog(context, activity.getString(R.string.err_set_task_first)));
-                        return;
-                    }
-                    TaskExecutor taskExecutor = new TaskExecutor(
-                            activity, runUser, notifier, controller,
-                            new TaskExecutor.Callback() {
-                                @Override
-                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
-                                    updateTaskStatus(runUser, taskId, status);
-                                }
-                                @Override
-                                public void onAllTasksCompleted() {
-                                    notifier.notifyListeners(activity.getString(R.string.task_completed));
-                                }
-                                @Override
-                                public void onError(String message) {
-                                    activity.runOnUiThread(() -> show_error_dialog(activity, message));
-                                }
-                                @Override
-                                public void onCaptchaRequired(CaptchaRequiredException error) {
-                                    captchaTaskIds.add(error.getTaskId());
-                                    captchaHeaders.compareAndSet(null, error.getHeaders());
-                                    // 首个挂起就地发起验证，不再等本轮剩余任务跑完：它们还各有 2~9s 风控延时，
-                                    // 用户会先看到列表变成「待验证」，验证框却要等几十秒才出来（旧行为），
-                                    // 且这段空档里点任务行会另起一份 challenge，把真正的验证挤掉。
-                                    if (captchaRequested.compareAndSet(false, true))
-                                        suspendAndShowCaptcha(runUser, captchaTaskIds, error.getHeaders());
-                                }
-                                @Override
-                                public boolean isCancelled() {
-                                    return isTaskCancelled();
-                                }
-                            });
-                    taskExecutor.executeAll(settings);
-                    // 轮内补跑：验证在本轮进行中完成时立刻重跑挂起项，不必等整轮结束走 Worker
-                    rerunSolvedCaptchaInRound(taskExecutor, settings, runUser);
-                } finally {
-                    // 任务已全部结束（executeAll 已返回），只剩本段收尾：让 isTaskRunning() 立刻反映这一点，
-                    // 否则下面排的续跑轮会被 Worker 的「手动运行占用」判断挡回，白等 5 分钟复查
-                    sRoundClosing = true;
-                    // 本轮结束：残留的「轮内补跑」标记作废（竞态下 executeAll 已返回、补跑没赶上），
-                    // 轮末收口会照常兜底排续跑，不会漏
-                    captchaSolvedInRound = false;
-                    try {
-                        boolean captchaPending = !captchaTaskIds.isEmpty();
-                        // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状。
-                        // 有挂起项时不销毁验证控件——那是用户此刻唯一能操作的东西，轮末清掉等于把他手上的
-                        // 验证作废（旧实现正是如此，表现为「点了条目、验到一半按钮消失」）。
-                        runOnUi(() -> {
-                            if (!captchaPending) {
-                                controller.destroyButton();
-                                controller.createUtils();
-                            }
-                            viewModel.refreshBgFeatureEnabled();
-                            viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
-                            viewModel.refreshTaskItems();
-                        });
-                        // 用户主动取消时不弹验证：挂起项留在「待验证」，下次运行会自然重试
-                        if (captchaPending && !isTaskCancelled())
-                            handleRoundEndCaptcha(runUser, captchaTaskIds, captchaHeaders.get());
-                        else if (captchaPending)
-                            Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
-                    } finally {
-                        // 这几步必须在 finally 里：上面任何一步抛异常都不能留下「永久收尾中」或「永久静音」
-                        sRoundClosing = false;
-                        // 本轮已收口（含取消），撤销中断快照，下次启动不再补跑
-                        RunRecovery.finish(context);
-                        // 收尾一定要清：否则后续所有运行（含后台）都会被永久静音
-                        Notification.endForegroundRun();
-                    }
-                }
-            });
+            runForegroundRound(runUser, null);
             };
             // 全部完成时弹确认，确认后的回调执行上面的 run；否则直接 run
             if (current != null && !current.isEmpty()
@@ -459,7 +374,7 @@ public class HomeFragment implements PageController {
                 return;
             }
             // 按钮可见性由 ERROR 状态派生，正常不会为空；切用户/改配置等竞态下兜底
-            if (failedIds.isEmpty()) return;
+            if (failedIds == null || failedIds.isEmpty()) return;
 
             // 刻意不调用 resetForNewRun：保留已完成/失败终态，重跑项执行到时逐个覆盖；未触达的已完成项
             // 在重试期间按 RETAINED 展示
@@ -467,91 +382,11 @@ public class HomeFragment implements PageController {
             viewModel.setRunMode(HomeViewModel.RunMode.FOREGROUND);
             viewModel.refreshTaskItems();
             // 同「运行签到」：把运行账号钉死，验证码与状态写入都不跟随展示账号漂移
-            final String runUser = onlyUser;
             // 只补跑这批失败项：中断恢复时名单来自这里，不会顺带把已完成任务重跑一遍
-            RunRecovery.start(context, java.util.Collections.singletonMap(runUser, failedIds));
+            RunRecovery.start(context, java.util.Collections.singletonMap(onlyUser, failedIds));
             captchaSolvedInRound = false;
             captchaSolutionUserId = null;
-
-            currentTaskFuture = AppExecutors.get().submit(() -> {
-                // 应用内运行：整轮抑制系统通知（判据统一在 Notification.inForegroundRun）
-                Notification.beginForegroundRun();
-                // 挂起的验证需求：首个挂起即发起验证，后续挂起只并入名单
-                Set<String> captchaTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
-                java.util.concurrent.atomic.AtomicBoolean captchaRequested =
-                        new java.util.concurrent.atomic.AtomicBoolean(false);
-                java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders =
-                        new java.util.concurrent.atomic.AtomicReference<>();
-                try {
-                    TaskSettings settings = TaskSettings.fromPreferences(context, runUser);
-                    if (settings.hasAnyTaskDisabled()) {
-                        runOnUi(() -> show_warning_dialog(context, activity.getString(R.string.err_set_task_first)));
-                        return;
-                    }
-                    TaskExecutor taskExecutor = new TaskExecutor(
-                            activity, runUser, notifier, controller,
-                            new TaskExecutor.Callback() {
-                                @Override
-                                public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
-                                    updateTaskStatus(runUser, taskId, status);
-                                }
-                                @Override
-                                public void onAllTasksCompleted() {
-                                    notifier.notifyListeners(activity.getString(R.string.task_completed));
-                                }
-                                @Override
-                                public void onError(String message) {
-                                    activity.runOnUiThread(() -> show_error_dialog(activity, message));
-                                }
-                                @Override
-                                public void onCaptchaRequired(CaptchaRequiredException error) {
-                                    captchaTaskIds.add(error.getTaskId());
-                                    captchaHeaders.compareAndSet(null, error.getHeaders());
-                                    // 首个挂起就地发起验证，不再等本轮剩余任务跑完：它们还各有 2~9s 风控延时，
-                                    // 用户会先看到列表变成「待验证」，验证框却要等几十秒才出来（旧行为），
-                                    // 且这段空档里点任务行会另起一份 challenge，把真正的验证挤掉。
-                                    if (captchaRequested.compareAndSet(false, true))
-                                        suspendAndShowCaptcha(runUser, captchaTaskIds, error.getHeaders());
-                                }
-                                @Override
-                                public boolean isCancelled() {
-                                    return isTaskCancelled();
-                                }
-                            });
-                    // 部分执行：TaskExecutor 只提交 id 命中的任务（含单游戏粒度）
-                    taskExecutor.executeAll(settings, failedIds);
-                    // 同上：本轮内完成验证时立刻补跑挂起项
-                    rerunSolvedCaptchaInRound(taskExecutor, settings, runUser);
-                } finally {
-                    // 同「运行签到」：任务层面已结束，让 isTaskRunning() 同步反映（续跑轮据此判断占用）
-                    sRoundClosing = true;
-                    // 同上：残留的轮内补跑标记作废，交给轮末收口兜底
-                    captchaSolvedInRound = false;
-                    try {
-                        boolean captchaPending = !captchaTaskIds.isEmpty();
-                        // 回到空闲态：可见性由 UiState 派生（ERROR 清零后重试按钮自动隐藏）；重建列表清除
-                        // RETAINED。有挂起项时保留验证控件，理由同上。
-                        runOnUi(() -> {
-                            if (!captchaPending) {
-                                controller.destroyButton();
-                                controller.createUtils();
-                            }
-                            viewModel.refreshBgFeatureEnabled();
-                            viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
-                            viewModel.refreshTaskItems();
-                        });
-                        // 用户主动取消时不弹验证：挂起项留在「待验证」，下次运行会自然重试
-                        if (captchaPending && !isTaskCancelled())
-                            handleRoundEndCaptcha(runUser, captchaTaskIds, captchaHeaders.get());
-                        else if (captchaPending)
-                            Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
-                    } finally {
-                        sRoundClosing = false;
-                        RunRecovery.finish(context);
-                        Notification.endForegroundRun();
-                    }
-                }
-            });
+            runForegroundRound(onlyUser, failedIds);
         });
 
         root.setOnCancelDailyListener(() -> VenusDialogs.confirm(
@@ -1657,20 +1492,11 @@ public class HomeFragment implements PageController {
     }
 
     /**
-     * 收集当前用户当日 ERROR 状态的任务 id（与 {@code TaskStatusManager} 持久化键同源），
-     * 供「重试失败任务」按 id 过滤——不再用显示名，避免切语言后整轮重试落空。
+     * 按账号收集当日 ERROR 任务，当前账号优先。
+     *
+     * <p>键与 {@code TaskStatusManager} 持久化键同源（稳定任务 id），「重试失败任务」据此按 id 过滤——
+     * 不用显示名，避免切语言后整轮重试落空。
      */
-    private Set<String> collectFailedTaskIds() {
-        String user = viewModel.getCurrentUser();
-        if (user == null || user.isEmpty()) return java.util.Collections.emptySet();
-        Map<String, String> statuses = new TaskStatusManager(activity).getAllStatuses(user);
-        Set<String> failed = new HashSet<>();
-        for (Map.Entry<String, String> e : statuses.entrySet())
-            if (TaskStatusManager.STATUS_ERROR.equals(e.getValue())) failed.add(e.getKey());
-        return failed;
-    }
-
-    /** 按账号收集当日 ERROR 任务，当前账号优先。 */
     private Map<String, Set<String>> collectFailedByUser() {
         Map<String, Set<String>> result = new java.util.LinkedHashMap<>();
         if (userManager == null) userManager = new UserManager(activity);
@@ -1715,7 +1541,7 @@ public class HomeFragment implements PageController {
             Notification.beginForegroundRun();
             try {
                 MultiUserRunner.run(activity, users, MultiUserRunner.DEFAULT_GAP_MS,
-                        (userId, index, total) -> runBatchAccount(userId, total, onlyIdsByUser),
+                        (userId, index, total) -> runBatchAccount(userId, onlyIdsByUser),
                         this::isTaskCancelled);
             } finally {
                 // 标记本轮收尾中
@@ -1746,8 +1572,121 @@ public class HomeFragment implements PageController {
         });
     }
 
+    /**
+     * 前台单账号整轮运行（「运行签到」与「重试失败」共用）：提交后台整轮，跑完走统一轮末收口。
+     *
+     * @param runUser 本轮运行账号（启动时刻钉死，不随界面展示账号漂移）
+     * @param onlyIds null = 全量执行；非 null = 只补跑这批任务 id（重试失败路径）
+     */
+    private void runForegroundRound(String runUser, java.util.Set<String> onlyIds) {
+        currentTaskFuture = AppExecutors.get().submit(() -> {
+            // 应用内运行：整轮抑制系统通知——用户就在界面上，进度看列表、错误走对话框。
+            // 任务模块（BBSDaily/BBSGameDaily/…）的失败通知没有运行形态概念，判据统一收在 Notification。
+            Notification.beginForegroundRun();
+            // 挂起的验证需求：首个挂起即发起验证（不等轮末，见 onCaptchaRequired），后续挂起只并入名单
+            Set<String> captchaTaskIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+            java.util.concurrent.atomic.AtomicBoolean captchaRequested =
+                    new java.util.concurrent.atomic.AtomicBoolean(false);
+            java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            try {
+                TaskSettings settings = TaskSettings.fromPreferences(activity, runUser);
+                if (settings.hasAnyTaskDisabled()) {
+                    // 引导性约束而非故障：用「提示」弹窗，不带「复制错误」入口
+                    runOnUi(() -> show_warning_dialog(activity, activity.getString(R.string.err_set_task_first)));
+                    return;
+                }
+                TaskExecutor taskExecutor = new TaskExecutor(
+                        activity, runUser, notifier,
+                        newForegroundCallback(runUser, captchaTaskIds, captchaRequested, captchaHeaders));
+                // onlyIds 为 null 时全量；非 null 时 TaskExecutor 只提交 id 命中的任务（含单游戏粒度）
+                if (onlyIds == null) taskExecutor.executeAll(settings);
+                else taskExecutor.executeAll(settings, onlyIds);
+                // 轮内补跑：验证在本轮进行中完成时立刻重跑挂起项，不必等整轮结束走 Worker
+                rerunSolvedCaptchaInRound(taskExecutor, settings, runUser);
+            } finally {
+                // 任务已全部结束（executeAll 已返回），只剩本段收尾：让 isTaskRunning() 立刻反映这一点，
+                // 否则下面排的续跑轮会被 Worker 的「手动运行占用」判断挡回，白等 5 分钟复查
+                sRoundClosing = true;
+                // 本轮结束：残留的「轮内补跑」标记作废（竞态下 executeAll 已返回、补跑没赶上），
+                // 轮末收口会照常兜底排续跑，不会漏
+                captchaSolvedInRound = false;
+                try {
+                    boolean captchaPending = !captchaTaskIds.isEmpty();
+                    // 回到空闲态：按钮恢复由 UiState 派生；重建列表清除 RETAINED、恢复持久层原状。
+                    // 有挂起项时不销毁验证控件——那是用户此刻唯一能操作的东西，轮末清掉等于把他手上的
+                    // 验证作废（旧实现正是如此，表现为「点了条目、验到一半按钮消失」）。
+                    runOnUi(() -> {
+                        if (!captchaPending) {
+                            controller.destroyButton();
+                            controller.createUtils();
+                        }
+                        viewModel.refreshBgFeatureEnabled();
+                        viewModel.setRunMode(HomeViewModel.RunMode.IDLE);
+                        viewModel.refreshTaskItems();
+                    });
+                    // 用户主动取消时不弹验证：挂起项留在「待验证」，下次运行会自然重试
+                    if (captchaPending && !isTaskCancelled())
+                        handleRoundEndCaptcha(runUser, captchaTaskIds, captchaHeaders.get());
+                    else if (captchaPending)
+                        Logger.debug("VenusCaptcha", "skip showing captcha: task cancelled");
+                } finally {
+                    // 这几步必须在 finally 里：上面任何一步抛异常都不能留下「永久收尾中」或「永久静音」
+                    sRoundClosing = false;
+                    // 本轮已收口（含取消），撤销中断快照，下次启动不再补跑
+                    RunRecovery.finish(activity);
+                    // 收尾一定要清：否则后续所有运行（含后台）都会被永久静音
+                    Notification.endForegroundRun();
+                }
+            }
+        });
+    }
+
+    /**
+     * 前台单账号回调（「运行签到」/「重试失败」共用）：状态写回、错误弹窗、
+     * 首个验证挂起就地发起验证（不等轮末，理由见方法内注释）。
+     */
+    private TaskExecutor.Callback newForegroundCallback(
+            String runUser,
+            Set<String> captchaTaskIds,
+            java.util.concurrent.atomic.AtomicBoolean captchaRequested,
+            java.util.concurrent.atomic.AtomicReference<Map<String, String>> captchaHeaders) {
+        return new TaskExecutor.Callback() {
+            @Override
+            public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                updateTaskStatus(runUser, taskId, status);
+            }
+
+            @Override
+            public void onAllTasksCompleted() {
+                notifier.notifyListeners(activity.getString(R.string.task_completed));
+            }
+
+            @Override
+            public void onError(String message) {
+                activity.runOnUiThread(() -> show_error_dialog(activity, message));
+            }
+
+            @Override
+            public void onCaptchaRequired(CaptchaRequiredException error) {
+                captchaTaskIds.add(error.getTaskId());
+                captchaHeaders.compareAndSet(null, error.getHeaders());
+                // 首个挂起就地发起验证，不再等本轮剩余任务跑完：它们还各有 2~9s 风控延时，
+                // 用户会先看到列表变成「待验证」，验证框却要等几十秒才出来（旧行为），
+                // 且这段空档里点任务行会另起一份 challenge，把真正的验证挤掉。
+                if (captchaRequested.compareAndSet(false, true))
+                    suspendAndShowCaptcha(runUser, captchaTaskIds, error.getHeaders());
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return isTaskCancelled();
+            }
+        };
+    }
+
     /** 批量运行中的单个账号：复位 → 执行 → 轮末把验证需求交给队列。 */
-    private void runBatchAccount(String userId, int total, Map<String, Set<String>> onlyIdsByUser) {
+    private void runBatchAccount(String userId, Map<String, Set<String>> onlyIdsByUser) {
         runningRoundUser = userId;
         TaskSettings settings = TaskSettings.fromPreferences(activity, userId);
         if (settings.hasAnyTaskDisabled()) {
@@ -1763,7 +1702,7 @@ public class HomeFragment implements PageController {
                 new java.util.concurrent.atomic.AtomicReference<>();
         Set<String> onlyIds = onlyIdsByUser == null ? null : onlyIdsByUser.get(userId);
 
-        TaskExecutor taskExecutor = new TaskExecutor(activity, userId, notifier, controller,
+        TaskExecutor taskExecutor = new TaskExecutor(activity, userId, notifier,
                 new TaskExecutor.Callback() {
                     @Override
                     public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {

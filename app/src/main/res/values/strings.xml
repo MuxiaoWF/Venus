@@ -323,7 +323,6 @@
     <string name="msg_battery_optimization_hint">系统电池优化可能会中断后台任务。请在电池设置中将本应用设为\"不受限制\"以确保任务正常执行。\n\n如看到厂商设置页面，请将本应用加入不限制名单。\n\n关闭后此提示将不再出现。</string>
     <string name="msg_no_game_role_or_error">没有游戏角色或获取链接出错</string>
     <string name="msg_select_user_first">请先选择一个用户</string>
-    <string name="msg_no_server_user">暂无%s用户\n点击右下角按钮添加新用户</string>
 
     <!-- Snackbar消息 -->
     <string name="snack_error_copied">错误信息已复制到剪切板</string>
@@ -420,8 +419,10 @@
     <plurals name="widget_task_summary">
         <item quantity="other">%1$d/%2$d 已完成</item>
     </plurals>
-    <!-- 多账号汇总：账号数 · 全部账号的已完成/总数 -->
-    <string name="widget_accounts_summary">%1$d 个账号 · %2$d/%3$d</string>
+    <!-- 多账号汇总：账号数 · 全部账号的已完成/总数（账号数按复数取词，见 values-en） -->
+    <plurals name="widget_accounts_summary">
+        <item quantity="other">%1$d 个账号 · %2$d/%3$d</item>
+    </plurals>
     <string name="widget_run">运行</string>
     <string name="widget_running">运行中…</string>
     <string name="widget_no_user">请先在应用中登录账号</string>
@@ -457,7 +458,6 @@
     <string name="captcha_suspend_title">需要人机验证</string>
     <string name="captcha_suspend_content">以下任务等待验证，点击完成：%s</string>
     <string name="captcha_challenge_failed">无法获取人机验证挑战，请稍后重试</string>
-    <string name="geetest_no_ui_context">当前环境无法弹出人机验证，请在应用内重试</string>
     <string name="geetest_ui_init_failed">验证码控件加载失败，请重试；若持续失败请更新应用</string>
 
     <!-- 任务执行器 -->
@@ -736,12 +736,18 @@
     <string name="notif_with_account">账号 %1$d/%2$d · %3$s</string>
     <!-- 设置页：任务配置的目标账号 -->
     <string name="settings_apply_all_accounts">应用到全部账号</string>
-    <string name="settings_apply_all_confirm">把这套签到计划写入全部 %1$d 个账号（各自原有的勾选会被覆盖）。</string>
-    <string name="settings_apply_all_done">已应用到 %1$d 个账号</string>
+    <plurals name="settings_apply_all_confirm">
+        <item quantity="other">把这套签到计划写入全部 %1$d 个账号（各自原有的勾选会被覆盖）。</item>
+    </plurals>
+    <plurals name="settings_apply_all_done">
+        <item quantity="other">已应用到 %1$d 个账号</item>
+    </plurals>
     <string name="settings_editing_task">正在编辑：%1$s</string>
     <string name="settings_task_account_title">编辑目标账号</string>
     <string name="chips_overflow_collapse">收起</string>
-    <string name="user_card_task_summary">签到 %1$d 项 · 今日 %2$d/%3$d</string>
+    <plurals name="user_card_task_summary">
+        <item quantity="other">签到 %1$d 项 · 今日 %2$d/%3$d</item>
+    </plurals>
     <!-- 米游币签到是国服专属：卡片摘要与拦截提示 -->
     <string name="daily_card_unsupported_oversea">国际服不支持</string>
     <string name="daily_unsupported_oversea">米游币签到仅支持国服账号</string>

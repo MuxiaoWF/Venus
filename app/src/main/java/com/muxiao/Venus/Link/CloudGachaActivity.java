@@ -60,6 +60,9 @@ public class CloudGachaActivity extends BaseActivity {
      */
     private static final String GENSHIN_CLOUD_URL = "https://ys.mihoyo.com/cloud/";
 
+    /** 云游戏 token 的请求头名（页面给出的键名大小写不稳定，取值时按忽略大小写比对）。 */
+    private static final String HEADER_COMBO_TOKEN = "x-rpc-combo_token";
+
     private WebView webView;
     /** Compose 版页面宿主：顶栏 / 提示行 / 内容区三态都由它绘制。 */
     private com.muxiao.Venus.common.ui.compose.CloudGachaScreenView pane;
@@ -237,7 +240,7 @@ public class CloudGachaActivity extends BaseActivity {
         } else {
             return; // 不是云游戏钱包域名
         }
-        String token = headerValue(request, "x-rpc-combo_token");
+        String token = headerValue(request);
         if (token == null || token.isEmpty()) return;
         final String capturedGame = game;
         final String capturedToken = token;
@@ -246,12 +249,14 @@ public class CloudGachaActivity extends BaseActivity {
     }
 
     /**
-     * 大小写不敏感地取请求头值：WebView 给出的键名大小写不稳定，个别机型在请求头不可用时还会抛异常，故整体兜底。
+     * 大小写不敏感地取云游戏 token 请求头：WebView 给出的键名大小写不稳定，个别机型在请求头不可用时还会抛异常，
+     * 故整体兜底。
      */
-    private static String headerValue(WebResourceRequest request, String name) {
+    private static String headerValue(WebResourceRequest request) {
         try {
             for (java.util.Map.Entry<String, String> entry : request.getRequestHeaders().entrySet()) {
-                if (entry.getKey() != null && name.equalsIgnoreCase(entry.getKey())) return entry.getValue();
+                if (entry.getKey() != null && HEADER_COMBO_TOKEN.equalsIgnoreCase(entry.getKey()))
+                    return entry.getValue();
             }
         } catch (RuntimeException ignored) {
             // 头信息不可用：忽略本次，页面还会再发 wallet 请求

@@ -54,7 +54,6 @@ public class TaskExecutor {
     private final Context context;
     private final String userId;
     private final tools.StatusNotifier notifier;
-    private final GeetestController controller;
     private final Callback callback;
 
     /**
@@ -72,12 +71,11 @@ public class TaskExecutor {
             });
 
     public TaskExecutor(Context context, String userId,
-                        tools.StatusNotifier notifier, GeetestController controller,
+                        tools.StatusNotifier notifier,
                         Callback callback) {
         this.context = context;
         this.userId = userId;
         this.notifier = notifier;
-        this.controller = controller;
         this.callback = callback;
     }
 
@@ -254,20 +252,20 @@ public class TaskExecutor {
         }
     }
 
-    /** 待执行目标为空（未勾选任何板块/游戏）的统一处理：任务置错误态 + 回调错误提示，调用方据此直接 return。 */
-    private void reportEmptyTargets(String taskId, int emptyMessageRes) {
-        callback.onTaskStatusChanged(taskId, TaskItem.TaskStatus.ERROR);
+    /** 待执行目标为空（未勾选任何板块）的统一处理：任务置错误态 + 回调错误提示，调用方据此直接 return。 */
+    private void reportEmptyTargets(int emptyMessageRes) {
+        callback.onTaskStatusChanged(TaskIds.BBS_DAILY, TaskItem.TaskStatus.ERROR);
         callback.onError(context.getString(emptyMessageRes));
     }
 
     /** 执行米游币社区签到：未配置板块时报错，否则提交 BBSDaily.runTask。 */
     private void executeBbsDaily(String[] forums, boolean isOversea) {
         if (forums == null || forums.length == 0) {
-            reportEmptyTargets(TaskIds.BBS_DAILY, R.string.task_bbs_daily_no_forum);
+            reportEmptyTargets(R.string.task_bbs_daily_no_forum);
             return;
         }
         executeTask(TaskIds.BBS_DAILY, () -> {
-            BBSDaily bbsDaily = new BBSDaily(context, userId, notifier, controller, isOversea);
+            BBSDaily bbsDaily = new BBSDaily(context, userId, notifier, isOversea);
             bbsDaily.runTask(forums);
         });
     }
@@ -289,7 +287,7 @@ public class TaskExecutor {
             futures.add(GAME_SIGN_POOL.submit(() -> {
                 String displayName = MiHoYoBBSConstants.game_to_display_name(context, gameName);
                 executeTask(TaskIds.gameSignIn(gameName), () -> {
-                    BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, controller, isOversea);
+                    BBSGameDaily gameModule = new BBSGameDaily(context, userId, gameName, notifier, isOversea);
                     notifier.notifyListeners(context.getString(R.string.task_sign_preparing, displayName));
                     gameModule.run();
                 });

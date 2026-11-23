@@ -41,7 +41,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
@@ -51,7 +50,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.muxiao.Venus.R
-import com.muxiao.Venus.common.tools
 
 /** 一张用户卡的数据。`displayName` 由 Java 侧拼好（`R.string.user_label_with_server`）：i18n 留在有 Context 的一侧，UI 只排版。 */
 @Immutable
@@ -205,16 +203,6 @@ fun UserManagementScreen(
             text = { Text(text = stringResource(R.string.add_or_login_user)) },
         )
     }
-}
-
-/** 区块标签（`Widget.Venus.SectionLabel`）。 */
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = LocalVenusTextStyles.current.sectionLabel,
-        modifier = Modifier.padding(bottom = dimensionResource(R.dimen.space_1)),
-    )
 }
 
 /** 空态：图标 + 文案居中。Compose 无 `drawableTop` 等价属性，改用 Column 纵排，也便于给图标单独着色。 */
@@ -480,13 +468,6 @@ private fun CardAction(
             modifier = Modifier.padding(start = dimensionResource(R.dimen.space_2)),
         )
     }
-}
-
-/** 系统「减少动态效果」开关：与 View 侧同一判定口径。 */
-@Composable
-private fun rememberReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember(context) { tools.isReducedMotionEnabled(context) }
 }
 
 /** 用户管理页宿主：`UserManagementFragment` 直接 new 来当根视图，之后 UI 更新全走 setUsers / setSubtitle / setEmptyText。 */

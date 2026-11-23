@@ -20,6 +20,7 @@ import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
+import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.common.tools;
@@ -211,7 +212,8 @@ public class UserManagementFragment implements PageController {
         TaskStatusManager statusManager = new TaskStatusManager(getContext());
         for (String taskId : ids)
             if (TaskStatusManager.STATUS_COMPLETED.equals(statusManager.getStatus(username, taskId))) done++;
-        return activity.getString(R.string.user_card_task_summary, ids.size(), done, ids.size());
+        return activity.getResources().getQuantityString(R.plurals.user_card_task_summary,
+                ids.size(), ids.size(), done, ids.size());
     }
 
     /**
@@ -522,7 +524,7 @@ public class UserManagementFragment implements PageController {
         alignGlobalServer(oversea);
         Intent intent = new Intent(activity,
                 oversea ? OAuthLoginActivity.class : UserLoginActivity.class);
-        intent.putExtra("RELOGIN_MODE", true);
+        intent.putExtra(Constants.EXTRA_RELOGIN_MODE, true);
         intent.putExtra("USERNAME", username); // 传递用户名
         activity.startActivity(intent);
     }

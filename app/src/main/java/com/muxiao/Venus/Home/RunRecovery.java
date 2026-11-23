@@ -56,7 +56,7 @@ public final class RunRecovery {
                 .getSharedPreferences(Constants.Prefs.SETTINGS_PREFS_NAME, Context.MODE_PRIVATE);
     }
 
-    private static String today(Context context) {
+    private static String today() {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date());
     }
 
@@ -65,7 +65,7 @@ public final class RunRecovery {
         if (targets == null || targets.isEmpty()) return;
         Snapshot snapshot = new Snapshot();
         snapshot.startedAt = System.currentTimeMillis();
-        snapshot.date = today(context);
+        snapshot.date = today();
         for (Map.Entry<String, ? extends Collection<String>> e : targets.entrySet()) {
             if (e.getKey() == null || e.getKey().isEmpty() || e.getValue() == null || e.getValue().isEmpty())
                 continue;
@@ -89,39 +89,39 @@ public final class RunRecovery {
      * cancelled / error（用户取消或任务自身失败，不在这里自动重试）。
      * 只补 pending 与 in_progress——后者正是进程死亡时的残留态。
      *
-     * @return 是否补排过（调用方据此决定是否刷新界面）
+     * <p>不返回「有没有补排过」：调用方紧接着都会刷新界面与聚合条，返回值只会诱导出错的一侧
+     * 多做一次无用刷新。
      */
-    public static boolean recover(Context context) {
+    public static void recover(Context context) {
         SharedPreferences sp = prefs(context);
         String raw = sp.getString(PREF_SNAPSHOT, "");
-        if (raw.isEmpty()) return false;
+        if (raw.isEmpty()) return;
         Snapshot snapshot;
         try {
             snapshot = GSON.fromJson(raw, Snapshot.class);
         } catch (RuntimeException e) {
             sp.edit().remove(PREF_SNAPSHOT).apply();
-            return false;
+            return;
         }
-        if (snapshot == null || snapshot.targets == null || snapshot.targets.isEmpty()) {
+        if (snapshot == null || snapshot.targets.isEmpty()) {
             sp.edit().remove(PREF_SNAPSHOT).apply();
-            return false;
+            return;
         }
         // 跨天或过旧：定时链会按「当天必跑一次」补，这里的旧快照不再有意义
-        boolean stale = !today(context).equals(snapshot.date)
+        boolean stale = !today().equals(snapshot.date)
                 || System.currentTimeMillis() - snapshot.startedAt > MAX_AGE_MS
                 || snapshot.startedAt <= 0;
         if (stale) {
             sp.edit().remove(PREF_SNAPSHOT).apply();
-            return false;
+            return;
         }
         // 仍有任一路在运行时不抢：等它结束后的下一次 show()/冷启动再处理，
         // 否则两路 TaskExecutor 同时写状态桶会互相覆盖。
         if (HomeFragment.isTaskRunning()
                 || ForegroundTaskService.isRunning()
-                || DailyTaskWorker.isRunning()) return false;
+                || DailyTaskWorker.isRunning()) return;
 
         TaskStatusManager statusManager = new TaskStatusManager(context);
-        boolean queued = false;
         boolean first = true;
         for (Map.Entry<String, List<String>> e : snapshot.targets.entrySet()) {
             String user = e.getKey();
@@ -144,17 +144,8 @@ public final class RunRecovery {
             // 第一个账号 REPLACE 掉「明天到点」那个节点以便立即执行；其余账号追加到链尾串行跑
             DailyTaskScheduler.enqueueInterruptedResume(context, user, incomplete, first);
             first = false;
-            queued = true;
         }
         // 同样同步清除：apply() 未落盘就再次回到前台时会把同一批 pending 项重复排一次续跑
         sp.edit().remove(PREF_SNAPSHOT).apply();
-        return queued;
     }
-
-    /** 供界面提示用的只读查询：是否存在未处理的中断快照。 */
-    public static boolean hasPendingRecovery(Context context) {
-        String raw = prefs(context).getString(PREF_SNAPSHOT, "");
-        return !raw.isEmpty();
-    }
-
 }

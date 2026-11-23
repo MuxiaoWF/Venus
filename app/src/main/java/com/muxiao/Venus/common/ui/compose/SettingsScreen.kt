@@ -47,7 +47,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.dimensionResource
@@ -58,7 +57,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import com.muxiao.Venus.R
-import com.muxiao.Venus.common.tools
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -260,15 +258,6 @@ fun SettingsScreen(
     }
 }
 
-@Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = LocalVenusTextStyles.current.sectionLabel,
-        modifier = modifier.padding(bottom = dimensionResource(R.dimen.space_1)),
-    )
-}
-
 /**
  * 一扇抽屉：标题行（标题 + 摘要 + 箭头）与展开内容。标题行左右 space_2、上下 space_4；展开内容整体缩进 space_2，
  * 左侧 2dp 引导线表示「从属于父行」的层级，缩进量由 DrawerPane 的 space_3 提供，此处不要再叠加。
@@ -410,13 +399,6 @@ private fun SettingsCardItem(card: SettingsCard) {
             }
         }
     }
-}
-
-/** 系统「减少动态效果」开关：与 View 侧同一判定口径。 */
-@Composable
-private fun rememberReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember(context) { tools.isReducedMotionEnabled(context) }
 }
 
 /**

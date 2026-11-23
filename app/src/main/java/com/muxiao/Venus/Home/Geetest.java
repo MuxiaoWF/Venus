@@ -47,13 +47,8 @@ public class Geetest {
     public static void geetest(Context context, Map<String, String> headers, GeetestVerificationCallback callback,
                                GeetestController gt3Controller, boolean isOversea) {
         Logger.debug("VenusCaptcha", "Geetest.geetest() called, controller=" + gt3Controller.getClass().getSimpleName());
-        // 后台没有 UI 承载：任务应在命中 1034 时抛 CaptchaRequiredException 挂起，不该走到这里。
-        // 明确失败而不是静默等待，避免又回到「后台空转 5 分钟」的老路。
-        if (!gt3Controller.hasUi()) {
-            Logger.debug("VenusCaptcha", "geetest() rejected: controller has no UI");
-            callback.onVerificationFailed(context.getString(R.string.geetest_no_ui_context));
-            return;
-        }
+        // 只有前台会走到这里（后台命中 1034 时走 CaptchaRequiredException 挂起），控制器必带 UI，
+        // 故不再单独判 hasUi——保留那层判断只会让人以为后台还能驱动极验 SDK。
         gt3Controller.createUtils(); // 防止未创建
         Logger.debug("VenusCaptcha", "Calling API1...");
         String response = sendGetRequest(api1Url(isOversea), headers, null);
@@ -115,11 +110,6 @@ public class Geetest {
                                             GeetestVerificationCallback callback, GeetestController gt3Controller,
                                             boolean isOversea) {
         Logger.debug("VenusCaptcha", "Geetest.geetestWithChallenge() called, gt=" + gt);
-        if (!gt3Controller.hasUi()) {
-            Logger.debug("VenusCaptcha", "geetestWithChallenge() rejected: controller has no UI");
-            callback.onVerificationFailed(context.getString(R.string.geetest_no_ui_context));
-            return;
-        }
         gt3Controller.createUtils();
         setupAndCreateButton(context, gt, challenge, headers, callback, gt3Controller, isOversea);
     }

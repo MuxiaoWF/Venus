@@ -244,12 +244,6 @@ public class Notification {
         if (nm != null) nm.cancel(Constants.NOTIFICATION_ID_CAPTCHA);
     }
 
-    /** 取消并移除错误通知（NOTIFICATION_ID_ERROR）。 */
-    public void dismissErrorNotification() {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.cancel(Constants.NOTIFICATION_ID_ERROR);
-    }
-
     /** 创建持久进度通知（前台 Service 用）。 */
     public NotificationCompat.Builder createProgressNotification(String title, String content) {
         ensureChannels();

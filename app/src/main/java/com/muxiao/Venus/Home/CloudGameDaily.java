@@ -4,7 +4,6 @@ import static com.muxiao.Venus.common.tools.sendGetRequest;
 
 import android.content.Context;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
@@ -149,7 +148,7 @@ public class CloudGameDaily {
         tools.randomDelay(DELAY_MIN_MS, DELAY_RANGE_MS);
 
         JsonObject payload = requestWallet(token);
-        JsonObject freeTimeObject = child(payload, "free_time");
+        JsonObject freeTimeObject = JsonAccess.optObject(payload, "free_time");
         int freeTime = JsonAccess.optInt(freeTimeObject, "free_time", -1);
         int sendFreeTime = JsonAccess.optInt(freeTimeObject, "send_freetime", 0);
 
@@ -161,7 +160,7 @@ public class CloudGameDaily {
             // 接口未回报发放量且余额偏低：间隔数秒再查一次，用增量确认是否真的发放
             tools.randomDelay(CONFIRM_DELAY_MIN_MS, CONFIRM_DELAY_RANGE_MS);
             JsonObject second = requestWallet(token);
-            JsonObject secondFreeTime = child(second, "free_time");
+            JsonObject secondFreeTime = JsonAccess.optObject(second, "free_time");
             int freeTimeAfter = JsonAccess.optInt(secondFreeTime, "free_time", freeTime);
             if (freeTimeAfter > freeTime) {
                 int granted = freeTimeAfter - freeTime;
@@ -238,8 +237,8 @@ public class CloudGameDaily {
 
     /** 组装「剩余时长 · 畅玩卡 · 代币」摘要。 */
     private String buildStatus(JsonObject payload, int freeTime) {
-        JsonObject playCard = child(payload, "play_card");
-        JsonObject coin = child(payload, "coin");
+        JsonObject playCard = JsonAccess.optObject(payload, "play_card");
+        JsonObject coin = JsonAccess.optObject(payload, "coin");
         String playCardStatus = JsonAccess.optString(playCard, "short_msg",
                 context.getString(R.string.cloud_game_play_card_unknown));
         int coinNum = JsonAccess.optInt(coin, "coin_num", 0);
@@ -258,10 +257,4 @@ public class CloudGameDaily {
         return context.getString(R.string.cloud_game_duration_hours_minutes, hours, rest);
     }
 
-    /** 读取嵌套子对象：缺失或非对象时返回 null（本地小工具，避免为单一场景扩散 JsonAccess 接口）。 */
-    private static JsonObject child(JsonObject obj, String member) {
-        if (obj == null) return null;
-        JsonElement element = obj.get(member);
-        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
-    }
 }

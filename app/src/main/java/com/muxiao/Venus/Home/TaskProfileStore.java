@@ -29,6 +29,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
+import com.muxiao.Venus.common.tools;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -114,7 +115,7 @@ public final class TaskProfileStore {
         SharedPreferences prefs = prefs(context);
         if (userId == null || userId.isEmpty()) return defaults();
 
-        TaskProfile stored = parse(prefs.getString(KEY_PREFIX + userId, ""));
+        TaskProfile stored = tools.fromJsonOrNull(GSON, prefs.getString(KEY_PREFIX + userId, ""), TaskProfile.class);
         if (stored != null) return normalize(stored);
 
         TaskProfile inherited = template(context);
@@ -145,7 +146,7 @@ public final class TaskProfileStore {
     public static void rename(Context context, String oldUserId, String newUserId) {
         if (oldUserId == null || newUserId == null || oldUserId.isEmpty() || newUserId.isEmpty()
                 || oldUserId.equals(newUserId)) return;
-        TaskProfile moved = parse(prefs(context).getString(KEY_PREFIX + oldUserId, ""));
+        TaskProfile moved = tools.fromJsonOrNull(GSON, prefs(context).getString(KEY_PREFIX + oldUserId, ""), TaskProfile.class);
         if (moved == null) return;
         save(context, newUserId, moved);
         delete(context, oldUserId);
@@ -159,7 +160,7 @@ public final class TaskProfileStore {
      */
     public static TaskProfile template(Context context) {
         SharedPreferences prefs = prefs(context);
-        TaskProfile stored = parse(prefs.getString(KEY_TEMPLATE, ""));
+        TaskProfile stored = tools.fromJsonOrNull(GSON, prefs.getString(KEY_TEMPLATE, ""), TaskProfile.class);
         if (stored != null) return normalize(stored);
 
         TaskProfile legacy = legacySnapshot(prefs);
@@ -211,15 +212,6 @@ public final class TaskProfileStore {
         return picked;
     }
 
-    /** 反序列化；空串（键不存在）或损坏 JSON 返回 null，由调用方走「继承模板 / 新建」路径。 */
-    private static TaskProfile parse(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
-        try {
-            return GSON.fromJson(raw, TaskProfile.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
 
     /** 补齐缺失字段：Gson 反序列化时 null 集合会让调用方 NPE，版本号统一收敛到当前版本。 */
     private static TaskProfile normalize(TaskProfile profile) {

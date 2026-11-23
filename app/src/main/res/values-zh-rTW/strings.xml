@@ -314,7 +314,6 @@
     <string name="msg_battery_optimization_hint">系統電池最佳化可能會中斷背景任務。請在電池設定中將本應用設為\"不受限制\"以確保任務正常執行。\n\n如看到廠商設定頁面，請將本應用加入不限制名單。\n\n關閉後此提示將不再出現。</string>
     <string name="msg_no_game_role_or_error">沒有遊戲角色或取得連結出錯</string>
     <string name="msg_select_user_first">請先選擇一個使用者</string>
-    <string name="msg_no_server_user">暫無%s使用者\n點選右下角按鈕新增新使用者</string>
 
     <!-- Snackbar訊息 -->
     <string name="snack_error_copied">錯誤資訊已複製到剪貼簿</string>
@@ -411,8 +410,10 @@
     <plurals name="widget_task_summary">
         <item quantity="other">%1$d/%2$d 已完成</item>
     </plurals>
-    <!-- 多帳號彙總：帳號數 · 全部帳號的已完成/總數 -->
-    <string name="widget_accounts_summary">%1$d 個帳號 · %2$d/%3$d</string>
+    <!-- 多帳號彙總：帳號數 · 全部帳號的已完成/總數（帳號數按複數取詞，見 values-en） -->
+    <plurals name="widget_accounts_summary">
+        <item quantity="other">%1$d 個帳號 · %2$d/%3$d</item>
+    </plurals>
     <string name="widget_run">執行</string>
     <string name="widget_running">執行中…</string>
     <string name="widget_no_user">請先在應用中登入帳號</string>
@@ -448,7 +449,6 @@
     <string name="captcha_suspend_title">需要人機驗證</string>
     <string name="captcha_suspend_content">以下任務等待驗證，點擊完成：%s</string>
     <string name="captcha_challenge_failed">無法取得人機驗證挑戰，請稍後重試</string>
-    <string name="geetest_no_ui_context">目前環境無法彈出人機驗證，請在應用內重試</string>
     <string name="geetest_ui_init_failed">驗證碼控件載入失敗，請重試；若持續失敗請更新應用</string>
 
     <!-- 任務執行器 -->
@@ -726,12 +726,18 @@
     <string name="notif_with_account">帳號 %1$d/%2$d · %3$s</string>
     <!-- 設定頁：任務設定的目標帳號 -->
     <string name="settings_apply_all_accounts">套用到全部帳號</string>
-    <string name="settings_apply_all_confirm">把這套簽到計畫寫入全部 %1$d 個帳號（各自原有的勾選會被覆蓋）。</string>
-    <string name="settings_apply_all_done">已套用到 %1$d 個帳號</string>
+    <plurals name="settings_apply_all_confirm">
+        <item quantity="other">把這套簽到計畫寫入全部 %1$d 個帳號（各自原有的勾選會被覆蓋）。</item>
+    </plurals>
+    <plurals name="settings_apply_all_done">
+        <item quantity="other">已套用到 %1$d 個帳號</item>
+    </plurals>
     <string name="settings_editing_task">正在編輯：%1$s</string>
     <string name="settings_task_account_title">編輯目標帳號</string>
     <string name="chips_overflow_collapse">收起</string>
-    <string name="user_card_task_summary">簽到 %1$d 項 · 今日 %2$d/%3$d</string>
+    <plurals name="user_card_task_summary">
+        <item quantity="other">簽到 %1$d 項 · 今日 %2$d/%3$d</item>
+    </plurals>
     <!-- 米遊幣簽到是國服專屬：卡片摘要與攔截提示 -->
     <string name="daily_card_unsupported_oversea">國際服不支援</string>
     <string name="daily_unsupported_oversea">米遊幣簽到僅支援國服帳號</string>

@@ -60,8 +60,4 @@ public final class WakeLockLease {
             // 已被系统回收，忽略
         }
     }
-
-    public boolean isHeld() {
-        return lock != null && lock.isHeld();
-    }
 }

@@ -281,16 +281,6 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     /**
-     * 更新单个任务状态：持久化 + 发布新快照 + 刷新小组件。用于「本页线程执行任务」的场景（本页是唯一写入方）。
-     * 可从任意线程调用。默认写当前展示账号，兼容旧调用。
-     *
-     * @param taskId 稳定任务 id
-     */
-    public void updateTaskStatus(String taskId, TaskItem.TaskStatus status) {
-        updateTaskStatus(currentUser, taskId, status);
-    }
-
-    /**
      * 按<b>运行账号</b>更新任务状态。多账号环境下，前台任务跑着时用户仍可切换展示账号——
      * 此时继续用 currentUser 会把 A 的执行结果（尤其是 WAITING_CAPTCHA）写进 B 的桶，
      * 验证码与续跑名单也就跟着错位（表现为「验完了 A 还是待验证」）。

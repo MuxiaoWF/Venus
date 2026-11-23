@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.muxiao.Venus.Home.TaskIds;
 import com.muxiao.Venus.Home.TaskItem;
 import com.muxiao.Venus.common.data.TaskStatusRepository;
+import com.muxiao.Venus.common.tools;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -149,7 +150,7 @@ public class TaskStatusManager {
             String key = e.getKey();
             if (!key.startsWith(KEY_PREFIX_BUCKET)) continue;
             String userId = key.substring(KEY_PREFIX_BUCKET.length());
-            Bucket b = parseBucket(str(e.getValue()));
+            Bucket b = tools.fromJsonOrNull(gson, str(e.getValue()), Bucket.class);
             if (b == null) continue;
             normalizeLegacyKeys(b, legacyNames);
             if (!b.date.equals(today)) {
@@ -182,15 +183,6 @@ public class TaskStatusManager {
         }
         return b;
     }
-    /** 反序列化桶 JSON；空串/损坏 JSON 返回 null，由调用方按新建桶处理。 */
-    private Bucket parseBucket(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
-        try {
-            return gson.fromJson(raw, Bucket.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
 
     /**
      * 把桶内的旧版本地化名称键换成稳定 id（键序保持原样）。
@@ -213,7 +205,7 @@ public class TaskStatusManager {
 
     /** 读取单用户桶；无桶/损坏 JSON 一律按新建桶处理（空状态 + 今日归属）。 */
     private Bucket loadBucket(String userId) {
-        Bucket b = parseBucket(repo.getString(KEY_PREFIX_BUCKET + userId, ""));
+        Bucket b = tools.fromJsonOrNull(gson, repo.getString(KEY_PREFIX_BUCKET + userId, ""), Bucket.class);
         if (b == null) b = new Bucket();
         if (b.date == null || b.date.isEmpty()) b.date = todayString();
         if (b.statuses == null) b.statuses = new LinkedHashMap<>();

@@ -306,7 +306,7 @@ public class AdbCaptureService extends Service {
                     stopCapture();
                     return;
                 }
-                if (sleepQuietly(POLL_INTERVAL_MS)) return;
+                if (sleepPollInterval()) return;
                 continue;
             }
             consecutiveFailures = 0;
@@ -320,14 +320,14 @@ public class AdbCaptureService extends Service {
                 stopCapture();
                 return;
             }
-            if (sleepQuietly(POLL_INTERVAL_MS)) return;
+            if (sleepPollInterval()) return;
         }
     }
 
-    /** 可中断 sleep：返回 true 表示线程已被中断（应退出循环） */
-    private boolean sleepQuietly(long ms) {
+    /** 可中断的轮询间隔 sleep：返回 true 表示线程已被中断（应退出循环）。 */
+    private boolean sleepPollInterval() {
         try {
-            Thread.sleep(ms);
+            Thread.sleep(POLL_INTERVAL_MS);
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

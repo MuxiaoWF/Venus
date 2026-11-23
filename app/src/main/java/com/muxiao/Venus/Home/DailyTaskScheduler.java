@@ -199,18 +199,19 @@ public final class DailyTaskScheduler {
             return;
         }
         // 不在此处置 batch 标记：由 Worker 在 index==0 开始时置位
-        enqueueBatch(context, users, 0, delayMs, 1, policy);
+        enqueueBatch(context, users, 0, delayMs, policy);
     }
 
     /** 批量链：把第 {@code index} 个账号排到链尾。 */
     static void enqueueBatchNext(Context context, java.util.List<String> users, int index, long delayMs) {
-        enqueueBatch(context, users, index, delayMs, 1, CHAIN_POLICY);
+        enqueueBatch(context, users, index, delayMs, CHAIN_POLICY);
     }
 
     private static void enqueueBatch(Context context, java.util.List<String> users, int index,
-                                     long delayMs, int attempt, ExistingWorkPolicy policy) {
+                                     long delayMs, ExistingWorkPolicy policy) {
         Data.Builder data = new Data.Builder()
-                .putInt(KEY_ATTEMPT, attempt)
+                // 批量链的首节点即第 1 次执行（重试额度由 Worker 自身的 attempt 累加）
+                .putInt(KEY_ATTEMPT, 1)
                 .putStringArray(KEY_USERS, users.toArray(new String[0]))
                 .putInt(KEY_USER_INDEX, index);
         WorkManager.getInstance(context)
@@ -222,7 +223,7 @@ public final class DailyTaskScheduler {
         long delay = delayToNextOccurrence(context);
         java.util.List<String> users = batchTargets(context);
         if (users.size() >= 2) {
-            enqueueBatch(context, users, 0, delay, 1, CHAIN_POLICY);
+            enqueueBatch(context, users, 0, delay, CHAIN_POLICY);
         } else {
             enqueueNext(context, CHAIN_POLICY, delay);
         }
@@ -357,14 +358,17 @@ public final class DailyTaskScheduler {
      * <p>同样必须带 resume 标记与目标账号：Worker 侧据此跳过「当日全完成」幂等检查，
      * 且 {@code resolveOnlyIds} 直接采信名单而不是按当前状态二次过滤（挂起项可能已被复位成待执行）。
      *
+     * <p>延后时长固定为 {@link #CAPTCHA_RETRY_DELAY_MINUTES}：挂起等人没有「更早可试」的时机，
+     * 用户真去做验证时由 {@link #enqueueCaptchaResume} 立即续跑。
+     *
      * @param attempt 让 Worker 的重试额度继续累加，达到 {@link #MAX_ATTEMPTS} 后由它改排明天
      */
     static void enqueueCaptchaRetry(Context context, String userId,
-                                    java.util.Collection<String> taskIds,
-                                    long delayMs, int attempt) {
+                                    java.util.Collection<String> taskIds, int attempt) {
         Set<String> onlyIds = taskIds == null || taskIds.isEmpty()
                 ? null : new java.util.LinkedHashSet<>(taskIds);
-        enqueue(context, CHAIN_POLICY, Math.max(0, delayMs), attempt, onlyIds, true, userId);
+        enqueue(context, CHAIN_POLICY, CAPTCHA_RETRY_DELAY_MINUTES * 60_000L,
+                attempt, onlyIds, true, userId);
     }
 
     /** 距「下一个设定时刻」的毫秒数（严格未来，不做当日补跑判断）。 */

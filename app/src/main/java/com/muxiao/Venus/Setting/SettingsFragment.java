@@ -827,17 +827,6 @@ public class SettingsFragment implements PageController {
         return themePreferences.getInt(SELECTED_THEME, THEME_DEFAULT);
     }
 
-    /**
-     * 获取应该应用的主题深浅色变体
-     *
-     * @param context 上下文
-     * @return 主题深浅色变体
-     */
-    public static int getSelectedThemeVariant(Context context) {
-        SharedPreferences themePreferences = context.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE);
-        return themePreferences.getInt(SELECTED_THEME_VARIANT, THEME_VARIANT_DEFAULT);
-    }
-
     /** 背景图 URI；未设置返回 null。 */
     public static Uri getBackgroundImageUri(Context context) {
         SharedPreferences backgroundPreferences = context.getSharedPreferences(BACKGROUND_PREFS_NAME, Context.MODE_PRIVATE);
@@ -1137,15 +1126,16 @@ public class SettingsFragment implements PageController {
         VenusDialogs.confirm(
                 activity,
                 activity.getString(R.string.settings_apply_all_accounts),
-                activity.getString(R.string.settings_apply_all_confirm, all.size()),
+                activity.getResources().getQuantityString(R.plurals.settings_apply_all_confirm,
+                        all.size(), all.size()),
                 activity.getString(R.string.btn_ok),
                 () -> {
                     // 模板先行
                     TaskProfileStore.saveTemplate(activity, taskProfile);
                     for (String userId : all) TaskProfileStore.save(activity, userId, taskProfile);
                     tools.writeLog(activity, "task profile applied to " + all.size() + " account(s)");
-                    showToast(screenView, activity,
-                            activity.getString(R.string.settings_apply_all_done, all.size()));
+                    showToast(screenView, activity, activity.getResources().getQuantityString(
+                            R.plurals.settings_apply_all_done, all.size(), all.size()));
                     TaskWidgetProvider.refreshAllWidgets(activity);
                 },
                 activity.getString(R.string.btn_cancel));
@@ -1450,14 +1440,14 @@ public class SettingsFragment implements PageController {
             showCustomSnackbar(screenView, activity, activity.getString(R.string.cloud_game_need_login));
             return;
         }
-        launchCloudTokenFetch(CloudGameDaily.GAME_GENSHIN);
+        launchCloudTokenFetch();
     }
 
-    /** 打开指定云游戏的官方网页版并自动抓取 token。 */
-    private void launchCloudTokenFetch(String gameName) {
+    /** 打开云原神官方网页版并自动抓取 token（云绝区零无网页版，入口不指向它）。 */
+    private void launchCloudTokenFetch() {
         Intent intent = new Intent(activity, CloudGachaActivity.class);
         intent.putExtra(CloudGachaActivity.EXTRA_MODE, CloudGachaActivity.MODE_CLOUD_TOKEN);
-        intent.putExtra(CloudGachaActivity.EXTRA_CLOUD_GAME, gameName);
+        intent.putExtra(CloudGachaActivity.EXTRA_CLOUD_GAME, CloudGameDaily.GAME_GENSHIN);
         // token 按账号存放：把抽屉当前的目标账号带过去，
         // 否则从用户管理页给别的账号配 token 会落到当前账号名下
         String targetUser = credentialUser();

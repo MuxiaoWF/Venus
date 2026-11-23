@@ -46,7 +46,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.colorResource
@@ -57,7 +56,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.muxiao.Venus.R
-import com.muxiao.Venus.common.tools
 
 /** 来源行状态，数值对齐 LinkFragment.ChipState · 待获取：中性 chip，图标圆为灰表面。 */
 const val LINK_CHIP_PENDING = 0
@@ -233,15 +231,6 @@ private fun vpnStatusColor(status: Int): Color = when (status) {
     VPN_STATUS_SUCCESS -> colorResource(R.color.status_success)
     VPN_STATUS_WARN -> colorResource(R.color.status_warning)
     else -> MaterialTheme.colorScheme.onSurfaceVariant
-}
-
-@Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = LocalVenusTextStyles.current.sectionLabel,
-        modifier = modifier.padding(bottom = dimensionResource(R.dimen.space_1)),
-    )
 }
 
 /** 账号上下文行：头像 + 用户名（带服务器后缀）+ 上下箭头。有用户时点整行展开下拉，无用户时整行变引导（跳用户管理页）。 */
@@ -637,13 +626,6 @@ private fun NavRow(
     }
 }
 
-/** 系统「减少动态效果」开关：与 View 侧同一判定口径。 */
-@Composable
-private fun rememberReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember(context) { tools.isReducedMotionEnabled(context) }
-}
-
 /** 抽卡链接页宿主：`LinkFragment` 直接 new 来当根视图，之后 UI 更新全走 setSourceState / setSourceResult / setVpnStatus。 */
 class LinkScreenView(context: Context) : AbstractComposeView(context) {
 
@@ -673,11 +655,6 @@ class LinkScreenView(context: Context) : AbstractComposeView(context) {
                 onCopy = { onCopyListener?.accept(it) },
             )
         }
-    }
-
-    /** 填充账号下拉：原始用户名列表 + 当前选中下标（-1 = 无选中）+ 是否国际服。 */
-    fun setUsers(users: List<String>, selectedIndex: Int, oversea: Boolean) {
-        setUsers(users, emptyList(), selectedIndex, oversea)
     }
 
     /** @param labels 与 [users] 一一对应的展示文案；空列表时回退到全局 [oversea] */

@@ -239,7 +239,10 @@ public final class GeetestV4Dialog {
      * <p>
      * 类与内部类都必须是 {@code public}：WebView 反射调用带 {@link JavascriptInterface} 的方法且不做
      * setAccessible，类不可访问时会抛 IllegalAccessException，桥静默失效。
+     * <p>
+     * 同理，桥方法在 Java 侧没有静态调用点，IDE 会报「never used」——这是反射调用的固有误报，勿按它删方法。
      */
+    @SuppressWarnings("unused")
     public final class Bridge {
 
         /** gt4.js 加载完成：把米游社下发的参数注入页面并启动验证 */

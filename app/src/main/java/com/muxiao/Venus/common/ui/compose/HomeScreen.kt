@@ -77,7 +77,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import com.muxiao.Venus.R
-import com.muxiao.Venus.common.tools
 import androidx.compose.ui.platform.LocalResources
 
 /* 运行形态：取值与 HomeViewModel.RunMode 对齐 */
@@ -456,15 +455,6 @@ fun HomeScreen(
             }
         }
     }
-}
-
-@Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = LocalVenusTextStyles.current.sectionLabel,
-        modifier = modifier.padding(bottom = dimensionResource(R.dimen.space_1)),
-    )
 }
 
 /** 账号行：头像 + 用户名（带服务器后缀）+ 上下箭头，点击展开下拉；无用户时整行变引导（「尚未添加用户」+ 跳用户管理页）。 */
@@ -1009,13 +999,6 @@ private fun StatusGlyph(
     }
 }
 
-/** 系统「减少动态效果」开关：与 View 侧同一判定口径。 */
-@Composable
-private fun rememberReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember(context) { tools.isReducedMotionEnabled(context) }
-}
-
 /**
  * 主页宿主。极验按钮容器在此急切创建并对外暴露：SDK 的 `GT3GeetestButton` 需要真实 ViewGroup 承载
  * addView/removeView，Compose 表达不了「往某个位置塞第三方 View」，故保留一个同配置的 `LinearLayout`，
@@ -1197,11 +1180,6 @@ class HomeScreenView(context: Context) : AbstractComposeView(context) {
 
     fun setRunAllVisible(visible: Boolean) {
         uiState.runAllVisible = visible
-    }
-
-    /** 多账号聚合条文案。 */
-    fun setAggregateText(text: String) {
-        uiState.aggregateText = text
     }
 
     fun setAggregateVisible(visible: Boolean) {

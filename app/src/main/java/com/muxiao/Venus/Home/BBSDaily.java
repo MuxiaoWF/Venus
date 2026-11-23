@@ -117,8 +117,7 @@ public class BBSDaily {
      *                  国服/国际服的接口域名、appId、Referer 与 DS 头都不同，故由调用方给定，
      *                  不在构造里读全局 {@code is_oversea}——多账号跨服批跑时全局值可能是别人的服。
      */
-    public BBSDaily(Context context, String userId, tools.StatusNotifier notifier,
-                    GeetestController gt3Controller, boolean isOversea) {
+    public BBSDaily(Context context, String userId, tools.StatusNotifier notifier, boolean isOversea) {
         this.context = context;
         this.userId = userId;
         this.notification = new Notification(context);

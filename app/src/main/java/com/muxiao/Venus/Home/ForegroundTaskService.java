@@ -225,10 +225,8 @@ public class ForegroundTaskService extends Service {
             Set<String> captchaTaskIds = ConcurrentHashMap.newKeySet();
             AtomicReference<Map<String, String>> captchaHeaders = new AtomicReference<>();
 
-            GeetestController geetestController = new BackgroundGeetestController();
-
             TaskExecutor taskExecutor = new TaskExecutor(
-                    this, runningUserId, notifier, geetestController,
+                    this, runningUserId, notifier,
                     new TaskExecutor.Callback() {
                         @Override
                         public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {

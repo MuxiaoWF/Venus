@@ -45,11 +45,10 @@ public final class MultiUserRunner {
      * @param gapMs  账号间冷却毫秒；{@code <= 0} 表示不等待
      * @param step   单账号执行单元
      * @param cancel 取消判定：返回 true 时不再启动后续账号（已启动的账号由 Step 自己中断）
-     * @return 实际执行过的账号数（不含被取消跳过的）
      */
-    public static int run(Context context, List<String> users, long gapMs,
-                          Step step, CancelCheck cancel) {
-        if (users == null || users.isEmpty()) return 0;
+    public static void run(Context context, List<String> users, long gapMs,
+                           Step step, CancelCheck cancel) {
+        if (users == null || users.isEmpty()) return;
         int executed = 0;
         for (int i = 0; i < users.size(); i++) {
             if (cancel != null && cancel.isCancelled()) {
@@ -79,18 +78,12 @@ public final class MultiUserRunner {
             }
         }
         tools.writeLog(context, TAG + ": batch finished, " + executed + "/" + users.size() + " account(s)");
-        return executed;
     }
 
     /** 取消判定（函数式，避免调用方为它建一个类）。 */
     @FunctionalInterface
     public interface CancelCheck {
         boolean isCancelled();
-    }
-
-    /** 便捷方法：跑全部账号、使用默认冷却。 */
-    public static int run(Context context, List<String> users, Step step, CancelCheck cancel) {
-        return run(context, users, DEFAULT_GAP_MS, step, cancel);
     }
 
     /** 过滤掉四类任务全关的账号，保持入参顺序。 */

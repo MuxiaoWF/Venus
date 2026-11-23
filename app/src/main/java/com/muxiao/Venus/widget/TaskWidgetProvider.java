@@ -33,14 +33,6 @@ import java.util.concurrent.Executors;
  */
 public class TaskWidgetProvider extends AppWidgetProvider {
 
-    /**
-     * 刷新用的 action / 承载它的 receiver 都迁到了 {@link TaskWidgetRefreshReceiver}：
-     * 本类必须 exported=true 才能收到系统 APPWIDGET_UPDATE，挂在同一 filter 上的自定义 action
-     * 会连带对外暴露。此处只保留常量别名，避免调用方（含旧代码）引用断裂。
-     */
-    @Deprecated
-    public static final String ACTION_REFRESH = TaskWidgetRefreshReceiver.ACTION_REFRESH;
-
     /** 去抖窗口：任务执行期间状态变化密集（每条任务至少 2 次），窗口内的多次请求合并为一次刷新。 */
     private static final long REFRESH_DEBOUNCE_MS = 250;
 
@@ -132,9 +124,11 @@ public class TaskWidgetProvider extends AppWidgetProvider {
         // 多账号汇总行：≥2 个有任务的账号才显示
         if (snapshot.activeAccountCount >= 2) {
             views.setViewVisibility(R.id.widget_accounts, android.view.View.VISIBLE);
-            views.setTextViewText(R.id.widget_accounts, context.getString(
-                    R.string.widget_accounts_summary,
-                    snapshot.activeAccountCount, snapshot.allDone, snapshot.allTotal));
+            // 账号数是复数词形，必须走 getQuantityString（英文 1 个账号是 "account" 而非 "accounts"）
+            views.setTextViewText(R.id.widget_accounts,
+                    context.getResources().getQuantityString(R.plurals.widget_accounts_summary,
+                            snapshot.activeAccountCount,
+                            snapshot.activeAccountCount, snapshot.allDone, snapshot.allTotal));
         } else {
             views.setViewVisibility(R.id.widget_accounts, android.view.View.GONE);
         }

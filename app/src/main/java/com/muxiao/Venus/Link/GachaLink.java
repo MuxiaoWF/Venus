@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.R;
@@ -82,8 +83,7 @@ public class GachaLink {
         for (JsonElement element : list) {
             if (element == null || !element.isJsonObject()) continue;
             JsonObject object = element.getAsJsonObject();
-            String biz = object.has("game_biz") && !object.get("game_biz").isJsonNull()
-                    ? object.get("game_biz").getAsString() : null;
+            String biz = JsonAccess.optString(object, "game_biz", null);
             if (!game_biz.equals(biz)) continue;
             JsonElement uidElement = object.get("game_uid");
             if (uidElement == null || uidElement.isJsonNull()) continue;
@@ -129,8 +129,9 @@ public class GachaLink {
                 throw new RuntimeException(context.getString(R.string.link_authkey_error));
             return authkeyElement.getAsString().replace("/", "%2F").replace("+", "%2B");
         } else {
-            JsonElement messageElement = jsonResponse.get("message");
-            String message = messageElement != null && !messageElement.isJsonNull() ? messageElement.getAsString() : context.getString(R.string.link_authkey_error);
+            // message 为空/缺失时回落到可读错误文案（旧实现会抛出空 message 的异常）
+            String message = JsonAccess.optString(jsonResponse, "message",
+                    context.getString(R.string.link_authkey_error));
             throw new RuntimeException(message);
         }
     }

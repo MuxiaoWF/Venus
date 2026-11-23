@@ -2,7 +2,6 @@ package com.muxiao.Venus.common.ui.compose
 
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -32,41 +31,6 @@ fun ServerSettingPane(
             selectedIndex = selectedIndex,
             onSelect = onSelect,
         )
-    }
-}
-
-/**
- * [ServerSettingPane] 的状态宿主：只承载状态与回调，`Render()` 由 `SettingsScreenView`
- * 在同一组合里调用。
- */
-class ServerSettingPaneView {
-
-    private val selectedState = mutableIntStateOf(0)
-    private var onSelectListener: IndexConsumer? = null
-
-    /** 0 = 国服，1 = 国际服；Java 侧 setSelectedIndex(...) 直接触发重组。 */
-    var selectedIndex: Int
-        get() = selectedState.intValue
-        set(value) {
-            selectedState.intValue = value
-        }
-
-    @Composable
-    fun Render() {
-        VenusTheme {
-            ServerSettingPane(
-                selectedIndex = selectedState.intValue,
-                onSelect = { index ->
-                    // 受控组件：用户点选先落到自身状态再回调，Java 侧无需回写（重复点仍由 Java 判定）
-                    selectedState.intValue = index
-                    onSelectListener?.accept(index)
-                },
-            )
-        }
-    }
-
-    fun setOnSelectListener(listener: IndexConsumer?) {
-        onSelectListener = listener
     }
 }
 

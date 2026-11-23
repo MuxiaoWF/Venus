@@ -13,6 +13,7 @@ import android.os.Looper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.BuildConfig;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.Logger;
@@ -64,8 +65,7 @@ public class UpdateChecker {
                 }
 
                 // tag_name 缺失时无法比较版本，按「检查失败」处理而不是抛 NPE
-                String latestVersion = releaseInfo.has("tag_name") && !releaseInfo.get("tag_name").isJsonNull()
-                        ? releaseInfo.get("tag_name").getAsString() : null;
+                String latestVersion = JsonAccess.optString(releaseInfo, "tag_name", null);
                 if (latestVersion == null) {
                     if (isManual)
                         showErrorDialog("\n" + context.getString(R.string.update_fetch_failed, currentVersion));
@@ -168,8 +168,8 @@ public class UpdateChecker {
     /** 显示更新对话框，引导用户前往浏览器下载。 */
     private void showUpdateDialog(String latestVersion, JsonObject releaseInfo) {
         new Handler(Looper.getMainLooper()).post(() -> {
-            String releaseNotes = releaseInfo.has("body") ? releaseInfo.get("body").getAsString() : "";
-            String tagName = releaseInfo.has("tag_name") ? releaseInfo.get("tag_name").getAsString() : latestVersion;
+            String releaseNotes = JsonAccess.optString(releaseInfo, "body", "");
+            String tagName = JsonAccess.optString(releaseInfo, "tag_name", latestVersion);
             String releasesPageUrl = Constants.Urls.MUXIAO_MINE_GITHUB_URL + "/releases/tag/" + tagName;
 
             String message = context.getString(R.string.update_new_version_msg, latestVersion);

@@ -29,6 +29,7 @@ import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3ErrorBean;
 import com.geetest.sdk.GT3GeetestUtils;
 import com.geetest.sdk.GT3Listener;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
@@ -116,7 +117,7 @@ public class UserLoginActivity extends BaseActivity {
         user_manager = new UserManager(this);
 
         Intent intent = getIntent();
-        relogin_mode = intent.getBooleanExtra("RELOGIN_MODE", false);
+        relogin_mode = intent.getBooleanExtra(Constants.EXTRA_RELOGIN_MODE, false);
         relogin_username = intent.getStringExtra("USERNAME");
 
         // 状态栏内边距由 Compose 的 statusBarsPadding 处理
@@ -551,10 +552,14 @@ public class UserLoginActivity extends BaseActivity {
                 QrSession session = isOversea ? fetch_qr_oversea() : fetch_qr_cn();
                 show_qr_code(session.url);
                 status_notifier.notifyListeners(getString(R.string.login_qr_generated));
-                // 返回 true 表示已确认，凭证落库与收尾都已在轮询方法内完成
-                if (isOversea ? poll_qr_oversea(session) : poll_qr_cn(session))
+                if (isOversea) {
+                    // 旧接口没有「过期码」：返回即已确认（落库与收尾都在方法内完成）
+                    poll_qr_oversea(session);
                     return;
-                // 返回 false = 二维码过期，换一张继续等
+                }
+                // 返回 true 表示已确认；false = 二维码过期，换一张继续等
+                if (poll_qr_cn(session))
+                    return;
                 status_notifier.notifyListeners(getString(R.string.login_qr_expired) + "\n");
             }
             throw new RuntimeException(getString(R.string.login_qr_timeout));
@@ -734,12 +739,12 @@ public class UserLoginActivity extends BaseActivity {
             Map<String, String> headers = header_manager.get_passport_qr_headers(body);
             String response = tools.postJson(Constants.Urls.QR_LOGIN_CREATE_URL, headers, body).body;
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = retcodeOf(result);
+            int retcode = JsonAccess.retcode(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
-            JsonObject data = data_of(result);
-            String url = opt_string(data, "url");
-            String ticket = opt_string(data, "ticket");
+            JsonObject data = JsonAccess.data(result);
+            String url = JsonAccess.optString(data, "url", null);
+            String ticket = JsonAccess.optString(data, "ticket", null);
             if (url == null || ticket == null)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
             return new QrSession(url, ticket);
@@ -752,11 +757,11 @@ public class UserLoginActivity extends BaseActivity {
             body.put("device", device_id);
             String response = tools.sendPostRequest(Constants.Urls.OS_LOGIN_QR_URL, new HashMap<>(), body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = retcodeOf(result);
+            int retcode = JsonAccess.retcode(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
-            JsonObject data = data_of(result);
-            String url = opt_string(data, "url");
+            JsonObject data = JsonAccess.data(result);
+            String url = JsonAccess.optString(data, "url", null);
             if (url == null)
                 throw new RuntimeException(getString(R.string.login_stoken_create_failed, retcode, response));
             String[] parts = url.split("ticket=");
@@ -782,14 +787,14 @@ public class UserLoginActivity extends BaseActivity {
                 Map<String, String> headers = header_manager.get_passport_qr_headers(body);
                 String response = tools.postJson(Constants.Urls.QR_LOGIN_QUERY_URL, headers, body).body;
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-                int retcode = retcodeOf(result);
+                int retcode = JsonAccess.retcode(result);
                 // -106：二维码已过期（新版接口用它表达过期，旧接口没有这个码）
                 if (retcode == RETCODE_QR_EXPIRED)
                     return false;
                 if (retcode != 0)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                JsonObject data = data_of(result);
-                String status = opt_string(data, "status");
+                JsonObject data = JsonAccess.data(result);
+                String status = JsonAccess.optString(data, "status", null);
                 if (status == null) status = "";
                 if ("Init".equals(status) || "Created".equals(status) || "Scanned".equals(status)) {
                     // 状态不变时不重复刷日志
@@ -821,12 +826,12 @@ public class UserLoginActivity extends BaseActivity {
             if (data.has("tokens") && data.get("tokens").isJsonArray()) {
                 JsonArray tokens = data.getAsJsonArray("tokens");
                 if (!tokens.isEmpty() && tokens.get(0).isJsonObject())
-                    stoken = opt_string(tokens.get(0).getAsJsonObject(), "token");
+                    stoken = JsonAccess.optString(tokens.get(0).getAsJsonObject(), "token", null);
             }
             JsonObject user_info = data.has("user_info") && data.get("user_info").isJsonObject()
                     ? data.getAsJsonObject("user_info") : null;
-            String mid = opt_string(user_info, "mid");
-            String aid = opt_string(user_info, "aid");
+            String mid = JsonAccess.optString(user_info, "mid", null);
+            String aid = JsonAccess.optString(user_info, "aid", null);
             if (stoken == null || mid == null || aid == null)
                 throw new RuntimeException(getString(R.string.login_payload_missing));
             tools.write(context, storageId, "stoken", stoken);
@@ -839,9 +844,9 @@ public class UserLoginActivity extends BaseActivity {
         /**
         * 国际服轮询：旧接口，状态字段是 {@code stat}，Confirmed 时从 {@code payload.raw} 取 game_token 与 uid 再去换 stoken。
         *
-        * @return true = 已确认并完成落库与收尾；旧接口没有过期码，恒为 true 或抛异常
+        * <p>旧接口没有「二维码过期」这一态，因此正常返回即代表已确认并完成落库与收尾，失败一律抛异常。
         */
-        private boolean poll_qr_oversea(QrSession session) throws Exception {
+        private void poll_qr_oversea(QrSession session) throws Exception {
             String last_status = "";
             for (int times = 1; times <= MAX_QR_POLL_COUNT; times++) {
                 Map<String, Object> body = new HashMap<>();
@@ -850,13 +855,13 @@ public class UserLoginActivity extends BaseActivity {
                 body.put("device", device_id);
                 String response = tools.sendPostRequest(Constants.Urls.OS_LOGIN_CHECK_URL, null, body);
                 JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-                int retcode = retcodeOf(result);
+                int retcode = JsonAccess.retcode(result);
                 if (retcode != 0)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                JsonObject data = data_of(result);
+                JsonObject data = JsonAccess.data(result);
                 if (data == null)
                     throw new RuntimeException(getString(R.string.login_stoken_query_failed, retcode, response));
-                String stat = opt_string(data, "stat");
+                String stat = JsonAccess.optString(data, "stat", null);
                 if (stat == null) stat = "";
                 // Init（等待扫码）与 Scanned（等待确认）仅提示文案不同，合并处理
                 if ("Init".equals(stat) || "Scanned".equals(stat)) {
@@ -872,17 +877,17 @@ public class UserLoginActivity extends BaseActivity {
                     if (!data.has("payload") || !data.get("payload").isJsonObject())
                         throw new RuntimeException(getString(R.string.login_payload_missing));
                     JsonObject payload = data.getAsJsonObject("payload");
-                    String raw_text = opt_string(payload, "raw");
+                    String raw_text = JsonAccess.optString(payload, "raw", null);
                     if (raw_text == null)
                         throw new RuntimeException(getString(R.string.login_raw_missing));
                     JsonObject raw = JsonParser.parseString(raw_text).getAsJsonObject();
-                    String uid = opt_string(raw, "uid");
-                    String game_token = opt_string(raw, "token");
+                    String uid = JsonAccess.optString(raw, "uid", null);
+                    String game_token = JsonAccess.optString(raw, "token", null);
                     if (uid == null || game_token == null)
                         throw new RuntimeException(getString(R.string.login_raw_missing));
                     get_stoken_by_game_token(uid, game_token);
                     finish_login_success();
-                    return true;
+                    return;
                 }
                 status_notifier.notifyListeners(getString(R.string.login_unknown_status) + stat + times);
                 throw new RuntimeException(getString(R.string.login_unknown_status) + stat + times);
@@ -901,7 +906,7 @@ public class UserLoginActivity extends BaseActivity {
             String stokenUrl = isOversea ? Constants.Urls.OS_STOKEN_URL : Constants.Urls.STOKEN_URL;
             String response = tools.sendPostRequest(stokenUrl, game_token_headers, body);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = retcodeOf(result);
+            int retcode = JsonAccess.retcode(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_stoken_token_failed, retcode, response));
             JsonObject data = JsonParser.parseString(response).getAsJsonObject().has("data")
@@ -910,10 +915,8 @@ public class UserLoginActivity extends BaseActivity {
                     ? data.getAsJsonObject("user_info") : null;
             JsonObject tokenObj = data != null && data.has("token") && data.get("token").isJsonObject()
                     ? data.getAsJsonObject("token") : null;
-            String mid = userInfo != null && userInfo.has("mid") && !userInfo.get("mid").isJsonNull()
-                    ? userInfo.get("mid").getAsString() : null;
-            String stoken = tokenObj != null && tokenObj.has("token") && !tokenObj.get("token").isJsonNull()
-                    ? tokenObj.get("token").getAsString() : null;
+            String mid = JsonAccess.optString(userInfo, "mid", null);
+            String stoken = JsonAccess.optString(tokenObj, "token", null);
             if (mid == null || stoken == null)
                 throw new RuntimeException(getString(R.string.login_stoken_token_failed, retcode, response));
             tools.write(context, storageId, "stoken", stoken);
@@ -932,7 +935,7 @@ public class UserLoginActivity extends BaseActivity {
             String ltokenUrl = isOversea ? Constants.Urls.OS_LTOKEN_URL : Constants.Urls.LTOKEN_URL;
             String response = tools.sendGetRequest(ltokenUrl, bbs_headers, null);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = retcodeOf(result);
+            int retcode = JsonAccess.retcode(result);
             if (retcode != 0)
                 throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
             JsonObject ltokenData = result.has("data") && result.get("data").isJsonObject()
@@ -944,34 +947,6 @@ public class UserLoginActivity extends BaseActivity {
         }
     }
 
-    /** 安全读取 data 对象：缺失、JsonNull 或非对象时返回 null。 */
-    private static JsonObject data_of(JsonObject json) {
-        if (json == null || !json.has("data") || json.get("data").isJsonNull())
-            return null;
-        return json.get("data").isJsonObject() ? json.getAsJsonObject("data") : null;
-    }
-
-    /** 安全读取字符串字段：缺失、JsonNull 或类型不符时返回 null。 */
-    private static String opt_string(JsonObject json, String key) {
-        if (json == null || !json.has(key) || json.get(key).isJsonNull())
-            return null;
-        try {
-            return json.get(key).getAsString();
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** 安全读取 retcode：缺失、JsonNull 或类型不符时返回哨兵值（不可能是接口真实返回值）。 */
-    private static int retcodeOf(JsonObject obj) {
-        if (obj == null || !obj.has("retcode") || obj.get("retcode").isJsonNull())
-            return Integer.MIN_VALUE;
-        try {
-            return obj.get("retcode").getAsInt();
-        } catch (RuntimeException e) {
-            return Integer.MIN_VALUE;
-        }
-    }
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {

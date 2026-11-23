@@ -294,11 +294,13 @@ public class tools {
     }
 
     /** 保留历史签名，便于按站点替换 Snackbar 调用。 */
+    @SuppressWarnings("unused") // view/context 为历史签名保留（50+ 调用点零改动），实际仅转发 message
     public static void showToast(View view, Context context, String message) {
         showToast(message);
     }
 
     /** 同上。 */
+    @SuppressWarnings("unused") // context 为历史签名保留，实际仅转发 message
     public static void showToast(Context context, String message) {
         showToast(message);
     }
@@ -521,6 +523,20 @@ public class tools {
             return bytesToHex(md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 安全反序列化统一入口：空串（键不存在）或损坏 JSON 一律返回 null，由调用方按
+     * 「新建对象 / 继承默认值」处理。此前同一模式散在 CaptchaStore.parsePending/parseSolution、
+     * TaskProfileStore.parse、TaskStatusManager.parseBucket 四处（均为逐字复制）。
+     */
+    public static <T> T fromJsonOrNull(Gson gson, String raw, Class<T> type) {
+        if (raw == null || raw.isEmpty()) return null;
+        try {
+            return gson.fromJson(raw, type);
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 

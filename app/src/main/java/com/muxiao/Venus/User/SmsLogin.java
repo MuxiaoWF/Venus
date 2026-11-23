@@ -3,9 +3,9 @@ package com.muxiao.Venus.User;
 import android.content.Context;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.tools;
@@ -80,17 +80,17 @@ public final class SmsLogin {
         tools.HttpResponse response = tools.postJson(CREATE_CAPTCHA_URL, headers, body);
 
         JsonObject result = JsonParser.parseString(response.body).getAsJsonObject();
-        int retcode = retcodeOf(result);
+        int retcode = JsonAccess.retcode(result);
         if (retcode != 0)
             throw failure(context, response, result, retcode,
                     R.string.login_sms_captcha_failed);
 
-        JsonObject data = dataOf(result);
-        String actionType = optString(data, "action_type");
+        JsonObject data = JsonAccess.data(result);
+        String actionType = JsonAccess.optString(data, "action_type", null);
         if (actionType == null || actionType.isEmpty())
             throw new RuntimeException(context.getString(
                     R.string.login_sms_captcha_failed, retcode, response.body));
-        return new CaptchaResult(actionType, optInt(data, "countdown"));
+        return new CaptchaResult(actionType, optCountdown(data));
     }
 
     /**
@@ -110,33 +110,33 @@ public final class SmsLogin {
         tools.HttpResponse response = tools.postJson(LOGIN_BY_CAPTCHA_URL, headers, body);
 
         JsonObject result = JsonParser.parseString(response.body).getAsJsonObject();
-        int retcode = retcodeOf(result);
+        int retcode = JsonAccess.retcode(result);
         if (retcode != 0)
             throw failure(context, response, result, retcode,
                     R.string.login_sms_login_failed);
 
-        JsonObject data = dataOf(result);
+        JsonObject data = JsonAccess.data(result);
         if (data == null)
             throw new RuntimeException(context.getString(
                     R.string.login_sms_login_failed, retcode, response.body));
 
         Result parsed = new Result();
-        JsonObject token = objOf(data, "token");
-        parsed.stoken = optString(token, "token");
+        JsonObject token = JsonAccess.optObject(data, "token");
+        parsed.stoken = JsonAccess.optString(token, "token", null);
         if (parsed.stoken == null || parsed.stoken.isEmpty())
             throw new RuntimeException(context.getString(
                     R.string.login_sms_login_failed, retcode, response.body));
 
-        JsonObject userInfo = objOf(data, "user_info");
-        parsed.mid = optString(userInfo, "mid");
+        JsonObject userInfo = JsonAccess.optObject(data, "user_info");
+        parsed.mid = JsonAccess.optString(userInfo, "mid", null);
         if (parsed.mid == null || parsed.mid.isEmpty())
             throw new RuntimeException(context.getString(
                     R.string.login_sms_no_mid, response.body));
-        parsed.aid = optString(userInfo, "aid");
+        parsed.aid = JsonAccess.optString(userInfo, "aid", null);
 
-        parsed.loginTicket = optString(data, "login_ticket");
+        parsed.loginTicket = JsonAccess.optString(data, "login_ticket", null);
 
-        JsonObject realname = objOf(data, "realname_info");
+        JsonObject realname = JsonAccess.optObject(data, "realname_info");
         parsed.realnameRequired = realname != null && realname.has("required")
                 && !realname.get("required").isJsonNull()
                 && realname.get("required").getAsBoolean();
@@ -159,43 +159,15 @@ public final class SmsLogin {
                 throw new PasswordLogin.AigisRequiredException(
                         context.getString(R.string.login_password_need_captcha), info);
         }
-        String message = optString(result, "message");
+        String message = JsonAccess.optString(result, "message", null);
         return new RuntimeException(context.getString(messageRes, retcode,
                 message == null || message.isEmpty() ? response.body : message));
     }
 
-    /** 安全读取 retcode：缺失、JsonNull 或类型不符时返回哨兵值。 */
-    private static int retcodeOf(JsonObject json) {
-        if (json == null || !json.has("retcode") || json.get("retcode").isJsonNull())
-            return Integer.MIN_VALUE;
-        try {
-            return json.get("retcode").getAsInt();
-        } catch (RuntimeException e) {
-            return Integer.MIN_VALUE;
-        }
-    }
 
-    private static JsonObject dataOf(JsonObject json) {
-        return objOf(json, "data");
-    }
-
-    private static JsonObject objOf(JsonObject json, String key) {
-        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return null;
-        JsonElement el = json.get(key);
-        return el.isJsonObject() ? el.getAsJsonObject() : null;
-    }
-
-    private static String optString(JsonObject json, String key) {
-        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return null;
-        try {
-            return json.get(key).getAsString();
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** countdown 在参考实现那里是字符串（"60"），这里数字/字符串都接受，非法值返回 0。 */
-    private static int optInt(JsonObject json, String key) {
+    /** 验证挑战下发的人数倒计时秒数（唯一用途）。参考实现里是字符串（"60"），这里数字/字符串都接受，非法值返回 0。 */
+    private static int optCountdown(JsonObject json) {
+        final String key = "countdown";
         if (json == null || !json.has(key) || json.get(key).isJsonNull()) return 0;
         try {
             return json.get(key).getAsInt();

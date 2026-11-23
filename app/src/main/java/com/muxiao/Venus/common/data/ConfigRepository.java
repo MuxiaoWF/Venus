@@ -102,26 +102,12 @@ public class ConfigRepository {
         return v instanceof String ? (String) v : defValue;
     }
 
-    public boolean getBoolean(String key, boolean defValue) {
-        Object v = cache.get(key);
-        return v instanceof Boolean ? (Boolean) v : defValue;
-    }
-
     // 写穿（Write-Through）：先更新内存缓存（写入立即可见），再异步提交 DataStore 持久化。
     public void putString(String key, String value) {
         cache.put(key, value);
         persistentDisposables.add(store.updateDataAsync(prefs -> {
             MutablePreferences m = prefs.toMutablePreferences();
             m.set(PreferencesKeys.stringKey(key), value);
-            return Single.just(m);
-        }).subscribe());
-    }
-
-    public void putBoolean(String key, boolean value) {
-        cache.put(key, value);
-        persistentDisposables.add(store.updateDataAsync(prefs -> {
-            MutablePreferences m = prefs.toMutablePreferences();
-            m.set(PreferencesKeys.booleanKey(key), value);
             return Single.just(m);
         }).subscribe());
     }

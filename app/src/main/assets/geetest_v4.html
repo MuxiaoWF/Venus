@@ -16,19 +16,38 @@
             color: #e6e6e6;
         }
         body {
+            /* 验证组件的根节点（.geetest_popup_wrap）可能被 SDK 直接挂在 body 下，这里用 flex 兜住：
+               无论 appendTo 是否生效，卡片都落在视口中线。
+               刻意不用 transform 居中——父级 transform 会生成包含块，把 .geetest_popup_ghost
+               的「fixed 全屏遮罩」压成卡片大小的局部块。 */
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
         }
         #status {
+            /* 绝对定位：不参与 body 的 flex 居中，避免把卡片顶偏 */
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1;
             padding: 16px 16px 8px;
             font-size: 14px;
             color: #d0d0d0;
             text-align: center;
+            /* 只做提示，不挡下面验证卡片的点击 */
+            pointer-events: none;
         }
         #captcha {
-            flex: 1;
+            /* appendTo 的宿主：铺满整页并居中，同时覆盖「SDK 接受 appendTo」与「SDK 自行挂到 body」两种行为 */
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: center;
             padding: 8px 0;
         }
@@ -82,7 +101,7 @@
                 emit("onClose", "sdk-init-missing");
                 return;
             }
-            setStatus("请完成下方验证");
+            setStatus("请完成验证");
             emit("onReady");
         }
 
@@ -153,7 +172,7 @@
                     }
 
                     captchaObj.onReady(function () {
-                        setStatus("请完成下方验证");
+                        setStatus("请完成验证");
                     });
 
                     // v4 的验证结果在 onSuccess 里取（v3 是 onClose），这一步不能沿用 GT3 逻辑

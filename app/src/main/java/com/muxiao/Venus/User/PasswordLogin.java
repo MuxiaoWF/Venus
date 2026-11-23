@@ -8,6 +8,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.tools;
@@ -111,11 +112,9 @@ public final class PasswordLogin {
         tools.HttpResponse response = tools.postJson(Constants.Urls.PASSWORD_LOGIN_URL, headers, body);
 
         JsonObject result = JsonParser.parseString(response.body).getAsJsonObject();
-        JsonElement retcodeElement = result.get("retcode");
-        // retcode 缺失/JsonNull 时 getAsInt() 会抛 NPE，统一按登录失败处理
-        int retcode = (retcodeElement != null && !retcodeElement.isJsonNull()) ? retcodeElement.getAsInt() : -1;
-        String message = result.has("message") && !result.get("message").isJsonNull()
-                ? result.get("message").getAsString() : "";
+        // retcode 缺失/JsonNull 时按登录失败处理
+        int retcode = JsonAccess.optInt(result, "retcode", -1);
+        String message = JsonAccess.optString(result, "message", "");
 
         if (retcode != 0) {
             String aigisHeader = response.header("x-rpc-aigis");
@@ -146,8 +145,7 @@ public final class PasswordLogin {
         if (userInfo == null || !userInfo.has("mid") || userInfo.get("mid").isJsonNull())
             throw new RuntimeException(context.getString(R.string.login_password_no_mid, response.body));
         parsed.mid = userInfo.get("mid").getAsString();
-        parsed.aid = userInfo.has("aid") && !userInfo.get("aid").isJsonNull()
-                ? userInfo.get("aid").getAsString() : null;
+        parsed.aid = JsonAccess.optString(userInfo, "aid", null);
 
         if (data.has("login_ticket") && !data.get("login_ticket").isJsonNull())
             parsed.loginTicket = data.get("login_ticket").getAsString();
@@ -195,8 +193,7 @@ public final class PasswordLogin {
                     && inner.get("use_v4").getAsBoolean();
             if (useV4) {
                 // v4 只有 captchaId（gt）与 risk_type，challenge 由 SDK 内部向极验申请
-                String riskType = inner.has("risk_type") && !inner.get("risk_type").isJsonNull()
-                        ? inner.get("risk_type").getAsString() : null;
+                String riskType = JsonAccess.optString(inner, "risk_type", null);
                 return new AigisInfo(sessionId, gt, null, true, riskType);
             }
             // v3 必须有 challenge

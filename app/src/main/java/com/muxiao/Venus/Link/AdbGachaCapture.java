@@ -19,6 +19,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -73,8 +75,8 @@ public final class AdbGachaCapture {
         if (adb.isFile() && adb.canExecute() && markerMatches(dir))
             return adb.getAbsolutePath();
         // 版本不符或残留半成品：清理后重新解压（升级 adb 二进制时不会沿用旧文件）
-        adb.delete();
-        new File(dir, "version").delete();
+        deleteQuietly(adb);
+        deleteQuietly(new File(dir, "version"));
         for (String abi : Build.SUPPORTED_ABIS) {
             if (!"arm64-v8a".equals(abi) && !"armeabi-v7a".equals(abi)) continue;
             if (extractAdb(context, abi, adb)) {
@@ -137,15 +139,15 @@ public final class AdbGachaCapture {
             while ((n = in.read(buffer)) >= 0) out.write(buffer, 0, n);
         } catch (IOException e) {
             Log.w(TAG, "extract libadb failed: " + abi, e);
-            tmp.delete();
+            deleteQuietly(tmp);
             return false;
         }
         if (!tmp.renameTo(dest)) {
-            tmp.delete();
+            deleteQuietly(tmp);
             return false;
         }
         if (!dest.setExecutable(true, false)) {
-            dest.delete();
+            deleteQuietly(dest);
             return false;
         }
         return true;
@@ -181,13 +183,9 @@ public final class AdbGachaCapture {
         }
         AtomicBoolean timedOut = new AtomicBoolean(false);
         Thread watchdog = new Thread(() -> {
-            try {
-                if (!process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)) {
-                    timedOut.set(true);
-                    process.destroyForcibly();
-                }
-            } catch (InterruptedException ignored) {
-                process.destroyForcibly();
+            if (!waitForExit(process, timeoutMs)) {
+                timedOut.set(true);
+                destroyForcibly(process);
             }
         }, "AdbWatchdog");
         watchdog.start();
@@ -196,10 +194,10 @@ public final class AdbGachaCapture {
             output = readAll(process.getInputStream());
             watchdog.join(1_000);
         } catch (IOException e) {
-            process.destroyForcibly();
+            destroyForcibly(process);
             throw new RuntimeException("adb " + args[0] + " io failed", e);
         } catch (InterruptedException e) {
-            process.destroyForcibly();
+            destroyForcibly(process);
             Thread.currentThread().interrupt();
             throw new RuntimeException("adb " + args[0] + " interrupted");
         }
@@ -218,6 +216,59 @@ public final class AdbGachaCapture {
     @NonNull
     public static String runAdbLenient(@NonNull Context context, long timeoutMs, @NonNull String... args) {
         return runAdb(context, timeoutMs, false, args);
+    }
+
+    /**
+     * 等进程退出：{@code Process#waitFor(long, TimeUnit)} 与 {@code Process#destroyForcibly()} 都是 API 26 起，
+     * 本应用 minSdk 24；低版本改用「守护线程阻塞 {@code waitFor()} + 带超时 latch」，不用轮询（不烧 CPU）。
+     *
+     * @return true 表示进程已结束（含「被中断后主动杀掉」的情形）；false 表示超时且已被强杀
+     */
+    private static boolean waitForExit(@NonNull Process process, long timeoutMs) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                return process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ignored) {
+                destroyForcibly(process);
+                Thread.currentThread().interrupt();
+                return true;
+            }
+        }
+        // API 24/25 的 waitFor() 没有超时重载：交给守护线程阻塞等，本线程用带超时的 latch 等结果。
+        // 既不空转 CPU，也保留强杀语义（超时 → destroy 后立即返回 false）。
+        CountDownLatch exited = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            try {
+                process.waitFor();
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exited.countDown();
+            }
+        }, "AdbWait");
+        waiter.setDaemon(true);
+        waiter.start();
+        try {
+            if (exited.await(timeoutMs, TimeUnit.MILLISECONDS)) return true;
+            destroyForcibly(process);
+            return false;
+        } catch (InterruptedException ignored) {
+            destroyForcibly(process);
+            Thread.currentThread().interrupt();
+            return true;
+        }
+    }
+
+    /** {@code Process#destroyForcibly()} 是 API 26 起，低版本退化为 {@code destroy()}（adbd 侧仍会回收）。 */
+    private static void destroyForcibly(@NonNull Process process) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) process.destroyForcibly();
+        else process.destroy();
+    }
+
+    /** 清理残留：删不掉不影响后续流程（下次解压会重写同名文件），仅留日志便于排查权限问题。 */
+    private static void deleteQuietly(@NonNull File file) {
+        if (!file.delete() && file.exists())
+            Log.w(TAG, "delete failed: " + file.getAbsolutePath());
     }
 
     /** 对 Ascent「pair/connect 前先 start-server」的封装：幂等，已运行的 adb server 直接复用。 */
@@ -275,8 +326,9 @@ public final class AdbGachaCapture {
             latch.countDown();
         });
         try {
-            // 稍长等待，确保回调落定
-            latch.await(timeoutMs + 1_000, TimeUnit.MILLISECONDS);
+            // 稍长等待，确保回调落定；超时与否不影响结论——found 为空即视为未发现
+            if (!latch.await(timeoutMs + 1_000, TimeUnit.MILLISECONDS))
+                Log.d(TAG, "mdns " + serviceType + " discovery timed out");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -309,16 +361,17 @@ public final class AdbGachaCapture {
         final WifiManager.MulticastLock finalLock = lock;
         Thread thread = new Thread(() -> {
             long deadline = System.currentTimeMillis() + timeoutMs;
-            InetAddress group = null;
-            try {
-                MulticastSocket socket = new MulticastSocket(null);
+            // try-with-resources：成功 / 超时 / cancel() 外部关闭 / 异常四条路径都由它收口。
+            // close() 自带「离开全部已加入的组」语义，无需再单独 leaveGroup。
+            try (MulticastSocket socket = new MulticastSocket(null)) {
+                // 先落 ref 再 bind：cancel() 才能在任意时刻关掉它，让 receive 立刻抛异常退出
+                socketRef[0] = socket;
                 socket.setReuseAddress(true);
                 socket.bind(new InetSocketAddress(5353));
-                group = InetAddress.getByName("224.0.0.251");
+                InetAddress group = InetAddress.getByName("224.0.0.251");
                 socket.joinGroup(group);
                 socket.setSoTimeout(250);
                 socket.setTimeToLive(255);
-                socketRef[0] = socket;
                 byte[] query = buildPtrQuery(serviceType);
                 DatagramPacket request = new DatagramPacket(query, query.length, group, 5353);
                 long nextQuery = 0;
@@ -342,13 +395,6 @@ public final class AdbGachaCapture {
             } catch (IOException e) {
                 Log.w(TAG, "mdns discovery failed for " + serviceType, e);
             } finally {
-                MulticastSocket socket = socketRef[0];
-                if (socket != null) {
-                    if (group != null) {
-                        try { socket.leaveGroup(group); } catch (Exception ignored) {}
-                    }
-                    socket.close();
-                }
                 if (finalLock != null) {
                     try { finalLock.release(); } catch (Exception ignored) {}
                 }
@@ -465,14 +511,18 @@ public final class AdbGachaCapture {
         return best;
     }
 
+    /**
+     * 读尽流并按 UTF-8 解码。
+     */
     private static String readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int n;
-        while ((n = in.read(buffer)) >= 0)
-            out.write(buffer, 0, n);
-        in.close();
-        return out.toString(StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder(8192);
+        char[] buffer = new char[4096];
+        try (Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+            int n;
+            while ((n = reader.read(buffer)) > 0)
+                sb.append(buffer, 0, n);
+        }
+        return sb.toString();
     }
 
     /** 取第一行非空输出做错误消息；跳过 logcat banner 行。 */

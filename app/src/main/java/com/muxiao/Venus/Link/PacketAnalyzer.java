@@ -39,6 +39,9 @@ public class PacketAnalyzer {
     /** key 长度下限（正常是 500+ 的 base64）：仅用于排除明文里偶然出现的同名短参数，不参与切分 */
     private static final int AUTHKEY_MIN_LEN = 512;
 
+    /** 日志里回显的报文尾部字节数：够看清 protobuf 结构，又不至于把整段 authkey 段刷进日志。 */
+    private static final int TAIL_PREVIEW_BYTES = 160;
+
     private final Context context;
     // 100KB 载荷缓冲：不做跨 KCP 分片重组，authkey 消息实测不分片
     private final byte[] buffer = new byte[1024 * 100];
@@ -333,7 +336,7 @@ public class PacketAnalyzer {
                 authkeyTagMissingNotified = true;
                 Log.w(TAG, "gacha packet without authkey: protoLen=" + proto.length
                         + ", longestB64=" + longestAuthkeyRun(proto)[1]
-                        + ", tail=" + describeTail(proto, 160));
+                        + ", tail=" + describeTail(proto));
             }
             return;
         }
@@ -428,10 +431,10 @@ public class PacketAnalyzer {
      * 明文尾部可读化，供「抓不到」时定位报文结构：长 base64 段折叠为 {@code <b64:n>}（不泄露 key 本体），
      * 非可打印字节转义为 {@code \xNN}（这样 protobuf 的长度前缀/字段 tag 一眼可辨）。
      */
-    private static String describeTail(byte[] proto, int max) {
+    private static String describeTail(byte[] proto) {
         StringBuilder sb = new StringBuilder();
         int b64 = 0;
-        for (int i = Math.max(0, proto.length - max); i < proto.length; i++) {
+        for (int i = Math.max(0, proto.length - TAIL_PREVIEW_BYTES); i < proto.length; i++) {
             byte b = proto[i];
             if (isAuthkeyByte(b)) {
                 b64++;

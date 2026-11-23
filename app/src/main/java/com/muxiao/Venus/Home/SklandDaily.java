@@ -183,7 +183,7 @@ public class SklandDaily {
         if (bindList == null) return list;
         for (JsonElement e : bindList) {
             JsonObject o = e.getAsJsonObject();
-            String appCode = o.has("appCode") && !o.get("appCode").isJsonNull() ? o.get("appCode").getAsString() : "";
+            String appCode = JsonAccess.optString(o, "appCode", "");
             JsonArray bindingArr = o.getAsJsonArray("bindingList");
             if (bindingArr == null) continue;
             for (JsonElement b : bindingArr) {
@@ -196,7 +196,7 @@ public class SklandDaily {
                     for (JsonElement r1 : r.getAsJsonArray("roles")) {
                         JsonObject r2o = r1.getAsJsonObject();
                         if (r2o.has("roleId") && r2o.has("nickname"))
-                            list.add(new Role(r2o.get("roleId").getAsString(), r2o.get("nickname").getAsString(), gid, r2o.has("serverId") ? r2o.get("serverId").getAsString() : ""));
+                            list.add(new Role(r2o.get("roleId").getAsString(), r2o.get("nickname").getAsString(), gid, JsonAccess.optString(r2o, "serverId", "")));
                     }
                 }
             }

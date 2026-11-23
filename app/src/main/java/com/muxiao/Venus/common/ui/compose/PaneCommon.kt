@@ -56,6 +56,7 @@ import com.bumptech.glide.request.transition.Transition
 import com.bumptech.glide.signature.ObjectKey
 import com.muxiao.Venus.R
 import com.muxiao.Venus.User.AvatarStore
+import com.muxiao.Venus.common.tools
 
 /**
  * 设置抽屉内容外壳，各 `item_setting_*` Composable 的根，保证抽屉外壳口径一致。
@@ -417,4 +418,25 @@ private fun AvatarPlaceholderIcon() {
             .fillMaxSize()
             .padding(dimensionResource(R.dimen.space_2)),
     )
+}
+
+/**
+ * 区块标签（`Widget.Venus.SectionLabel`）：四个主页面（首页 / 抽卡链接 / 设置 / 用户管理）共用。
+ */
+@Composable
+internal fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = LocalVenusTextStyles.current.sectionLabel,
+        modifier = modifier.padding(bottom = dimensionResource(R.dimen.space_1)),
+    )
+}
+
+/**
+ * 读取系统「减弱动画」设置的统一入口：按 context 记忆，避免各 Pane 各自实现。
+ */
+@Composable
+internal fun rememberReducedMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) { tools.isReducedMotionEnabled(context) }
 }

@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;
+import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.tools;
@@ -180,7 +181,7 @@ public final class CookieLogin {
         try {
             String response = tools.sendGetRequest(Constants.Urls.LTOKEN_URL, headers, null);
             JsonObject json = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = retcodeOf(json);
+            int retcode = JsonAccess.retcode(json);
             Logger.debug(TAG, "getLTokenBySToken retcode=" + retcode);
             if (retcode != 0) return null;
             JsonElement data = json.get("data");
@@ -213,7 +214,7 @@ public final class CookieLogin {
         headers.put("Cookie", cookie.toString());
         try {
             String response = tools.sendGetRequest(Constants.Urls.BBS_TASK_URL, headers, null);
-            int retcode = retcodeOf(JsonParser.parseString(response).getAsJsonObject());
+            int retcode = JsonAccess.retcode(JsonParser.parseString(response).getAsJsonObject());
             Logger.debug(TAG, "verify getUserMissionsState retcode=" + retcode);
             // 只有 -100 是登录态失效；1034（人机验证）/429 等说明凭证本身有效
             return retcode;
@@ -221,17 +222,6 @@ public final class CookieLogin {
             // 网络异常不阻断导入：凭证已解析完整，交给后续任务在真正请求时暴露
             Logger.debug(TAG, "verify failed: " + tools.describeError(e));
             return 0;
-        }
-    }
-
-    /** 安全读取 retcode：缺失/JsonNull/类型不符返回哨兵值。 */
-    private static int retcodeOf(JsonObject json) {
-        if (json == null || !json.has("retcode") || json.get("retcode").isJsonNull())
-            return Integer.MIN_VALUE;
-        try {
-            return json.get("retcode").getAsInt();
-        } catch (RuntimeException e) {
-            return Integer.MIN_VALUE;
         }
     }
 }
