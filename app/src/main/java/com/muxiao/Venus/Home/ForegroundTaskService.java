@@ -230,6 +230,9 @@ public class ForegroundTaskService extends Service {
                     new TaskExecutor.Callback() {
                         @Override
                         public void onTaskStatusChanged(String taskId, TaskItem.TaskStatus status) {
+                            // 任务粒度续租：账号内任务链可能超过单次 5 分钟租约（风控延时 / 429 冷却 / 重试），
+                            // 只靠账号边界续租会中途断锁，CPU 休眠后表现为「后台没网」
+                            if (wakeLockLease != null) wakeLockLease.renew();
                             saveTaskStatus(taskId, status);
                             if (status == TaskItem.TaskStatus.COMPLETED) {
                                 completedTasks.incrementAndGet();

@@ -431,7 +431,25 @@ public class HomeFragment implements PageController {
                 return;
             }
 
-            checkAndStartTask(viewModel.getCurrentUser());
+            // 可跑账号 ≥2 时询问范围：仅当前账号 / 全部账号（复用小组件 RUN_TASKS 的批量链路，
+            // Service 侧本就支持 EXTRA_USER_IDS；前台「全部账号」入口的应用内批量不受影响）
+            java.util.List<String> runnableUsers =
+                    MultiUserRunner.filterRunnable(context, userManager.getAllUsernames());
+            if (runnableUsers.size() >= 2) {
+                VenusDialogs.confirm(
+                        activity,
+                        activity.getString(R.string.dialog_bg_scope_title),
+                        activity.getResources().getQuantityString(
+                                R.plurals.dialog_bg_scope_message, runnableUsers.size(), runnableUsers.size()),
+                        activity.getString(R.string.btn_bg_all_accounts, runnableUsers.size()),
+                        () -> checkAndStartTask(runnableUsers),
+                        activity.getString(R.string.btn_bg_current_account),
+                        () -> checkAndStartTask(java.util.Collections
+                                .singletonList(viewModel.getCurrentUser())));
+                return;
+            }
+
+            checkAndStartTask(java.util.Collections.singletonList(viewModel.getCurrentUser()));
         });
 
         // 根据设置显示/隐藏后台运行按钮（经 UiState 派生）
@@ -1308,23 +1326,27 @@ public class HomeFragment implements PageController {
         return true;
     }
 
-    /** 启动后台任务前校验：任务已配置、已选用户、通知权限、电池优化豁免，全部通过才拉起 Service。 */
-    private void checkAndStartTask(String userId) {
+    /** 启动后台任务前校验：目标账号有效、通知权限、电池优化豁免，全部通过才拉起 Service。 */
+    private void checkAndStartTask(java.util.List<String> users) {
         // 定时任务执行中不允许叠加后台运行：两路 TaskExecutor 的状态写入会互相覆盖
         if (DailyTaskWorker.isRunning()) {
             tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.err_scheduled_task_running));
             return;
         }
         Context context = activity;
-        // 按「将要运行的那个账号」读配置：后台入口的 userId 由调用方给出，与展示账号一致但语义更明确
-        TaskSettings settings = TaskSettings.fromPreferences(context, userId);
-        if (settings.hasAnyTaskDisabled()) {
-            show_warning_dialog(context, activity.getString(R.string.err_set_task_first));
-            return;
-        }
-        if (userId == null || userId.isEmpty()) {
-            show_warning_dialog(context, activity.getString(R.string.msg_select_user_first));
-            return;
+        // 单账号沿用原校验口径：按「将要运行的那个账号」读配置，与展示账号一致但语义更明确。
+        // 批量名单已由 MultiUserRunner.filterRunnable 过滤（只保留至少勾了一项任务的账号），无需逐个校验
+        if (users.size() == 1) {
+            String userId = users.get(0);
+            TaskSettings settings = TaskSettings.fromPreferences(context, userId);
+            if (settings.hasAnyTaskDisabled()) {
+                show_warning_dialog(context, activity.getString(R.string.err_set_task_first));
+                return;
+            }
+            if (userId == null || userId.isEmpty()) {
+                show_warning_dialog(context, activity.getString(R.string.msg_select_user_first));
+                return;
+            }
         }
 
         Notification notification = new Notification(context);
@@ -1347,18 +1369,29 @@ public class HomeFragment implements PageController {
                     activity.getString(R.string.btn_go_to_settings),
                     () -> BatteryHelper.openVendorBatterySettings(context),
                     activity.getString(R.string.btn_ignore),
-                    () -> startTaskService(userId));
+                    () -> {
+                        // 「忽略」收口：尊重选择照常启动，但明确告知后果——
+                        // 未豁免时熄屏后系统可能掐断后台网络（Doze / 厂商省电），任务会中断或失败
+                        tools.showCustomSnackbar(screenView, activity,
+                                activity.getString(R.string.msg_battery_ignored_warning));
+                        startTaskService(users);
+                    });
             return;
         }
 
-        startTaskService(userId);
+        startTaskService(users);
     }
 
     /** 真正启动前台任务 Service，并切到 BACKGROUND 运行态、提示已启动。 */
-    private void startTaskService(String userId) {
+    private void startTaskService(java.util.List<String> users) {
         Intent serviceIntent = new Intent(activity, ForegroundTaskService.class);
         serviceIntent.setAction(ForegroundTaskService.ACTION_START_TASK);
-        serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, userId);
+        if (users.size() == 1) {
+            serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_ID, users.get(0));
+        } else {
+            // 批量：Service 内部按 MultiUserRunner 串行逐账号，进度通知自带「账号 i/n」前缀
+            serviceIntent.putExtra(ForegroundTaskService.EXTRA_USER_IDS, users.toArray(new String[0]));
+        }
         androidx.core.content.ContextCompat.startForegroundService(activity, serviceIntent);
         // 新一轮运行：仅复位瞬态（进行中/已取消），保留当日终态（与前台启动口径一致）
         viewModel.resetForNewRun();
@@ -1367,7 +1400,11 @@ public class HomeFragment implements PageController {
         // 后台按钮文案/可见性由 UiState 派生，这里只切运行形态
         viewModel.setRunMode(HomeViewModel.RunMode.BACKGROUND);
         viewModel.refreshTaskItems();
-        tools.showCustomSnackbar(screenView, activity, activity.getString(R.string.snack_bg_task_started));
+        tools.showCustomSnackbar(screenView, activity,
+                users.size() > 1
+                        ? activity.getResources().getQuantityString(
+                                R.plurals.snack_bg_task_started_all, users.size(), users.size())
+                        : activity.getString(R.string.snack_bg_task_started));
     }
 
     /** 页面成为当前选中页 / Activity 恢复：注册状态广播、按真实运行状态对齐 UI、刷新用户下拉框与小组件，并通知宿主已就绪（触发后台验证）。 */

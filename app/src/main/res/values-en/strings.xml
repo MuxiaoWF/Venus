@@ -325,6 +325,20 @@
     <string name="snack_log_cleared">Log cleared</string>
     <string name="snack_no_log">No log content</string>
     <string name="snack_bg_task_started">Background task started. If a captcha appears, it will pop up automatically. Please check notifications.</string>
+    <plurals name="snack_bg_task_started_all">
+        <item quantity="one">Background task started (%1$d account). If a captcha appears, it will pop up automatically. Please check notifications.</item>
+        <item quantity="other">Background task started (%1$d accounts). If a captcha appears, it will pop up automatically. Please check notifications.</item>
+    </plurals>
+    <!-- Background run scope choice (asked when ≥2 runnable accounts) -->
+    <string name="dialog_bg_scope_title">Choose Background Run Scope</string>
+    <plurals name="dialog_bg_scope_message">
+        <item quantity="one">%1$d account has tasks configured. Choose the scope for this background run.</item>
+        <item quantity="other">%1$d accounts have tasks configured. Choose the scope for this background run.</item>
+    </plurals>
+    <string name="btn_bg_all_accounts">All accounts (%1$d)</string>
+    <string name="btn_bg_current_account">Current account only</string>
+    <!-- Downgraded hint shown after tapping "Ignore" on the battery optimization dialog -->
+    <string name="msg_battery_ignored_warning">Battery optimization is not disabled. The system may restrict background network after the screen turns off, and tasks may be interrupted or fail.</string>
     <string name="snack_task_running_cannot_add">Task running, cannot add user</string>
     <string name="snack_task_running_cannot_relogin">Task running, cannot re-login</string>
     <string name="snack_task_running_cannot_rename">Task running, cannot rename user</string>

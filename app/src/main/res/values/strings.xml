@@ -330,6 +330,18 @@
     <string name="snack_log_cleared">日志已清空</string>
     <string name="snack_no_log">暂无日志内容</string>
     <string name="snack_bg_task_started">后台任务已启动，如遇到验证码会自动弹出，请留意通知</string>
+    <plurals name="snack_bg_task_started_all">
+        <item quantity="other">后台任务已启动（%1$d 个账号），如遇到验证码会自动弹出，请留意通知</item>
+    </plurals>
+    <!-- 后台运行范围选择（可跑账号 ≥2 时询问） -->
+    <string name="dialog_bg_scope_title">选择后台运行范围</string>
+    <plurals name="dialog_bg_scope_message">
+        <item quantity="other">检测到 %1$d 个账号已配置任务，请选择本次后台运行的账号范围</item>
+    </plurals>
+    <string name="btn_bg_all_accounts">全部账号（%1$d）</string>
+    <string name="btn_bg_current_account">仅当前账号</string>
+    <!-- 电池优化弹窗点「忽略」后的降级提示 -->
+    <string name="msg_battery_ignored_warning">未关闭电池优化，熄屏后系统可能限制后台联网，任务可能中断或失败</string>
     <string name="snack_task_running_cannot_add">任务运行中，无法添加用户</string>
     <string name="snack_task_running_cannot_relogin">任务运行中，无法重新登录</string>
     <string name="snack_task_running_cannot_rename">任务运行中，无法重命名用户</string>

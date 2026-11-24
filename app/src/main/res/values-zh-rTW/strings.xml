@@ -321,6 +321,18 @@
     <string name="snack_log_cleared">日誌已清除</string>
     <string name="snack_no_log">暫無日誌內容</string>
     <string name="snack_bg_task_started">背景任務已啟動，如遇到驗證碼會自動彈出，請留意通知</string>
+    <plurals name="snack_bg_task_started_all">
+        <item quantity="other">背景任務已啟動（%1$d 個帳號），如遇到驗證碼會自動彈出，請留意通知</item>
+    </plurals>
+    <!-- 背景執行範圍選擇（可執行帳號 ≥2 時詢問） -->
+    <string name="dialog_bg_scope_title">選擇背景執行範圍</string>
+    <plurals name="dialog_bg_scope_message">
+        <item quantity="other">偵測到 %1$d 個帳號已設定任務，請選擇本次背景執行的帳號範圍</item>
+    </plurals>
+    <string name="btn_bg_all_accounts">全部帳號（%1$d）</string>
+    <string name="btn_bg_current_account">僅當前帳號</string>
+    <!-- 電池最佳化彈窗點「忽略」後的降級提示 -->
+    <string name="msg_battery_ignored_warning">未關閉電池最佳化，熄屏後系統可能限制背景網路，任務可能中斷或失敗</string>
     <string name="snack_task_running_cannot_add">任務執行中，無法新增使用者</string>
     <string name="snack_task_running_cannot_relogin">任務執行中，無法重新登入</string>
     <string name="snack_task_running_cannot_rename">任務執行中，無法重新命名使用者</string>
