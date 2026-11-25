@@ -147,6 +147,34 @@ public class Constants {
 
         public static final String SKLAND_LOGIN_URL = "https://user.hypergryph.com/login";
         public static final String SKLAND_COOKIE_URL = "https://web-api.hypergryph.com/account/info/hg";
+
+        /** 自动打码组件清单，换源只改这里。 */
+        public static final String SOLVER_MANIFEST_URL = "https://muxiaowf.top/api/geetest_solver_manifest.json";
+
+        // ADB 无线调试客户端二进制（原神/绝区零抽卡链接 ADB 抓取）：按 ABI 分别下载，
+        // 首次使用 AdbGachaCapture 时按需拉取，APK 零增量。三源依次回落，任何一个成功即算成功。
+        // 换源只改这三组常量。文件名保持 libadb_<abi>.bin。
+        //
+        // 主源：自建站（可控、稳定、国内直连）
+        public static final String ADB_BIN_URL_ARM64 =
+                "https://muxiaowf.top/api/adb/libadb_arm64-v8a.bin";
+        public static final String ADB_BIN_URL_ARMEABI =
+                "https://muxiaowf.top/api/adb/libadb_armeabi-v7a.bin";
+        // 兜底 1：jsDelivr（GitHub 国内镜像，cdn.jsdelivr.net 有大陆节点，比 raw.githubusercontent.com 快 10×，
+        // 走 CDN 层天然绕过 GitHub DNS 污染。@main 分支；若后续改成 Release tag 固定版本，把 @main 换成 @v1.2.0 之类）。
+        public static final String ADB_BIN_URL_ARM64_FALLBACK =
+                "https://cdn.jsdelivr.net/gh/MuxiaoWF/Venus@main/app/src/main/assets/_adb/arm64-v8a/libadb.bin";
+        public static final String ADB_BIN_URL_ARMEABI_FALLBACK =
+                "https://cdn.jsdelivr.net/gh/MuxiaoWF/Venus@main/app/src/main/assets/_adb/armeabi-v7a/libadb.bin";
+        // 兜底 2：GitHub Raw 原始地址（全球通用但国内可能 DNS 污染）。作为 jsDelivr 也挂了时的最后防线。
+        public static final String ADB_BIN_URL_ARM64_FALLBACK2 =
+                "https://raw.githubusercontent.com/MuxiaoWF/Venus/main/app/src/main/assets/_adb/arm64-v8a/libadb.bin";
+        public static final String ADB_BIN_URL_ARMEABI_FALLBACK2 =
+                "https://raw.githubusercontent.com/MuxiaoWF/Venus/main/app/src/main/assets/_adb/armeabi-v7a/libadb.bin";
+        public static final String GEETEST_GETTYPE_URL = "https://api.geetest.com/gettype.php";
+        public static final String GEETEST_GET_URL = "https://api.geetest.com/get.php";
+        public static final String GEETEST_AJAX_URL = "https://api.geetest.com/ajax.php";
+        public static final String GEETEST_API_SERVER = "https://api.geevisit.com";
     }
 
     public static class Prefs {
@@ -205,6 +233,9 @@ public class Constants {
         public static final String HSR_KEYS_PREF = "hsr_keys";
         /** 星铁初始密钥表上次成功云端拉取的时间（epoch 毫秒字符串），HsrKeyStore 写入 */
         public static final String HSR_KEYS_UPDATE_TIME_PREF = "hsr_keys_update_time";
+
+        public static final String AUTO_CAPTCHA_ENABLED = "auto_captcha_enabled";
+        public static final String SOLVER_ASSETS_VERSION = "solver_assets_version";
 
         // 背景
         public static final String BACKGROUND_PREFS_NAME = "background_prefs";

@@ -28,8 +28,8 @@ android {
         minSdk = 24
         targetSdk = 37
         compileSdkMinor = 1
-        versionCode = 11
-        versionName = "0.0.11"
+        versionCode = 12
+        versionName = "0.0.12"
 
         buildConfigField "int", "VERSION_CODE", "${defaultConfig.versionCode}"
         buildConfigField "String", "VERSION_NAME", "\"${defaultConfig.versionName}\""
@@ -89,8 +89,11 @@ android {
         // OkHttp 的 PublicSuffixDatabase.list 只在 Cookie.domainMatches() 时按需读取。本项目 Cookie
         // 一律由 HeaderManager 自己拼请求头、全程没有 CookieJar，该表是纯死重（assets 里占 41.5KB）。
         // 注意：该属性是整体覆盖而非追加，必须把 AGP 默认忽略模式一起写上。
+        // 同时排除 assets/adb/**：ADB 二进制（libadb.bin）改为首次使用时按需下载，APK 零增量。
         ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!PublicSuffixDatabase.list"
     }
+    // assets/adb 重命名为 assets/_adb 以触发 <dir>_* 忽略规则（无需改 ignoreAssetsPattern）。
+    // AdbGachaCapture.extractAdb 里 getAssets().open("adb/...") 找不到时自动 fallback 到云端下载。
     packagingOptions {
         resources {
             excludes += [
@@ -108,12 +111,23 @@ android {
                 'META-INF/*.kotlin_module',
                 'META-INF/proguard/*',
                 'META-INF/AL2.0',
-                'META-INF/LGPL2.1'
+                'META-INF/LGPL2.1',
+                // baseline.prof / .profm：AGP 默认生成的空 baseline profile 占位（没配 Baseline Profile 生成任务），
+                // 占 ~11.5 KB 且无实际运行时收益；DebugProbesKt.bin 在 release R8 full mode 下通常自动剥离，
+                // 但这里显式排除避免历史 Kotlin 版本残留。
+                'assets/dexopt/baseline.prof',
+                'assets/dexopt/baseline.profm',
+                'DebugProbesKt.bin'
             ]
         }
         jniLibs {
             // adb 二进制以 .bin 存于 assets 压缩存放（.so 可能被 AGP 默认不压缩）；保持 false 避免解包其他 .so
             useLegacyPackaging = false
+            // onnxruntime-android 只取 Java 绑定类（classes.jar 108KiB）：两个 native .so 剥离出 APK，
+            // 由 OrtLoader/SolverAssetManager 按设备 ABI 下载后 System.load（APK 体积零增量）。
+            // 注意 JNI 库实际文件名是 libonnxruntime4j_jni.so（4j_jni 带下划线）。
+            // 版本必须与组件清单里的 .so 严格一致（JNI ABI 耦合）。
+            excludes += ['**/libonnxruntime.so', '**/libonnxruntime4j_jni.so']
         }
     }
 
@@ -144,7 +158,7 @@ dependencies {
     runtimeOnly libs.mcs.ads.identifier
     implementation libs.sensebot
     implementation libs.okhttp
-    implementation libs.com.google.zxing.core
+    implementation libs.qrcodegen
     implementation libs.activity
     implementation libs.lifecycle.viewmodel
     implementation libs.lifecycle.livedata
@@ -155,6 +169,7 @@ dependencies {
     implementation libs.datastore.preferences.rxjava3
     implementation libs.rxjava3
     implementation libs.androidx.work.runtime
+    implementation libs.onnxruntime.android
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
 }

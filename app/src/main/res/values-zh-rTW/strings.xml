@@ -151,6 +151,11 @@
     <string name="adb_error_no_pair_port">未探索到配對連接埠：請確認系統配對彈窗已開啟，或手動輸入連接埠</string>
     <string name="adb_pair_code_hint">配對碼</string>
     <string name="adb_status_preparing">正在準備 adb 元件…</string>
+    <string name="adb_status_downloading_total">正在下載 adb 元件：%1$s / %2$s</string>
+    <string name="adb_status_downloading_unknown">正在下載 adb 元件…</string>
+    <string name="adb_status_downloading_bytes">正在下載 adb 元件：已下載 %1$s</string>
+    <string name="adb_status_fallback">下載主源失敗，已切換備用源（%1$s）</string>
+    <string name="adb_status_ready">adb 元件就緒</string>
     <string name="adb_status_pairing">配對中…</string>
     <string name="adb_status_connecting">連線中…</string>
     <string name="adb_status_watching">監聽中，請開啟遊戲內抽卡記錄頁</string>
@@ -158,6 +163,7 @@
     <string name="adb_status_captured">已擷取%1$s抽卡連結並複製</string>
     <string name="adb_status_failed">失敗：%1$s</string>
     <string name="adb_error_missing_binary">adb 元件無法使用（架構不支援或儲存空間不足）</string>
+    <string name="adb_error_missing_binary_detail">adb 元件無法使用：%1$s</string>
     <string name="adb_error_no_connect_port">未探索到無線偵錯連接埠，請確認無線偵錯已開啟</string>
     <string name="adb_capture_channel_name">ADB 擷取</string>
     <string name="adb_capture_notification_title">ADB 擷取執行中</string>
@@ -609,9 +615,29 @@
     <string name="geetest_captcha_failed_network">取得驗證碼失敗：網路請求無回應</string>
     <string name="geetest_captcha_failed_api">取得驗證碼失敗</string>
     <string name="geetest_second_verify_failed_network">二次驗證失敗：網路請求無回應</string>
-    <string name="geetest_second_verify_failed">二次驗證失敗: %s</string>
     <string name="geetest_captcha_closed">驗證碼已關閉</string>
     <string name="geetest_captcha_error">驗證碼錯誤：%s</string>
+
+    <!-- 自動打碼（極驗 v3 本地識別，組件按需下載） -->
+    <string name="auto_captcha_title">自動打碼</string>
+    <string name="auto_captcha_hint">開啟後簽到觸發人機驗證時在本地自動識別，不依賴任何打碼服務；識別組件需在此手動下載（約 70MB），識別失敗時回落手動驗證。</string>
+    <string name="auto_captcha_switch">本地自動識別驗證碼</string>
+    <string name="auto_captcha_switch_subtitle">識別組件就緒時，簽到遇到極驗驗證碼將自動完成並繼續任務</string>
+    <string name="auto_captcha_assets_state">識別組件</string>
+    <string name="auto_captcha_assets_ready_fmt">%1$s 已安裝</string>
+    <string name="auto_captcha_up_to_date_fmt">%1$s 已是最新</string>
+    <string name="auto_captcha_assets_partial_fmt">%1$s 已安裝（缺 native 執行庫，請更新組件清單）</string>
+    <string name="auto_captcha_assets_missing">未安裝（需先下載）</string>
+    <string name="auto_captcha_assets_failed">安裝失敗，已保留舊版本</string>
+    <string name="auto_captcha_download">下載 / 更新識別組件</string>
+    <string name="auto_captcha_cancel">取消下載</string>
+    <string name="auto_captcha_cancelled">已取消</string>
+    <string name="auto_captcha_uninstall">刪除識別組件</string>
+    <string name="auto_captcha_stage_manifest">取得清單</string>
+    <string name="auto_captcha_stage_download">下載</string>
+    <string name="auto_captcha_stage_verify">校驗</string>
+    <string name="auto_captcha_stage_install">安裝</string>
+    <string name="auto_captcha_stage_done">完成</string>
 
     <!-- BBSGameDaily 補充 -->
     <string name="game_cookie_token_refreshed">簽到 CookieToken重新整理成功</string>

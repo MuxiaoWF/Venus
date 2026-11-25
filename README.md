@@ -6,13 +6,16 @@
 [jimmylizz/SRGachaLink 星铁vpn抓包转写](https://github.com/jimmylizz/SRGachaLink)，
 [juliuskreutz/stardb-exporter 星铁密钥](https://github.com/juliuskreutz/stardb-exporter/blob/master/keys/hsr.json)，
 [BTMuli/TeyvatGuide 扫码登录参考](https://github.com/BTMuli/TeyvatGuide)，
+[4o3F/Ascent adb获取抽卡链接参考](https://github.com/4o3F/Ascent)，
  ~~[Android/Material3 组件样式](https://github.com/material-components/material-components-android)，~~ 
 [google/gson JSON解析](https://github.com/google/gson)，
 [square/okhttp HTTP请求](https://github.com/square/okhttp)，
-[google/zxing 二维码生成](https://github.com/zxing/zxing)，
+ ~~[google/zxing 二维码生成](https://github.com/zxing/zxing)，~~
+[nayuki/qrcodegen 二维码生成](https://github.com/nayuki/QR-Code-generator)，
 [bumptech/glide 图片加载](https://github.com/bumptech/glide)，
 [gzu-liyujiang/Android_CN_OAID 设备信息获取](https://github.com/gzu-liyujiang/Android_CN_OAID)，
 [com.geetest.sensebot 极验验证码](https://mvnrepository.com/artifact/com.geetest.sensebot/sensebot/4.4.4)，
+[luguoyixiazi/test_nine 自动过验证码参考](https://github.com/luguoyixiazi/test_nine) 同时接入huggingface上的部分现成模型，
  ~~[MikeOrtiz/TouchImageView 图片查看器](https://github.com/MikeOrtiz/TouchImageView)，~~ 
  ~~[yalantis/ucrop 图片裁剪](https://github.com/Yalantis/uCrop)，~~
 [Kyant0/AndroidLiquidGlass 液态玻璃](https://github.com/Kyant0/AndroidLiquidGlass)，
@@ -44,6 +47,12 @@
 ---
 
 更新日志：
+
+2026.11.25
+
+添加了自动过验证码的功能（未测试），同时将cookie转成v2版本，添加adb获取抽卡链接的方式（暂时获取的是抽卡页面链接，实验性功能）
+
+---
 
 2026.11.14
 

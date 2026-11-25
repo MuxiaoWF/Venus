@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.LocaleHelper;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.widget.TaskStatusManager;
@@ -294,8 +295,13 @@ public class DailyTaskWorker extends Worker {
 
         // 批量链：不逐账号重试，只排下一个账号
         if (batch) {
-            if (suspended)
-                tools.writeLog(context, TAG + ": account suspended for captcha, continue batch: " + userId);
+            if (suspended) {
+                boolean autoHandled = CaptchaStore.getSolution(context, userId) != null;
+                if (autoHandled)
+                    tools.writeLog(context, TAG + ": auto-solved captcha, continue batch: " + userId);
+                else
+                    tools.writeLog(context, TAG + ": account suspended for captcha, continue batch: " + userId);
+            }
             return chainBatch(context, batchUsers, batchIndex + 1);
         }
 
@@ -303,15 +309,15 @@ public class DailyTaskWorker extends Worker {
         // （首页「重试失败任务」；次日到点的定时执行仍会再试）。其余失败在重试额度内只重跑这些项（名单随 WorkData 传递）。
         if (DailyTaskScheduler.isEnabled(appContext)) {
             if (suspended) {
-                // 已挂起等人：排一次兜底续跑（用户可能一直不点通知），额度内 20 分钟后再试。
-                // 用户完成验证时前台会主动排一次立即续跑，与之互不冲突——都是同一条链上的新节点。
-                // 必须带 resume 标记：丢掉它会让下一轮按「当前状态」二次过滤名单，而被上一轮
-                // resetTransientStatuses 复位成 pending 的挂起项会被全部筛掉，续跑轮静默空跑。
-                if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)
-                    DailyTaskScheduler.enqueueCaptchaRetry(context, userId, captchaTaskIds,
-                            attempt + 1);
-                else
+                // autoSolve 成功接管时已经排了立即续跑，不需要再排兜底（也避免 20 分钟后的空跑）
+                boolean autoHandled = CaptchaStore.getSolution(context, userId) != null;
+                if (autoHandled) {
+                    Logger.debug(TAG, "captcha auto-solved, skip fallback retry for " + userId);
+                } else if (attempt < DailyTaskScheduler.MAX_ATTEMPTS) {
+                    DailyTaskScheduler.enqueueCaptchaRetry(context, userId, captchaTaskIds, attempt + 1);
+                } else {
                     DailyTaskScheduler.enqueueTomorrow(context);
+                }
             } else if (!executed) {
                 // 任务体整体未执行（提交阶段异常）：按全量重试处理
                 if (attempt < DailyTaskScheduler.MAX_ATTEMPTS)

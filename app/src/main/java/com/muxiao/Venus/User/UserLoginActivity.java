@@ -21,10 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
+import io.nayuki.qrcodegen.QrCode;
 import com.geetest.sdk.GT3ConfigBean;
 import com.geetest.sdk.GT3ErrorBean;
 import com.geetest.sdk.GT3GeetestUtils;
@@ -727,17 +724,26 @@ public class UserLoginActivity extends BaseActivity {
 
         private void show_qr_code(String url) {
             try {
-                QRCodeWriter qrCodeWriter = new QRCodeWriter();
-                Map<EncodeHintType, Object> hints = new HashMap<>();
-                hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
-                // 根据屏幕密度调整二维码大小
-                int qrSize = (int) (getResources().getDisplayMetrics().density * 200);
-                int size = Math.max(qrSize, 300);
-                BitMatrix bitMatrix = qrCodeWriter.encode(url, BarcodeFormat.QR_CODE, size, size, hints);
-                Bitmap bitmap = Bitmap.createBitmap(bitMatrix.getWidth(), bitMatrix.getHeight(), Bitmap.Config.RGB_565);
-                for (int x = 0; x < bitMatrix.getWidth(); x++)
-                    for (int y = 0; y < bitMatrix.getHeight(); y++)
-                        bitmap.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
+                // io.nayuki.qrcodegen: 纯编码，比 ZXing core（289 类）小一个数量级
+                QrCode qr = QrCode.encodeText(url, QrCode.Ecc.MEDIUM);
+                int n = qr.size; // QR 矩阵边长（模块数），Nayuki 的 API：public final int size
+                // 根据屏幕密度计算像素目标尺寸
+                int targetPx = (int) (getResources().getDisplayMetrics().density * 200);
+                targetPx = Math.max(targetPx, 300);
+                // 每个模块放 scale x scale 像素块，保证清晰度
+                int scale = Math.max(1, targetPx / n);
+                int pixelSize = n * scale;
+                Bitmap bitmap = Bitmap.createBitmap(pixelSize, pixelSize, Bitmap.Config.RGB_565);
+                for (int y = 0; y < n; y++) {
+                    for (int x = 0; x < n; x++) {
+                        int color = qr.getModule(x, y) ? Color.BLACK : Color.WHITE;
+                        for (int dy = 0; dy < scale; dy++) {
+                            int row = y * scale + dy;
+                            for (int dx = 0; dx < scale; dx++)
+                                bitmap.setPixel(x * scale + dx, row, color);
+                        }
+                    }
+                }
                 // 直接交给 Compose 侧的 state，避免额外的 PNG 压缩与 UI 线程二次解码开销。
                 // 视图会持有它，所以这里不能 recycle；下一次换码或 onDestroy 时自然被替换/回收。
                 runOnUiThread(() -> {

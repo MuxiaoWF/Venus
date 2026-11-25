@@ -11,6 +11,7 @@ import android.net.VpnService;
 import android.view.View;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.muxiao.Venus.MainActivity;
@@ -231,7 +232,10 @@ public class LinkFragment implements PageController {
 
     // ============================== ADB 抓取 ==============================
 
-    /** ADB 行点击：运行中则停止，否则先展示图文引导，确认后再进入配对流程。 */
+    /**
+     * ADB 行点击：运行中则停止；未运行时先确保 adb 组件就绪（展示下载进度），
+     * 成功后才弹出图文引导对话框让用户确认；用户确认后进入配对流程。
+     */
     private void toggleAdbCapture() {
         android.content.Context appContext = activity.getApplicationContext();
         if (AdbCaptureService.running) {
@@ -239,32 +243,86 @@ public class LinkFragment implements PageController {
             setStatusAdb(activity.getString(R.string.adb_capture_hint), LinkScreenKt.VPN_STATUS_DEFAULT);
             return;
         }
-        AdbGuideDialog.show(activity, () -> startAdbFlow(appContext));
-    }
+        if (adbPreparing) return; // 防重入：下载进行中忽略重复点击
 
-    /** 引导确认后的实际启动流程：确保 adb 就绪 → 检查通知权限 → 进入配对。 */
-    private void startAdbFlow(Context appContext) {
-        if (adbPreparing) return;
-        if (!AdbGachaCapture.isAdbReady(appContext)) {
-            adbPreparing = true;
-            setStatusAdb(activity.getString(R.string.adb_status_preparing), LinkScreenKt.VPN_STATUS_RUNNING);
-            AdbGachaCapture.ensureAdb(appContext,
-                    () -> {
-                        adbPreparing = false;
-                        startAdbPairing(appContext);
-                    },
-                    () -> {
-                        adbPreparing = false;
-                        showAdbMissing();
-                    });
+        if (AdbGachaCapture.isAdbReady(appContext)) {
+            // 组件已就绪，直接弹引导 → 配对
+            AdbGuideDialog.show(activity, () -> startAdbPairing(appContext));
             return;
         }
-        startAdbPairing(appContext);
+        // 组件未就绪：先下载，展示进度，成功后才弹引导
+        adbPreparing = true;
+        setStatusAdb(activity.getString(R.string.adb_status_preparing), LinkScreenKt.VPN_STATUS_RUNNING);
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        AdbGachaCapture.ensureAdb(appContext, new AdbGachaCapture.DownloadListener() {
+            @Override
+            public void onStart(long totalBytes) {
+                main.post(() -> {
+                    if (totalBytes > 0)
+                        setStatusAdb(activity.getString(R.string.adb_status_downloading_total,
+                                "0 B", formatKb(totalBytes)), LinkScreenKt.VPN_STATUS_RUNNING);
+                    else
+                        setStatusAdb(activity.getString(R.string.adb_status_downloading_unknown),
+                                LinkScreenKt.VPN_STATUS_RUNNING);
+                });
+            }
+
+            @Override
+            public void onProgress(long downloaded, long total) {
+                main.post(() -> {
+                    if (total > 0)
+                        setStatusAdb(activity.getString(R.string.adb_status_downloading_total,
+                                formatKb(downloaded), formatKb(total)),
+                                LinkScreenKt.VPN_STATUS_RUNNING);
+                    else
+                        setStatusAdb(activity.getString(R.string.adb_status_downloading_bytes,
+                                formatKb(downloaded)), LinkScreenKt.VPN_STATUS_RUNNING);
+                });
+            }
+
+            @Override
+            public void onFallback(String url, String reason) {
+                main.post(() -> setStatusAdb(
+                        activity.getString(R.string.adb_status_fallback, reason),
+                        LinkScreenKt.VPN_STATUS_WARN));
+            }
+
+            @Override
+            public void onSuccess() {
+                main.post(() -> setStatusAdb(activity.getString(R.string.adb_status_ready),
+                        LinkScreenKt.VPN_STATUS_RUNNING));
+            }
+
+            @Override
+            public void onFailed(String reason) {
+                main.post(() -> showAdbMissing(reason));
+            }
+        }, () -> {
+            adbPreparing = false;
+            // 下载成功 → 展示引导对话框让用户确认
+            main.post(() -> AdbGuideDialog.show(activity, () -> startAdbPairing(appContext)));
+        }, () -> {
+            adbPreparing = false;
+            // onFailed 已在上面的 listener 里处理过
+        });
+    }
+
+    private static String formatKb(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024L * 1024) return (bytes / 1024) + " KB";
+        return String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1024.0 / 1024.0);
     }
 
     private void showAdbMissing() {
-        setStatusAdb(activity.getString(R.string.adb_error_missing_binary), LinkScreenKt.VPN_STATUS_WARN);
-        notifyCaptureIssue(activity.getString(R.string.adb_error_missing_binary));
+        showAdbMissing(null);
+    }
+
+    private void showAdbMissing(@Nullable String reason) {
+        CharSequence msg = reason != null
+                ? activity.getString(R.string.adb_error_missing_binary_detail, reason)
+                : activity.getString(R.string.adb_error_missing_binary);
+        setStatusAdb(msg, LinkScreenKt.VPN_STATUS_WARN);
+        notifyCaptureIssue(msg.toString());
     }
 
     /** 抓包失败：状态行已同步，再补一条不依赖页面上屏的通知。 */

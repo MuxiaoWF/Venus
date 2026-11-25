@@ -817,6 +817,14 @@ public class HomeFragment implements PageController {
                 captchaFallbackIds.put(owner, new ArrayList<>(taskIds));
                 Logger.debug("VenusCaptcha", "suspend failed, fall back to inline verification for " + owner);
             }
+            if (suspended && CaptchaStore.getSolution(activity, owner) != null) {
+                Logger.debug("VenusCaptcha", "auto-solve consumed the pending, skip manual queue: " + owner);
+                runOnUi(() -> {
+                    viewModel.refreshTaskItems();
+                    refreshAggregate();
+                });
+                return;
+            }
             // 无论挂起成功与否都入队
             captchaQueue.offer(owner);
             runOnUi(() -> {

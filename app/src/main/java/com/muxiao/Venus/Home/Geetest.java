@@ -120,6 +120,54 @@ public class Geetest {
     }
 
     /**
+     * API2 二次验证（SDK 与自动打码共用）：DS 必须按<b>验证 body</b> 重算，并清掉上一轮的 x-rpc-* 三件套。
+     *
+     * @param geetestChallenge challenge
+     * @param geetestValidate  极验 validate（SDK 回调或 {@link com.muxiao.Venus.Home.GeetestV3Solver} 求解）
+     * @param isOversea        服别（决定域名与 DS salt）
+     * @return {x-rpc-challenge, x-rpc-validate, x-rpc-seccode}；失败返回 null
+     */
+    public static Map<String, String> verifySecondPass(Context context, Map<String, String> headers,
+                                                       String geetestChallenge, String geetestValidate,
+                                                       boolean isOversea) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("geetest_challenge", geetestChallenge);
+        body.put("geetest_seccode", geetestValidate + "|jordan");
+        body.put("geetest_validate", geetestValidate);
+        try {
+            Map<String, String> verifyHeaders = new HashMap<>(headers);
+            verifyHeaders.remove("x-rpc-challenge");
+            verifyHeaders.remove("x-rpc-validate");
+            verifyHeaders.remove("x-rpc-seccode");
+            verifyHeaders.put("DS",
+                    new HeaderManager(context, isOversea).getDS_signIn(GSON.toJson(body)));
+            String checkResponse = sendPostRequest(
+                    isOversea ? Constants.Urls.OS_GEETEST_API2_URL : Constants.Urls.GEETEST_API2_URL,
+                    verifyHeaders, body);
+            if (checkResponse == null) {
+                Logger.debug("VenusCaptcha", "verifySecondPass: network failure");
+                return null;
+            }
+            JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
+            JsonObject dataObj = JsonAccess.data(check);
+            String challengeValue = JsonAccess.optString(dataObj, "challenge", null);
+            if (JsonAccess.retcode(check) != 0 || challengeValue == null) {
+                Logger.debug("VenusCaptcha", "verifySecondPass rejected: " + checkResponse);
+                return null;
+            }
+            Map<String, String> geetCode = new HashMap<>();
+            geetCode.put("x-rpc-challenge", challengeValue);
+            geetCode.put("x-rpc-validate", geetestValidate);
+            geetCode.put("x-rpc-seccode", geetestValidate + "|jordan");
+            return geetCode;
+        } catch (Exception e) {
+            Logger.debug("VenusCaptcha", "verifySecondPass error: "
+                    + com.muxiao.Venus.common.tools.describeError(e));
+            return null;
+        }
+    }
+
+    /**
      * 配置 GT3ConfigBean 与监听并创建按钮。onDialogResult 内做 API2 二次验证后回传 geetCode，
      * onClosed 仅在未成功时视为失败；后台控制器在 createButton 返回后直接读静态字段取结果。
      */
@@ -164,45 +212,15 @@ public class Geetest {
                     callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, String.valueOf(result)));
                     return;
                 }
-                Map<String, Object> body = new HashMap<>();
-                body.put("geetest_challenge", geetestChallenge);
-                body.put("geetest_seccode", geetestSeccode);
-                body.put("geetest_validate", geetestValidate);
                 AppExecutors.get().execute(() -> {
-                    try {
-                        // API2 是 POST + 自有 body：DS 必须按**这个** body 重算。直接沿用任务请求的 headers，
-                        // 发过去的是「签到 body 的签名」，服务端判签名错误 → 用户滑块明明做完了却收到验证失败，
-                        // 任务停在「待验证」，表象就是「验证没生效」。
-                        // 同时清掉上一轮的 x-rpc-* 三件套：那是失效凭证，带上会让服务端按旧 challenge 校验。
-                        Map<String, String> verifyHeaders = new HashMap<>(headers);
-                        verifyHeaders.remove("x-rpc-challenge");
-                        verifyHeaders.remove("x-rpc-validate");
-                        verifyHeaders.remove("x-rpc-seccode");
-                        verifyHeaders.put("DS",
-                                new HeaderManager(context, isOversea).getDS_signIn(GSON.toJson(body)));
-                        String checkResponse = sendPostRequest(
-                                isOversea ? Constants.Urls.OS_GEETEST_API2_URL : Constants.Urls.GEETEST_API2_URL,
-                                verifyHeaders, body);
-                        if (checkResponse == null) {
-                            callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed_network));
-                            return;
-                        }
-                        JsonObject check = JsonParser.parseString(checkResponse).getAsJsonObject();
-                        JsonObject dataObj = JsonAccess.data(check);
-                        String challengeValue = JsonAccess.optString(dataObj, "challenge", null);
-                        if (JsonAccess.retcode(check) == 0 && challengeValue != null) {
-                            Map<String, String> geetCode = new HashMap<>();
-                            geetCode.put("x-rpc-challenge", challengeValue);
-                            geetCode.put("x-rpc-validate", geetestValidate);
-                            geetCode.put("x-rpc-seccode", geetestValidate + "|jordan");
-                            verificationSucceeded[0] = true;
-                            callback.onVerificationSuccess(geetCode);
-                            try { gt3Controller.getGeetestUtils().showSuccessDialog(); } catch (Exception ignored) {}
-                        } else {
-                            callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed, checkResponse));
-                        }
-                    } catch (Exception e) {
-                        callback.onVerificationFailed(context.getString(R.string.geetest_captcha_error, com.muxiao.Venus.common.tools.describeError(e)));
+                    Map<String, String> geetCode = verifySecondPass(context, headers, geetestChallenge,
+                            geetestValidate, isOversea);
+                    if (geetCode != null) {
+                        verificationSucceeded[0] = true;
+                        callback.onVerificationSuccess(geetCode);
+                        try { gt3Controller.getGeetestUtils().showSuccessDialog(); } catch (Exception ignored) {}
+                    } else {
+                        callback.onVerificationFailed(context.getString(R.string.geetest_second_verify_failed_network));
                     }
                 });
             }

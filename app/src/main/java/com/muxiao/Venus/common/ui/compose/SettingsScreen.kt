@@ -142,7 +142,7 @@ class SettingsUiState {
 
 /**
  * 设置页：页眉固定 + 正文滚动；正文按「签到 / 配置 / 应用 / 其他」四组，每组以 mono 区块标签开头，
- * 组内每行之间一条发丝线、组尾多留 space_2。13 个 [SettingsCard] 由宿主按固定顺序传入——顺序即版式。
+ * 组内每行之间一条发丝线、组尾多留 space_2。14 个 [SettingsCard] 由宿主按固定顺序传入——顺序即版式。
  * 「编辑目标账号」卡置于签到组最顶部：下面四张任务卡（含森空岛）的读写都指向它，先选人再配置。
  * 服务器类型不在此页：它是「添加账号时登录哪一服」的选择，入口在用户管理页的添加流程里。
  */
@@ -160,6 +160,7 @@ fun SettingsScreen(
     theme: SettingsCard,
     background: SettingsCard,
     notification: SettingsCard,
+    autoCaptcha: SettingsCard,
     skland: SettingsCard,
     about: SettingsCard,
     onImageClick: () -> Unit,
@@ -238,6 +239,8 @@ fun SettingsScreen(
             SettingsCardItem(background)
             VenusDivider()
             SettingsCardItem(notification)
+            VenusDivider()
+            SettingsCardItem(autoCaptcha)
             VenusDivider()
 
             SectionLabel(
@@ -531,7 +534,7 @@ class TaskAccountPaneView {
 }
 
 /**
- * 设置页宿主：13 个抽屉（[SettingsCard]）与 13 个窗格状态宿主都在此急切构造并对外暴露，供 `SettingsFragment`
+ * 设置页宿主：14 个抽屉（[SettingsCard]）与 14 个窗格状态宿主都在此急切构造并对外暴露，供 `SettingsFragment`
  * 调 setValue / setVisibility / expand / setXxx。接线在构造时完成（`card.setPaneContent { pane.Render() }`），
  * 使窗格组合直接长在设置页的同一 composition 里，不经 `AndroidView` 桥接。
  */
@@ -551,6 +554,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     val themeCard = SettingsCard(R.string.theme)
     val backgroundCard = SettingsCard(R.string.background)
     val notificationCard = SettingsCard(R.string.background_running)
+    val autoCaptchaCard = SettingsCard(R.string.auto_captcha_title)
     val sklandCard = SettingsCard(R.string.skland_sign_in)
     val aboutCard = SettingsCard(R.string.about)
 
@@ -566,6 +570,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
     val themePane = ThemeSettingPaneView()
     val backgroundPane = BackgroundSettingPaneView()
     val notificationPane = NotificationSettingPaneView()
+    val autoCaptchaPane = AutoCaptchaSettingPaneView()
     val sklandPane = SklandSettingPaneView()
     val aboutPane = AboutSettingPaneView()
 
@@ -581,6 +586,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
         themeCard.setPaneContent { themePane.Render() }
         backgroundCard.setPaneContent { backgroundPane.Render() }
         notificationCard.setPaneContent { notificationPane.Render() }
+        autoCaptchaCard.setPaneContent { autoCaptchaPane.Render() }
         sklandCard.setPaneContent { sklandPane.Render() }
         aboutCard.setPaneContent { aboutPane.Render() }
     }
@@ -602,6 +608,7 @@ class SettingsScreenView(context: Context) : AbstractComposeView(context) {
                 theme = themeCard,
                 background = backgroundCard,
                 notification = notificationCard,
+                autoCaptcha = autoCaptchaCard,
                 skland = sklandCard,
                 about = aboutCard,
                 onImageClick = { onImageClickListener?.run() },
@@ -640,6 +647,7 @@ private fun SettingsScreenPreview() {
             SettingsCard(R.string.theme),
             SettingsCard(R.string.background),
             SettingsCard(R.string.background_running),
+            SettingsCard(R.string.auto_captcha_title),
             SettingsCard(R.string.skland_sign_in),
             SettingsCard(R.string.about),
         )
@@ -658,8 +666,9 @@ private fun SettingsScreenPreview() {
             theme = cards[8].apply { setValue("默认 · 跟随系统") },
             background = cards[9].apply { setValue("默认") },
             notification = cards[10].apply { setValue("已开启") },
-            skland = cards[11].apply { setValue("已关闭") },
-            about = cards[12].apply { setValue("开源许可 · 隐私政策") },
+            autoCaptcha = cards[11].apply { setValue("已关闭") },
+            skland = cards[12].apply { setValue("已关闭") },
+            about = cards[13].apply { setValue("开源许可 · 隐私政策") },
             onImageClick = {},
         )
     }

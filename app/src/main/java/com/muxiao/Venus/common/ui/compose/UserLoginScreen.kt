@@ -83,6 +83,7 @@ fun UserLoginScreen(
     log: String,
     /** 登录页选好但尚未落盘的头像（登录成功才写入该账号）；null = 用默认头像。 */
     avatarUri: Uri?,
+    modifier: Modifier = Modifier,
     /** 重新登录时该账号已有的自定义头像（AvatarStore 按 storage id 定址）；无新选头像时回显，null 或无头像文件则显示默认图标。 */
     existingAvatarUser: String? = null,
     onBackClick: () -> Unit,
@@ -97,7 +98,6 @@ fun UserLoginScreen(
     onSendCodeClick: () -> Unit,
     onLoginClick: () -> Unit,
     onSubmit: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val isPasswordMode = loginMode == LOGIN_MODE_PASSWORD

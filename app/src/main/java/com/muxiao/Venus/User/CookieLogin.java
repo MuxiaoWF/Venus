@@ -2,7 +2,6 @@ package com.muxiao.Venus.User;
 
 import android.content.Context;
 
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
 import com.muxiao.Venus.common.Constants;

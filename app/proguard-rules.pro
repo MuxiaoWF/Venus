@@ -52,13 +52,6 @@
     *** rewind();
 }
 
-# ---------- ZXing 二维码 ----------
-# 仅用到 QRCodeWriter/BitMatrix 等直调类，无反射，交给 R8 按需裁剪（全量 keep 会保留 289 类）。
-# ZXing javase 模块包含桌面端类（java.awt/javax.swing），Android 上不存在
--dontwarn java.awt.**
--dontwarn javax.swing.**
--dontwarn org.w3c.dom.bootstrap.**
-
 # ---------- Gson 序列化 ----------
 # 保留 Gson 的 TypeToken 及其泛型签名
 -keep class com.google.gson.reflect.TypeToken { *; }

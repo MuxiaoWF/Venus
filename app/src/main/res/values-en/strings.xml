@@ -152,6 +152,11 @@
     <string name="adb_error_no_pair_port">Pairing port not discovered: make sure the system pairing dialog is open, or enter the port manually</string>
     <string name="adb_pair_code_hint">Pairing code</string>
     <string name="adb_status_preparing">Preparing adb component…</string>
+    <string name="adb_status_downloading_total">Downloading adb component: %1$s / %2$s</string>
+    <string name="adb_status_downloading_unknown">Downloading adb component…</string>
+    <string name="adb_status_downloading_bytes">Downloading adb component: %1$s downloaded</string>
+    <string name="adb_status_fallback">Primary source failed, switching to fallback (%1$s)</string>
+    <string name="adb_status_ready">adb component ready</string>
     <string name="adb_status_pairing">Pairing…</string>
     <string name="adb_status_connecting">Connecting…</string>
     <string name="adb_status_watching">Watching: open the in-game gacha records page</string>
@@ -159,6 +164,7 @@
     <string name="adb_status_captured">%1$s gacha link captured and copied</string>
     <string name="adb_status_failed">Failed: %1$s</string>
     <string name="adb_error_missing_binary">adb component unavailable (unsupported architecture or insufficient storage)</string>
+    <string name="adb_error_missing_binary_detail">adb component unavailable: %1$s</string>
     <string name="adb_error_no_connect_port">No wireless debugging connect port discovered; make sure wireless debugging is on</string>
     <string name="adb_capture_channel_name">ADB capture</string>
     <string name="adb_capture_notification_title">ADB capture running</string>
@@ -620,9 +626,29 @@
     <string name="geetest_captcha_failed_network">Failed to get captcha: no network response</string>
     <string name="geetest_captcha_failed_api">Failed to get captcha</string>
     <string name="geetest_second_verify_failed_network">Second verification failed: no network response</string>
-    <string name="geetest_second_verify_failed">Second verification failed: %s</string>
     <string name="geetest_captcha_closed">Captcha closed</string>
     <string name="geetest_captcha_error">Captcha error: %s</string>
+
+    <!-- Auto captcha (Geetest v3 local solver, on-demand assets) -->
+    <string name="auto_captcha_title">Auto Captcha</string>
+    <string name="auto_captcha_hint">When enabled, captchas triggered during sign-in are solved locally without any third-party service. Solver assets (~70MB) must be downloaded here; failures fall back to manual verification.</string>
+    <string name="auto_captcha_switch">Solve captchas locally</string>
+    <string name="auto_captcha_switch_subtitle">When solver assets are ready, Geetest captchas are completed automatically and the task continues</string>
+    <string name="auto_captcha_assets_state">Solver assets</string>
+    <string name="auto_captcha_assets_ready_fmt">%1$s installed</string>
+    <string name="auto_captcha_up_to_date_fmt">%1$s up to date</string>
+    <string name="auto_captcha_assets_partial_fmt">%1$s installed (native lib missing, update manifest)</string>
+    <string name="auto_captcha_assets_missing">Not installed (download required)</string>
+    <string name="auto_captcha_assets_failed">Install failed, previous version kept</string>
+    <string name="auto_captcha_download">Download / update solver assets</string>
+    <string name="auto_captcha_cancel">Cancel download</string>
+    <string name="auto_captcha_cancelled">Cancelled</string>
+    <string name="auto_captcha_uninstall">Delete solver assets</string>
+    <string name="auto_captcha_stage_manifest">Fetching manifest</string>
+    <string name="auto_captcha_stage_download">Downloading</string>
+    <string name="auto_captcha_stage_verify">Verifying</string>
+    <string name="auto_captcha_stage_install">Installing</string>
+    <string name="auto_captcha_stage_done">Done</string>
 
     <!-- BBSGameDaily additional -->
     <string name="game_cookie_token_refreshed">Sign-in CookieToken refreshed successfully</string>

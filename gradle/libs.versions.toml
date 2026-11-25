@@ -6,7 +6,7 @@ android_cn_oaidVersion = "4.2.17"
 comGoogleCodeGsonGson = "2.15.0"
 coreSplashscreenVersion = "1.2.0"
 glide = "5.0.10"
-core = "3.5.4"
+qrcodegen = "1.8.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 lifecycleViewmodel = "2.11.1"
@@ -30,13 +30,18 @@ datastoreRx = "1.3.0"
 rxjava3 = "3.1.12"
 work = "2.12.0"
 
+# ONNX Runtime（极验自动打码的本地推理引擎）。
+# 只取 Java 绑定类（几百 KB dex），两个 native .so 用 packagingOptions 剥离出 APK，
+# 由 OrtLoader + SolverAssetManager 按需下载加载。版本必须与组件清单里的 .so 严格一致。
+onnxruntime = "1.32.0"
+
 [libraries]
 ads-identifier = { module = "com.huawei.hms:ads-identifier", version.ref = "adsIdentifier" }
 com-google-code-gson-gson3 = { module = "com.google.code.gson:gson", version.ref = "comGoogleCodeGsonGson" }
 core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreenVersion" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
 gzu-liyujiang-android_cn_oaid = { module = "com.github.gzu-liyujiang:Android_CN_OAID", version.ref = "android_cn_oaidVersion" }
-com-google-zxing-core = { module = "com.google.zxing:core", version.ref = "core" }
+qrcodegen = { module = "io.nayuki:qrcodegen", version.ref = "qrcodegen" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
@@ -62,6 +67,7 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.r
 datastore-preferences-rxjava3 = { group = "androidx.datastore", name = "datastore-preferences-rxjava3", version.ref = "datastoreRx" }
 rxjava3 = { group = "io.reactivex.rxjava3", name = "rxjava", version.ref = "rxjava3" }
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
+onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

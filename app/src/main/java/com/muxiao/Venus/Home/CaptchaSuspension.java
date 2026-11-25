@@ -58,6 +58,10 @@ public final class CaptchaSuspension {
 
         CaptchaStore.savePending(context, userId, taskIds, challenge[0], challenge[1], headers);
 
+        if (AutoCaptchaSolver.autoSolve(context, userId, notification)) {
+            return true;
+        }
+
         // 应用此刻可能就在前台（后台服务在跑、用户正开着首页）：广播让它立刻弹验证，
         // 不必等下一次 onResume。不在前台时这条广播无人接收，通知仍是入口。
         // 必须带账号：验证请求按账号存放，前台收到广播后要先切到这个账号才读得到 pending

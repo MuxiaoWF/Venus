@@ -48,6 +48,7 @@ import com.muxiao.Venus.Home.DailyTaskScheduler;
 import com.muxiao.Venus.Home.CloudGameDaily;
 import com.muxiao.Venus.Home.ForegroundTaskService;
 import com.muxiao.Venus.Home.HomeFragment;
+import com.muxiao.Venus.Home.AutoCaptchaSolver;
 import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Home.TaskProfile;
 import com.muxiao.Venus.Home.TaskProfileStore;
@@ -59,6 +60,7 @@ import com.muxiao.Venus.common.BatteryHelper;
 import com.muxiao.Venus.common.PageController;
 import com.muxiao.Venus.common.ui.compose.VenusDialogs;
 import com.muxiao.Venus.common.ui.compose.AboutSettingPaneView;
+import com.muxiao.Venus.common.ui.compose.AutoCaptchaSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneKt;
 import com.muxiao.Venus.common.ui.compose.BackgroundSettingPaneView;
 import com.muxiao.Venus.common.ui.compose.BbsUtilsSettingPaneView;
@@ -87,6 +89,7 @@ import com.muxiao.Venus.common.ui.compose.SettingAccountChip;
 import com.muxiao.Venus.common.ui.compose.SettingsCard;
 import com.muxiao.Venus.common.ui.compose.SettingsScreenView;
 import com.muxiao.Venus.common.Logger;
+import com.muxiao.Venus.common.SolverAssetManager;
 import com.muxiao.Venus.common.tools;
 import com.muxiao.Venus.User.UserManager;
 
@@ -129,6 +132,7 @@ public class SettingsFragment implements PageController {
     private SettingsCard notificationCard;
     private SettingsCard sklandCard;
     private SettingsCard cloudGameCard;
+    private SettingsCard autoCaptchaCard;
     /** Compose 宿主（本页唯一 UI 入口）。 */
     private SettingsScreenView screenView;
     /** 底栏覆盖高度订阅（弱引用持有，必须由本类强持有并在 release 解除）。 */
@@ -142,6 +146,11 @@ public class SettingsFragment implements PageController {
     private BbsUtilsSettingPaneView utilsPane;
     private SklandSettingPaneView sklandPane;
     private CloudGameSettingPaneView cloudGamePane;
+    /** 极验自动打码抽屉：开关 + 识别组件（按需下载，不进 APK）管理。 */
+    private AutoCaptchaSettingPaneView autoCaptchaPane;
+    /** 下载任务的单飞门禁（点击瞬间置位，堵住「点击 → 后台线程拿到 manager 门禁」窗口期的连点）。 */
+    private final java.util.concurrent.atomic.AtomicBoolean autoCaptchaBusy =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     /**
      * 凭证抽屉的「配置目标账号」；null = 跟随当前账号。仅本次打开有效（show() 清空）。
      */
@@ -239,6 +248,7 @@ public class SettingsFragment implements PageController {
         SettingsCard aboutCard = root.getAboutCard();
         SettingsCard sklandCardView = root.getSklandCard();
         SettingsCard cloudGameCardView = root.getCloudGameCard();
+        SettingsCard autoCaptchaCardView = root.getAutoCaptchaCard();
         dailyCard = bbsCard;
         gameDailyCard = bbsGameCard;
         updateCard = updateCardView;
@@ -248,6 +258,7 @@ public class SettingsFragment implements PageController {
         notificationCard = notificationCardView;
         sklandCard = sklandCardView;
         cloudGameCard = cloudGameCardView;
+        autoCaptchaCard = autoCaptchaCardView;
 
         // 宿主已由 SettingsScreenView 构造并接线，这里只取引用回填状态。
         dailyPane = root.getDailyPane();
@@ -257,6 +268,7 @@ public class SettingsFragment implements PageController {
         notificationPane = root.getNotificationPane();
         sklandPane = root.getSklandPane();
         cloudGamePane = root.getCloudGamePane();
+        autoCaptchaPane = root.getAutoCaptchaPane();
         UpdateSettingPaneView updatePane = root.getUpdatePane();
         LanguageSettingPaneView languagePane = root.getLanguagePane();
         ThemeSettingPaneView themePane = root.getThemePane();
@@ -315,6 +327,71 @@ public class SettingsFragment implements PageController {
             taskProfile.gameDaily = isChecked;
             persistTaskProfile();
             updateGameCardValue();
+        });
+
+        autoCaptchaPane.setEnabled(AutoCaptchaSolver.isEnabled(context));
+        updateAutoCaptchaAssetsValue();
+        updateAutoCaptchaCardValue();
+        autoCaptchaPane.setOnEnabledChangeListener(checked -> {
+            AutoCaptchaSolver.setEnabled(context, checked);
+            autoCaptchaPane.setEnabled(checked);
+            updateAutoCaptchaCardValue();
+            tools.writeLog(context, "auto captcha " + (checked ? "enabled" : "disabled"));
+        });
+        autoCaptchaPane.setOnInstallClickListener(() -> {
+            if (SolverAssetManager.isInstalling()) {
+                SolverAssetManager.cancel();
+                return;
+            }
+            if (!autoCaptchaBusy.compareAndSet(false, true)) return;
+            autoCaptchaPane.setInstallBusy(true);
+            autoCaptchaPane.setProgress(-1, activity.getString(R.string.auto_captcha_stage_manifest));
+            AppExecutors.get().execute(() -> {
+                SolverAssetManager manager = new SolverAssetManager(context);
+                String verBefore = manager.installedVersion();
+                final long[] lastUi = {0};
+                boolean success = false;
+                boolean cancelled = false;
+                String version = null;
+                try {
+                    version = manager.install((stage, detail, percent) -> {
+                        long now = System.currentTimeMillis();
+                        if (now - lastUi[0] < 150) return;
+                        lastUi[0] = now;
+                        String status = solverStageText(stage)
+                                + (detail == null || detail.isEmpty() ? "" : "：" + detail);
+                        activity.runOnUiThread(() -> autoCaptchaPane.setProgress(percent, status));
+                    });
+                    tools.writeLog(context, "solver assets installed: v" + version);
+                    success = true;
+                } catch (Exception e) {
+                    cancelled = SolverAssetManager.isCancelled(e);
+                    if (cancelled) tools.writeLog(context, "solver assets install cancelled");
+                    else tools.writeLog(context, "solver assets install failed: " + tools.describeError(e));
+                }
+                final boolean ok = success;
+                final boolean wasCancelled = cancelled;
+                final String verFinal = version;
+                final boolean upToDate = ok && verFinal.equals(verBefore);
+                activity.runOnUiThread(() -> {
+                    autoCaptchaPane.setInstallBusy(false);
+                    autoCaptchaBusy.set(false);
+                    if (upToDate)
+                        autoCaptchaPane.setAssetsVersion(activity.getString(
+                                R.string.auto_captcha_up_to_date_fmt, "v" + verFinal));
+                    else if (ok) updateAutoCaptchaAssetsValue();
+                    else autoCaptchaPane.setAssetsVersion(activity.getString(wasCancelled
+                            ? R.string.auto_captcha_cancelled : R.string.auto_captcha_assets_failed));
+                });
+            });
+        });
+        autoCaptchaPane.setOnUninstallClickListener(() -> {
+            if (SolverAssetManager.isInstalling()) return;
+            AppExecutors.get().execute(() -> {
+                new SolverAssetManager(context).uninstall();
+                tools.writeLog(context, "solver assets uninstalled");
+                activity.runOnUiThread(this::updateAutoCaptchaAssetsValue);
+            });
         });
 
         notificationPane.setOnBackgroundChangeListener(isChecked -> {
@@ -1247,6 +1324,42 @@ public class SettingsFragment implements PageController {
     }
 
     /** 游戏签到行值：已开启数 / 当前服务器可见的游戏数（设计稿：4/5 已开启）。 */
+    private void updateAutoCaptchaCardValue() {
+        if (autoCaptchaCard == null) return;
+        autoCaptchaCard.setValue(activity.getString(
+                AutoCaptchaSolver.isEnabled(activity) ? R.string.value_on : R.string.value_off));
+    }
+
+    /** 识别组件状态摘要（抽屉内 KV 行）。 */
+    private void updateAutoCaptchaAssetsValue() {
+        if (autoCaptchaPane == null) return;
+        SolverAssetManager manager = new SolverAssetManager(activity);
+        String version = manager.installedVersion();
+        boolean installed = version != null && !version.isEmpty() && !"0".equals(version);
+        boolean ready = AutoCaptchaSolver.assetsReady(activity);
+        autoCaptchaPane.setAssetsReady(ready);
+        String value;
+        if (ready) {
+            value = activity.getString(R.string.auto_captcha_assets_ready_fmt, "v" + version);
+        } else if (installed) {
+            value = activity.getString(R.string.auto_captcha_assets_partial_fmt, "v" + version);
+        } else {
+            value = activity.getString(R.string.auto_captcha_assets_missing);
+        }
+        autoCaptchaPane.setAssetsVersion(value);
+    }
+
+    private String solverStageText(int stage) {
+        switch (stage) {
+            case SolverAssetManager.STAGE_DOWNLOAD: return activity.getString(R.string.auto_captcha_stage_download);
+            case SolverAssetManager.STAGE_VERIFY: return activity.getString(R.string.auto_captcha_stage_verify);
+            case SolverAssetManager.STAGE_INSTALL: return activity.getString(R.string.auto_captcha_stage_install);
+            case SolverAssetManager.STAGE_DONE: return activity.getString(R.string.auto_captcha_stage_done);
+            case SolverAssetManager.STAGE_FETCH_MANIFEST:
+            default: return activity.getString(R.string.auto_captcha_stage_manifest);
+        }
+    }
+
     private void updateGameCardValue() {
         if (gameDailyCard == null || taskProfile == null) return;
         boolean oversea = overseaForTaskConfig();

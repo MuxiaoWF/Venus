@@ -74,3 +74,6 @@ AGENTS.md
 copyright/
 
 result/
+
+# 识别组件托管目录（模型权重与 hint 参考图，体积大且 AGPL，不进 git）
+solver-assets/

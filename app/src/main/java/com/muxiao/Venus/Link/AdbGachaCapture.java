@@ -12,6 +12,8 @@ import androidx.annotation.Nullable;
 
 import com.muxiao.Venus.BuildConfig;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.common.ApiClient;
+import com.muxiao.Venus.common.Constants;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,6 +29,8 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +38,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import okhttp3.Request;
+import okhttp3.Response;
 
 /**
  * ADB 抓取抽卡链接：本机 adb 客户端经 mDNS 配对本机 adbd，再从 logcat 过滤 WebView 打印的抽卡 URL。
@@ -64,12 +71,42 @@ public final class AdbGachaCapture {
         void cancel();
     }
 
+    /**
+     * ADB 二进制下载进度回调。所有回调均在后台线程调用，UI 层需自行切主线程。
+     * 仅走 downloadAdb 时（assets 已剥离）才会触发；assets 命中时不回调任何进度。
+     */
+    public interface DownloadListener {
+        /** 下载开始（拿到 Content-Length，或 -1 表示远端没报大小）。 */
+        default void onStart(long totalBytes) {}
+
+        /** 下载中。比例 = downloaded / total（total=-1 时只能看 bytes）。 */
+        default void onProgress(long downloaded, long total) {}
+
+        /** 当前源失败，正在切下一个（含最后一个源也失败时的终局回调，之后会调 onFailed）。 */
+        default void onFallback(String url, String reason) {}
+
+        /** 所有源全部失败，或 ABI 不支持。reason 是最后一次失败的可读描述。 */
+        default void onFailed(String reason) {}
+
+        /** 下载成功，onReady 会紧接着调用。 */
+        default void onSuccess() {}
+
+        DownloadListener NOOP = new DownloadListener() {};
+    }
+
     private AdbGachaCapture() {
     }
 
-    /** 内置 adb 路径：从 assets 解压 libadb.so 到 filesDir 并赋可执行位；不支持的 ABI 返回 null。 */
+    /** 内置 adb 路径：从 assets 解压 / 按需下载 libadb.so 到 filesDir 并赋可执行位；不支持的 ABI 返回 null。 */
     @Nullable
     public static synchronized String adbPath(@NonNull Context context) {
+        return adbPath(context, DownloadListener.NOOP);
+    }
+
+    /** 带下载回调的版本：ensureAdb 内部用，其他直接调用 adbPath 的入口（runAdb 内部）走默认空 listener。 */
+    @Nullable
+    public static synchronized String adbPath(@NonNull Context context,
+                                               @NonNull DownloadListener listener) {
         File dir = new File(context.getFilesDir(), "adb");
         File adb = new File(dir, "libadb.so");
         if (adb.isFile() && adb.canExecute() && markerMatches(dir))
@@ -79,7 +116,8 @@ public final class AdbGachaCapture {
         deleteQuietly(new File(dir, "version"));
         for (String abi : Build.SUPPORTED_ABIS) {
             if (!"arm64-v8a".equals(abi) && !"armeabi-v7a".equals(abi)) continue;
-            if (extractAdb(context, abi, adb)) {
+            String[] reasonHolder = new String[1];
+            if (extractAdb(context, abi, adb, listener, reasonHolder)) {
                 writeMarker(dir);
                 return adb.getAbsolutePath();
             }
@@ -96,13 +134,21 @@ public final class AdbGachaCapture {
     /** 后台确保 adb 就绪，结果回调切回主线程，避免首次解压卡 UI。 */
     public static void ensureAdb(@NonNull Context context, @NonNull Runnable onReady,
                                  @NonNull Runnable onFailed) {
+        ensureAdb(context, DownloadListener.NOOP, onReady, onFailed);
+    }
+
+    /** 带下载进度回调的版本：DownloadListener 所有回调在后台线程发出，UI 层自行切主线程。 */
+    public static void ensureAdb(@NonNull Context context,
+                                 @NonNull DownloadListener listener,
+                                 @NonNull Runnable onReady,
+                                 @NonNull Runnable onFailed) {
         if (isAdbReady(context)) {
             onReady.run();
             return;
         }
         new Thread(() -> {
-            boolean ok = adbPath(context) != null;
-            new Handler(Looper.getMainLooper()).post(ok ? onReady : onFailed);
+            String path = adbPath(context, listener);
+            new Handler(Looper.getMainLooper()).post(path != null ? onReady : onFailed);
         }, "AdbExtract").start();
     }
 
@@ -128,29 +174,147 @@ public final class AdbGachaCapture {
         }
     }
 
-    private static boolean extractAdb(@NonNull Context context, @NonNull String abi, @NonNull File dest) {
+    /**
+     * 解压 / 按需下载 adb 二进制。
+     *
+     * @param reasonHolder [out] extractAdb 返回 false 时，这里会填上本次尝试的可读失败原因（给 adbPath 循环下一 ABI 时保留信息）。
+     */
+    private static boolean extractAdb(@NonNull Context context, @NonNull String abi,
+                                      @NonNull File dest, @NonNull DownloadListener listener,
+                                      @NonNull String[] reasonHolder) {
         File dir = dest.getParentFile();
-        if (dir == null || (!dir.isDirectory() && !dir.mkdirs())) return false;
+        if (dir == null || (!dir.isDirectory() && !dir.mkdirs())) {
+            reasonHolder[0] = "无法创建 adb 私有目录";
+            return false;
+        }
         File tmp = new File(dir, "libadb.so.tmp");
-        try (InputStream in = context.getAssets().open("adb/" + abi + "/libadb.bin");
-             FileOutputStream out = new FileOutputStream(tmp)) {
-            byte[] buffer = new byte[8192];
-            int n;
-            while ((n = in.read(buffer)) >= 0) out.write(buffer, 0, n);
-        } catch (IOException e) {
-            Log.w(TAG, "extract libadb failed: " + abi, e);
+        try {
+            // 先尝试 assets（兼容旧安装包，APK 里还带着 libadb.bin）
+            try (InputStream in = context.getAssets().open("adb/" + abi + "/libadb.bin");
+                 FileOutputStream out = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) >= 0) out.write(buf, 0, n);
+            }
+        } catch (java.io.FileNotFoundException e) {
+            // assets 已被剥离（release APK 不再打包 libadb.bin），fallback 到云端按需下载
             deleteQuietly(tmp);
+            try {
+                downloadAdb(abi, tmp, listener);
+            } catch (DownloadAbortedException ex) {
+                // downloadAdb 内部已回调 listener.onFailed
+                deleteQuietly(tmp);
+                reasonHolder[0] = ex.reason;
+                return false;
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "extract libadb from assets failed: " + abi, e);
+            deleteQuietly(tmp);
+            reasonHolder[0] = "assets 读取失败：" + e.getMessage();
             return false;
         }
         if (!tmp.renameTo(dest)) {
             deleteQuietly(tmp);
+            reasonHolder[0] = "adb 文件重命名失败";
             return false;
         }
         if (!dest.setExecutable(true, false)) {
             deleteQuietly(dest);
+            reasonHolder[0] = "adb 无法赋可执行权限";
             return false;
         }
         return true;
+    }
+
+    /** downloadAdb 专用的受控终止异常：某个源尝试全部耗尽后向上抛，extractAdb 负责翻译给 reasonHolder。 */
+    private static final class DownloadAbortedException extends RuntimeException {
+        final String reason;
+        DownloadAbortedException(String reason) { super(reason); this.reason = reason; }
+    }
+
+    /** 按 ABI 返回有序 URL 列表（主源 + GitHub Raw 兜底）；不支持的 ABI 返回空 List。 */
+    @NonNull
+    private static List<String> adbDownloadUrls(@NonNull String abi) {
+        if ("arm64-v8a".equals(abi)) {
+            return List.of(
+                    Constants.Urls.ADB_BIN_URL_ARM64,
+                    Constants.Urls.ADB_BIN_URL_ARM64_FALLBACK,
+                    Constants.Urls.ADB_BIN_URL_ARM64_FALLBACK2);
+        }
+        if ("armeabi-v7a".equals(abi)) {
+            return List.of(
+                    Constants.Urls.ADB_BIN_URL_ARMEABI,
+                    Constants.Urls.ADB_BIN_URL_ARMEABI_FALLBACK,
+                    Constants.Urls.ADB_BIN_URL_ARMEABI_FALLBACK2);
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * 按 {@link #adbDownloadUrls} 返回的列表依次尝试下载，任何一个源成功即返回。
+     * 下载过程中实时回调 listener.onStart / onProgress；某个源失败切下一个时调 listener.onFallback；
+     * 全部失败时 throw DownloadAbortedException（携带最后一次失败原因），并同步调 listener.onFailed。
+     */
+    private static void downloadAdb(@NonNull String abi, @NonNull File destFile,
+                                    @NonNull DownloadListener listener) {
+        List<String> urls = adbDownloadUrls(abi);
+        if (urls.isEmpty()) {
+            String msg = "不支持的 ABI：" + abi;
+            listener.onFailed(msg);
+            throw new DownloadAbortedException(msg);
+        }
+        String lastReason = null;
+        for (int i = 0; i < urls.size(); i++) {
+            String url = urls.get(i);
+            String result = tryDownload(url, destFile, listener);
+            if (result == null) {
+                listener.onSuccess();
+                return;
+            }
+            lastReason = "ABI=" + abi + " 源 #" + (i + 1) + " " + result;
+            if (i < urls.size() - 1) {
+                listener.onFallback(url, result);
+            }
+            // 失败清掉半成品，下一个源重新写
+            deleteQuietly(destFile);
+        }
+        // 所有源都失败
+        listener.onFailed(lastReason);
+        throw new DownloadAbortedException(lastReason);
+    }
+
+    /** 单次下载尝试：成功返回 null；失败返回可读失败原因（HTTP code / IOException message）。 */
+    @Nullable
+    private static String tryDownload(@NonNull String url, @NonNull File destFile,
+                                       @NonNull DownloadListener listener) {
+        Request request = new Request.Builder().url(url).build();
+        long totalBytes;
+        long downloaded = 0;
+        try (Response response = ApiClient.get().newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String reason = "HTTP " + response.code();
+                if (!response.message().isEmpty())
+                    reason += " " + response.message();
+                return reason;
+            }
+            totalBytes = response.body().contentLength(); // -1 表示远端没声明长度
+            listener.onStart(totalBytes);
+            try (InputStream in = response.body().byteStream();
+                 FileOutputStream out = new FileOutputStream(destFile)) {
+                byte[] buf = new byte[16384];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    downloaded += n;
+                    listener.onProgress(downloaded, totalBytes);
+                }
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "adb download failed url=" + url, e);
+            return e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "" : e.getMessage());
+        }
+        if (downloaded == 0) return "文件为空";
+        return null; // 成功
     }
 
     /**
