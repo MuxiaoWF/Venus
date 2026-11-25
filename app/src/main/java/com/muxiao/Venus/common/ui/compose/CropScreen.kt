@@ -37,6 +37,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -69,6 +71,9 @@ class CropScreenUiState {
 
     /** 裁剪框宽高比（宽/高）：背景页=屏幕比例、头像页=1:1；<=0 时按源图自身比例兜底。 */
     var frameAspect by mutableFloatStateOf(0f)
+
+    /** 圆形裁剪框（头像）：遮罩挖圆、描边为圆；输出仍为框内正方形位图（展示侧 circleCrop 同口径）。 */
+    var circular by mutableStateOf(false)
 }
 
 /** Java 侧确认回调：SAM 接口（void 返回），Java 侧可直接用方法引用。 */
@@ -85,9 +90,10 @@ class CropScreenView(context: Context) : AbstractComposeView(context) {
     private var onConfirmListener: BitmapConsumer? = null
 
     /** 下发源图与裁剪框比例（setContentView 之前或之后均可，状态驱动重组合）。 */
-    fun setSource(bitmap: Bitmap?, frameAspect: Float) {
+    fun setSource(bitmap: Bitmap?, frameAspect: Float, circular: Boolean = false) {
         state.source = bitmap
         state.frameAspect = frameAspect
+        state.circular = circular
     }
 
     fun setOnCancelClickListener(listener: Runnable?) {
@@ -228,23 +234,39 @@ fun CropScreen(
                         drawImage(image)
                     }
                     val dim = Color.Black.copy(alpha = 0.55f)
-                    // 上、下、左、右四块遮罩（不引入 saveLayer/混合模式）
-                    drawRect(dim, topLeft = Offset.Zero, size = Size(size.width, frame.top))
-                    drawRect(dim, topLeft = Offset(0f, frame.bottom), size = Size(size.width, size.height - frame.bottom))
-                    drawRect(dim, topLeft = Offset(0f, frame.top), size = Size(frame.left, frame.height))
-                    drawRect(dim, topLeft = Offset(frame.right, frame.top), size = Size(size.width - frame.right, frame.height))
-                    drawRect(
-                        color = Color.White.copy(alpha = 0.85f),
-                        topLeft = frame.topLeft,
-                        size = frame.size,
-                        style = Stroke(width = borderWidth.toPx(), cap = StrokeCap.Butt),
-                    )
-                    val hairline = 1.dp.toPx()
-                    for (i in 1..2) {
-                        val fx = frame.left + frame.width * i / 3f
-                        val fy = frame.top + frame.height * i / 3f
-                        drawLine(Color.White.copy(alpha = 0.3f), Offset(fx, frame.top), Offset(fx, frame.bottom), hairline)
-                        drawLine(Color.White.copy(alpha = 0.3f), Offset(frame.left, fy), Offset(frame.right, fy), hairline)
+                    if (state.circular) {
+                        // 圆形裁剪框（头像）：整区矩形 XOR 内切圆（even-odd）遮罩——圆外（含框角）全部变暗
+                        val mask = Path().apply {
+                            fillType = PathFillType.EvenOdd
+                            addRect(Rect(Offset.Zero, size))
+                            addOval(frame)
+                        }
+                        drawPath(mask, dim)
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.85f),
+                            radius = frame.width / 2f,
+                            center = frame.center,
+                            style = Stroke(width = borderWidth.toPx(), cap = StrokeCap.Butt),
+                        )
+                    } else {
+                        // 方形裁剪框：上、下、左、右四块遮罩（不引入 saveLayer/混合模式）
+                        drawRect(dim, topLeft = Offset.Zero, size = Size(size.width, frame.top))
+                        drawRect(dim, topLeft = Offset(0f, frame.bottom), size = Size(size.width, size.height - frame.bottom))
+                        drawRect(dim, topLeft = Offset(0f, frame.top), size = Size(frame.left, frame.height))
+                        drawRect(dim, topLeft = Offset(frame.right, frame.top), size = Size(size.width - frame.right, frame.height))
+                        drawRect(
+                            color = Color.White.copy(alpha = 0.85f),
+                            topLeft = frame.topLeft,
+                            size = frame.size,
+                            style = Stroke(width = borderWidth.toPx(), cap = StrokeCap.Butt),
+                        )
+                        val hairline = 1.dp.toPx()
+                        for (i in 1..2) {
+                            val fx = frame.left + frame.width * i / 3f
+                            val fy = frame.top + frame.height * i / 3f
+                            drawLine(Color.White.copy(alpha = 0.3f), Offset(fx, frame.top), Offset(fx, frame.bottom), hairline)
+                            drawLine(Color.White.copy(alpha = 0.3f), Offset(frame.left, fy), Offset(frame.right, fy), hairline)
+                        }
                     }
                 }
             }
@@ -346,13 +368,15 @@ private fun cropBitmap(
         frame.width.roundToInt().coerceAtLeast(1),
         frame.height.roundToInt().coerceAtLeast(1),
     )
-    // 映射 o = (p − bt)·s：输出像素 = 源坐标相对裁剪框左上角再乘 s（Android post* 语义为
-    // 「先应用后矩阵」：setScale(s)+postTranslate(−bt) ⇒ p' = s·(p − bt)）。
+    // 映射 o = (p − bt)·s：平移必须经 preTranslate 作用于源坐标（先平移后缩放 ⇒ s·(p − bt)）。
+    // 若用 postTranslate，平移落在输出空间（o = s·p − bt），仅当 bt≈0（源图与框同比例、未缩放未平移，
+    // 如背景截图）时两者重合；源图远大于框（头像）且随手势缩放平移后 bt≠0，采样区会整体偏移，
+    // 裁出框外区域（表现为「只有框的一角成为成品」）。
     // 注意缩放系数必须是 s 而非 1/s——写成 1/s 会把「框内 1/s 区域」拉伸成整幅输出，
     // 表现为输出相对预览整体放大约 1/s² 倍、手势后采样区越界（JPEG 下呈黑带）。
     val matrix = Matrix()
     matrix.setScale(s, s)
-    matrix.postTranslate(-bt.left, -bt.top)
+    matrix.preTranslate(-bt.left, -bt.top)
     // android.graphics.Canvas 全限定：与上方 androidx.compose.foundation.Canvas 组合式同名，须消歧
     android.graphics.Canvas(out).drawBitmap(bitmap, matrix, null)
     return out

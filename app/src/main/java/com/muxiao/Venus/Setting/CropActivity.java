@@ -180,7 +180,7 @@ public class CropActivity extends BaseActivity {
                         Bitmap bitmap = decodeTarget.get();
                         runOnUiThread(() -> {
                             if (isGone() || pane == null) return;
-                            pane.setSource(bitmap, aspect);
+                            pane.setSource(bitmap, aspect, squareMode);
                         });
                     } catch (Exception e) {
                         Logger.w("背景图解码失败: " + describeError(e));
