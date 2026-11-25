@@ -500,7 +500,7 @@
     <string name="login_payload_missing">响应中缺少 payload 字段</string>
     <string name="login_raw_missing">响应中缺少 raw 字段</string>
     <string name="login_stoken_token_failed">扫码获取stoken失败-getTokenByGameToken(RETCODE = %1$d),返回信息为：%2$s</string>
-    <string name="login_ltoken_failed">获取ltoken失败-getLTokenBySToken(RETCODE = %1$d),返回信息为：%2$s</string>
+    <string name="login_ltoken_failed">获取ltoken失败-通行证换票(exchange, dst_token_type=2) RETCODE = %1$d，返回信息为：%2$s</string>
 
     <!-- 登录方式：扫码 / 账号密码 -->
     <!-- 登录方式 Tab 用短名称：4 段在窄屏上要能完整显示，完整名称留给按钮文案 -->

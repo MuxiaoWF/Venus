@@ -16,6 +16,7 @@ import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.User.TokenExchange;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -181,38 +182,50 @@ public class BBSDaily {
     }
 
     /**
-     * 登录态自动续期：用 stoken/ltoken 换发 cookie_token，并把会话 Cookie 切成 {@code cookie_token} 形态
-     * （米游币接口同样接受，游戏签到侧长期使用）。能救回的典型场景：{@code stoken=} 形态被判失效但 stoken 本身仍有效。
+     * 登录态自动续期：用 SToken 换发 CookieToken，并把会话 Cookie 切成 {@code cookie_token} 形态
+     * （米游币接口同样接受，游戏签到侧长期使用）。能救回的典型场景：{@code stoken=} 形态被判失效但 SToken 本身仍有效。
+     * <p>
+     * 国服走通行证 V2 换票（{@code ma-cn-session/app/exchange}，dst_token_type=4）；旧
+     * {@code getCookieAccountInfoBySToken} 已无法正常返回。国际服无 exchange 端点，仍用旧接口。
      *
-     * @return {@code true} 已换到可用 Cookie，可带新 Cookie 重试；失败（凭证缺失/stoken 真失效/网络异常）返回 false
+     * @return {@code true} 已换到可用 Cookie，可带新 Cookie 重试；失败（凭证缺失/SToken 真失效/网络异常）返回 false
      */
     private boolean refreshCookie() {
         String stoken = tools.read(context, userId, "stoken");
         String ltoken = tools.read(context, userId, "ltoken");
         String stuid = tools.read(context, userId, "stuid");
         String mid = tools.read(context, userId, "mid");
-        String token = (stoken != null && !stoken.isEmpty()) ? stoken : ltoken;
-        String tokenKey = (stoken != null && !stoken.isEmpty()) ? "stoken" : "ltoken";
+        boolean hasStoken = stoken != null && !stoken.isEmpty();
+        String token = hasStoken ? stoken : ltoken;
+        String tokenKey = hasStoken ? "stoken" : "ltoken";
         if (token == null || token.isEmpty() || stuid == null || stuid.isEmpty()) return false;
 
         try {
-            Map<String, String> headers = headerManager.get_bbs_headers();
-            headers.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token
-                    + (mid != null ? ";mid=" + mid : ""));
-            String url = isOversea
-                    ? Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL : Constants.Urls.COOKIE_TOKEN_STOKEN_URL;
-            String response = tools.sendGetRequest(url, headers, null);
-            JsonObject res = JsonParser.parseString(response).getAsJsonObject();
-            if (JsonAccess.retcode(res) != 0) return false;
-            String cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
+            String cookieToken;
+            if (isOversea) {
+                Map<String, String> headers = headerManager.get_bbs_headers();
+                headers.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token
+                        + (mid != null ? ";mid=" + mid : ""));
+                String response = tools.sendGetRequest(Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL, headers, null);
+                JsonObject res = JsonParser.parseString(response).getAsJsonObject();
+                if (JsonAccess.retcode(res) != 0) return false;
+                cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
+            } else {
+                // V2 换票必须用 SToken；只有 ltoken 时无法续期
+                if (!hasStoken) return false;
+                cookieToken = TokenExchange.exchange(headerManager, stoken, mid, TokenExchange.TARGET_COOKIE_TOKEN);
+            }
             if (cookieToken == null) return false;
             // 回写存储供游戏签到等链路复用，避免各自重复换发
             tools.write(context, userId, "cookie_token", cookieToken);
-            cookie = "cookie_token=" + cookieToken + ";ltuid=" + stuid + ";account_id=" + stuid
-                    + (ltoken != null ? ";ltoken=" + ltoken : "");
+            cookie = tools.buildCookie(
+                    "cookie_token", cookieToken, "cookie_token_v2", cookieToken,
+                    "ltoken", ltoken, "ltoken_v2", ltoken,
+                    "ltuid", stuid, "ltuid_v2", stuid,
+                    "account_id", stuid, "account_id_v2", stuid);
             return true;
         } catch (RuntimeException e) {
-            // 网络异常等：续期只是尽力而为，失败不改变原有错误语义
+            // 网络异常 / 换票失败：续期只是尽力而为，失败不改变原有错误语义
             Logger.debug("VenusBBS", "BBSDaily: cookie 续期失败 " + e);
             return false;
         }
@@ -221,7 +234,7 @@ public class BBSDaily {
     /**
      * 拉取今日任务列表：{@code can_get_points == 0} 视为今日已全部完成并返回 null，否则返回任务数据。
      * <p>
-     * 登录态失效（-100）先尝试一次自动续期（stoken/ltoken 换 cookie_token 并切 Cookie 形态）后重试，
+     * 登录态失效（-100）先尝试一次自动续期（V2 换票取 cookie_token 并切 Cookie 形态）后重试，
      * 续期失败才按「Cookie 失效」上报，避免把可自愈的过期误报成需要重新登录。
      */
     private JsonObject checkTasksList() {

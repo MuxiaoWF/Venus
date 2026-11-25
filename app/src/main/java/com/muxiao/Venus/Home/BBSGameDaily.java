@@ -16,6 +16,7 @@ import com.muxiao.Venus.common.HeaderManager;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.Notification;
 import com.muxiao.Venus.common.tools;
+import com.muxiao.Venus.User.TokenExchange;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -182,7 +183,11 @@ public class BBSGameDaily {
         cookies.put("Cookie", buildGameCookie(updateCookieToken()));
     }
 
-    /** 用 stoken 换 cookieToken，成功后写回存储。 */
+    /**
+     * 用 stoken 换 cookieToken，成功后写回存储。
+     * 国服走通行证 V2 换票（{@link TokenExchange}，dst_token_type=4）；旧 {@code getCookieAccountInfoBySToken}
+     * 已无法正常返回，仅在缺 mid 或国际服（无 exchange 端点）时保留兜底。
+     */
     public String getCookieTokenByStoken() {
         String stoken = tools.read(context, userId, "stoken");
         String ltoken = tools.read(context, userId, "ltoken");
@@ -192,10 +197,40 @@ public class BBSGameDaily {
             notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_stoken_suid_empty));
             throw new RuntimeException(context.getString(R.string.game_stoken_suid_empty));
         }
-        Map<String, String> gameLoginHeaders = getGameLoginHeaders();
-        String tokenKey = stoken != null ? "stoken" : "ltoken";
         String mid = tools.read(context, userId, "mid");
-        gameLoginHeaders.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token + (mid != null ? ";mid=" + mid : ""));
+        String cookieToken = isOversea
+                ? requestCookieTokenLegacy(stoken != null ? stoken : ltoken,
+                stoken != null ? "stoken" : "ltoken", stuid, mid)
+                : requestCookieTokenV2(stoken, mid);
+        tools.write(context, userId, "cookie_token", cookieToken);
+        return cookieToken;
+    }
+
+    /**
+     * 国服：V2 换票取 CookieToken。缺少 stoken 时退回旧接口（老账号可能只有 ltoken）。
+     * 失败按 retcode 区分「凭证失效」与「瞬时失败」后上报并抛出。
+     */
+    private String requestCookieTokenV2(String stoken, String mid) {
+        if (stoken == null || stoken.isEmpty() || mid == null || mid.isEmpty()) {
+            String ltoken = tools.read(context, userId, "ltoken");
+            String stuid = tools.read(context, userId, "stuid");
+            return requestCookieTokenLegacy(stoken != null ? stoken : ltoken,
+                    stoken != null ? "stoken" : "ltoken", stuid, mid);
+        }
+        try {
+            return TokenExchange.exchange(headerManager, stoken, mid, TokenExchange.TARGET_COOKIE_TOKEN);
+        } catch (TokenExchange.ExchangeException e) {
+            throw reportCookieTokenFailure(e.retcode, e.getMessage(), e.stokenInvalid);
+        } catch (RuntimeException e) {
+            throw reportCookieTokenFailure(-1, tools.describeError(e), false);
+        }
+    }
+
+    /** 旧接口 {@code getCookieAccountInfoBySToken}（GET，Cookie 里塞 stoken/ltoken + mid）。 */
+    private String requestCookieTokenLegacy(String token, String tokenKey, String stuid, String mid) {
+        Map<String, String> gameLoginHeaders = getGameLoginHeaders();
+        gameLoginHeaders.put("Cookie", "stuid=" + stuid + ";" + tokenKey + "=" + token
+                + (mid != null ? ";mid=" + mid : ""));
         String cookieTokenUrl = isOversea ? Constants.Urls.OS_COOKIE_TOKEN_STOKEN_URL : Constants.Urls.COOKIE_TOKEN_STOKEN_URL;
         String response = sendGetRequest(cookieTokenUrl, gameLoginHeaders, null);
         JsonObject res = JsonParser.parseString(response).getAsJsonObject();
@@ -203,21 +238,24 @@ public class BBSGameDaily {
         if (retcode != RETCODE_OK) {
             // 仅登录态失效（-100）才断言 stoken 已失效；其余（429 限流 / 风控等）透传 retcode
             // 与 message，避免瞬时故障被误报为「请重新登录」
-            String errorMsg = retcode == RETCODE_COOKIE_EXPIRED
-                    ? context.getString(R.string.game_cookie_token_failed)
-                    : context.getString(R.string.game_cookie_token_get_failed)
-                            + " (retcode=" + retcode + ", message=" + JsonAccess.message(res, "") + ")";
-            notification.sendErrorNotification(notifTitle(), errorMsg);
-            throw new RuntimeException(errorMsg);
+            throw reportCookieTokenFailure(retcode, JsonAccess.message(res, ""),
+                    retcode == RETCODE_COOKIE_EXPIRED);
         }
         // 显式判空给出可读错误：否则 data.cookie_token 缺失时 getAsString() 直接 NPE
         String cookieToken = JsonAccess.optString(JsonAccess.data(res), "cookie_token", null);
-        if (cookieToken == null) {
-            notification.sendErrorNotification(notifTitle(), context.getString(R.string.game_cookie_token_failed));
-            throw new RuntimeException(context.getString(R.string.game_cookie_token_failed));
-        }
-        tools.write(context, userId, "cookie_token", cookieToken);
+        if (cookieToken == null)
+            throw reportCookieTokenFailure(RETCODE_OK, "响应缺少 cookie_token", false);
         return cookieToken;
+    }
+
+    /** 统一的 CookieToken 获取失败上报：发错误通知 + 返回可抛出的异常（由调用方 throw）。 */
+    private RuntimeException reportCookieTokenFailure(int retcode, String message, boolean expired) {
+        String errorMsg = expired
+                ? context.getString(R.string.game_cookie_token_failed)
+                : context.getString(R.string.game_cookie_token_get_failed)
+                + " (retcode=" + retcode + ", message=" + message + ")";
+        notification.sendErrorNotification(notifTitle(), errorMsg);
+        return new RuntimeException(errorMsg);
     }
 
     /**
@@ -564,15 +602,18 @@ public class BBSGameDaily {
         }
     }
 
-    /** 用 cookie_token + ltoken/stuid 拼出游戏签到所需的 Cookie 字符串。 */
+    /**
+     * 用 cookie_token + ltoken/stuid 拼出游戏签到所需的 Cookie 字符串。
+     * V2 换票产出的 token 与米游社 App 注入 WebView 的形态一致：{@code ltoken} 与 {@code ltoken_v2}、
+     * {@code cookie_token} 与 {@code cookie_token_v2} 写同一个值，新旧接口都能读到有效凭据。
+     */
     private String buildGameCookie(String cookieToken) {
         String ltoken = tools.read(context, userId, "ltoken");
         String stuid = tools.read(context, userId, "stuid");
-        StringBuilder sb = new StringBuilder();
-        sb.append("cookie_token=").append(cookieToken);
-        if (ltoken != null) sb.append(";ltoken=").append(ltoken);
-        sb.append(";ltuid=").append(stuid);
-        sb.append(";account_id=").append(stuid);
-        return sb.toString();
+        return tools.buildCookie(
+                "cookie_token", cookieToken, "cookie_token_v2", cookieToken,
+                "ltoken", ltoken, "ltoken_v2", ltoken,
+                "ltuid", stuid, "ltuid_v2", stuid,
+                "account_id", stuid, "account_id_v2", stuid);
     }
 }

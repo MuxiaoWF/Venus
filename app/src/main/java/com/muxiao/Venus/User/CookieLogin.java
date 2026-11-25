@@ -2,7 +2,6 @@ package com.muxiao.Venus.User;
 
 import android.content.Context;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.muxiao.Venus.R;
@@ -21,7 +20,8 @@ import java.util.Map;
  * 下游签到任务无需区分来源。
  * <p>
  * 字段来源（v2 优先）：stuid = ltuid_v2/account_id_v2/ltuid/account_id；mid = account_mid_v2/ltmid_v2/mid（缺失退化为 stuid）；
- * stoken = stoken_v2/stoken；ltoken = ltoken_v2/ltoken（缺失且有 stoken 时现换）；cookie_token 缺失留空，签到链路会自行刷新。
+ * stoken = stoken_v2/stoken；ltoken = ltoken_v2/ltoken（缺失且有 stoken 时用 V2 换票现换，见 {@link TokenExchange}）；
+ * cookie_token 缺失留空，签到链路会自行换票补齐。
  * 只要 stuid 与 stoken/ltoken 之一齐备即可导入；只有 ltoken 时社区签到可用，游戏签到/抽卡链接需要 stoken，由调用方提示。
  */
 public final class CookieLogin {
@@ -173,25 +173,19 @@ public final class CookieLogin {
         return ltoken;
     }
 
-    /** 单次 getLTokenBySToken 调用，失败返回 null（由上层决定是否重试/报错）。 */
+    /**
+     * 单次换 LToken：走通行证 V2 换票（{@code ma-cn-session/app/exchange}，dst_token_type=2），
+     * 失败返回 null（由上层决定是否重试/报错）。旧 {@code getLTokenBySToken} 已无法正常返回，不再使用。
+     */
     private static String requestLtoken(HeaderManager headerManager,
                                         String stoken, String mid) {
-        Map<String, String> headers = headerManager.get_bbs_headers();
-        headers.put("Cookie", "stoken=" + stoken + ";mid=" + mid);
         try {
-            String response = tools.sendGetRequest(Constants.Urls.LTOKEN_URL, headers, null);
-            JsonObject json = JsonParser.parseString(response).getAsJsonObject();
-            int retcode = JsonAccess.retcode(json);
-            Logger.debug(TAG, "getLTokenBySToken retcode=" + retcode);
-            if (retcode != 0) return null;
-            JsonElement data = json.get("data");
-            if (data == null || !data.isJsonObject()) return null;
-            JsonElement token = data.getAsJsonObject().get("ltoken");
-            if (token == null || token.isJsonNull()) return null;
-            String value = token.getAsString();
-            return value.isEmpty() ? null : value;
+            return TokenExchange.exchange(headerManager, stoken, mid, TokenExchange.TARGET_LTOKEN);
+        } catch (TokenExchange.ExchangeException e) {
+            Logger.debug(TAG, "exchange ltoken retcode=" + e.retcode + " " + e.getMessage());
+            return null;
         } catch (RuntimeException e) {
-            Logger.debug(TAG, "getLTokenBySToken failed: " + tools.describeError(e));
+            Logger.debug(TAG, "exchange ltoken failed: " + tools.describeError(e));
             return null;
         }
     }

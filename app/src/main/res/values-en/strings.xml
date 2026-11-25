@@ -500,7 +500,7 @@
     <string name="login_payload_missing">Missing payload field in response</string>
     <string name="login_raw_missing">Missing raw field in response</string>
     <string name="login_stoken_token_failed">QR stoken retrieval failed-getTokenByGameToken (RETCODE = %1$d), response: %2$s</string>
-    <string name="login_ltoken_failed">ltoken retrieval failed-getLTokenBySToken (RETCODE = %1$d), response: %2$s</string>
+    <string name="login_ltoken_failed">ltoken retrieval failed-passport token exchange (dst_token_type=2, RETCODE = %1$d), response: %2$s</string>
 
     <!-- Login method: QR code / account and password -->
     <string name="login_tab_qrcode_short">QR</string>

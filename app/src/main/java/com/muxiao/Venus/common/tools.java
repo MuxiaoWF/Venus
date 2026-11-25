@@ -486,16 +486,43 @@ public class tools {
         return new File(logDir, "daily_task_log_" + date + ".txt");
     }
 
-    /** 读 stoken/ltoken/mid/stuid 拼认证 Cookie（stoken 优先，无则用 ltoken）。 */
+    /**
+     * 按键值对拼 Cookie 字符串（{@code k1,v1,k2,v2,...}）：值为 null/空时整对跳过，自动补 ';' 分隔。
+     * 用于把同一 token 同时以 v1 / v2 字段名（{@code ltoken} 与 {@code ltoken_v2} 等）写入，
+     * 与米游社 App 注入 WebView 的形态一致，见 {@code User/TokenExchange.java}。
+     */
+    public static String buildCookie(String... keyValues) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            String key = keyValues[i];
+            String value = keyValues[i + 1];
+            if (key == null || value == null || value.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(';');
+            sb.append(key).append('=').append(value);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 读 stoken/ltoken/mid/stuid 拼认证 Cookie（stoken 优先，无则用 ltoken）。
+     * ltoken / ltuid / account_id 同时写 v2 别名（V2 换票产出的 token 与 v1 同值）。
+     */
     public static String buildUserCookie(Context context, String userId) {
         String stoken = read(context, userId, "stoken");
         String ltoken = read(context, userId, "ltoken");
         String mid = read(context, userId, "mid");
         String stuid = read(context, userId, "stuid");
-        if ((stoken == null && ltoken == null) || stuid == null) return null;
-        String sessionToken = stoken != null ? stoken : ltoken;
-        String tokenKey = stoken != null ? "stoken" : "ltoken";
-        return tokenKey + "=" + sessionToken + (mid != null ? ";mid=" + mid : "") + ";stuid=" + stuid + ";ltuid=" + stuid + ";";
+        boolean hasStoken = stoken != null && !stoken.isEmpty();
+        boolean hasLtoken = ltoken != null && !ltoken.isEmpty();
+        if ((!hasStoken && !hasLtoken) || stuid == null) return null;
+        String sessionToken = hasStoken ? stoken : ltoken;
+        return buildCookie(
+                hasStoken ? "stoken" : "ltoken", sessionToken,
+                hasStoken ? null : "ltoken_v2", sessionToken,
+                "mid", mid,
+                "stuid", stuid,
+                "ltuid", stuid, "ltuid_v2", stuid,
+                "account_id", stuid, "account_id_v2", stuid);
     }
 
     /**

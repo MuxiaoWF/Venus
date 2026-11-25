@@ -36,6 +36,7 @@ import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.DeviceUtils;
 import com.muxiao.Venus.common.HeaderManager;
+import com.muxiao.Venus.common.Logger;
 import com.muxiao.Venus.common.MiHoYoBBSConstants;
 import com.muxiao.Venus.common.tools;
 
@@ -946,13 +947,35 @@ public class UserLoginActivity extends BaseActivity {
         }
 
         /**
-         * 通过stoken获取ltoken，扫码登录与账号密码登录拿到 stoken 后共用
+         * 用 SToken 换 LToken，扫码 / 账密 / 短信登录拿到 stoken 后共用。
+         * 国服走通行证 V2 换票（{@link TokenExchange}；旧 {@code getLTokenBySToken} 已无法正常返回），
+         * 国际服无 exchange 端点，仍用旧接口。
          */
         private void get_ltoken_by_stoken() {
+            String stoken = tools.read(context, storageId, "stoken");
+            String mid = tools.read(context, storageId, "mid");
+            String ltoken;
+            if (isOversea) {
+                ltoken = request_ltoken_legacy(stoken, mid);
+            } else {
+                try {
+                    ltoken = TokenExchange.exchange(header_manager, stoken, mid, TokenExchange.TARGET_LTOKEN);
+                } catch (TokenExchange.ExchangeException e) {
+                    throw new RuntimeException(getString(R.string.login_ltoken_failed, e.retcode, e.getMessage()));
+                } catch (RuntimeException e) {
+                    throw new RuntimeException(getString(R.string.login_ltoken_failed, -1, tools.describeError(e)));
+                }
+            }
+            tools.write(context, storageId, "ltoken", ltoken);
+            // 登录时顺手换一次 CookieToken 落库，省掉首次签到时的额外换票往返
+            if (!isOversea) prefetch_cookie_token(stoken, mid);
+        }
+
+        /** 国际服兜底：旧版 getLTokenBySToken（海外无 exchange 端点）。 */
+        private String request_ltoken_legacy(String stoken, String mid) {
             Map<String, String> bbs_headers = header_manager.get_bbs_headers();
-            bbs_headers.put("Cookie", "stoken=" + tools.read(context, storageId, "stoken") + ";mid=" + tools.read(context, storageId, "mid"));
-            String ltokenUrl = isOversea ? Constants.Urls.OS_LTOKEN_URL : Constants.Urls.LTOKEN_URL;
-            String response = tools.sendGetRequest(ltokenUrl, bbs_headers, null);
+            bbs_headers.put("Cookie", "stoken=" + stoken + ";mid=" + mid);
+            String response = tools.sendGetRequest(Constants.Urls.OS_LTOKEN_URL, bbs_headers, null);
             JsonObject result = JsonParser.parseString(response).getAsJsonObject();
             int retcode = JsonAccess.retcode(result);
             if (retcode != 0)
@@ -961,8 +984,17 @@ public class UserLoginActivity extends BaseActivity {
                     ? result.getAsJsonObject("data") : null;
             if (ltokenData == null || !ltokenData.has("ltoken") || ltokenData.get("ltoken").isJsonNull())
                 throw new RuntimeException(getString(R.string.login_ltoken_failed, retcode, response));
-            String ltoken = ltokenData.get("ltoken").getAsString();
-            tools.write(context, storageId, "ltoken", ltoken);
+            return ltokenData.get("ltoken").getAsString();
+        }
+
+        /** 登录尾部补一次 CookieToken；失败只记日志（签到链路还会自行换票），不影响登录结果。 */
+        private void prefetch_cookie_token(String stoken, String mid) {
+            try {
+                tools.write(context, storageId, "cookie_token",
+                        TokenExchange.exchange(header_manager, stoken, mid, TokenExchange.TARGET_COOKIE_TOKEN));
+            } catch (RuntimeException e) {
+                Logger.debug("VenusLogin", "登录后换 CookieToken 失败：" + tools.describeError(e));
+            }
         }
     }
 

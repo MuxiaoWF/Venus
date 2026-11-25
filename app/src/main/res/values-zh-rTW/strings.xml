@@ -491,7 +491,7 @@
     <string name="login_payload_missing">回應中缺少 payload 欄位</string>
     <string name="login_raw_missing">回應中缺少 raw 欄位</string>
     <string name="login_stoken_token_failed">掃碼取得stoken失敗-getTokenByGameToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
-    <string name="login_ltoken_failed">取得ltoken失敗-getLTokenBySToken(RETCODE = %1$d)，回傳資訊為：%2$s</string>
+    <string name="login_ltoken_failed">取得ltoken失敗-通行證換票(exchange, dst_token_type=2) RETCODE = %1$d，回傳資訊為：%2$s</string>
 
     <!-- 登入方式：掃碼 / 帳號密碼 -->
     <string name="login_tab_qrcode_short">掃碼</string>

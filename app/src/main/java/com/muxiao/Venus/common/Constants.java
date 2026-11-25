@@ -74,8 +74,16 @@ public class Constants {
         public static final String OS_LOGIN_QR_URL = "https://hk4e-sdk.hoyoverse.com/hk4e_global/combo/panda/qrcode/fetch";
         public static final String OS_LOGIN_CHECK_URL = "https://hk4e-sdk.hoyoverse.com/hk4e_global/combo/panda/qrcode/query";
         public static final String OS_STOKEN_URL = OS_BASE_URL + "/account/ma-cn-session/app/getTokenByGameToken";
+        /** 旧版换 LToken（已不可用，仅国际服兜底保留）。 */
         public static final String OS_LTOKEN_URL = "https://passport-api.hoyoverse.com/account/auth/api/getLTokenBySToken";
+        /** 旧版换 LToken（已不可用，仅作无 mid 时的兜底）。 */
         public static final String LTOKEN_URL = "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken";
+        /**
+         * 通行证 V2 换票：用 SToken 兑换 LToken（dst_token_type=2）/ CookieToken（dst_token_type=4）。
+         * 取代已停用的 getLTokenBySToken / getCookieAccountInfoBySToken，
+         * 见 {@code User/TokenExchange.java}。
+         */
+        public static final String PASSPORT_EXCHANGE_URL = "https://passport-api.mihoyo.com/account/ma-cn-session/app/exchange";
         // 账号密码登录（国服 passport，返回的 token 即 stoken，user_info 中含 mid）
         public static final String PASSWORD_LOGIN_URL = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByPassword";
         // 扫码登录（国服 passport 版）：Confirmed 响应直接带 tokens[] 与 user_info.mid/aid，不必再换票
@@ -137,8 +145,8 @@ public class Constants {
         public static final String MUXIAO_MINE_GITHUB_URL = "https://github.com/MuxiaoWF/Venus";
         public static final String MUXIAO_MINE_BLOG_URL = "https://muxiaowf.top/";
 
-        public static final String SKLAND_LOGIN_URL = "https://www.skland.com/login";
-        public static final String SKLAND_COOKIE_URL = "https://web-api.skland.com/account/info/hg";
+        public static final String SKLAND_LOGIN_URL = "https://user.hypergryph.com/login";
+        public static final String SKLAND_COOKIE_URL = "https://web-api.hypergryph.com/account/info/hg";
     }
 
     public static class Prefs {

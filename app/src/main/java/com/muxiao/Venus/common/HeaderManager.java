@@ -261,6 +261,39 @@ public class HeaderManager {
     }
 
     /**
+     * 通行证 V2 换票（{@code ma-cn-session/app/exchange}）请求头：账号 SDK 同族头 + passport salt 带 body 的 DS。
+     * 与 {@link #get_password_headers} 的差异：client_type 固定 2、不带 aigis；sdk/account 版本取
+     * {@link MiHoYoBBSConstants#PASSPORT_SDK_VERSION}。body 须与实际请求体逐字节一致，否则 -100 判签名错误。
+     *
+     * @param body 已序列化的换票请求体 JSON
+     */
+    public Map<String, String> get_exchange_headers(String body) {
+        Map<String, String> h = new HashMap<>();
+        h.put("Accept", "application/json");
+        h.put("Content-Type", "application/json");
+        h.put("User-Agent", user_agent);
+        h.put("x-rpc-app_id", currentAppId);
+        h.put("x-rpc-client_type", "2");
+        h.put("x-rpc-app_version", BBSconstants.bbs_version);
+        h.put("x-rpc-game_biz", isOversea ? "bbs_os" : "bbs_cn");
+        h.put("x-rpc-sys_version", Build.VERSION.RELEASE);
+        h.put("x-rpc-sdk_version", MiHoYoBBSConstants.PASSPORT_SDK_VERSION);
+        h.put("x-rpc-account_version", MiHoYoBBSConstants.PASSPORT_SDK_VERSION);
+        h.put("x-rpc-device_id", getDeviceId());
+        h.put("x-rpc-device_name", sanitizeHeaderValue(Build.DEVICE));
+        h.put("x-rpc-device_model", sanitizeHeaderValue(Build.MODEL));
+        h.put("x-rpc-lifecycle_id", LIFECYCLE_ID);
+        try {
+            String fp = getFp();
+            if (!fp.isEmpty()) h.put("x-rpc-device_fp", fp);
+        } catch (RuntimeException ignored) {
+            // 设备指纹接口不可达时不带该头：换票不依赖它，不该因为 FP 拉取失败而整体失败
+        }
+        h.put("DS", getDS_passport(body));
+        return h;
+    }
+
+    /**
      * 国服扫码登录（createQRLogin / queryQRLoginStatus）：DS = X4 salt + 带 body 算法（{@link #getDS_4x}），
      * app_version / sdk_version / account_version 三者同值。
      *
