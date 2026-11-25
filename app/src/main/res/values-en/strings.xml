@@ -750,6 +750,7 @@
     <string name="login_avatar_label">Avatar</string>
     <string name="login_avatar_hint">Optional · applied to this account after sign-in</string>
     <string name="login_avatar_picked">Selected · applied after sign-in</string>
+    <string name="login_avatar_existing">Existing avatar kept · tap to replace</string>
 
     <!-- Multi-account: home batch entry and aggregate bar -->
     <string name="home_run_all">All accounts (%1$d)</string>

@@ -16,7 +16,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 用户自定义头像存取：相册选图 → 方向校正 → 居中裁方 → 缩放后以 JPEG 存入
+ * 用户自定义头像存取：相册选图先经 CropActivity 方形裁剪（用户手动取景），落盘时再做
+ * 方向校正 → 兜底居中裁方（非方形输入的安全网）→ 缩放，以 JPEG 存入
  * {@code filesDir/avatars/<md5(username)>.jpg}（MD5 文件名规避用户名里的非法字符）；文件存在即视为已设置。
  * 展示由 Compose 侧的 VenusAvatar 负责，本类只提供 hasAvatar/avatarFile 数据。
  */

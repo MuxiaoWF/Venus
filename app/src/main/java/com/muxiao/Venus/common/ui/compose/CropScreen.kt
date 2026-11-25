@@ -67,7 +67,7 @@ class CropScreenUiState {
     /** 已解码（含 EXIF 方向修正）的源图；null 时显示加载态。 */
     var source: Bitmap? by mutableStateOf(null)
 
-    /** 裁剪框宽高比（宽/高），与屏幕比例一致；<=0 时按源图自身比例兜底。 */
+    /** 裁剪框宽高比（宽/高）：背景页=屏幕比例、头像页=1:1；<=0 时按源图自身比例兜底。 */
     var frameAspect by mutableFloatStateOf(0f)
 }
 

@@ -739,6 +739,7 @@
     <string name="login_avatar_label">头像</string>
     <string name="login_avatar_hint">选填，登录成功后应用到这个账号</string>
     <string name="login_avatar_picked">已选择，登录成功后应用</string>
+    <string name="login_avatar_existing">已保留该账号的头像，点击可更换</string>
 
     <!-- 多账号：首页批量入口与聚合条 -->
     <string name="home_run_all">全部账号（%1$d）</string>

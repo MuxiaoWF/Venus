@@ -42,6 +42,8 @@ public class CropActivity extends BaseActivity {
 
     public static final String EXTRA_SOURCE = "extra_source";
     public static final String EXTRA_RESULT_PATH = "extra_result_path";
+    /** 方形裁剪模式（宽高比 1:1、输出不放大到整屏）：头像设置复用本页时启用。 */
+    public static final String EXTRA_SQUARE = "extra_square";
 
     /**
      * 解码降采样上限：最长边 ≤ {@code 4800}，且总像素 ≤ {@link #MAX_DECODE_PIXELS}。
@@ -55,6 +57,9 @@ public class CropActivity extends BaseActivity {
     private static final double MAX_DECODE_PIXELS = 16_000_000d;
 
     private CropScreenView pane;
+
+    /** 方形裁剪模式：EXTRA_SQUARE=true 时裁剪框 1:1、输出保持框尺寸不放大（背景模式才放大到整屏）。 */
+    private boolean squareMode;
 
     /** 屏幕像素尺寸：裁剪框比例与输出尺寸的统一基准（onCreate 一次解析）。 */
     private int screenWidth, screenHeight;
@@ -97,9 +102,11 @@ public class CropActivity extends BaseActivity {
             }
         });
 
-        // 裁剪框与屏幕同比例（对齐原 UCrop withAspectRatio(screenWidth, screenHeight) 行为）
+        // 裁剪框比例：方形模式（头像）锁定 1:1；背景模式与屏幕同比例（对齐原 UCrop withAspectRatio 行为）
+        squareMode = getIntent().getBooleanExtra(EXTRA_SQUARE, false);
         resolveScreenSize();
-        float aspect = screenHeight > 0 ? (float) screenWidth / screenHeight : 0f;
+        float aspect = squareMode ? 1f
+                : (screenHeight > 0 ? (float) screenWidth / screenHeight : 0f);
         decodeImage(Uri.parse(source), aspect);
     }
 
@@ -208,15 +215,16 @@ public class CropActivity extends BaseActivity {
                 Math.max(1, (int) Math.round(bounds.outHeight * scale))};
     }
 
-    /** 确认：框内容等比放大到整屏尺寸（裁剪框比例=屏幕比例，无变形；对齐旧 UCrop 输出整屏尺寸的口径，
-     *  否则外壳 ContentScale.Crop 会把小一圈的成品再放大铺屏，表现为背景异常放大），
-     *  JPEG(质量100) 写入缓存临时文件，回传路径（保存链路复用 SettingsFragment.saveBackgroundImage）。 */
+    /** 确认：背景模式把框内容等比放大到整屏尺寸（裁剪框比例=屏幕比例，无变形；对齐旧 UCrop 输出整屏尺寸的口径，
+     *  否则外壳 ContentScale.Crop 会把小一圈的成品再放大铺屏，表现为背景异常放大）；
+     *  方形模式（头像）保持框尺寸输出，落盘侧自会缩放。JPEG(质量100) 写入缓存临时文件，回传路径。 */
     private void saveAndFinish(Bitmap bitmap) {
+        String tempName = squareMode ? "temp_cropped_avatar.jpg" : "temp_cropped_background.jpg";
         AppExecutors.get().execute(() -> {
-            File out = new File(getCacheDir(), "temp_cropped_background.jpg");
+            File out = new File(getCacheDir(), tempName);
             try (FileOutputStream fos = new FileOutputStream(out)) {
                 Bitmap toSave = bitmap;
-                if (screenWidth > 0 && screenHeight > 0
+                if (!squareMode && screenWidth > 0 && screenHeight > 0
                         && (bitmap.getWidth() != screenWidth || bitmap.getHeight() != screenHeight)) {
                     toSave = Bitmap.createScaledBitmap(bitmap, screenWidth, screenHeight, true);
                 }

@@ -18,6 +18,7 @@ import com.muxiao.Venus.Home.SklandDaily;
 import com.muxiao.Venus.Home.TaskSettings;
 import com.muxiao.Venus.MainActivity;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.CropActivity;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.AppExecutors;
 import com.muxiao.Venus.common.Constants;
@@ -31,6 +32,7 @@ import com.muxiao.Venus.common.ui.compose.UserCardRow;
 import com.muxiao.Venus.common.ui.compose.UserManagementScreenView;
 import com.muxiao.Venus.widget.TaskStatusManager;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,6 +58,8 @@ public class UserManagementFragment implements PageController {
     };
     /** 系统照片选择器（Photo Picker，无需存储权限）：MainActivity 注册后注入。 */
     private ActivityResultLauncher<PickVisualMediaRequest> avatarPicker;
+    /** CropActivity 裁剪结果：MainActivity 注册后注入（选图 → 裁剪 → 落盘，见 onAvatarCropResult）。 */
+    private ActivityResultLauncher<Intent> avatarCropLauncher;
 
     public UserManagementFragment(MainActivity activity) {
         this.activity = activity;
@@ -65,12 +69,42 @@ public class UserManagementFragment implements PageController {
         this.avatarPicker = picker;
     }
 
-    /** 照片选择器返回回调（MainActivity 的 launcher 转发）。 */
+    public void setAvatarCropLauncher(ActivityResultLauncher<Intent> launcher) {
+        this.avatarCropLauncher = launcher;
+    }
+
+    /** 照片选择器返回回调（MainActivity 的 launcher 转发）：先进入 CropActivity 方形裁剪，落盘推迟到裁剪确认。 */
     public void onAvatarPicked(Uri uri) {
+        if (pendingAvatarUser == null || uri == null) {
+            pendingAvatarUser = null;
+            return;
+        }
+        if (avatarCropLauncher == null) {
+            // 无裁剪 launcher（理论上不会发生）：回退为直接落盘
+            String username = pendingAvatarUser;
+            pendingAvatarUser = null;
+            handleAvatarPicked(username, uri);
+            return;
+        }
+        Intent intent = new Intent(activity, CropActivity.class);
+        intent.putExtra(CropActivity.EXTRA_SOURCE, uri.toString());
+        intent.putExtra(CropActivity.EXTRA_SQUARE, true);
+        avatarCropLauncher.launch(intent);
+        // pendingAvatarUser 保留：裁剪结果返回时凭此定位目标用户（onAvatarCropResult 清空）
+    }
+
+    /** CropActivity 返回回调：确认 → 按裁剪产物落盘；取消/失败 → 丢弃本次选择。 */
+    public void onAvatarCropResult(int resultCode, Intent data) {
         String username = pendingAvatarUser;
         pendingAvatarUser = null;
-        if (username == null || uri == null) return;
-        handleAvatarPicked(username, uri);
+        if (username == null || resultCode != android.app.Activity.RESULT_OK || data == null) return;
+        String path = data.getStringExtra(CropActivity.EXTRA_RESULT_PATH);
+        if (path == null) {
+            showCustomSnackbar(screenView, getContext(),
+                    activity.getString(R.string.err_avatar_save_failed));
+            return;
+        }
+        handleAvatarPicked(username, Uri.fromFile(new File(path)));
     }
 
     /** 构建页面 UI（外壳首次组合时调用一次）：绑定回调、初始化用户列表与底栏订阅。 */
@@ -450,7 +484,7 @@ public class UserManagementFragment implements PageController {
                 activity.getString(R.string.btn_cancel));
     }
 
-    /** 照片选择器回调：后台线程解码落盘，完成后回主线程刷新列表并提示。 */
+    /** 裁剪产物落盘回调：后台线程解码落盘，完成后回主线程刷新列表并提示。 */
     private void handleAvatarPicked(String username, Uri uri) {
         android.content.Context appContext = getContext().getApplicationContext();
         AppExecutors.get().execute(() -> {

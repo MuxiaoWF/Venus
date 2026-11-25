@@ -731,6 +731,7 @@
     <string name="login_avatar_label">頭像</string>
     <string name="login_avatar_hint">選填，登入成功後套用到這個帳號</string>
     <string name="login_avatar_picked">已選擇，登入成功後套用</string>
+    <string name="login_avatar_existing">已保留該帳號的頭像，點擊可更換</string>
 
     <!-- 多帳號：首頁批次入口與聚合列 -->
     <string name="home_run_all">全部帳號（%1$d）</string>

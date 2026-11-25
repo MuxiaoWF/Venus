@@ -31,6 +31,7 @@ import com.geetest.sdk.GT3GeetestUtils;
 import com.geetest.sdk.GT3Listener;
 import com.muxiao.Venus.Home.JsonAccess;
 import com.muxiao.Venus.R;
+import com.muxiao.Venus.Setting.CropActivity;
 import com.muxiao.Venus.Setting.SettingsFragment;
 import com.muxiao.Venus.common.Constants;
 import com.muxiao.Venus.common.DeviceUtils;
@@ -40,6 +41,7 @@ import com.muxiao.Venus.common.tools;
 
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -95,12 +97,26 @@ public class UserLoginActivity extends BaseActivity {
     /** 登录页选好、尚未落盘的头像；登录成功才写入该账号（失败不留孤儿文件）。 */
     private volatile Uri pendingAvatar;
 
-    /** 相册选头像：Photo Picker 不需要存储权限，选完只做预览，落盘推迟到登录成功。 */
+    /** CropActivity 返回回调：确认 → 以裁剪产物为待落盘头像并更新预览；取消则维持原状态。
+     *  必须先于 avatarPicker 声明：Java 字段初始化器不允许前向引用。 */
+    private final ActivityResultLauncher<Intent> avatarCropLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+                String path = result.getData().getStringExtra(CropActivity.EXTRA_RESULT_PATH);
+                if (path == null) return;
+                Uri uri = Uri.fromFile(new File(path));
+                pendingAvatar = uri;
+                if (pane != null) pane.setPendingAvatar(uri);
+            });
+
+    /** 相册选头像：Photo Picker 不需要存储权限；选完先进 CropActivity 方形裁剪，确认后才作为待落盘头像。 */
     private final ActivityResultLauncher<PickVisualMediaRequest> avatarPicker =
             registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
                 if (uri == null) return;
-                pendingAvatar = uri;
-                if (pane != null) pane.setPendingAvatar(uri);
+                Intent intent = new Intent(this, CropActivity.class);
+                intent.putExtra(CropActivity.EXTRA_SOURCE, uri.toString());
+                intent.putExtra(CropActivity.EXTRA_SQUARE, true);
+                avatarCropLauncher.launch(intent);
             });
 
     @Override
@@ -125,8 +141,11 @@ public class UserLoginActivity extends BaseActivity {
 
         // 如果是重新登录模式，用户名固定展示在按钮上并隐藏输入框
         // 用 displayName：存储 id 可能带内部后缀
-        if (relogin_mode && relogin_username != null)
+        if (relogin_mode && relogin_username != null) {
             pane.setRelogin(user_manager.displayName(relogin_username));
+            // 头像按 storage id 定址回显 AvatarStore 中已有头像（新选头像仍优先预览）
+            pane.setExistingAvatarUser(relogin_username);
+        }
 
         // 登录方式切换：账号密码/短信/Cookie 均仅国服可用，国际服隐藏切换入口
         if (MiHoYoBBSConstants.is_oversea(this)) {

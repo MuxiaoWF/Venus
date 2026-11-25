@@ -83,6 +83,8 @@ fun UserLoginScreen(
     log: String,
     /** 登录页选好但尚未落盘的头像（登录成功才写入该账号）；null = 用默认头像。 */
     avatarUri: Uri?,
+    /** 重新登录时该账号已有的自定义头像（AvatarStore 按 storage id 定址）；无新选头像时回显，null 或无头像文件则显示默认图标。 */
+    existingAvatarUser: String? = null,
     onBackClick: () -> Unit,
     onPickAvatarClick: () -> Unit,
     onModeSelect: (Int) -> Unit,
@@ -220,6 +222,8 @@ fun UserLoginScreen(
                         // 登录进行中禁止换头像：此时提交的任务已经带走凭证，再改会与落盘时序打架
                         enabled = inputsEnabled,
                         onPick = onPickAvatarClick,
+                        // 重新登录：未新选头像时回显该账号已有头像
+                        existingAvatarUser = existingAvatarUser,
                     )
                     // 重登录模式：用户名固定展示在按钮上，输入框隐藏
                     if (!reloginMode) {
@@ -419,6 +423,7 @@ private fun LoginAvatarRow(
     avatarUri: Uri?,
     enabled: Boolean,
     onPick: () -> Unit,
+    existingAvatarUser: String? = null,
 ) {
     val textStyles = LocalVenusTextStyles.current
     val avatarSize = dimensionResource(R.dimen.icon_badge_lg)
@@ -438,7 +443,8 @@ private fun LoginAvatarRow(
             if (avatarUri != null) {
                 AvatarPreview(model = avatarUri, size = avatarSize)
             } else {
-                VenusAvatar(username = null, size = avatarSize)
+                // 重新登录：回显该账号已有头像；storage id 在 AvatarStore 无头像文件时 VenusAvatar 内部自动回落默认图标
+                VenusAvatar(username = existingAvatarUser, size = avatarSize)
             }
         }
         Column(
@@ -449,7 +455,12 @@ private fun LoginAvatarRow(
             Text(text = stringResource(R.string.login_avatar_label), style = textStyles.drawerLabel)
             Text(
                 text = stringResource(
-                    if (avatarUri == null) R.string.login_avatar_hint else R.string.login_avatar_picked
+                    when {
+                        avatarUri != null -> R.string.login_avatar_picked
+                        // 重新登录且回显已有头像：提示保留原头像、可点击更换
+                        existingAvatarUser != null -> R.string.login_avatar_existing
+                        else -> R.string.login_avatar_hint
+                    }
                 ),
                 style = textStyles.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -478,6 +489,8 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
     private val logState = mutableStateOf("")
     /** 登录页选好的头像（尚未落盘）；登录成功后由 Activity 写入该账号。 */
     private val avatarUriState = mutableStateOf<Uri?>(null)
+    /** 重新登录时该账号已有的自定义头像（AvatarStore 按 storage id 定址），用于无新选头像时回显。 */
+    private val existingAvatarUserState = mutableStateOf<String?>(null)
 
     private var onBackClickListener: Runnable? = null
     private var onModeSelectListener: IndexConsumer? = null
@@ -553,6 +566,11 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
         avatarUriState.value = uri
     }
 
+    /** 重新登录：传入该账号的 storage id，登录页回显其在 AvatarStore 中已有的头像。 */
+    fun setExistingAvatarUser(storageId: String?) {
+        existingAvatarUserState.value = storageId
+    }
+
     /** 清空密码框（登录成功后避免明文长期驻留界面）。 */
     fun clearPassword() {
         passwordState.value = ""
@@ -587,6 +605,7 @@ class UserLoginScreenView(context: Context) : AbstractComposeView(context) {
                     qrBitmap = qrBitmapState.value,
                     log = logState.value,
                     avatarUri = avatarUriState.value,
+                    existingAvatarUser = existingAvatarUserState.value,
                     onBackClick = { onBackClickListener?.run() },
                     onPickAvatarClick = { onPickAvatarClickListener?.run() },
                     onModeSelect = { mode ->

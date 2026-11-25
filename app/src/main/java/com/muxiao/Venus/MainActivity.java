@@ -166,10 +166,13 @@ public class MainActivity extends BaseActivity {
         ActivityResultLauncher<Intent> linkBatteryLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> linkController.startCaptureAfterChecks());
-        // 用户管理页：头像照片选择器
+        // 用户管理页：头像照片选择器 + CropActivity 方形裁剪（选图 → 裁剪 → 落盘）
         ActivityResultLauncher<PickVisualMediaRequest> userAvatarPicker = registerForActivityResult(
             new ActivityResultContracts.PickVisualMedia(),
             usersController::onAvatarPicked);
+        ActivityResultLauncher<Intent> avatarCropLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> usersController.onAvatarCropResult(result.getResultCode(), result.getData()));
         // 设置页：背景图选择（Photo Picker / 老设备回退）+ CropActivity 裁剪 + 电池优化豁免
         ActivityResultLauncher<PickVisualMediaRequest> settingsPickMedia = registerForActivityResult(
             new ActivityResultContracts.PickVisualMedia(),
@@ -192,6 +195,7 @@ public class MainActivity extends BaseActivity {
         // 分发（控制器在视图创建前只持有引用，attach 后使用）
         linkController.setLaunchers(linkVpnLauncher, linkBatteryLauncher);
         usersController.setAvatarPicker(userAvatarPicker);
+        usersController.setAvatarCropLauncher(avatarCropLauncher);
         settingsController.setLaunchers(settingsPickMedia, settingsSelectImageLauncher,
             settingsCropLauncher, settingsBatteryLauncher, settingsCloudTokenLauncher);
     }
